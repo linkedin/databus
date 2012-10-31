@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+    
+  <bean id="lastWriteTimeTracker1" class="com.linkedin.databus.client.LastWriteTimeTrackerImpl" lazy-init="false"/>
+  <bean id="lastWriteTimeTracker2" class="com.linkedin.databus.client.LastWriteTimeTrackerImpl" lazy-init="false"/>
+  <bean id="lastWriteTimeTracker3" class="com.linkedin.databus.client.LastWriteTimeTrackerImpl" lazy-init="false"/>
+  
+  <bean id="databus2TestConsumer1" class="com.linkedin.databus.client.test.SimulatingTestClientRunnable">
+    <constructor-arg value="${databus2.multi.test.consumer1.default}" type="java.util.Properties" />
+    <constructor-arg ref="lastWriteTimeTracker1" type="com.linkedin.databus.client.LastWriteTimeTrackerImpl" />
+  </bean>
+
+  <bean id="databus2TestConsumer2" class="com.linkedin.databus.client.test.SimulatingTestClientRunnable">
+    <constructor-arg value="${databus2.multi.test.consumer2.default}" type="java.util.Properties" />
+    <constructor-arg ref="lastWriteTimeTracker2" type="com.linkedin.databus.client.LastWriteTimeTrackerImpl" />
+  </bean>
+  
+   <bean id="databus2TestConsumer3" class="com.linkedin.databus.client.test.SimulatingTestClientRunnable">
+    <constructor-arg value="${databus2.multi.test.consumer3.default}" type="java.util.Properties" />
+    <constructor-arg ref="lastWriteTimeTracker3" type="com.linkedin.databus.client.LastWriteTimeTrackerImpl" />
+  </bean>
+  
+  <bean id="databus2TestClientSensorFactory1" class="com.linkedin.databus.client.DatabusClientSensorFactory" lazy-init="false">
+  	<constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+	<constructor-arg index="1" ref="databus2TestConsumer1" type="com.linkedin.databus.client.DatabusClientRunnable" />
+  </bean>
+
+  <bean id="databus2TestClientSensorFactory2" class="com.linkedin.databus.client.DatabusClientSensorFactory" lazy-init="false">
+  	<constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+	<constructor-arg index="1" ref="databus2TestConsumer2" type="com.linkedin.databus.client.DatabusClientRunnable" />
+  </bean>
+
+  <bean id="databus2TestClientSensorFactory3" class="com.linkedin.databus.client.DatabusClientSensorFactory" lazy-init="false">
+  	<constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+	<constructor-arg index="1" ref="databus2TestConsumer3" type="com.linkedin.databus.client.DatabusClientRunnable" />
+  </bean>
+</beans>

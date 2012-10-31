@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+    
+  <bean id="databus2Relay.anet" class="com.linkedin.databus2.relayli.RelayStartable">
+    <constructor-arg index="0" value="${databus2.relay.default}" type="java.util.Properties" />
+    <constructor-arg index="1" value="${databus2.relay.local.anet}" type="java.util.Properties" />
+    <constructor-arg index="2">
+      <list value-type="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+          <bean class="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+            <property name="name" value="anet"/>
+            <property name="uri" value="${db.anet.db_url}"/>
+            <property name="slowSourceQueryThreshold" value="${databus2.relay.slowSourceQueryThreshold}" />
+            <property name="restartScnOffset" value="${databus2.relay.restartScnOffset}" />
+             <property name="sources">
+              <list value-type="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="501"/>
+                  <property name="name" value="com.linkedin.events.anet.AnetMailDomain"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.anet.uri.mail_domain}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="502"/>
+                  <property name="name" value="com.linkedin.events.anet.AnetMembers"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.anet.uri.members}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="503"/>
+                  <property name="name" value="com.linkedin.events.anet.Anets"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.anet.uri.anets}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="504"/>
+                  <property name="name" value="com.linkedin.events.anet.RestrictedMailDomain"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.anet.uri.restricted_mail_domain}"/>
+                </bean>
+              </list>
+            </property>
+            <property name="retries">
+              <bean class="com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder">
+                <property name="maxRetryNum" value="${databus2.relay.maxDbRetryNum}" />
+                <property name="initSleep" value="${databus2.relay.dbPollIntervalMs}" />
+                <property name="maxSleep" value="${databus2.relay.dbMaxErrorSleepMs}" />
+                <property name="sleepIncDelta" value="0" />
+                <property name="sleepIncFactor" value="2.0" />
+              </bean>
+            </property>
+          </bean>
+      </list>
+    </constructor-arg>
+  </bean>
+    
+  <bean id="relaySensorFactory.anet" class="com.linkedin.databus2.relay.DatabusRelaySensorFactory" lazy-init="false">
+    <constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+    <constructor-arg index="1" ref="databus2Relay.anet" type="com.linkedin.databus2.relayli.RelayStartable" />
+  </bean>   
+</beans>

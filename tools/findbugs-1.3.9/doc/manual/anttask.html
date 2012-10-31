@@ -1,0 +1,203 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;6.&nbsp;Using the FindBugs&#8482; Ant task</title><meta name="generator" content="DocBook XSL Stylesheets V1.71.1"><link rel="start" href="index.html" title="FindBugs&#8482; Manual"><link rel="up" href="index.html" title="FindBugs&#8482; Manual"><link rel="prev" href="gui.html" title="Chapter&nbsp;5.&nbsp;Using the FindBugs GUI"><link rel="next" href="eclipse.html" title="Chapter&nbsp;7.&nbsp;Using the FindBugs&#8482; Eclipse plugin"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter&nbsp;6.&nbsp;Using the <span class="application">FindBugs</span>&#8482; <span class="application">Ant</span> task</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="gui.html">Prev</a>&nbsp;</td><th width="60%" align="center">&nbsp;</th><td width="20%" align="right">&nbsp;<a accesskey="n" href="eclipse.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="anttask"></a>Chapter&nbsp;6.&nbsp;Using the <span class="application">FindBugs</span>&#8482; <span class="application">Ant</span> task</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="anttask.html#d0e1200">1. Installing the <span class="application">Ant</span> task</a></span></dt><dt><span class="sect1"><a href="anttask.html#d0e1238">2. Modifying build.xml</a></span></dt><dt><span class="sect1"><a href="anttask.html#d0e1309">3. Executing the task</a></span></dt><dt><span class="sect1"><a href="anttask.html#d0e1334">4. Parameters</a></span></dt></dl></div><p>
+This chapter describes how to integrate <span class="application">FindBugs</span> into a build script
+for <a href="http://ant.apache.org/" target="_top"><span class="application">Ant</span></a>, which is a popular Java build
+and deployment tool.  Using the <span class="application">FindBugs</span> <span class="application">Ant</span> task, your build script can
+automatically run <span class="application">FindBugs</span> on your Java code.
+</p><p>
+The <span class="application">Ant</span> task was generously contributed by Mike Fagan.
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1200"></a>1.&nbsp;Installing the <span class="application">Ant</span> task</h2></div></div></div><p>
+To install the <span class="application">Ant</span> task, simply copy <code class="filename"><em class="replaceable"><code>$FINDBUGS_HOME</code></em>/lib/findbugs-ant.jar</code>
+into the <code class="filename">lib</code> subdirectory of your <span class="application">Ant</span> installation.
+
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="note.png"></td><th align="left">Note</th></tr><tr><td align="left" valign="top"><p>It is strongly recommended that you use the <span class="application">Ant</span> task with the version
+of <span class="application">FindBugs</span> it was included with.  We do not guarantee that the <span class="application">Ant</span> task Jar file
+will work with any version of <span class="application">FindBugs</span> other than the one it was included with.</p></td></tr></table></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1238"></a>2.&nbsp;Modifying build.xml</h2></div></div></div><p>
+To incorporate <span class="application">FindBugs</span> into <code class="filename">build.xml</code> (the build script
+for <span class="application">Ant</span>), you first need to add a task definition.  This should appear as follows:
+
+</p><pre class="screen">
+  &lt;taskdef name="findbugs" classname="edu.umd.cs.findbugs.anttask.FindBugsTask"/&gt;
+</pre><p>
+
+The task definition specifies that when a <code class="literal">findbugs</code> element is
+seen in <code class="filename">build.xml</code>, it should use the indicated class to execute the task.
+</p><p>
+After you have added the task definition, you can define a target
+which uses the <code class="literal">findbugs</code> task.  Here is an example
+which could be added to the <code class="filename">build.xml</code> for the
+Apache <a href="http://jakarta.apache.org/bcel/" target="_top">BCEL</a> library.
+
+</p><pre class="screen">
+  &lt;property name="findbugs.home" value="/export/home/daveho/work/findbugs" /&gt;
+
+  &lt;target name="findbugs" depends="jar"&gt;
+    &lt;findbugs home="${findbugs.home}"
+              output="xml"
+              outputFile="bcel-fb.xml" &gt;
+      &lt;auxClasspath path="${basedir}/lib/Regex.jar" /&gt;
+      &lt;sourcePath path="${basedir}/src/java" /&gt;
+      &lt;class location="${basedir}/bin/bcel.jar" /&gt;
+    &lt;/findbugs&gt;
+  &lt;/target&gt;
+</pre><p>
+
+The <code class="literal">findbugs</code> element must have the <code class="literal">home</code>
+attribute set to the directory in which <span class="application">FindBugs</span> is installed; in other words,
+<em class="replaceable"><code>$FINDBUGS_HOME</code></em>.  See <a href="installing.html" title="Chapter&nbsp;2.&nbsp;Installing FindBugs&#8482;">Chapter&nbsp;2, <i>Installing <span class="application">FindBugs</span>&#8482;</i></a>.
+</p><p>
+This target will execute <span class="application">FindBugs</span> on <code class="filename">bcel.jar</code>, which is the
+Jar file produced by BCEL's build script.  (By making it depend on the "jar"
+target, we ensure that the library is fully compiled before running <span class="application">FindBugs</span> on it.)
+The output of <span class="application">FindBugs</span> will be saved in XML format to a file called
+<code class="filename">bcel-fb.xml</code>.
+An auxiliary Jar file, <code class="filename">Regex.jar</code>, is added to the aux classpath,
+because it is referenced by the main BCEL library.  A source path is specified
+so that the saved bug data will have accurate references to the BCEL source code.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1309"></a>3.&nbsp;Executing the task</h2></div></div></div><p>
+Here is an example of invoking <span class="application">Ant</span> from the command line, using the <code class="literal">findbugs</code>
+target defined above.
+
+</p><pre class="screen">
+  <code class="prompt">[daveho@noir]$</code> <span><strong class="command">ant findbugs</strong></span>
+  Buildfile: build.xml
+  
+  init:
+  
+  compile:
+  
+  examples:
+  
+  jar:
+  
+  findbugs:
+   [findbugs] Running FindBugs...
+   [findbugs] Bugs were found
+   [findbugs] Output saved to bcel-fb.xml
+  
+  BUILD SUCCESSFUL
+  Total time: 35 seconds
+</pre><p>
+
+In this case, because we saved the bug results in an XML file, we can
+use the <span class="application">FindBugs</span> GUI to view the results; see <a href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;">Chapter&nbsp;4, <i>Running <span class="application">FindBugs</span>&#8482;</i></a>.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1334"></a>4.&nbsp;Parameters</h2></div></div></div><p>This section describes the parameters that may be specified when
+using the <span class="application">FindBugs</span> task.
+
+</p><div class="variablelist"><dl><dt><span class="term"><code class="literal">class</code></span></dt><dd><p>
+       A nested element specifying which classes to analyze.  The <code class="literal">class</code>
+       element must specify a <code class="literal">location</code> attribute which names the
+       archive file (jar, zip, etc.), directory, or class file to be analyzed.  Multiple <code class="literal">class</code>
+       elements may be specified as children of a single <code class="literal">findbugs</code> element.
+       </p></dd><dt><span class="term"><code class="literal">auxClasspath</code></span></dt><dd><p>
+       An optional nested element which specifies a classpath (Jar files or directories)
+       containing classes used by the analyzed library or application, but which
+       you don't want to analyze.  It is specified the same way as
+       <span class="application">Ant</span>'s <code class="literal">classpath</code> element for the Java task.
+       </p></dd><dt><span class="term"><code class="literal">sourcePath</code></span></dt><dd><p>
+       An optional nested element which specifies a source directory path
+       containing source files used to compile the Java code being analyzed.
+       By specifying a source path, any generated XML bug output will have
+       complete source information, which allows later viewing in the
+       GUI.
+       </p></dd><dt><span class="term"><code class="literal">home</code></span></dt><dd><p>
+       A required attribute.
+       It must be set to the name of the directory where <span class="application">FindBugs</span> is installed.
+       </p></dd><dt><span class="term"><code class="literal">quietErrors</code></span></dt><dd><p>
+       An optional boolean attribute.
+       If true, reports of serious analysis errors and missing classes will
+       be suppressed in the <span class="application">FindBugs</span> output.  Default is false.
+       </p></dd><dt><span class="term"><code class="literal">reportLevel</code></span></dt><dd><p>
+       An optional attribute.  It specifies
+       the priority threshold for reporting bugs.  If set to "low", all bugs are reported.
+       If set to "medium" (the default), medium and high priority bugs are reported.
+       If set to "high", only high priority bugs are reported.
+       </p></dd><dt><span class="term"><code class="literal">output</code></span></dt><dd><p>
+       Optional attribute.
+       It specifies the output format.  If set to "xml" (the default), output
+       is in XML format.
+	   If set to "xml:withMessages", output is in XML format augmented with
+	   human-readable messages.  (You should use this format if you plan
+		to generate a report using an XSL stylesheet.)
+	   If set to "html", output is in HTML formatted (default stylesheet is default.xsl).
+		If set to "text", output is in ad-hoc text format.
+       If set to "emacs", output is in <a href="http://www.gnu.org/software/emacs/" target="_top">Emacs</a> error message format.
+	   If set to "xdocs", output is xdoc XML for use with Apache Maven.
+       </p></dd><dt><span class="term"><code class="literal">stylesheet</code></span></dt><dd><p>
+       Optional attribute.
+      It specifies the stylesheet to use to generate html output when the output is set to html.
+      Stylesheets included in the FindBugs distribution include default.xsl, fancy.xsl, fancy-hist.xsl, plain.xsl, and summary.xsl.
+       The default value, if no stylesheet attribute is provided, is default.xsl.
+      
+       </p></dd><dt><span class="term"><code class="literal">sort</code></span></dt><dd><p>
+       Optional attribute.  If the <code class="literal">output</code> attribute
+       is set to "text", then the <code class="literal">sort</code> attribute specifies
+       whether or not reported bugs are sorted by class.  Default is true.
+       </p></dd><dt><span class="term"><code class="literal">outputFile</code></span></dt><dd><p>
+       Optional attribute.  If specified, names the output file in which the
+       <span class="application">FindBugs</span> output will be saved.  By default, the output is displayed
+       directly by <span class="application">Ant</span>.
+       </p></dd><dt><span class="term"><code class="literal">debug</code></span></dt><dd><p>
+      Optional boolean attribute.  If set to true, <span class="application">FindBugs</span> prints diagnostic
+      information about which classes are being analyzed, and which bug pattern
+      detectors are being run.  Default is false.
+       </p></dd><dt><span class="term"><code class="literal">effort</code></span></dt><dd><p>
+			  Set the analysis effort level.  The value specified should be
+			  one of <code class="literal">min</code>, <code class="literal">default</code>,
+			  or <code class="literal">max</code>.  See <a href="running.html#commandLineOptions" title="3.&nbsp;Command-line Options">Section&nbsp;3, &#8220;Command-line Options&#8221;</a>
+			  for more information about setting the analysis level.
+		  </p></dd><dt><span class="term"><code class="literal">conserveSpace</code></span></dt><dd><p>Synonym for effort="min".</p></dd><dt><span class="term"><code class="literal">workHard</code></span></dt><dd><p>Synonym for effort="max".</p></dd><dt><span class="term"><code class="literal">visitors</code></span></dt><dd><p>
+       Optional attribute.  It specifies a comma-separated list of bug detectors
+       which should be run.  The bug detectors are specified by their class names,
+       without any package qualification.  By default, all detectors which are
+       not disabled by default are run.
+       </p></dd><dt><span class="term"><code class="literal">omitVisitors</code></span></dt><dd><p>
+       Optional attribute.  It is like the <code class="literal">visitors</code> attribute,
+       except it specifies detectors which will <span class="emphasis"><em>not</em></span> be run.
+       </p></dd><dt><span class="term"><code class="literal">excludeFilter</code></span></dt><dd><p>
+       Optional attribute.  It specifies the filename of a filter specifying bugs
+       to exclude from being reported.  See <a href="filter.html" title="Chapter&nbsp;8.&nbsp;Filter Files">Chapter&nbsp;8, <i>Filter Files</i></a>.
+       </p></dd><dt><span class="term"><code class="literal">includeFilter</code></span></dt><dd><p>
+       Optional attribute.  It specifies the filename of a filter specifying
+       which bugs are reported.  See <a href="filter.html" title="Chapter&nbsp;8.&nbsp;Filter Files">Chapter&nbsp;8, <i>Filter Files</i></a>.
+       </p></dd><dt><span class="term"><code class="literal">projectFile</code></span></dt><dd><p>
+       Optional attribute.  It specifies the name of a project file.
+       Project files are created by the <span class="application">FindBugs</span> GUI, and specify classes,
+       aux classpath entries, and source directories.  By naming a project,
+       you don't need to specify any <code class="literal">class</code> elements,
+       nor do you need to specify <code class="literal">auxClasspath</code> or
+       <code class="literal">sourcePath</code> attributes.
+       See <a href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;">Chapter&nbsp;4, <i>Running <span class="application">FindBugs</span>&#8482;</i></a> for how to create a project.
+       </p></dd><dt><span class="term"><code class="literal">jvmargs</code></span></dt><dd><p>
+       Optional attribute.  It specifies any arguments that should be passed
+       to the Java virtual machine used to run <span class="application">FindBugs</span>.  You may need to
+       use this attribute to specify flags to increase the amount of memory
+       the JVM may use if you are analyzing a very large program.
+       </p></dd><dt><span class="term"><code class="literal">systemProperty</code></span></dt><dd><p>
+      Optional nested element.  If specified, defines a system property.
+      The <code class="literal">name</code> attribute specifies the name of the
+      system property, and the <code class="literal">value</code> attribute specifies
+      the value of the system property.
+      </p></dd><dt><span class="term"><code class="literal">timeout</code></span></dt><dd><p>
+       Optional attribute.  It specifies the amount of time, in milliseconds,
+       that the Java process executing <span class="application">FindBugs</span> may run before it is
+       assumed to be hung and is terminated.  The default is 600,000
+       milliseconds, which is ten minutes.  Note that for very large
+       programs, <span class="application">FindBugs</span> may require more than ten minutes to complete its 
+       analysis.
+       </p></dd><dt><span class="term"><code class="literal">failOnError</code></span></dt><dd><p>
+       Optional boolean attribute.  Whether to abort the build process if there is an 
+       error running <span class="application">FindBugs</span>. Defaults to "false"
+       </p></dd><dt><span class="term"><code class="literal">errorProperty</code></span></dt><dd><p>
+       Optional attribute which specifies the name of a property that
+       will be set to "true" if an error occurs while running <span class="application">FindBugs</span>.
+       </p></dd><dt><span class="term"><code class="literal">warningsProperty</code></span></dt><dd><p>
+			  Optional attribute which specifies the name of a property
+			  that will be set to "true" if any warnings are reported by
+			  <span class="application">FindBugs</span> on the analyzed program.
+		  </p></dd></dl></div><p>
+
+
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="gui.html">Prev</a>&nbsp;</td><td width="20%" align="center">&nbsp;</td><td width="40%" align="right">&nbsp;<a accesskey="n" href="eclipse.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter&nbsp;5.&nbsp;Using the <span class="application">FindBugs</span> GUI&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top">&nbsp;Chapter&nbsp;7.&nbsp;Using the <span class="application">FindBugs</span>&#8482; Eclipse plugin</td></tr></table></div></body></html>

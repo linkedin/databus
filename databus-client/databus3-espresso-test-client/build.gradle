@@ -1,0 +1,14 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-core:databus2-espresso-core')
+  compile project(':databus-client:databus3-client-impl')
+
+  compile spec.external.avro
+  compile spec.external.googleCollections
+  compile spec.product.container.dalApi
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  compile spec.external.netty
+}

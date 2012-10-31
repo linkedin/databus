@@ -1,0 +1,15 @@
+apply plugin: 'li-war'
+
+dependencies {
+  components project(':databus2-bootstrap:databus2-bootstrap-server-cmpt')
+
+
+  compile spec.product.'container-server-jetty'.emweb
+
+  compile spec.external.googleCollections
+}
+
+liWar {
+  appname = "databus2-bootstrap-server"
+}
+

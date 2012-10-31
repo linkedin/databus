@@ -1,0 +1,8 @@
+apply plugin: 'li-spring'
+
+dependencies {
+  runtime project(':databus-client:databus3-espresso-test-client')
+
+  runtime spec.product.container.containerImpl
+  runtime spec.product.container.healthcheckApi
+}

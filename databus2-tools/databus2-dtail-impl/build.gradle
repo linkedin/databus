@@ -1,0 +1,23 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project(':databus-client:databus-client-impl')
+
+  compile spec.product.cfg2.cfg
+  
+  compile spec.external.helixCore
+  compile spec.external.log4j
+  compile spec.external.zkclient 
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+
+  testCompile spec.external.testng
+}
+
+test {
+	test.useTestNG()
+        options.suites(file('testng.xml'))
+}
+

@@ -1,0 +1,17 @@
+apply plugin: 'li-war'
+
+dependencies {
+  components project(':databus2-bootstrap:databus2-bootstrap-producer-company-cmpt')
+
+  compile spec.product.'container-server-jetty'.emweb
+  compile spec.product.cfg2.cfg
+  compile spec.external.googleCollections
+}
+
+//DDSDBUS-171 Remove explicitly the transitive dependency on the old oracle driver
+configurations.compile.exclude(group: "com.oracle", module: "ojdbc14")
+
+liWar {
+  appname = "databus2-bootstrap-producer-company"
+}
+

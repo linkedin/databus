@@ -1,0 +1,26 @@
+apply plugin: 'li-spring'
+
+dependencies {
+  components project(':databus2-relay:databus2-relay-bizfollow-cmpt')
+  components project(':databus2-relay:databus2-relay-forum-cmpt')
+  components project(':databus2-relay:databus2-relay-liar-cmpt')
+  components project(':databus2-relay:databus2-relay-member2-cmpt')
+  components project(':databus2-relay:databus2-relay-anet-cmpt')
+  components project(':databus2-relay:databus2-relay-conn-cmpt')
+  components project(':databus2-relay:databus2-relay-mbrrec-cmpt')
+  components project(':databus2-relay:databus2-relay-news-cmpt')
+  
+  runtime spec.product.container.containerImpl
+}
+
+sarSetting {
+    settings = [ 'databus2-relay-bizfollow-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-forum-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-liar-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-member2-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-conn-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-anet-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-mbrrec-cmpt' : ['create-sub-component':'false'],
+                 'databus2-relay-news-cmpt' : ['create-sub-component':'false'],
+               ]
+}

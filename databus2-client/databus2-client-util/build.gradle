@@ -1,0 +1,9 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-client:databus-client-impl')
+  compile project(':databus-core:databus-core-impl')
+
+  compile spec.external.commonsCli
+  compile spec.external.log4j
+}

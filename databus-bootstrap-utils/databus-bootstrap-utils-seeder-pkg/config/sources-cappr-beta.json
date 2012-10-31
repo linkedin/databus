@@ -1,0 +1,13 @@
+{
+    "name" : "cappr",
+    "uri" : "jdbc:oracle:thin:cappr/cappr8uat2@esv4-db19.stg:1521:SDPDB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 901, 
+         "name": "com.linkedin.events.cappr.ProspectHistory", 
+         "uri" : "cappr.prospect_history_1",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

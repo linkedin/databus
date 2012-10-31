@@ -1,0 +1,28 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project(':databus-core:databus-core-impl')
+
+  compile spec.external.avro
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  testCompile spec.external.testng
+  testCompile spec.external.zkclientHelix 
+}
+
+task copySchemas(type:Copy) {
+    from '../../schemas_registry'
+    into 'src/main/resources'
+    include 'com.linkedin*.avsc'
+    include 'index.schemas_registry'
+}
+
+processResources.dependsOn.add(copySchemas)
+
+test {
+	useTestNG()
+	options.suites(file('testng.xml'))
+}

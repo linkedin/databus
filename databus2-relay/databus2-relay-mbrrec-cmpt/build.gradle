@@ -1,0 +1,9 @@
+apply plugin: 'li-spring'
+
+dependencies {
+  runtime project(':databus2-relay:databus2-relay-impl')
+  runtime project(':databus-core:databus-core-impl')
+
+  runtime spec.product.container.containerImpl
+  runtime spec.product.container.healthcheckApi
+}

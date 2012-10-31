@@ -1,0 +1,68 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;5.&nbsp;Using the FindBugs GUI</title><meta name="generator" content="DocBook XSL Stylesheets V1.71.1"><link rel="start" href="index.html" title="FindBugs&#8482; Manual"><link rel="up" href="index.html" title="FindBugs&#8482; Manual"><link rel="prev" href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;"><link rel="next" href="anttask.html" title="Chapter&nbsp;6.&nbsp;Using the FindBugs&#8482; Ant task"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter&nbsp;5.&nbsp;Using the <span class="application">FindBugs</span> GUI</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="running.html">Prev</a>&nbsp;</td><th width="60%" align="center">&nbsp;</th><td width="20%" align="right">&nbsp;<a accesskey="n" href="anttask.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="gui"></a>Chapter&nbsp;5.&nbsp;Using the <span class="application">FindBugs</span> GUI</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="gui.html#d0e1087">1. Creating a Project</a></span></dt><dt><span class="sect1"><a href="gui.html#d0e1129">2. Running the Analysis</a></span></dt><dt><span class="sect1"><a href="gui.html#d0e1134">3. Browsing Results</a></span></dt><dt><span class="sect1"><a href="gui.html#d0e1149">4. Saving and Opening</a></span></dt></dl></div><p>
+		This chapter describes how to use the <span class="application">FindBugs</span> graphical user interface (GUI).
+	</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1087"></a>1.&nbsp;Creating a Project</h2></div></div></div><p>
+After you have started <span class="application">FindBugs</span> using the <span><strong class="command">findbugs</strong></span> command,
+choose the <span class="guimenu">File</span> &#8594; <span class="guimenuitem">New Project</span>
+menu item.  You will see a dialog which looks like this:
+</p><div class="mediaobject"><img src="project-dialog.png"></div><p>
+</p><p>
+Use the "Add" button next to the "Class archives and directories to analyze" text field to select a Java archive
+file (zip, jar, ear, or war file) or directory containing java classes to analyze for bugs.  You may add multiple
+archives/directories.
+</p><p>
+You can also add the source directories which contain
+the source code for the Java archives you are analyzing.  This will enable
+<span class="application">FindBugs</span> to highlight the source code which contains a possible error.
+The source directories you add should be the roots of the Java
+package hierarchy.  For example, if your application is contained in the
+<code class="varname">org.foobar.myapp</code> package, you should add the
+parent directory of the <code class="filename">org</code> directory
+to the source directory list for the project.
+</p><p>
+Another optional step is to add additional Jar files or directories as
+"Auxiliary classpath locations" entries.  You should do this if the archives and directories you are analyzing
+have references to other classes which are not included in the analyzed
+archives/directories and are not in the standard runtime classpath.  Some of the bug
+pattern detectors in <span class="application">FindBugs</span> make use of class hierarchy information,
+so you will get more accurate results if the entire class hierarchy is
+available which <span class="application">FindBugs</span> performs its analysis.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1129"></a>2.&nbsp;Running the Analysis</h2></div></div></div><p>
+Once you have added all of the archives, directories, and source directories,
+click the "Finish" button to analyze the classes contained in the
+Jar files.  Note that for a very large program on an older computer,
+this may take quite a while (tens of minutes).  A recent computer with
+ample memory will typically be able to analyze a large program in only a
+few minutes.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1134"></a>3.&nbsp;Browsing Results</h2></div></div></div><p>
+When the analysis completes, you will see a screen like the following:
+</p><div class="mediaobject"><img src="example-details.png"></div><p>
+</p><p>
+The upper left-hand pane of the window shows the bug tree; this is a hierarchical
+representation of all of the potential bugs detected in the analyzed
+Jar files.
+</p><p>
+When you select a particular bug instance in the top pane, you will
+see a description of the bug in the "Details" tab of the bottom pane.
+In addition, the source code pane on the upper-right will show the
+program source code where the potential bug occurs, if source is available.
+In the above example, the bug is a stream object that is not closed.  The
+source code window highlights the line where the stream object is created.
+</p><p>
+You may add a textual annotations to bug instances.  To do so, type them
+into the text box just below the hierarchical view.  You can type any
+information which you would like to record.  When you load and save bug
+results files, the annotations are preserved.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1149"></a>4.&nbsp;Saving and Opening</h2></div></div></div><p>
+You may use the <span class="guimenu">File</span> &#8594; <span class="guimenuitem">Save as...</span>
+menu option to save your work.  To save your work, including the jar
+file lists you specified and all bug results, choose
+"FindBugs analysis results (.xml)" from the drop-down list in the
+"Save as..." dialog.  There are also options for saving just the jar
+file lists ("FindBugs project file (.fbp)") or just the results
+("FindBugs analysis file (.fba)").
+A saved file may be loaded with the
+<span class="guimenu">File</span> &#8594; <span class="guimenuitem">Open...</span>
+menu option.
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="running.html">Prev</a>&nbsp;</td><td width="20%" align="center">&nbsp;</td><td width="40%" align="right">&nbsp;<a accesskey="n" href="anttask.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter&nbsp;4.&nbsp;Running <span class="application">FindBugs</span>&#8482;&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top">&nbsp;Chapter&nbsp;6.&nbsp;Using the <span class="application">FindBugs</span>&#8482; <span class="application">Ant</span> task</td></tr></table></div></body></html>

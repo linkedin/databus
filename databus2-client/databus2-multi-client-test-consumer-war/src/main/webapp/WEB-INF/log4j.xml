@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd"> 
+ 
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/"> 
+  
+  @log4j.appenders.webapp@
+  
+  @log4j.appenders.public_access@
+ 
+  <appender name="TestConsumerDatabus2Appender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/databus2_multi_test_consumer.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} %p [%c{1}] (%t) +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="TestConsumerDatabus2HttpOutAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/databus2_multi_test_consumer_httpout.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="TestConsumerDatabus2HttpInAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/databus2_multi_test_consumer_httpin.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="TestConsumerEventsAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/databus2_multi_test_consumer_events.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+  
+  @log4j.loggers.spring@
+  
+  <logger name="com.linkedin.databus" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="TestConsumerDatabus2Appender"/> 
+  </logger> 
+  
+  <logger name="com.linkedin.databus2" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="TestConsumerDatabus2Appender"/> 
+  </logger> 
+  
+  <logger name="com.linkedin.databus2.core.container.HttpRequestLoggingHandler.out" additivity="false" > 
+    <level value="debug"/> 
+    <appender-ref ref="TestConsumerDatabus2HttpOutAppender"/> 
+  </logger> 
+
+  <logger name="com.linkedin.databus2.core.container.HttpRequestLoggingHandler.in" additivity="false" > 
+    <level value="debug"/> 
+    <appender-ref ref="TestConsumerDatabus2HttpInAppender"/> 
+  </logger> 
+
+  <logger name="com.linkedin.databus.client.consumer.LoggingConsumer" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="TestConsumerEventsAppender"/> 
+  </logger> 
+  
+  @log4j.loggers.root@
+  
+</log4j:configuration> 
+ 

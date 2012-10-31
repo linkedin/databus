@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+
+  <lin:componentExport main="startables">
+  </lin:componentExport>
+  
+  <lin:bean id="startables" class="org.xeril.util.CompositeStartable">
+    <property name="startables">
+      <list>
+        <ref bean="databus2Relay.bizfollow"/>
+        <ref bean="databus2Relay.forum"/>
+        <ref bean="databus2Relay.liar"/>
+        <ref bean="databus2Relay.member2"/>
+        <ref bean="databus2BootstrapProducer.bizfollow"/>
+        <ref bean="databus2BootstrapProducer.forum"/>
+        <ref bean="databus2BootstrapProducer.liar"/>
+        <ref bean="databus2BootstrapServer"/>
+      </list>
+    </property>
+  </lin:bean>
+  
+</beans>

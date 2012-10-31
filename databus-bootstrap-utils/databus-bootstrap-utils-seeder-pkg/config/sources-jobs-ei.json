@@ -1,0 +1,20 @@
+{
+    "name" : "jobs",
+    "uri" : "jdbc:oracle:thin:jobs/jobs8uat@eat1-db14.stg:1521:EIDB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {
+         "id" : 1201, 
+         "name": "com.linkedin.events.jobs.Jobs", 
+         "uri" : "jobs.jobs_12",
+         "partitionFunction" : "constant:1"
+        },
+        {
+         "id" : 1202, 
+         "name": "com.linkedin.events.jobs.JobMatchUpdate", 
+         "uri" : "jobs.job_match_update",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

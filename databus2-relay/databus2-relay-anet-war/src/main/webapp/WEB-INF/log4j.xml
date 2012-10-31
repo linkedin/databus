@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8" ?> 
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd"> 
+ 
+<log4j:configuration xmlns:log4j="http://jakarta.apache.org/log4j/"> 
+  
+  @log4j.appenders.webapp@
+  
+  @log4j.appenders.public_access@
+ 
+  <appender name="AnetDatabus2Appender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/anet_databus2_relay.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} %p [%c{1}] (%t) +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="AnetDatabus2HttpOutAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/anet_databus2_relay_httpout.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="AnetDatabus2HttpInAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/anet_databus2_relay_httpin.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+ 
+  <appender name="AnetDatabus2DBEventsAppender" class="org.apache.log4j.DailyRollingFileAppender"> 
+    <param name="File" value="logs/anet_databus2_relay_dbevents.log"/> 
+    <param name="Append" value="true"/> 
+    <param name="DatePattern" value="'.'yyyy-MM-dd-HH"/> 
+    <layout class="org.apache.log4j.PatternLayout"> 
+      <param name="ConversionPattern" value="%d{yyyy/MM/dd HH:mm:ss.SSS} +%r %m%n" /> 
+    </layout> 
+  </appender> 
+  
+  @log4j.loggers.spring@
+  
+  <logger name="com.linkedin.databus" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="AnetDatabus2Appender"/> 
+  </logger> 
+  
+  <logger name="com.linkedin.databus2" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="AnetDatabus2Appender"/> 
+  </logger> 
+  
+  <logger name="com.linkedin.databus2.core.container.HttpRequestLoggingHandler.out" additivity="false" > 
+    <level value="debug"/> 
+    <appender-ref ref="AnetDatabus2HttpOutAppender"/> 
+  </logger> 
+
+  <logger name="com.linkedin.databus2.core.container.HttpRequestLoggingHandler.in" additivity="false" > 
+    <level value="debug"/> 
+    <appender-ref ref="AnetDatabus2HttpInAppender"/> 
+  </logger> 
+
+  <logger name="com.linkedin.databus2.producers.db.events" additivity="false" > 
+    <level value="info"/> 
+    <appender-ref ref="AnetDatabus2DBEventsAppender"/> 
+  </logger> 
+  
+  @log4j.loggers.root@
+  
+</log4j:configuration> 
+ 

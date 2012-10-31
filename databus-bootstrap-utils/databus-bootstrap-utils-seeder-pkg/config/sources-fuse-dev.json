@@ -1,0 +1,13 @@
+{
+    "name" : "fuse",
+    "uri" : "jdbc:oracle:thin:fuse/fuse@${db.hostname}:1521:${db.sid}",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1001, 
+         "name": "com.linkedin.events.fuse.MemberRestriction", 
+         "uri" : "fuse.Member_Restriction",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+apply plugin: 'li-cmdline'
+
+dependencies {
+  compile project(':databus-client:databus3-espresso-test-client')
+}
+
+project.tasks.cmdline {
+
+  into("conf") { from "conf/" }
+
+  from("script") {
+    into ("bin")
+    fileMode = 0755
+  }
+
+}

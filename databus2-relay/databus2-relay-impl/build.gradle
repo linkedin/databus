@@ -1,0 +1,31 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-core:databus-core-container')
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-client:databus-client-impl')
+  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+
+  compile spec.product.util.utilCore
+
+  compile spec.external.avro
+  compile spec.external.helixCore
+  compile spec.external.commonsBeanutils
+  compile spec.external.commonsCli
+  compile spec.external.commonsIo
+  compile spec.external.commonsLogging
+  compile spec.product.container.healthcheckApi
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  compile spec.external.netty
+  compile spec.external.ojdbc6
+  
+  testCompile project(':databus-core:databus-core-fwk-test')
+  testCompile spec.external.testng
+  testCompile spec.external.easymock
+}
+
+test.useTestNG()
+test.workingDir = "${project.rootDir}"

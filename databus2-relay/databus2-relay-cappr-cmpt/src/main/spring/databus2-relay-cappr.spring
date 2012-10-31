@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+    
+  <bean id="databus2Relay.cappr" class="com.linkedin.databus2.relayli.RelayStartable">
+    <constructor-arg index="0" value="${databus2.relay.default}" type="java.util.Properties" />
+    <constructor-arg index="1" value="${databus2.relay.local.cappr}" type="java.util.Properties" />
+    <constructor-arg index="2">
+      <list value-type="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+          <bean class="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+            <property name="name" value="cappr"/>
+            <property name="uri" value="${db.cappr.db_url}"/>
+            <property name="slowSourceQueryThreshold" value="${databus2.relay.slowSourceQueryThreshold}" />
+            <property name="restartScnOffset" value="${databus2.relay.restartScnOffset}" />
+             <property name="sources">
+              <list value-type="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="901"/>
+                  <property name="name" value="com.linkedin.events.cappr.ProspectHistory"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.cappr.ProspectHistory.uri}"/>
+                </bean>
+              </list>
+            </property>
+            <property name="retries">
+              <bean class="com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder">
+                <property name="maxRetryNum" value="${databus2.relay.maxDbRetryNum}" />
+                <property name="initSleep" value="${databus2.relay.dbPollIntervalMs}" />
+                <property name="maxSleep" value="${databus2.relay.dbMaxErrorSleepMs}" />
+                <property name="sleepIncDelta" value="0" />
+                <property name="sleepIncFactor" value="2.0" />
+              </bean>
+            </property>
+          </bean>
+      </list>
+    </constructor-arg>
+  </bean>
+
+  <bean id="relaySensorFactory.cappr" class="com.linkedin.databus2.relay.DatabusRelaySensorFactory" lazy-init="false">
+    <constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+    <constructor-arg index="1" ref="databus2Relay.cappr" type="com.linkedin.databus2.relayli.RelayStartable" />
+  </bean>   
+</beans>

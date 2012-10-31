@@ -1,0 +1,123 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;3.&nbsp;Building FindBugs&#8482; from Source</title><meta name="generator" content="DocBook XSL Stylesheets V1.71.1"><link rel="start" href="index.html" title="FindBugs&#8482; Manual"><link rel="up" href="index.html" title="FindBugs&#8482; Manual"><link rel="prev" href="installing.html" title="Chapter&nbsp;2.&nbsp;Installing FindBugs&#8482;"><link rel="next" href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter&nbsp;3.&nbsp;Building <span class="application">FindBugs</span>&#8482; from Source</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="installing.html">Prev</a>&nbsp;</td><th width="60%" align="center">&nbsp;</th><td width="20%" align="right">&nbsp;<a accesskey="n" href="running.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="building"></a>Chapter&nbsp;3.&nbsp;Building <span class="application">FindBugs</span>&#8482; from Source</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="building.html#d0e181">1. Prerequisites</a></span></dt><dt><span class="sect1"><a href="building.html#d0e270">2. Extracting the Source Distribution</a></span></dt><dt><span class="sect1"><a href="building.html#d0e283">3. Modifying <code class="filename">local.properties</code></a></span></dt><dt><span class="sect1"><a href="building.html#d0e341">4. Running <span class="application">Ant</span></a></span></dt><dt><span class="sect1"><a href="building.html#d0e435">5. Running <span class="application">FindBugs</span>&#8482; from a source directory</a></span></dt></dl></div><p>
+This chapter describes how to build <span class="application">FindBugs</span> from source code.  Unless you are
+interesting in modifying <span class="application">FindBugs</span>, you will probably want to skip to the
+<a href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;">next chapter</a>.
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e181"></a>1.&nbsp;Prerequisites</h2></div></div></div><p>
+To compile <span class="application">FindBugs</span> from source, you will need the following:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+      The <a href="http://prdownloads.sourceforge.net/findbugs/findbugs-1.3.9-source.zip?download" target="_top"><span class="application">FindBugs</span> source distribution</a>
+    </p></li><li><p>
+      <a href="http://java.sun.com/j2se/" target="_top">JDK 1.5.0 beta or later</a>
+    </p></li><li><p>
+      <a href="http://ant.apache.org/" target="_top">Apache <span class="application">Ant</span></a>, version 1.6.3 or later
+    </p></li></ul></div><p>
+</p><div class="warning" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Warning"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Warning]" src="warning.png"></td><th align="left">Warning</th></tr><tr><td align="left" valign="top"><p>
+		The version of <span class="application">Ant</span> included as <code class="filename">/usr/bin/ant</code> on
+		Redhat Linux systems will <span class="emphasis"><em>not</em></span> work for compiling
+		<span class="application">FindBugs</span>.  We recommend you install a binary distribution of <span class="application">Ant</span>
+		downloaded from the <a href="http://ant.apache.org/" target="_top"><span class="application">Ant</span> website</a>.
+		Make sure that when you run <span class="application">Ant</span> your <em class="replaceable"><code>JAVA_HOME</code></em>
+		environment variable points to the directory in which you installed
+		JDK 1.5 (or later).
+	</p></td></tr></table></div><p>
+If you want to be able to generate formatted versions of the <span class="application">FindBugs</span> documentation,
+you will also need the following software:
+</p><div class="itemizedlist"><ul type="disc"><li><p>
+    The <a href="http://docbook.sourceforge.net/projects/xsl/index.html" target="_top">DocBook XSL Stylesheets</a>.
+    These are required to convert the <span class="application">FindBugs</span> manual into HTML format.
+    </p></li><li><p>
+      The <a href="http://saxon.sourceforge.net/" target="_top"><span class="application">Saxon</span> XSLT Processor</a>.
+      (Also required for converting the <span class="application">FindBugs</span> manual to HTML.)
+    </p></li></ul></div><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e270"></a>2.&nbsp;Extracting the Source Distribution</h2></div></div></div><p>
+After you download the source distribution, you'll need to extract it into
+a working directory.  A typical command to do this is:
+
+</p><pre class="screen">
+<code class="prompt">$ </code><span><strong class="command">unzip findbugs-1.3.9-source.zip</strong></span>
+</pre><p>
+
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e283"></a>3.&nbsp;Modifying <code class="filename">local.properties</code></h2></div></div></div><p>
+If you intend to build the FindBugs documentation,
+you will need to modify the <code class="filename">local.properties</code> file
+used by the <a href="http://ant.apache.org/" target="_top"><span class="application">Ant</span></a>
+<code class="filename">build.xml</code> file to build <span class="application">FindBugs</span>.
+If you do not want to build the FindBugs documentation, then you
+can ignore this file.
+</p><p>
+The <code class="filename">local.properties</code> overrides definitions
+in the <code class="filename">build.properties</code> file.
+The <code class="filename">build.properties</code> file looks something like this:
+</p><pre class="programlisting">
+
+# User Configuration:
+# This section must be modified to reflect your system.
+
+local.software.home     =/export/home/daveho/linux
+
+# Set this to the directory containing the DocBook Modular XSL Stylesheets
+#  from http://docbook.sourceforge.net/projects/xsl/
+
+xsl.stylesheet.home     =${local.software.home}/docbook/docbook-xsl-1.71.1
+
+# Set this to the directory where Saxon (http://saxon.sourceforge.net/)
+# is installed. 
+
+saxon.home              =${local.software.home}/java/saxon-6.5.5
+
+</pre><p>
+</p><p>
+The <code class="varname">xsl.stylesheet.home</code> property specifies the full
+path to the directory where you have installed the
+<a href="http://docbook.sourceforge.net/projects/xsl/" target="_top">DocBook Modular XSL
+Stylesheets</a>.  You only need to specify this property if you will be
+generating the <span class="application">FindBugs</span> documentation.
+</p><p>
+The <code class="varname">saxon.home</code> property is the full path to the
+directory where you installed the <a href="http://saxon.sourceforge.net/" target="_top"><span class="application">Saxon</span> XSLT Processor</a>.
+You only need to specify this property if you will be
+generating the <span class="application">FindBugs</span> documentation.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e341"></a>4.&nbsp;Running <span class="application">Ant</span></h2></div></div></div><p>
+Once you have extracted the source distribution,
+made sure that <span class="application">Ant</span> is installed,
+modified <code class="filename">build.properties</code> (optional),
+and configured the tools (such as <span class="application">Saxon</span>),
+you are ready to build <span class="application">FindBugs</span>.  Invoking <span class="application">Ant</span> is a simple matter
+of running the command
+</p><pre class="screen">
+<code class="prompt">$ </code><span><strong class="command">ant <em class="replaceable"><code>target</code></em></strong></span>
+</pre><p>
+where <em class="replaceable"><code>target</code></em> is one of the following:
+</p><div class="variablelist"><dl><dt><span class="term"><span><strong class="command">build</strong></span></span></dt><dd><p>
+         This target compiles the code for <span class="application">FindBugs</span>. It is the default target.
+       </p></dd><dt><span class="term"><span><strong class="command">docs</strong></span></span></dt><dd><p>
+       This target formats the documentation.  (It also compiles some of
+       the source code as a side-effect.)
+       </p></dd><dt><span class="term"><span><strong class="command">runjunit</strong></span></span></dt><dd><p>
+			This target compiles and runs the internal JUnit tests included
+			in <span class="application">FindBugs</span>.  It will print an error message if any unit
+			tests fail.
+		</p></dd><dt><span class="term"><span><strong class="command">bindist</strong></span></span></dt><dd><p>
+			Builds a binary distribution of <span class="application">FindBugs</span>.
+			The target creates both <code class="filename">.zip</code> and
+			<code class="filename">.tar.gz</code> archives.
+		</p></dd></dl></div><p>
+</p><p>
+After running an <span class="application">Ant</span> command, you should see output similar to
+the following (after some other messages regarding the tasks that
+<span class="application">Ant</span> is running):
+</p><pre class="screen">
+<code class="computeroutput">
+BUILD SUCCESSFUL
+Total time: 17 seconds
+</code>
+</pre><p>
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e435"></a>5.&nbsp;Running <span class="application">FindBugs</span>&#8482; from a source directory</h2></div></div></div><p>
+The <span class="application">Ant</span> build script for <span class="application">FindBugs</span> is written such that after 
+building the <span><strong class="command">build</strong></span> target, the working directory
+is set up just like a binary distribution.  So, the information about
+running <span class="application">FindBugs</span> in <a href="running.html" title="Chapter&nbsp;4.&nbsp;Running FindBugs&#8482;">Chapter&nbsp;4, <i>Running <span class="application">FindBugs</span>&#8482;</i></a>
+applies to source distributions, too.
+</p></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="installing.html">Prev</a>&nbsp;</td><td width="20%" align="center">&nbsp;</td><td width="40%" align="right">&nbsp;<a accesskey="n" href="running.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter&nbsp;2.&nbsp;Installing <span class="application">FindBugs</span>&#8482;&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top">&nbsp;Chapter&nbsp;4.&nbsp;Running <span class="application">FindBugs</span>&#8482;</td></tr></table></div></body></html>

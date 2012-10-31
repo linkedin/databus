@@ -1,0 +1,160 @@
+apply plugin: 'li-product'
+//apply plugin: 'li-cobertura-product'
+
+// for FindBugs
+//TODO: this should come from artifactory, but it's not clear to me how to set
+// findBugsHome if this becomes a URLResolver
+repositories {
+  add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
+    name = 'findbugsRepo'
+      addIvyPattern "${project.rootDir}/tools/[module]-[revision]/lib/[artifact].ivy"
+      addArtifactPattern "${project.rootDir}/tools/[module]-[revision]/lib/[artifact].[ext]"
+      m2compatible = true
+      checkmodified = true
+  }
+}
+
+configurations  {
+  findbugsConf
+}
+
+def findbugsVersion = '1.3.9'  
+
+dependencies {
+  findbugsConf "edu.umd.cs:findbugs:${findbugsVersion}"
+}
+
+task findbugsSetup << {
+  ant {
+    taskdef(name:'findbugs',
+            classname:'edu.umd.cs.findbugs.anttask.FindBugsTask',
+            classpath: configurations.findbugsConf.asPath)
+
+    findbugsHome = "tools/findbugs-${findbugsVersion}"
+    configurations.findbugsConf.files.each {
+      jarPath ->
+      if (jarPath.getName().equalsIgnoreCase('findbugs.jar')) {
+        findbugsHome = jarPath.getParentFile().getCanonicalPath()
+      }
+    }
+  }
+}
+
+// set JVM params on all test sub-projects
+ext.schemaRootDir = "${rootDir}/schemas_registry"
+subprojects { subproj ->
+
+  subproj.plugins.withType(JavaPlugin) {
+  	subproj.sourceCompatibility = 1.6
+  }
+  
+  subproj.plugins.apply('li-test')
+  
+  subproj.tasks.withType(Test) {	
+	forkEvery = 20
+    
+    // Somehow jvmArgs does not recognize -Xmx. allJvmArgs seems to be able to.
+    // Set -Xms for now to 1g 
+	jvmArgs = [
+	  '-XX:MaxDirectMemorySize=6096m',
+	  '-Xms2024M',
+	  '-Xmx4048M',
+	  '-XX:PermSize=512M',
+	  '-XX:MaxPermSize=1024M',
+	  '-ea'
+	]
+	
+	afterTest { test, result ->
+	  logger.lifecycle("testFinished: $test, result: $result.resultType")
+    }
+    
+    //all standard error messages from tests will get routed to 'DEBUG' level messages.
+	logging.captureStandardError(LogLevel.DEBUG)
+	//all standard output messages from tests will get routed to 'DEBUG' level messages.
+	logging.captureStandardOutput(LogLevel.DEBUG)	
+  }
+
+  subproj.afterEvaluate { project ->
+    project.plugins.withType(com.linkedin.tools.build.plugins.LiJavaPlugin) {
+      if (project.hasProperty('cobertura')) {  // add the configuration which is a jar dependency
+        if (project.hasProperty('coberturaVersion')) {
+          //println "project ${project.name} cobertura verion = ${project.coberturaVersion}"
+        }
+        if (!project.configurations.asMap['cobertura']) {
+          project.configurations.add('cobertura') {
+            extendsFrom project.configurations['testCompile']
+          }
+            project.dependencies {
+            cobertura "net.sourceforge.cobertura:cobertura:${project.coberturaVersion}"
+          }
+        }
+      }
+
+      //def instrumentedJar = project.task('instrumentedJar', type: Jar) {
+      //  appendix = 'instrument'
+      //  from("$project.buildDir/instrumented_classes")
+      //  destinationDir=file("${project.buildDir}/instrumented_lib")
+      //}
+
+      //project.cobertura.dependsOn(instrumentedJar)
+      //project.test.dependsOn(instrumentedJar)
+    }
+
+    //println "working on ${project.name}"
+    if (project.tasks.findByName('jar') != null) {
+      //println "found jar task in ${project.name}"
+      project.tasks.add( name: 'findbugs', dependsOn: ['jar', ':findbugsSetup'],
+                    description: 'Invokes findbugs on generated jar file.') << {
+        Task myTask ->
+
+        proj = myTask.project
+
+        outDir = new File(proj.buildDir.toString() + '/reports/findbugs')
+        outFile = outDir.toString() + '/findbugs.xml'
+        jarFile = "${proj.libsDir}/${proj.jar.archiveName}"
+
+        if (! new File(jarFile).exists()) {
+            myTask.logger.warn("Warning: skipping findbugs as {} does not exist",
+                               jarFile)
+            return
+        }
+
+        ant {
+          uptodate(property: 'findbugsUpToDate',
+                   srcfile: jarFile,
+                   targetFile: outFile)
+        }
+
+        if ("true".equals(ant.properties.findbugsUpToDate)) {
+          return
+        }
+
+        outDir.mkdirs()
+
+        project.rootProject.ant {
+          // NOTE: class is reserved so put into double quotes
+          findbugs(home: findbugsHome,
+                   output: 'xml:withMessages',
+                   outputFile: outFile,
+                   onlyAnalyze: "com.linkedin.databus.-,com.linkedin.databus2.-,com.linkedin.databus3",
+                   jvmargs: '-Xmx300m') {
+            auxClasspath(path: proj.configurations.runtime.asPath)
+            sourcePath(path: proj.files(proj.sourceSets.main.java.srcDirs).asPath)
+            "class"(location: jarFile)
+          }
+        }
+      }
+      project.tasks.add( name: 'findbugs-text', dependsOn: ['findbugs', ':findbugsSetup']) << {
+        Task myTask ->
+      
+        project.tasks.getByName('findbugs')
+      }
+    }
+  }
+}
+
+task restartGlu {
+	//exec {
+	//     commandLine('./restart_glu.sh')
+	//} 
+}

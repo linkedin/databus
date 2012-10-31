@@ -1,0 +1,17 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project(':databus-group-leader:databus-group-leader-api')
+
+  compile spec.external.commonsIo
+  compile spec.external.log4j
+  compile spec.external.zkclient
+  compile spec.external.zookeeper
+
+  testCompile spec.external.testng
+  testCompile spec.external.easymock
+}
+
+test.useTestNG()

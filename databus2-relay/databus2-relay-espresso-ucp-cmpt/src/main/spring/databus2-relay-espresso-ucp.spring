@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+    
+  <bean id="databus2Relay.espresso-ucp" class="com.linkedin.databus2.relayli.RelayStartable">
+    <constructor-arg index="0" value="${databus2.relay.default}" type="java.util.Properties" />
+    <constructor-arg index="1" value="${databus2.relay.local.espresso-ucp}" type="java.util.Properties" />
+    <constructor-arg index="2">
+      <list value-type="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+          <bean class="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+            <property name="name" value="espresso-ucp"/>
+            <property name="uri" value="${db.espresso-ucp.db_url}"/>
+            <property name="slowSourceQueryThreshold" value="${databus2.relay.slowSourceQueryThreshold}" />
+            <property name="restartScnOffset" value="${databus2.relay.restartScnOffset}" />
+             <property name="sources">
+              <list value-type="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1101"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpApp"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_app}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1102"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpAppFeed"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_app_feed}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1103"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpObjectSchema"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_object_schema}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1104"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpSequence"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_sequence}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1105"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpSharedFeed"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_shared_feed}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1106"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpTranslatableContent"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_translatable_content}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="1107"/>
+                  <property name="name" value="com.linkedin.events.espresso.ucp.UcpVerbSchema"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.db.espresso-ucp.uri.ucp_verb_schema}"/>
+                  <property name="skipInfinityScn" value="${databus2.espresso-ucp.skipInfinityScn}"/>
+                </bean>
+              </list>
+            </property>
+            <property name="retries">
+              <bean class="com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder">
+                <property name="maxRetryNum" value="${databus2.relay.maxDbRetryNum}" />
+                <property name="initSleep" value="${databus2.relay.dbPollIntervalMs}" />
+                <property name="maxSleep" value="${databus2.relay.dbMaxErrorSleepMs}" />
+                <property name="sleepIncDelta" value="1" />
+                <property name="sleepIncFactor" value="2.0" />
+              </bean>
+            </property>
+          </bean>
+      </list>
+    </constructor-arg>
+  </bean>
+    
+  <bean id="relaySensorFactory.espresso-ucp" class="com.linkedin.databus2.relay.DatabusRelaySensorFactory" lazy-init="false">
+    <constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+    <constructor-arg index="1" ref="databus2Relay.espresso-ucp" type="com.linkedin.databus2.relayli.RelayStartable" />
+  </bean>   
+</beans>

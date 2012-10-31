@@ -1,0 +1,27 @@
+\subsection{Partitioned Stream Consumption}
+Databus supports independent partitioning of both the data source and the consumers. This allows independent scaling of the data source tier from the processing tier. 
+For example, we have monolithic data sources which emit a single stream, but are consumed by partitioned search indexes. Conversely, there are partitioned data stores which are consumed as a single logical stream by downstream consumers. The partitioning cardinality can change over time on either side without affecting the other side. 
+In the case of partitioned data sources, Databus currently enforces transactional semantics only at the partition level, and provides in-order and at-least once guarantees of delivery per source partition. 
+
+
+%We call this M:N partitioning, signifying that the source could be partitioned 1 or M ways and the consumer could consume it partitioned 1 or N ways. 
+%It supports un-partitioned streams being subscribed by partition-aware consumers 
+%Why is this important? Databases are often partitioned horizontally for scalability. 
+%As the read and write load changes, databases will often get re-partitioned repeatedly. 
+
+There are three primary categories of partitioning scenarios:
+\begin{enumerate}
+\item\emph{Single consumer}: A consumer that is subscribing to the change stream from a logical database must be able to do so independently of the physical partitioning of the database. This is supported by just doing a merge of the streams emanating from the source database partitions.
+\item\emph{Partition-aware consumer}: The consumer may have affinity to certain partitions of the stream and want to process only events that affect those partitions. This form of partitioning is implemented through server-side filters and includes mod-based, range-based and hash-based partitioning.  This filtering is natively supported in the Relay and the Bootstrap Service.  The consumers specify the partitioning scheme to be used as part of their registration in the Subscription Client. The Subscription Client then includes it as part of the pull requests to the Relay or the Bootstrap Service. The Bootstrap Service may apply further optimization like predicate push-down so that only the necessary events are read from the persistent log or snapshot stores.
+\item\emph{Consumer groups}: The change stream may be too fast for a single consumer to process and the processing needs to be scaled out across multiple physical consumers who act as a logical group. This is implemented by using a generic cluster management framework called Helix. The partitions of the database are assigned to the consumers in the same group so that every partition has exactly R consumers in the group assigned to it and the partitions are evenly distributed among the consumers. When any consumer fails, Helix rebalances the assignment of partitions by moving the partitions assigned to the failed consumer to the surviving consumers. If the existing consumers in the group are not able to keep up with the stream, additional consumers might be added to the group to scale the processing. In this case, the assignment of partitions is rebalanced so that some partitions from each existing consumer are moved to the new consumers. 
+%%Once partitions are assigned, the consumers just register using partition-specific filters to consume the change stream. 
+\end{enumerate}
+
+%A consumer that is subscribing to the change stream from a logical database must be able to do so independent of the physical partitioning of the database. 
+%Secondly, often the change stream will be too fast for a single consumer to process and the processing needs to be scaled out across multiple physical consumers who act as a logical group. 
+
+%Partitioning is implemented through server-side filters and includes mod-based, range-based and hashed-based partitioning.  This filtering is natively supported in the Relay and the Bootstrap Service.  The consumers specify the partitioning scheme to be used as part of their registration in the Subscription Client. The Subscription Client then includes it as part of the pull requests to the Relay or the Bootstrap Service. The Bootstrap Service may apply further optimization like predicate push-down so that only the necessary events are read from the persistent log or snapshot stores.
+
+%Databus also implements the notion of a consumer group, using the generic cluster manager Helix. The partitions of the database are assigned to the consumers in the same group so that every partition has one and exactly one consumer in the group assigned to it and the partitions are evenly distributed among the consumers. When any consumer fails, Helix rebalances the assignment of partitions by moving the partitions assigned to the failed consumer to the surviving consumers. If the existing consumers in the group are not able to keep up with the stream, additional consumers might be added to the group to scale the processing. In this case, the assignment of partitions is rebalanced so that some partitions from each existing consumer are moved to the new consumers.
+
+

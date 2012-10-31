@@ -1,0 +1,15 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus2-relay:databus2-relay-impl')
+
+  compile spec.external.log4j
+  compile spec.product.container.databusV1Impl
+  
+  testCompile project(':databus-core:databus-core-fwk-test')
+  testCompile spec.external.testng
+  testCompile spec.external.easymock
+}
+
+test.useTestNG()
+test.workingDir = "${project.rootDir}"

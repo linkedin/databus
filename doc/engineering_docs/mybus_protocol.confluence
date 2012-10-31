@@ -1,0 +1,171 @@
+|| Contents ||
+| {toc} |
+
+h1. Introduction
+
+All integers are written  in little endian order.
+
+h1. {{getLastSequence}} command
+
+The command is sent by the Databus agent before starting the MySQL storage engine.
+
+h2. Version 1: per-source sequence numbers
+
+h3. TCP Request
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{opcode}} | 0 | 1 | command code: 0x53 |
+| {{version}} | 1 | 1 | protocol version: 1 |
+| {{sourcesNum}} | 2 | 2 | Number of sources to check |
+| {{sources}} | 4 | 2 * {{sourcesNum}} | a sequence of signed short values with the source ids |
+
+h3. TCP Response
+
+* In case of a success
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{responseCode}} | 0 | 1 | = 0 for OK, < 0 for an error |
+| {{lastSeqs}} | 1 | 8 * {{sourcesNum}} | a sequence of signed long numbers: the sequence numbers of the last event in the buffer for each respective source id in the request  |
+
+* In case of an error: see [Error responses|#errorResponses]
+
+h2. Version 2: per-server binlog offset
+
+h3. TCP Request
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{opcode}} | 0 | 1 | command code: 0x53 |
+| {{version}} | 1 | 1 | protocol version: 1 |
+| {{serverId}} | 2 | 4 | Server id |
+
+h3. TCP Response
+
+* In case of a success
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{responseCode}} | 0 | 1 | = 0 for OK, < 0 for an error |
+| {{responseLength}} | 1 | 4 | length of the rest of the response |
+| {{binlogOffset}} | 5 | 8  | the offset within the binlog offset of the server seen by the relay  |
+
+* In case of an error: see [Error responses|#errorResponses]
+
+
+h2. HTTP Request
+
+{{GET /lastSeq?sources=id1,id2,...}}
+
+h2. HTTP Response
+
+The response contains the fields from the TCP response in JSON format. Example:
+
+{{ \{"lastSeq":\[12345, 23456, ...\]\} }}
+
+h1. {{startSendEvents}} command
+
+This command prepares the server for a sequence of [{{sendEvents}}|#sendEventsCmd] commands. It was
+formerly known as the {{sendEvents}} handshake but it is separate to make it possible to send
+other commands while pushing events to the server.
+
+
+In general, the {{sendEvent}} communication proceeds as follows
+
+|| N || Sender || Relay ||
+| 1 | {{startSendEvents}} request | |
+| 2 | | {{startSendEvents}} response | |
+| 3 | {{sendEvents}} request | |
+| 4 | | {{sendEvents}} response |
+| * | Repeat 3-4 | |
+
+
+h2. Single-event mode (version 1)
+
+h3. TCP Request
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{opcode}} | 0 | 1 | 0xA1 |
+| {{version}} | 1 | 1 | protocol version: 1 |
+| {{serverid}} | 2 | 4 | the server id of the event producer |
+
+
+h3. TCP Response
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{responseCode}} | 0 | 1 | 0 for OK; < 0 for error |
+| {{responseLength}} | 1 | 4 | length of the rest of the response |
+| {{binlogOffset}} | 5 | 8 | the last binlog offset for the specified server seen by the relay |
+| {{maxTransSize}} | 13 | 4 | unsigned int; max number of bytes that can be sent without confirmation from the relay, i.e. max size of an event supported by the relay. A value of 0 means there is no limit. |
+
+* {{maxTransSize}} is probably equal to the read buffer size of the relay.
+
+
+h2. Batch-events mode (version 2)
+
+h3. TCP Request
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{opcode}} | 0 | 1 | 0xA1 |
+| {{version}} | 1 | 1 | protocol version: 2 |
+| " | " | " | Everything in v1  |
+
+h3. TCP Response
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{responseCode}} | 0 | 1 | 0 for OK; < 0 for error |
+| {{responseLength}} | 1 | 4 | length of the rest of the response |
+| {{binlogOffset}} | 5 | 8 | the last binlog offset for the specified server seen by the relay |
+| {{maxTransSize}} | 13 | 4 | unsigned int; max number of bytes in a batch that can be sent without a confirmation from the relay, i.e. max sum of event sizes in a batch supported by the relay. A value of 0 means there is no limit. |
+| {{maxEventNum}} | 17 | 4 | unsigned int; max number of events in a batch that can be sent without a confirmation from the relay. A value of 0 means there is no limit. |
+
+The relay can also answer with the response for single-event mode which means that the relay cannot or does not want to use batch mode. In that case, the sender is required to switch to single-event mode or disconnect.
+
+{anchor:sendEventsCmd}
+h1. {{sendEvents}} command
+
+
+{{sendEvents}} supports two modes of sending events:
+
+* single-event mode -- the relay confirms the successful processing of every event sent. The sender is required to block after sending each event.
+* batch mode -- the relay can receive multiple commands before confirmation.
+
+{note}
+For small event sizes we can probably support UDP too if it shows performance improvements over TCP. For localhost communication, there should not be any problems with packet drops, duplication or wrong packet order. We need to determine what is max UDP datagram size for different platforms. The theoretical limi is slightly over 65000 but there might be practical limits on various platforms.
+{note}
+
+h2. Single-event mode (version 1)
+
+h3. TCP Request
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{opcode}} | 0 | 1 | 0xA2 |
+| {{version}} | 1 | 1 | protocol version: 1 |
+| {{binlogOffset}} | 2 | 8 | binlog offset of the incoming event | 
+| {{event}} | 10 | X | binary serialization of the event |
+
+
+For the binary event serialization format, please see [DbusEvent class comments|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-core/impl/javadoc/com/linkedin/databus/core/DbusEvent.html].
+
+It is sender's responsibility to fill in the EoP flags to denote transaction boundaries. The relay will rewrite the sequence numbers of all events in a window to match the sequence number of the last event. 
+
+When sending event batches, the batch has to be prefixed with a signed integer, specifying the number of bytes in the batch.
+
+
+h3. TCP Response 
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{resultCode}} | 0 | 1 | Result code; 0 means ok, != 0 means an error |
+| {{responseLength}} | 1 | 4 | length of the rest of the response |
+| {{numEvents}} | 5 | 4 | number of successfully processed events; for single-event mode, it can be either 0 or 1 |
+
+
+{anchor:errorResponses}
+h1. Error responses
+
+|| Field || Offset, bytes || Length, bytes || Description ||
+| {{errorCode}} | 0 | 1 | The error code constant, <0 |
+| {{responseLength}} | 1 | 4 | length of the rest of the response |
+| {{errorClassLen}} | 5 | 2 | The length of the exception class name; valid value \[0, 100\]  |
+| {{errorClass}} | 7 | {{errorClassLen}} | The exception class name |
+| {{errorMsgLen}} | 7 + {{errorClassLen}} | 2 | The length of the error message; valid values \[0, 1000\] |
+| {{errorMsg}} | 9 + {{errorClassLen}} + {{errorMsgLen}} | {{errorMsgLen}} | The error message |
+
+* [Error Codes|http://svn.corp.linkedin.com:8070/viewvc/netrepo/databus2/trunk/databus2-relay/impl/java/com/linkedin/databus/container/request/BinaryProtocol.java?view=markup]

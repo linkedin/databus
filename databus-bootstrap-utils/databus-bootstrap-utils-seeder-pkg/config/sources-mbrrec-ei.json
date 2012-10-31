@@ -1,0 +1,18 @@
+{
+    "name" : "mbrrec",
+    "uri" : "jdbc:oracle:thin:mbrrec/mbrrec8uat@eat1-db14.stg:1521:EIDB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 721, 
+         "name": "com.linkedin.events.mbrrec.MemberReferences", 
+         "uri" : "mbrrec.member_references",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 722, 
+         "name": "com.linkedin.events.mbrrec.Recommendations", 
+         "uri" : "mbrrec.recommendations_1",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

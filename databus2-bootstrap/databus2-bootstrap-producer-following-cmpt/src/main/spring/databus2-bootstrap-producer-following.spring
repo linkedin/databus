@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+    
+  <bean id="databus2BootstrapProducer.following" 
+        class="com.linkedin.databus.bootstrap.producer.BootstrapProducerStartable">
+    <constructor-arg index="0" value="${databus2.bootstrap.producer.default}" 
+                     type="java.util.Properties" />  
+    <constructor-arg index="1" value="${databus2.bootstrap.producer.following}" 
+                     type="java.util.Properties" />  
+  </bean>
+  <bean id="databus2BootstrapProducerSensorFactory.following" 
+        class="com.linkedin.databus.bootstrap.producer.DatabusBootstrapProducerSensorFactory" 
+        lazy-init="false">
+  	<constructor-arg index="0" ref="sensorRegistry" 
+  	                 type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+	<constructor-arg index="1" ref="databus2BootstrapProducer.following" 
+	                 type="com.linkedin.databus.bootstrap.producer.BootstrapProducerStartable" />
+  </bean>
+</beans>

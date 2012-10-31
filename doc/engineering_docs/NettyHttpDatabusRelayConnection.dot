@@ -1,0 +1,11 @@
+digraph NettyHttpDatabusRelayConnection {
+  null -> XXX_REQUEST_CONNECT [label="requestXXX"];
+  XXX_REQUEST_CONNECT -> XXX_REQUEST_CONNECT [label="connectFailed"];
+  XXX_REQUEST_CONNECT -> XXX_REQUEST_CONNECT [label="connectCancled"];
+  XXX_REQUEST_CONNECT -> XXX_REQUEST_FAILIRE [label="connectFailed"];
+  XXX_REQUEST_CONNECT -> XXX_REQUEST_FAILIRE [label="connectCancled"];
+  XXX_REQUEST_WRITE ->  XXX_REQUEST_FAILIRE [label="writeFailed"];
+  XXX_REQUEST_WRITE ->  XXX_REQUEST_FAILIRE [label="writeCancelled"];
+  XXX_REQUEST_WRITE ->  XXX_RESPONSE_FAILURE [label="disconnected", color=red, fontcolor=red];
+  XXX_REQUEST_WRITE -> XXX_REQUEST_SUCCESS [label="disconnected", color=green, fontcolor=green];
+}

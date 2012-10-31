@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:lin="http://www.linkedin.com/lispring"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-2.0.xsd
+                           http://www.linkedin.com/lispring http://www.linkedin.com/lispring/lispring.xsd">
+
+  <bean id="databus2Relay.company" class="com.linkedin.databus2.relayli.RelayStartable">
+    <constructor-arg index="0" value="${databus2.relay.default}" type="java.util.Properties" />
+    <constructor-arg index="1" value="${databus2.relay.local.company}" type="java.util.Properties" />
+    <constructor-arg index="2">
+      <list value-type="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+          <bean class="com.linkedin.databus2.relay.config.PhysicalSourceConfig">
+            <property name="name" value="company"/>
+            <property name="uri" value="${db.compy.db_url}"/>
+            <property name="slowSourceQueryThreshold" value="${databus2.relay.slowSourceQueryThreshold}" />
+            <property name="restartScnOffset" value="${databus2.relay.restartScnOffset}" />
+             <property name="sources">
+              <list value-type="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="301"/>
+                  <property name="name" value="com.linkedin.events.company.Companies"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.company.uri}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="302"/>
+                  <property name="name" value="com.linkedin.events.company.CompanyNameSearch"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.company_name_search.uri}"/>
+                </bean>
+                 <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="303"/>
+                  <property name="name" value="com.linkedin.events.company.Profiles"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.profiles.uri}"/>
+                </bean>
+                 <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="305"/>
+                  <property name="name" value="com.linkedin.events.company.Products"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.products.uri}"/>
+                </bean>
+                 <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="306"/>
+                  <property name="name" value="com.linkedin.events.company.Reviews"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.reviews.uri}"/>
+                </bean>
+                <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="307"/>
+                  <property name="name" value="com.linkedin.events.company.EmailDomains"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.email_domains.uri}"/>
+                </bean>
+                 <bean class="com.linkedin.databus2.relay.config.LogicalSourceConfig">
+                  <property name="id" value="308"/>
+                  <property name="name" value="com.linkedin.events.company.Flagging"/>
+                  <property name="partitionFunction" value="constant:1"/>
+                  <property name="uri" value="${databus2.relay.company.flagging.uri}"/>
+                </bean>
+               </list>
+            </property>
+            <property name="retries">
+              <bean class="com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder">
+                <property name="maxRetryNum" value="${databus2.relay.maxDbRetryNum}" />
+                <property name="initSleep" value="${databus2.relay.dbPollIntervalMs}" />
+                <property name="maxSleep" value="${databus2.relay.dbMaxErrorSleepMs}" />
+                <property name="sleepIncDelta" value="0" />
+                <property name="sleepIncFactor" value="2.0" />
+              </bean>
+            </property>
+          </bean>
+      </list>
+    </constructor-arg>
+  </bean>
+    
+  <bean id="relaySensorFactory.company" class="com.linkedin.databus2.relay.DatabusRelaySensorFactory" lazy-init="false">
+    <constructor-arg index="0" ref="sensorRegistry" type="com.linkedin.healthcheck.pub.spring.SensorRegistry" />
+    <constructor-arg index="1" ref="databus2Relay.company" type="com.linkedin.databus2.relayli.RelayStartable" />
+  </bean>   
+</beans>

@@ -1,0 +1,13 @@
+{
+    "name" : "targeting",
+    "uri" : "jdbc:oracle:thin:FIXME/FIXME@ech3-db-drf.prod:1521:PDRF",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1302, 
+         "name": "com.linkedin.events.targeting.LixTarget", 
+         "uri" : "targeting.lix_target",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}
