@@ -1,4 +1,3 @@
-apply plugin: 'li-war'
 
 dependencies {
   components project(':databus2-bootstrap:databus2-bootstrap-producer-flex-cmpt')

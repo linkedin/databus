@@ -1,4 +1,3 @@
-apply plugin: 'li-cmdline'
 
 dependencies {
   compile project(':databus-core:databus-core-schema-tools')

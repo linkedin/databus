@@ -1,4 +1,3 @@
-apply plugin: 'li-java'
 
 test.workingDir = "${project.rootDir}"
 test.dependsOn(':database:databus2-bootstrap:reinit')

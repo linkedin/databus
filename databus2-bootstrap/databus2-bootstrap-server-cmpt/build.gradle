@@ -1,4 +1,3 @@
-apply plugin: 'li-spring'
 
 dependencies {
   runtime project(':databus-bootstrap-server:databus-bootstrap-server-impl')

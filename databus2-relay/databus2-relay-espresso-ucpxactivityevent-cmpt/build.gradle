@@ -1,4 +1,3 @@
-apply plugin: 'li-spring'
 
 dependencies {
   runtime project(':databus2-relay:databus2-relay-impl')

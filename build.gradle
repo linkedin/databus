@@ -1,5 +1,3 @@
-apply plugin: 'li-product'
-//apply plugin: 'li-cobertura-product'
 
 // for FindBugs
 //TODO: this should come from artifactory, but it's not clear to me how to set

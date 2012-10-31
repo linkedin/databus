@@ -1,4 +1,3 @@
-apply plugin: 'li-spring'
 
 dependencies {
   components project(':databus2-relay:databus2-relay-bizfollow-cmpt')

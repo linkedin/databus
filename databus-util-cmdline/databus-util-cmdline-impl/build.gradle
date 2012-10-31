@@ -1,4 +1,3 @@
-apply plugin: 'li-java'
 
 dependencies {
   compile spec.external.avro

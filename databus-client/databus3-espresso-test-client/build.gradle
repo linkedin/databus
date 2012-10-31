@@ -1,4 +1,3 @@
-apply plugin: 'li-java'
 
 dependencies {
   compile project(':databus-core:databus2-espresso-core')
