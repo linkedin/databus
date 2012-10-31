@@ -23,7 +23,6 @@ def modules = [
 'hadoop',
 'perf',
 'integration-test',
-'central-config-repo',
 'database'
 ]
 
