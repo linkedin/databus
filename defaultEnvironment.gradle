@@ -1,0 +1,14 @@
+subprojects {
+  repositories {
+    mavenCentral()
+
+    add(new org.apache.ivy.plugins.resolver.URLResolver()) {
+      name = 'release'
+      addIvyPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[module]-[revision].ivy'
+      addArtifactPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+      m2compatible = true
+    }
+  }
+  
+  project.buildDir = new File(project.rootProject.buildDir, project.name)
+}

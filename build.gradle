@@ -1,158 +1,201 @@
+ext.build_script_dir = "${projectDir.path}/build_script"
 
-// for FindBugs
-//TODO: this should come from artifactory, but it's not clear to me how to set
-// findBugsHome if this becomes a URLResolver
-repositories {
-  add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
-    name = 'findbugsRepo'
-      addIvyPattern "${project.rootDir}/tools/[module]-[revision]/lib/[artifact].ivy"
-      addArtifactPattern "${project.rootDir}/tools/[module]-[revision]/lib/[artifact].[ext]"
-      m2compatible = true
-      checkmodified = true
-  }
+ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
+ 
+File getEnvironmentScript()
+{
+  final File env = file(isDefaultEnvironment ? 'defaultEnvironment.gradle' : project.overrideBuildEnvironment)
+  assert env.isFile() : "The environment script [$env] does not exists or is not a file."
+  return env
 }
 
-configurations  {
-  findbugsConf
-}
+apply from: environmentScript
 
-def findbugsVersion = '1.3.9'  
+ext.externalDependency = [
+    'avro': 'org.apache.avro:avro:1.4.0',
+    'avroSchemaTools': 'com.linkedin.avro-schema-tools:avro-schema-tools:0.1.3',
+    'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
+    'commonsCli': 'commons-cli:commons-cli:1.2',
+    'commonsCodec': 'commons-codec:commons-codec:1.3',
+    'commonsCollections': 'commons-collections:commons-collections:3.2.1',
+    'commonsIo': 'commons-io:commons-io:1.4',
+    'commonsLang': 'commons-lang:commons-lang:2.5',
+    'commonsLogging': 'commons-logging:commons-logging:1.1',
+    'commonsParent': 'org.apache.commons:commons-parent:5',
+    'easymock': 'org.easymock:easymock:2.4',
+    'easymockext': 'org.easymock:easymock-class-extension:2.4',
+    'googleCollections': 'com.google.collections:google-collections:1.0-rc2',
+    'hadoopCore': 'org.apache.hadoop:hadoop-core:0.20.2',
+    'helixCore': 'com.linkedin.helix:helix-core:0.5.24',
+    'jacksonCoreAsl': 'org.codehaus.jackson:jackson-core-asl:1.8.5',
+    'jacksonMapperAsl': 'org.codehaus.jackson:jackson-mapper-asl:1.8.5',
+    'jline': 'jline:jline:1.0',
+    'json': 'org.json:json:20070829',
+    'junit': 'junit:junit:4.8.1',
+    'log4j': 'log4j:log4j:1.2.15',
+    'luceneAnalyzers': 'org.apache.lucene:lucene-analyzers:2.9.1',
+    'luceneCore': 'org.apache.lucene:lucene-core:2.9.1',
+    'luceneQueries': 'org.apache.lucene:lucene-queries:2.9.1',
+    'mysqlConnectorJava': 'org.mysql:mysql-connector-java:5.1.14',
+    'netty': 'org.jboss.netty:netty:3.2.4.Final',
+    'ojdbc6': 'com.oracle:ojdbc6:11.2.0.2.0',
+    'snakeyaml': 'org.yaml:snakeyaml:1.8',
+    'spring': 'org.springframework:spring:2.5.5',
+    'testng': 'org.testng:testng:6.4',
+    'zkclient': 'zkclient:zkclient:0.2.0',
+    'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
+    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3'
+];
 
-dependencies {
-  findbugsConf "edu.umd.cs:findbugs:${findbugsVersion}"
-}
-
-task findbugsSetup << {
-  ant {
-    taskdef(name:'findbugs',
-            classname:'edu.umd.cs.findbugs.anttask.FindBugsTask',
-            classpath: configurations.findbugsConf.asPath)
-
-    findbugsHome = "tools/findbugs-${findbugsVersion}"
-    configurations.findbugsConf.files.each {
-      jarPath ->
-      if (jarPath.getName().equalsIgnoreCase('findbugs.jar')) {
-        findbugsHome = jarPath.getParentFile().getCanonicalPath()
-      }
+if (!isDefaultEnvironment)
+{
+  spec.external.each { overrideDepKey, overrideDepValue ->
+    if (externalDependency[overrideDepKey] != null)
+    {
+      externalDependency[overrideDepKey] = overrideDepValue
     }
   }
 }
 
-// set JVM params on all test sub-projects
-ext.schemaRootDir = "${rootDir}/schemas_registry"
-subprojects { subproj ->
-
-  subproj.plugins.withType(JavaPlugin) {
-  	subproj.sourceCompatibility = 1.6
-  }
-  
-  subproj.plugins.apply('li-test')
-  
-  subproj.tasks.withType(Test) {	
-	forkEvery = 20
-    
-    // Somehow jvmArgs does not recognize -Xmx. allJvmArgs seems to be able to.
-    // Set -Xms for now to 1g 
-	jvmArgs = [
-	  '-XX:MaxDirectMemorySize=6096m',
-	  '-Xms2024M',
-	  '-Xmx4048M',
-	  '-XX:PermSize=512M',
-	  '-XX:MaxPermSize=1024M',
-	  '-ea'
-	]
-	
-	afterTest { test, result ->
-	  logger.lifecycle("testFinished: $test, result: $result.resultType")
-    }
-    
-    //all standard error messages from tests will get routed to 'DEBUG' level messages.
-	logging.captureStandardError(LogLevel.DEBUG)
-	//all standard output messages from tests will get routed to 'DEBUG' level messages.
-	logging.captureStandardOutput(LogLevel.DEBUG)	
-  }
-
-  subproj.afterEvaluate { project ->
-    project.plugins.withType(com.linkedin.tools.build.plugins.LiJavaPlugin) {
-      if (project.hasProperty('cobertura')) {  // add the configuration which is a jar dependency
-        if (project.hasProperty('coberturaVersion')) {
-          //println "project ${project.name} cobertura verion = ${project.coberturaVersion}"
-        }
-        if (!project.configurations.asMap['cobertura']) {
-          project.configurations.add('cobertura') {
-            extendsFrom project.configurations['testCompile']
-          }
-            project.dependencies {
-            cobertura "net.sourceforge.cobertura:cobertura:${project.coberturaVersion}"
-          }
-        }
-      }
-
-      //def instrumentedJar = project.task('instrumentedJar', type: Jar) {
-      //  appendix = 'instrument'
-      //  from("$project.buildDir/instrumented_classes")
-      //  destinationDir=file("${project.buildDir}/instrumented_lib")
-      //}
-
-      //project.cobertura.dependsOn(instrumentedJar)
-      //project.test.dependsOn(instrumentedJar)
-    }
-
-    //println "working on ${project.name}"
-    if (project.tasks.findByName('jar') != null) {
-      //println "found jar task in ${project.name}"
-      project.tasks.add( name: 'findbugs', dependsOn: ['jar', ':findbugsSetup'],
-                    description: 'Invokes findbugs on generated jar file.') << {
-        Task myTask ->
-
-        proj = myTask.project
-
-        outDir = new File(proj.buildDir.toString() + '/reports/findbugs')
-        outFile = outDir.toString() + '/findbugs.xml'
-        jarFile = "${proj.libsDir}/${proj.jar.archiveName}"
-
-        if (! new File(jarFile).exists()) {
-            myTask.logger.warn("Warning: skipping findbugs as {} does not exist",
-                               jarFile)
-            return
-        }
-
-        ant {
-          uptodate(property: 'findbugsUpToDate',
-                   srcfile: jarFile,
-                   targetFile: outFile)
-        }
-
-        if ("true".equals(ant.properties.findbugsUpToDate)) {
-          return
-        }
-
-        outDir.mkdirs()
-
-        project.rootProject.ant {
-          // NOTE: class is reserved so put into double quotes
-          findbugs(home: findbugsHome,
-                   output: 'xml:withMessages',
-                   outputFile: outFile,
-                   onlyAnalyze: "com.linkedin.databus.-,com.linkedin.databus2.-,com.linkedin.databus3",
-                   jvmargs: '-Xmx300m') {
-            auxClasspath(path: proj.configurations.runtime.asPath)
-            sourcePath(path: proj.files(proj.sourceSets.main.java.srcDirs).asPath)
-            "class"(location: jarFile)
-          }
-        }
-      }
-      project.tasks.add( name: 'findbugs-text', dependsOn: ['findbugs', ':findbugsSetup']) << {
-        Task myTask ->
-      
-        project.tasks.getByName('findbugs')
-      }
-    }
+allprojects {
+  tasks.withType(Compile).all { Compile compile ->
+    compile.options.compilerArgs = ['-Xlint', '-Xlint:-path', '-Werror']
   }
 }
 
-task restartGlu {
-	//exec {
-	//     commandLine('./restart_glu.sh')
-	//} 
+task wrapper(type: Wrapper) {
+  gradleVersion = '1.0'
+}
+
+subprojects {
+  apply plugin: 'java'
+  apply plugin: 'idea'
+  apply plugin: 'eclipse'
+
+  sourceCompatibility = JavaVersion.VERSION_1_6
+
+  configurations {
+    compile {
+      transitive = false
+    }
+
+    testArtifacts
+  }
+
+  // Default dependencies for all subprojects
+  dependencies {
+    //compile externalDependency.slf4jApi
+    //runtime externalDependency.slf4jLog4j12
+    //runtime externalDependency.log4j
+  }
+
+  if (isDefaultEnvironment)
+  {
+    task sourcesJar(type: Jar, dependsOn: classes) {
+      from sourceSets.main.allSource
+      classifier = 'sources'
+    }
+
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+      from javadoc.destinationDir
+      classifier = 'javadoc'
+    }
+
+    artifacts {
+      archives sourcesJar
+      archives javadocJar
+    }
+  }
+
+  task testJar(type: Jar){
+    from sourceSets.test.output
+    classifier = 'tests'
+  }
+
+  artifacts {
+    testArtifacts testJar
+  }
+
+  // Configure the IDEA plugin to (1) add the codegen as source dirs and (2) work around
+  // an apparent bug in the plugin which doesn't set the outputDir/testOutputDir as documented
+  idea.module {
+    // Gradle docs claim the two settings below are the default, but
+    // the actual defaults appear to be "out/production/$MODULE_NAME"
+    // and "out/test/$MODULE_NAME". Changing it so IDEA and gradle share
+    // the class output directory.
+
+    outputDir = sourceSets.main.output.classesDir
+    testOutputDir = sourceSets.test.output.classesDir
+  }
+
+  test {
+	  maxHeapSize = '1g'
+
+    useTestNG() {
+      excludeGroups 'not_implemented'
+      excludeGroups 'integration'
+      excludeGroups 'integration_external_product_dependent'
+	  excludeGroups 'known_issue'
+    }
+  }
+
+  task integrationTests(type: Test) {
+    useTestNG() {
+      includeGroups 'integration'
+      excludeGroups 'integration_external_product_dependent'
+    }
+  }
+
+  //all functional tests which are expected to pass assuming proper environment setup
+  task allTests(type: Test) {
+	  maxHeapSize = '1g'
+
+    useTestNG() {
+      excludeGroups 'known_issue'
+      excludeGroups 'not_implemented'
+    }
+  }
+
+
+  task integrationExternalProductDependentTests(type: Test) {
+    useTestNG() {
+      includeGroups 'integration_external_product_dependent'
+    }
+  }
+
+  task notImplementedFeaturesTests(type: Test) {
+    useTestNG() {
+      includeGroups 'not_implemented'
+    }
+  }
+
+  task knownIssuesTests(type: Test) {
+	  useTestNG() {
+      includeGroups 'known_issue'
+	  }
+  }
+
+  task allFailingTests(type: Test) {
+    useTestNG() {
+      includeGroups 'known_issue'
+      includeGroups 'not_implemented'
+    }
+  }
+
+  task cleanBuildDir(type: Exec){
+    delete(rootDir.toString()+'build')
+    commandLine = ['rm', '-rf', rootDir.toString() + '/build']
+    workingDir = file(rootDir.toString())
+  }
+
+  task makedir(type:Exec){
+    // gradle mkdir does not create dir with "-p" flag on so this is a generic task that takes -Ddirpath=..... parameter
+    // Usage examples:
+    // gradle makedir -Ddirpath=abc/xyz
+    def dir = System.getProperties()['dirpath'] ?: null
+    if (dir != null){
+      commandLine = ['mkdir','-p', dir]
+      workingDir = file(rootDir.toString())
+    }
+  }
 }
