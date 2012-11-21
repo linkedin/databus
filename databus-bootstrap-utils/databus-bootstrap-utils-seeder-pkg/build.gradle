@@ -1,11 +1,11 @@
-apply plugin: 'li-cmdline'
+apply plugin: 'cmdline'
 
 dependencies {
   compile project(':databus-bootstrap-utils:databus-bootstrap-utils-impl')
   compile project(':databus2-client:databus2-client-util')
 
-  compile spec.external.avro
-  compile spec.external.ojdbc6
+  compile externalDependency.avro
+  compile externalDependency.ojdbc6
 }
 
 project.tasks.cmdline {

@@ -1,0 +1,27 @@
+final Configuration restliToolsConfig = project(':restli-tools').configurations.default
+
+project.sourceSets.all { SourceSet sourceSet ->
+  if (project.ext.resourcePackages[sourceSet.name] == null ||
+      project.ext.resourcePackages[sourceSet.name].empty)
+  {
+    return;
+  }
+
+  final String outputDirPath = "src${File.separatorChar}${sourceSet.name}GeneratedRest${File.separatorChar}idl"
+  mkdir(outputDirPath)
+
+  final Task generateRestModelTask = project.task(sourceSet.name + 'GenerateRestModel',
+                                                  type: JavaExec,
+                                                  dependsOn: tasks[sourceSet.classesTaskName]) {
+    main = 'com.linkedin.restli.tools.idlgen.RestLiResourceModelExporterCmdLineApp'
+    classpath = restliToolsConfig + restliToolsConfig.allArtifacts.files + sourceSet.compileClasspath + project.files(sourceSet.output.classesDir)
+    args '-outdir'
+    args outputDirPath
+    args '-sourcepath'
+    args sourceSet.java.srcDirs
+    args '-resourcepackages'
+    args resourcePackages[sourceSet.name]
+  }
+
+  project.tasks[sourceSet.getTaskName('', 'jar')].dependsOn(generateRestModelTask)
+}

@@ -1,2 +1,2 @@
-apply plugin: 'li-db'
+apply plugin: 'db'
 

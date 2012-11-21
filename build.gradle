@@ -11,7 +11,7 @@ File getEnvironmentScript()
 
 apply from: environmentScript
 
-ext.externalDependency = [
+externalDependency = [
     'avro': 'org.apache.avro:avro:1.4.0',
     'avroSchemaTools': 'com.linkedin.avro-schema-tools:avro-schema-tools:0.1.3',
     'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
@@ -49,7 +49,7 @@ ext.externalDependency = [
 
 if (!isDefaultEnvironment)
 {
-  spec.external.each { overrideDepKey, overrideDepValue ->
+  externalDependency.each { overrideDepKey, overrideDepValue ->
     if (externalDependency[overrideDepKey] != null)
     {
       externalDependency[overrideDepKey] = overrideDepValue

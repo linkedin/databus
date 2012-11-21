@@ -1,7 +1,7 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus2-relay:databus2-relay-impl')
 
-  compile spec.external.log4j
+  compile externalDependency.log4j
 }

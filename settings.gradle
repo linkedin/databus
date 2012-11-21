@@ -19,7 +19,6 @@ def modules = [
 'databus3-relay',
 'databus2-tools',
 'databus3-scripts',
-'database'
 ]
 
 def nonReleaseModules = [

@@ -1,0 +1,26 @@
+final Configuration restliToolsConfig = project(':restli-tools').configurations.default
+
+project.sourceSets.all { SourceSet sourceSet ->
+  final inputIdlDirPath = "src${File.separatorChar}${sourceSet.name}${File.separatorChar}idl"
+  final String outputDirPath = "src${File.separatorChar}${sourceSet.name}GeneratedRest${File.separatorChar}java"
+
+  final FileTree inputIdlFiles = project.fileTree(dir: inputIdlDirPath, includes: ["**${File.separatorChar}*.restspec.json"])
+  if (inputIdlFiles.empty)
+  {
+    return;
+  }
+
+  final File outputDir = project.mkdir(outputDirPath)
+  sourceSet.java.srcDir(outputDir)
+
+  final Task generateRestClientTask = project.task(sourceSet.name + 'GenerateRestClient', type: JavaExec) {
+    main = 'com.linkedin.restli.tools.clientgen.RestRequestBuilderGenerator'
+    classpath = restliToolsConfig + restliToolsConfig.allArtifacts.files
+    args outputDirPath
+    args inputIdlFiles
+    systemProperties(['generator.resolver.path': "src${File.separatorChar}${sourceSet.name}${File.separatorChar}pegasus",
+                      'generator.rest.generate.datatemplates': 'false'])
+  }
+
+  project.tasks[sourceSet.compileJavaTaskName].dependsOn(generateRestClientTask)
+}

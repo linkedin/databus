@@ -1,4 +1,4 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus-core:databus-core-container')
@@ -7,21 +7,21 @@ dependencies {
   compile project(':databus-client:databus-client-impl')
   compile project(':databus-util-cmdline:databus-util-cmdline-impl')
 
-  compile spec.external.avro
-  compile spec.external.helixCore
-  compile spec.external.commonsBeanutils
-  compile spec.external.commonsCli
-  compile spec.external.commonsIo
-  compile spec.external.commonsLogging
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.log4j
-  compile spec.external.netty
-  compile spec.external.ojdbc6
+  compile externalDependency.avro
+  compile externalDependency.helixCore
+  compile externalDependency.commonsBeanutils
+  compile externalDependency.commonsCli
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLogging
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.ojdbc6
   
   testCompile project(':databus-core:databus-core-fwk-test')
-  testCompile spec.external.testng
-  testCompile spec.external.easymock
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
 }
 
 test.useTestNG()

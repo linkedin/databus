@@ -1,0 +1,41 @@
+final Configuration restliToolsConfig = project(':restli-tools').configurations.default
+final String IDL_COMPAT_REQUIREMENT_NAME = 'rest.model.compatibility'
+
+project.sourceSets.all { SourceSet sourceSet ->
+  final String currIdlDirPath = "src${File.separatorChar}${sourceSet.name}GeneratedRest${File.separatorChar}idl"
+  final String apiIdlDirRelativePath = "src${File.separatorChar}${sourceSet.name}${File.separatorChar}idl"
+  final String dataSchemaRelativePath = "src${File.separatorChar}${sourceSet.name}${File.separatorChar}pegasus"
+
+  final FileTree currIdlFiles = project.fileTree(dir: currIdlDirPath, includes: ["**${File.separatorChar}*.restspec.json"])
+  if (currIdlFiles.empty)
+  {
+    return;
+  }
+
+  final Project apiProject = project(':restli-int-test-api')
+  final File apiIdlDir = apiProject.file(apiIdlDirRelativePath)
+
+  final Task checkIdlTask = project.task(sourceSet.name + 'CheckIdl',
+                                         type: JavaExec,
+                                         dependsOn: project.tasks[sourceSet.name + 'GenerateRestModel']) {
+    main = 'com.linkedin.restli.tools.idlcheck.RestLiResourceModelCompatibilityChecker'
+    classpath = restliToolsConfig + restliToolsConfig.allArtifacts.files
+    ignoreExitValue = (project.hasProperty(IDL_COMPAT_REQUIREMENT_NAME) &&
+                       project.property(IDL_COMPAT_REQUIREMENT_NAME).equalsIgnoreCase('ignore'))
+    systemProperties(['generator.resolver.path': apiProject.file(dataSchemaRelativePath).path])
+  }
+  currIdlFiles.each {
+    final String apiIdlFilePath = "${apiIdlDir.path}${File.separatorChar}${it.name}"
+    checkIdlTask.args apiIdlFilePath
+    checkIdlTask.args it
+  }
+
+  final Task publishIdlTask = project.task(sourceSet.name + 'PublishIdl',
+                                           type: Copy,
+                                           dependsOn: checkIdlTask) {
+    from currIdlFiles
+    into apiIdlDir
+  }
+
+  project.tasks[sourceSet.getTaskName('', 'jar')].dependsOn(publishIdlTask)
+}

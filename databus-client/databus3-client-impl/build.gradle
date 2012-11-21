@@ -1,4 +1,4 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 test.workingDir = "${project.rootDir}"
 
@@ -8,16 +8,16 @@ dependencies {
   compile project(':databus-core:databus-core-fwk-test')
   compile project(':databus2-linkedin:databus2-linkedin-impl')
 
-  compile spec.external.helixCore
-  compile spec.external.avro
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.log4j
-  compile spec.external.netty
+  compile externalDependency.helixCore
+  compile externalDependency.avro
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
 
-  testCompile spec.external.testng
-  testCompile spec.external.easymock
-  testCompile spec.external.easymockext
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
+  testCompile externalDependency.easymockext
 }
 
 configurations.compile.exclude(group: "zkclient", module: "zkclient")

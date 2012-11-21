@@ -1,4 +1,4 @@
-apply plugin: 'li-cmdline'
+apply plugin: 'cmdline'
 
 dependencies {
   compile project(':databus-client:databus3-espresso-test-client')
