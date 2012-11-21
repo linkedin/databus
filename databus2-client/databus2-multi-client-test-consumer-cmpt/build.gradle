@@ -1,7 +1,0 @@
-
-dependencies {
-  runtime project(':databus-client:databus-client-impl')
-
-  runtime spec.product.container.containerImpl
-  runtime spec.product.container.healthcheckApi
-}

@@ -1,7 +1,0 @@
-
-dependencies {
-  runtime project(':databus-bootstrap-producer:databus-bootstrap-producer-impl')
-
-  runtime spec.product.container.containerImpl
-  runtime spec.product.container.healthcheckApi
-}

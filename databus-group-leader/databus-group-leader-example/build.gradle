@@ -1,4 +1,0 @@
-
-dependencies {
-  compile project(':databus-group-leader:databus-group-leader-impl')
-}

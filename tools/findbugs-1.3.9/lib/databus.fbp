@@ -1,8 +1,0 @@
-<Project projectName="databus">
-  <Jar>/Users/cbotev/projects/databus2/build/databus-core/impl/classes</Jar>
-  <SrcDir>/Users/cbotev/projects/databus2/databus-core/impl/java</SrcDir>
-  <WrkDir>/Users/cbotev/Downloads/findbugs-1.3.9/lib</WrkDir>
-  <SuppressionFilter>
-    <LastVersion value="-1" relOp="NEQ"/>
-  </SuppressionFilter>
-</Project>

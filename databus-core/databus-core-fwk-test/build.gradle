@@ -1,6 +1,0 @@
-
-dependencies {
-  compile spec.external.log4j
-  compile spec.external.netty
-  compile spec.external.testng
-}

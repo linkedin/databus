@@ -1,8 +1,0 @@
-#!/bin/bash
-
-script_dir=`dirname $0`
-source $script_dir/setup.inc
-
-main_class=com.linkedin.databus2.tools.dtail.Dtail
-
-java -cp ${cp} -XX:+UseCompressedOops -Xmx350m -Xms275m -XX:MaxDirectMemorySize=64m ${main_class} -p ${conf_dir}/dtail.properties  --config_root ${conf_dir} $*
