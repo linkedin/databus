@@ -1,0 +1,215 @@
+Dear Shirshanka Das,
+
+The ACM Symposium on Cloud Computing 2012 (SOCC 2012) program committee is
+delighted to inform you that your paper #211 has been accepted to appear as
+a full paper in the conference.
+
+      Title: All aboard the Databus! Linkedin’s scalable consistent
+             change data capture platform
+    Authors: Chavdar Botev (LinkedIn)
+             Kapil Surlaker (LinkedIn)
+             Shirshanka Das (LinkedIn)
+ Paper site: http://submissions-socc12.cl.cam.ac.uk/paper.php/211?cap=0211a1QncHAFkxZ8
+
+Your paper was one of 25 accepted papers (21 full, 4 short) out of a total
+of 163 submissions.  Congratulations!
+
+
+In your paper's case, the reviewers recommended that acceptance be
+conditional subject to the final approval of your changes by a shepherd.
+Your shepherd's name and e-mail address are Patrick Helland
+<pathelland@me.com>. Please contact them to discuss the shepherding process
+before you begin making your revisions.
+
+
+Reviews of your paper are appended to this email.  The submissions site
+also has the paper's reviews as well as more information about review
+scores.
+
+Mike Carey and Steven Hand
+SoCC'12 PC Co-Chairs
+
+===========================================================================
+                         SOCC 2012 Review #211A
+                Updated Friday 27 Jul 2012 8:16:29pm BST
+---------------------------------------------------------------------------
+ Paper #211: All aboard the Databus! Linkedin’s scalable consistent
+             change data capture platform
+---------------------------------------------------------------------------
+
+                     Overall merit: 1. Reject
+                Reviewer expertise: 2. Some familiarity
+
+                        ===== Paper summary =====
+
+This paper describes LinkedIn's Databus system, which extracts
+information about data changes from databases and makes it available
+to other programs that need to monitor such changes.
+
+I'm always interested in hearing about systems that have practical
+impact in industry and am in favor of publishing them in conferences
+whenever possible. Unfortunately, in its current form this paper has
+some significant weaknesses:
+* It describes the Databus system in quite a bit of detail, but it's
+ hard to understand why the system was built the way it is, and it's
+ not clear what is new or different about this system.
+* The writing is difficult to follow: paragraphs are long and
+ confusing, the description isn't complete enough to fully
+ explain the system, there are not enough examples, and terms are
+ used without definition (see below for specifics).
+* Some of the performance measurements don't make sense to me, so I'm
+ not sure I trust the performance evaluation.
+
+                     ===== Comments for author =====
+
+* In several places there are paragraphs that are quite long and
+ seem to ramble on without an overall point or topic sentence.
+ These paragraphs make the paper hard to understand. Here are a
+ few examples:
+ * Section 1, 2nd paragraph ("LinkedIn's data architecture...")
+ * Section 3.2, first paragraph ("The design philosophy...")
+ * Section 3.2, second paragraph ("Fetchers keep track of...")
+ * Section 6.1, "Source Isolation" bullet
+* In several places terms appear to be used without introduction,
+ such as:
+ * SCN (Section 3.1): what does this acronym stand for?
+ * timeline (Section 3.2, second paragraph)
+ * consistency window (Figure 4)
+ * primary stream call (Section 3.4)
+ * Avro (Section 3.6)
+ * CDC (Figure 9)
+* The introduction of the paper should highlight what is new or
+ different about Databus. Just building it isn't enough to warrant
+ publication. What do you hope readers will learn from reading
+ this paper? I wasn't able to answer this question.
+* Figure 2 is hard to understand because it doesn't seem to relate
+ to the terms introduced at the beginning of Section 3. It would be 
+ helpful if the terms "fetcher", "log store", "snapshot store", and
+ "subscription client" all appeared explicitly in this figure.
+* Section 3.1: I'm uneasy  with the idea that events can be delivered
+ multiple times. Doesn't this create a burden for all the consuming
+ applications?
+* Section 3.2: I couldn't tell how the clock works: where does this
+ clock come from, and how do you ensure that it is synchronized
+ across all of the fetchers?
+* Section 3.2, first paragraph, "Figure 3 shows the interactions...":
+ at this point I don't have enough information to understand what
+ you are saying here.
+* Section 3.2, second paragraph, "Fetchers keep track of ...": at this
+ point you haven't yet told us exactly what a fetcher is, or how it
+ works. Without that information I'm having trouble understanding this.
+* Section 3.2, second paragraph, what does "reliably processed" mean?
+* Section 3.3, bullet on "Off-heap": what do you mean by "outside the
+ heap"?
+* Section 3.3, bullet on "Space-bound": why does multi-tenancy require
+ limits, and why does a circular buffer support fast insert
+ performance?
+* Section 3.3, bullet on "Indexed": this is the first I have heard of
+ range scans. What are they needed for? I can't understand this
+ paragraph.
+* Section 3.3, bullet on "Concurrent", "stepping on each other's toes":
+ how? Can you give a specific example?  Given that you have a write-once
+ log, why are there concurrency problems at all?
+* Section 3.3, paragraph starting "An important point": if the relay
+ doesn't track where consumers are in the timeline, then who does?  Also,
+ why do you keep multiple days worth of buffer?  This seems like a lot
+ of storage space; what are your traffic rates?  Why keep so much data
+ when the readers are almost always caught up with the writers?
+* Section 3.3, last paragraph ("The pseudo-code for ..."): what is the
+ role of a primary stream call?  Who invokes this? For that matter,
+ what is the overall point of this paragraph?
+* Section 3.4: I had trouble getting comfortable with the idea that
+ you are essentially replicating the database in a separate bootstrap
+ database; why build a new database for this rather than using some
+ existing database?
+* Section 3.4, fourth paragraph: I couldn't understand the sentence
+ that starts with "Second, it is able to".
+* Page 7, first paragraph ("Intuitively, the Databus client..."):
+ why break the changes down by tables? Shouldn't they be sorted by
+ time?
+* Page 7, third paragraph ("The offloading of..."): who is this
+ responsibility offloaded to? I didn't understand this.
+* Section 3.6, last paragraph: "Databus ensures that changes to the
+ source schema do not affect consumers". I don't understand how this
+ works. If a column is removed from the database table, with clients
+ using that column break unless they are modified?
+* Section 4.1, paragraph starting "This works to get changes": this
+ paragraph feels like a lot of details. What am I supposed to learn
+ from this?
+* Figure 13: I don't understand this figure. Why is throughput flat
+ up to 20 consumers, then it rises with more than that (i.e if going
+ from 5 to 10 consumers didn't improve throughput, why would going
+ from 25-30?)?  Also, do all bits get sent out over the network?
+ If so, then how can you provide 250MB/s throughput with 1Gbps
+ networking?
+* Section 5.2, fifth paragraph ("What the results of..."): the text
+ discusses what happens with 100 consumers, but the x-axes on the
+ figures stop before getting to 100.  Also, why does a higher update
+ rate cause network bandwidth to run out sooner? If an update is
+ 2.5KB, then 2000 updates /sec. is only 5 MB/s, or 5% of network
+ bandwidth.  Furthermore, this is bandwidth *into* the relay,
+ whereas consumers are using outgoing bandwidth.
+* Figure 14: what does "part" mean?
+* Figure 15: what does this mean? If throughput drops, does this
+ mean that the consumers are not able to keep up, so they just get
+ farther and farther behind? Does that work?
+
+===========================================================================
+                         SOCC 2012 Review #211B
+               Updated Saturday 28 Jul 2012 6:32:57am BST
+---------------------------------------------------------------------------
+ Paper #211: All aboard the Databus! Linkedin’s scalable consistent
+             change data capture platform
+---------------------------------------------------------------------------
+
+                     Overall merit: 3. Weak accept
+                Reviewer expertise: 3. Knowledgeable
+
+                        ===== Paper summary =====
+
+The paper presents Databus, LinkedIn's source-agnostic distributed change data capture system. The authors describe its requirements, its design to scale to a large number of clients, experiments to show its scalability, and experience in production.
+
+                     ===== Comments for author =====
+
+I liked the work. The design of the system is well motivated. I liked having relay servers and bootstrapping servers for clients needing to catch up different amounts of changes. The overall description of the system is well presented. I liked the experience section. 
+
+My score could be higher if the authors discussed different options they tried out (I want more than the experience section) and tradeoffs of the options in a more systematic way. The techniques used are not surprising; thus, I think it'd be really beneficial to readers if you'd describe the lessons you learned in depth. 
+
+Can you discuss push vs. pull tradeoffs more in detail? Do you think it's always good to use pull for your infrastructure?
+
+How do consumers communicate with relay servers? Do they set up persistent TCP connections? Or do they create connections every time they pull changes? If so, what is this overhead of polling?
+
+===========================================================================
+                         SOCC 2012 Review #211C
+                Updated Sunday 29 Jul 2012 3:04:53am BST
+---------------------------------------------------------------------------
+ Paper #211: All aboard the Databus! Linkedin’s scalable consistent
+             change data capture platform
+---------------------------------------------------------------------------
+
+                     Overall merit: 5. Strong accept
+                Reviewer expertise: 3. Knowledgeable
+
+                        ===== Paper summary =====
+
+This paper describes DataBus, LinkedIn's Change Data Capture (CDC) solution.  DataBus extracts changes to an Oracle Database capturing transaction boundaries with the use of triggers (which capture the changes).  Changes are extracted by a relay and then can be staged out to various consumers.
+
+The implementation of DataBus is based on a pull model and a source clock.  In this fashion, the various downstream components can have temporary outages or slowdowns and get accurate information (assuming they get back within a reasonable time period).  Data is organized into transaction windows so they can be atomically applied by the consumers.   The bootstrap service maintains a snapshot of the data (copied from the source database) in which the changes are replayed as they are processed through DataBus.  Using this bootstrap service, new consumers can get an image of the source from the recent past and reapply changes to catch up.
+
+Consumers sign up to receive events from the relays which are propagating changes.  The schema is abstracted into an Avro representation which allows flexibility in the changes to metadata so the consumers can be more loosely aligned to the source schema. The relays work as a team with only one relay actually extracting the changes from Oracle and passing it to its cohorts to disseminate.  In the event of a failure, a new leader relay is selected.
+
+DataBus has been in production at LinkedIn for a number of years.  Some successes include source isolation (which allows flexibility in performance between the participants), the common data format (implemented using Avro), and the ability to offer flexible subscription patterns.  Challenges include the Oracle fetcher support (because using triggers is a challenge) and the work needed to seed the Bootstrap DB.
+
+                     ===== Comments for author =====
+
+I liked your framing of the problem as well your discussion of the requirements and design.
+
+It was neat to see your pragmatic discussion of the use of pulling along with buffering upstream as a natural and (usually) self-correcting mechanism for fault tolerance.  Similarly, the discussion of the relay and bootstrap were clear, easy to understand, and natural.  It was interesting to see your discussion of the use of Avro to lubricate the independence of participant in the CDC.  I've personally seen the importance of these techniques and this was nicely explained.
+
+The one place that I would have liked to learn more about your choices is in section 4.1.  Trigger based mechanisms for CDC are notoriously difficult. You glossed over the use of a log-based approach to extracting the data with a comment that there's no open source technology for extracting log records from Oracle.  I guess I don't understand why that precludes using software that has a licensing fee.  I am left wondering the cost incurred by the trigger based logging.   My presumption is that this costs you a LOT in computational demands on the precious source Oracle system and leaves me wondering if it costs you even more in fragility (as the trigger based stuff is hard to get correct and even harder to ensure it performs smoothly).
+
+Still, it's great to see you share this experience.
+
+
+
+

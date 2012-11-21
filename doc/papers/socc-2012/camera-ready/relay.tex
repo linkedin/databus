@@ -1,0 +1,15 @@
+\subsection{The Relay}
+\label{sec:relay}
+The Databus relay hosts a fetcher, a transient log and an HTTP server within a single process. 
+As described earlier, the fetcher is a pluggable entity and can be used to fetch changes from a source or from another relay. 
+The pluggability allows us to arrange relays in fan-out tree configurations for scaling out. 
+
+The changes extracted by the fetcher are serialized into a binary format that is independent of the data source. They are then grouped together within transaction window boundaries, annotated with the clock value or SCN associated with the transaction and buffered in the transient log. These changes are handed out to consumers when they request them. The consumers request changes based on the source clock, asking for all changes since SCN \emph{N} where \emph{N} is the last SCN for which changes have been processed at the consumer. 
+
+The relay does not maintain consumer-related state. Each consumer application progress is tracked through a consumer checkpoint maintained by the subscription client and passed on each pull request. Since all relays follow the same change stream timeline (determined by the commit order in the data source), the checkpoint is portable across relays.
+
+On the one hand, the above simplifies the relay's implementation and the consumer fail-over from one relay to another. On the other hand, it causes an additional problem that the relay does not know if a given change set has been processed by all interested consumers. We therefore institute a time or size-based retention policy at the relay tier to age out old change sets. In practice, we provision the relays sufficiently using memory-mapped buffers to ensure that most consumers can consume the whole stream directly from the relay even while encountering minor hiccups, planned or unplanned downtime. The bootstrap service described in Section~\ref{subsec:Bootstrap} is the insurance policy in case of unforeseen downtime or if full data set reprocessing is required. We next describe the deployment models that are used in setting up relay clusters. 
+
+\input{cluster}
+
+

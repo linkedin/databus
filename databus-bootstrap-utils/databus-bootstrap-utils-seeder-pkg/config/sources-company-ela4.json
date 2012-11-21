@@ -1,0 +1,43 @@
+{
+    "name" : "company",
+    "uri" : "jdbc:oracle:thin:Encrypted-AES/CBC/PKCS5Padding(0iKPOSI_9ULX82d94SWy01,2VwJphAEq3sINVTa6Io7gy,umlHnS9A)@//ela4-db-prs.prod.linkedin.com:1521/PROD_PPRS_COMPY",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 301,
+         "name": "com.linkedin.events.company.Companies",
+         "uri" : "compy.companies_2",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 302, 
+         "name": "com.linkedin.events.company.CompanyNameSearch",
+         "uri" : "compy.company_name_search",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 303,
+         "name": "com.linkedin.events.company.Profiles",
+         "uri" : "compy.profiles_2",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 305, 
+         "name": "com.linkedin.events.company.Products",
+         "uri" : "compy.products_2",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 306, 
+         "name": "com.linkedin.events.company.Reviews",
+         "uri" : "compy.reviews",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 307, 
+         "name": "com.linkedin.events.company.EmailDomains",
+         "uri" : "compy.email_domains",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 308, 
+         "name": "com.linkedin.events.company.Flagging",
+         "uri" : "compy.flagging",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

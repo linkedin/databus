@@ -1,3 +1,145 @@
+
+2.1.136
+--------------------
+* registerRequests should update event.numRequest , not numErrors (RB=113502)
+* Have Base64 implementation in databus.core and not from xeril (coming in indirectly through healthCheck -> Util -> xeril )
+* Remove dependency of databus.core from org.xeril.ConfigHelper (RB=113539)
+* Move Sensors implementation to a separate folder, without changing package structure. (RB=113588)
+* do not allocate bootstrap buffer if bootstrap is disabled
+* added ability to validate multiple config files at the same time
+* Move xxxSensorFactory to databus2-linkedin/databus2-linkedin-sensor-factory directory (RB=114067)
+* Improvements to HTTP request logging: adding error indication
+* move relay startable into a separate directory. more startables to follow
+* RB=114279 Removing unneeded relay defs for SDR
+* RB=114273 Adding shutdown hook for clean shutdown of the command-line databus produce
+* RB=114285 Don't build and upload the hadoop artifacts as those use up 1.5+GB
+* Address race condition in TestNettyHttpDatabusRelayConnection.runHappyPathIteration
+* Implementing a timeLag metric that shows contains the time lag of the last event in buffer. (RB=114362)
+* debug cleanup in rpldbus  (RB=114677)
+* Enable TXN Chunking for UCPX Espresso (non-ucpxactivityevent ).
+ 
+2.1.135
+---------------------
+
+* RB=112076 Support regular expressions in trJson.py
+* RB=112013 Remove utilCore from external dependencies. Seems like this is not used anywhere.
+* add more logging to debug some SIGMOD issues
+* RB=112169 Remove central config repo, now that we are on cfg2.
+* RB=112158 Remove dependency on container.databusV1Impl
+* RB=112344 Fix help message in trJson.py
+* RB=112588 Move linkedin monitoring specific code into separate directory. First patch to isolate health check dependencies to linkedin specifc monitoring directory
+* RB=112591 Cleanup healthCheck dependencies from all code directories, except databus2-linkedin 
+* RB=112601 Simple script to send reminders for on-call schedule 
+* RB=112629 Adding a script to parse SCN into genid/seqno or vice versa
+* Adding a helper method runWithTimeout to the testing DbusEventBufferConsumer 
+* BUG=DDS-4126 RB=112823 Fix potential event loss in espresso client if there is an error in the middle of readEvents
+* adding a function for final test report to test_common.inc
+* Making test output more readable for ./espresso_dbusmgr_5_3_3_test3.test 
+* RB=113075 adding LEVEL to the rpldbus and tcp log to be able to grep for ERRORs
+* Making test output more readable for ./espresso_dbusmgr_5_3_3_test6.test 
+
+
+
+2.1.134
+---------------------
+
+Updating db_url for collab sources for seeding on ei, stg-beta
+BUG=DDSDBUS-999
+updating espresso test client configs and war version in PROD-ELA4
+Changes for cappr seeding script to add accomodate the new view
+BUG=DDSDBUS-1248
+fix a bug where resourceGroup was not reported for a non-replicating resource, another bug retry when unable to get logical source id
+tuning jvm params for databus espresso test client.
+A command for the client to drop existing relay connections and try new ones
+BUG=DDSDBUS-1258
+Storage nodes not able to connect consistency to databus relay instances on app3599.prod .
+Chavdar tracked cause down to out of stack memory in the jvms.
+fixing jvm settings for databus test client in ELA
+collab sedding scripts
+fix enableDynamic property
+Collab check point serializer
+add some approximate buf size calculations, and treat them as a minimum values
+fixing integ4 testcases. Changed relay replication factor to 2. Disabled a couple of checks that would fail with replciation factor set to 2
+Fix : https://jira01.corp.linkedin.com:8443/browse/DDSDBUS-1277
+Delay registering for external view change notification, until the observer ( in this case, the databus client object )
+ is added
+When killing client connections, do not kill the command session
+BUG=DDSDBUS-1175
+Re-implement resetRelayConnecitons to hard-kill the connection and not enqueue pick-server.
+BUG=DDSDBUS-1258
+Calling start() on V3 client is not valid anymore. Instead, individual registrations must be started.
+BUG=DDSDBUS-1276
+Get rid of external dependency on dalApi  in our client. Seems like we just needed an interface for which we provide the implementation.
+continue if failed to got invalid schema during register call
+Fixing cappr cp serializer
+Fix: DDS-4150 : Remove start() method from client start. As part of feature implemented yesterday by Subbu to throw when start is called in V3 client.
+Fix: DDS-4159 : Fix Concurrent modification exception. Use iterator to remove
+
+2.1.133
+-------
+
+Release 2.1.131
+Fixed typo
+Automatic version increment by mint publish
+Changed mysql.baseDir basing on bshkolni's requirement
+Path name now contains war name: databus3-relay-repldbus
+updated scripts
+move to curl command to drop database to get rid of one fat package
+add svninfo before striipping .svn info and moving to git
+Adding rpldbus war to prod-ela4 so that I can upgrade the PROD EVG clusters to the latest version.
+APPOPS-11351: databus relay config changes for expanded uscp 0.8 cluster in ela4
+Adding missing container instance overrides for rpldbus war.
+RPLDBUS container config support for USCP cluster
+APPOPS-11351: More app container configuration fixes for uscp relay cluster
+APPOPS-11351: Even more config changes for databus3-relay-espresso cluster for uscp 0.8 in ela4
+adding ech3 cluster
+adding new service
+Where is the 12th monkey? He fell off the bed and hit his head.
+databus3-relay-espresso container is missing it's 12th instance container config in PROD_ELA4's RELAY_EVG cluster.
+adding ech3 configs
+adding ech3 configs for espresso
+adding ech3
+adding configs
+adding ech3
+adding ech3 ucpx configs
+upgrade version to 2.1.131
+bumping ucpx versions
+Upgrade to helix package 0.5.28 from 0.5.24 to get bucketization on relay cluster.
+Improve simple fields generation for relay states - copy all simple fields from storage cluster, but overwrite those that are different to make it forward compatible.
+Automatic version increment by mint publish
+update release to 132 on ech3
+Adding relay configs for new view on capp
+revert helix version upgrade, as it is causing classNotFound errors from schemas registry library. This may require an upgrade on schemas lib as well. To debug with Jason later
+Adding example for configurating source specific event buffer for multi-tenant relay
+BUG=DDSDBUS-1267
+changing client subs for ft1
+upgrade change log
+adding first draft for config validation
+changing databus client config to sub all partitions
+Point RELAY_EVG databus3-relay-espresso-war clusters to a single-node zk instance
+for Sigmod perf experiments.
+change numOfStopped threads in rpldbus to be a guage
+increased frequency of removing old execHandlers and added Logging
+Removing the CORP-ESV4 RELEASE.BOM
+Bump ech3 relay-espresso to 2.1.133
+2.1.133 is not released yet. Reverting to databus3-relay-espresso 2.1.131 to avoid fault in 2.1.132 instead.
+findbugs warning - LOG should be 'final'
+upgrading rpl-dbus war to v25 which is what the mysql master version is at for M1,M3 release
+Fixing flex query hint for faster seeding
+BUG=DDSDBUS-1272
+copy all simple fields from storage cluster, overwrite as required
+A relay command to kill all connected databus clients.
+BUG=DDSDBUS-1175
+we don't need to specify database name when connecting to the master mysql
+updating config file for prod testing databus client
+updating client config for FT4 to subscribe to partial partitions and tables
+
+
+2.1.132
+--------
+Please do not USE
+Upgrade helix client version to 0.5.28
+
 2.1.131
 --------
 

@@ -1,0 +1,321 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;8.&nbsp;Filter Files</title><meta name="generator" content="DocBook XSL Stylesheets V1.71.1"><link rel="start" href="index.html" title="FindBugs&#8482; Manual"><link rel="up" href="index.html" title="FindBugs&#8482; Manual"><link rel="prev" href="eclipse.html" title="Chapter&nbsp;7.&nbsp;Using the FindBugs&#8482; Eclipse plugin"><link rel="next" href="analysisprops.html" title="Chapter&nbsp;9.&nbsp;Analysis Properties"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter&nbsp;8.&nbsp;Filter Files</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="eclipse.html">Prev</a>&nbsp;</td><th width="60%" align="center">&nbsp;</th><td width="20%" align="right">&nbsp;<a accesskey="n" href="analysisprops.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="filter"></a>Chapter&nbsp;8.&nbsp;Filter Files</h2></div></div></div><div class="toc"><p><b>Table of Contents</b></p><dl><dt><span class="sect1"><a href="filter.html#d0e1752">1. Introduction to Filter Files</a></span></dt><dt><span class="sect1"><a href="filter.html#d0e1802">2. Types of Match clauses</a></span></dt><dt><span class="sect1"><a href="filter.html#d0e1995">3. Java element name matching</a></span></dt><dt><span class="sect1"><a href="filter.html#d0e2020">4. Caveats</a></span></dt><dt><span class="sect1"><a href="filter.html#d0e2050">5. Examples</a></span></dt><dt><span class="sect1"><a href="filter.html#d0e2103">6. Complete Example</a></span></dt></dl></div><p>
+Filter files may be used to include or exclude bug reports for particular classes
+and methods.  This chapter explains how to use filter files.
+
+</p><div class="note" style="margin-left: 0.5in; margin-right: 0.5in;"><table border="0" summary="Note: Planned Features"><tr><td rowspan="2" align="center" valign="top" width="25"><img alt="[Note]" src="note.png"></td><th align="left">Planned Features</th></tr><tr><td align="left" valign="top"><p>
+  Filters are currently only supported by the Command Line interface.
+  Eventually, filter support will be added to the GUI.
+</p></td></tr></table></div><p>
+</p><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1752"></a>1.&nbsp;Introduction to Filter Files</h2></div></div></div><p>
+Conceptually, a filter matches bug instances against a set of criteria.
+By defining a filter, you can select bug instances for special treatment;
+for example, to exclude or include them in a report.
+</p><p>
+A filter file is an <a href="http://www.w3.org/XML/" target="_top">XML</a> document with a top-level <code class="literal">FindBugsFilter</code> element
+which has some number of <code class="literal">Match</code> elements as children.  Each <code class="literal">Match</code>
+element represents a predicate which is applied to generated bug instances.
+Usually, a filter will be used to exclude bug instances.  For example:
+
+</p><pre class="screen">
+<code class="prompt">$ </code><span><strong class="command">findbugs -textui -exclude <em class="replaceable"><code>myExcludeFilter.xml</code></em> <em class="replaceable"><code>myApp.jar</code></em></strong></span>
+</pre><p>
+
+However, a filter could also be used to select bug instances to specifically
+report:
+
+</p><pre class="screen">
+<code class="prompt">$ </code><span><strong class="command">findbugs -textui -include <em class="replaceable"><code>myIncludeFilter.xml</code></em> <em class="replaceable"><code>myApp.jar</code></em></strong></span>
+</pre><p>
+</p><p>
+<code class="literal">Match</code> elements contain children, which are conjuncts of the predicate.
+In other words, each of the children must be true for the predicate to be true.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1802"></a>2.&nbsp;Types of Match clauses</h2></div></div></div><div class="variablelist"><dl><dt><span class="term"><code class="literal">&lt;Bug&gt;</code></span></dt><dd><p>
+			This element specifies a particular bug pattern or patterns to match.
+			The <code class="literal">pattern</code> attribute is a comma-separated list of
+			bug pattern types.  You can find the bug pattern types for particular
+			warnings by looking at the output produced by the <span><strong class="command">-xml</strong></span>
+			output option (the <code class="literal">type</code> attribute of <code class="literal">BugInstance</code>
+			elements), or from the <a href="../bugDescriptions.html" target="_top">bug
+			descriptions document</a>.
+   </p><p>
+   			For more coarse-grained matching, use <code class="literal">code</code> attribute. It takes
+   			a comma-separated list of bug abbreviations. For most-coarse grained matching use 
+   			<code class="literal">category</code> attriute, that takes a comma separated list of bug category names: 
+   			<code class="literal">CORRECTNESS</code>, <code class="literal">MT_CORRECTNESS</code>, 
+   			<code class="literal">BAD_PRACTICICE</code>, <code class="literal">PERFORMANCE</code>, <code class="literal">STYLE</code>. 
+   </p><p>   			
+   			If more than one of the attributes mentioned above are specified on the same 
+   			<code class="literal">&lt;Bug&gt;</code> element, all bug patterns that match either one of specified 
+   			pattern names, or abreviations, or categories will be matched.
+   </p><p>   
+   			As a backwards compatibility measure, <code class="literal">&lt;BugPattern&gt;</code> and
+   			<code class="literal">&lt;BugCode&gt;</code> elements may be used instead of 
+   			<code class="literal">&lt;Bug&gt;</code> element. Each of these uses a
+   			<code class="literal">name</code> attribute for specifying accepted values list. Support for these
+   			elements may be removed in a future release.
+   </p></dd><dt><span class="term"><code class="literal">&lt;Priority&gt;</code></span></dt><dd><p>
+			This element matches warnings with a particular priority.
+			The <code class="literal">value</code> attribute should be an integer value:
+			1 to match high-priority warnings, 2 to match medium-priority warnings,
+			or 3 to match low-priority warnings.
+		</p></dd><dt><span class="term"><code class="literal">&lt;Package&gt;</code></span></dt><dd><p> 
+			This element matches warnings associated with classes within the package specified 
+			using <code class="literal">name</code> attribute. Nested packages are not included (along the 
+			lines of Java import statement). However matching multiple packages can be achieved 
+			easily using regex name match.
+		</p></dd><dt><span class="term"><code class="literal">&lt;Class&gt;</code></span></dt><dd><p>
+			This element matches warnings associated with a particular class. The 
+			<code class="literal">name</code> attribute is used to specify the exact or regex match pattern 
+			for the class name.
+		</p><p>
+			As a backward compatibility measure, instead of element of this type, you can use
+			 <code class="literal">class</code> attribute on a <code class="literal">Match</code> element to specify 
+			 exact an class name or <code class="literal">classregex</code> attribute to specify a regular
+			 expression to match the class name against.
+		</p><p>
+			If the <code class="literal">Match</code> element contains neither a <code class="literal">Class</code> element, 
+			nor a <code class="literal">class</code> / <code class="literal">classregex</code> attribute, the predicate will apply 
+			to all classes. Such predicate is likely to match more bug instances than you want, unless it is 
+			refined further down with apropriate method or field predicates.
+		</p></dd><dt><span class="term"><code class="literal">&lt;Method&gt;</code></span></dt><dd><p>This element specifies a method.  The <code class="literal">name</code> is used to specify
+   the exact or regex match pattern for the method name.
+   The <code class="literal">params</code> attribute is a comma-separated list
+   of the types of the method's parameters.  The <code class="literal">returns</code> attribute is
+   the method's return type.  In <code class="literal">params</code> and <code class="literal">returns</code>, class names
+   must be fully qualified. (E.g., "java.lang.String" instead of just
+   "String".) If one of the latter attributes is specified the other is required for creating a method signature. 
+   Note that you can provide either <code class="literal">name</code> attribute or <code class="literal">params</code> 
+   and <code class="literal">returns</code> attributes or all three of them. This way you can provide various kinds of
+   name and signature based matches.
+   </p></dd><dt><span class="term"><code class="literal">&lt;Field&gt;</code></span></dt><dd><p>This element specifies a field. The <code class="literal">name</code> attribute is is used to specify
+   the exact or regex match pattern for the field name. You can also filter fields according to their signature -
+   use <code class="literal">type</code> attribute to specify fully qualified type of the field. You can specify eiter or both
+   of these attributes in order to perform name / signature based matches.
+   </p></dd><dt><span class="term"><code class="literal">&lt;Local&gt;</code></span></dt><dd><p>This element specifies a local variable. The <code class="literal">name</code> attribute is is used to specify
+   the exact or regex match pattern for the local variable name. Local variables are variables defined within a method.
+   </p></dd><dt><span class="term"><code class="literal">&lt;Or&gt;</code></span></dt><dd><p>
+   This element combines <code class="literal">Match</code> clauses as disjuncts.  I.e., you can put two
+   <code class="literal">Method</code> elements in an <code class="literal">Or</code> clause in order to match either method.
+   </p></dd></dl></div></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e1995"></a>3.&nbsp;Java element name matching</h2></div></div></div><p>
+If the <code class="literal">name</code> attribute of <code class="literal">Class</code>, <code class="literal">Method</code> or
+<code class="literal">Field</code> starts with the ~ character the rest of attribute content is interpreted as 
+a Java regular expression that is matched against the names of the Java element in question. 
+</p><p>
+Note that the pattern is matched against whole element name and therefore .* clauses need to be used
+at pattern beginning and/or end to perform substring matching.
+</p><p>
+See <a href="http://java.sun.com/j2se/1.5.0/docs/api/java/util/regex/Pattern.html" target="_top"><code class="literal">java.util.regex.Pattern</code></a> 
+documentation for pattern syntax.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e2020"></a>4.&nbsp;Caveats</h2></div></div></div><p>
+<code class="literal">Match</code> clauses can only match information that is actually contained in the
+bug instances.  Every bug instance has a class, so in general, excluding
+bugs by class will work.
+</p><p>
+Some bug instances have two (or more) classes.  For example, the DE (dropped exception)
+bugs report both the class containing the method where the dropped exception
+happens, and the class which represents the type of the dropped exception.
+Only the <span class="emphasis"><em>first</em></span> (primary) class is matched against <code class="literal">Match</code> clauses.
+So, for example, if you want to suppress IC (initialization circularity)
+reports for classes "com.foobar.A" and "com.foobar.B", you would use
+two <code class="literal">Match</code> clauses:
+
+</p><pre class="programlisting">
+   &lt;Match&gt;
+      &lt;Class name="com.foobar.A" /&gt;
+      &lt;Bug code="IC" /&gt;
+   &lt;/Match&gt;
+
+   &lt;Match&gt;
+      &lt;Class name="com.foobar.B" /&gt;
+      &lt;Bug code="IC" /&gt;
+   &lt;/Match&gt;
+</pre><p>
+
+By explicitly matching both classes, you ensure that the IC bug instance will be
+matched regardless of which class involved in the circularity happens to be
+listed first in the bug instance.  (Of course, this approach might accidentally
+supress circularities involving "com.foobar.A" or "com.foobar.B" and a third
+class.)
+</p><p>
+Many kinds of bugs report what method they occur in.  For those bug instances,
+you can put <code class="literal">Method</code> clauses in the <code class="literal">Match</code> element and they should work
+as expected.
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e2050"></a>5.&nbsp;Examples</h2></div></div></div><p>
+  1. Match all bug reports for a class.
+
+</p><pre class="programlisting">
+
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.MyClass" /&gt;
+     &lt;/Match&gt;
+
+</pre><p>
+
+</p><p>
+  2. Match certain tests from a class by specifying their abbreviations.
+</p><pre class="programlisting">
+
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.MyClass"/ &gt;
+       &lt;Bug code="DE,UrF,SIC" /&gt;
+     &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+  3. Match certain tests from all classes by specifying their abbreviations.
+
+</p><pre class="programlisting">
+
+     &lt;Match&gt;
+       &lt;Bug code="DE,UrF,SIC" /&gt;
+     &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+  4. Match certain tests from all classes by specifying their category.
+
+</p><pre class="programlisting">
+
+     &lt;Match&gt;
+       &lt;Bug category="PERFORMANCE" /&gt;
+     &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+  5. Match bug types from specified methods of a class by their abbreviations.
+
+</p><pre class="programlisting">
+
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.MyClass" /&gt;
+       &lt;Or&gt;
+         &lt;Method name="frob" params="int,java.lang.String" returns="void" /&gt;
+         &lt;Method name="blat" params="" returns="boolean" /&gt;
+       &lt;/Or&gt;
+       &lt;Bug code="DC" /&gt;
+     &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+	6. Match a particular bug pattern in a particular method.
+	
+</p><pre class="programlisting">
+
+    &lt;!-- A method with an open stream false positive. --&gt;
+    &lt;Match&gt;
+      &lt;Class name="com.foobar.MyClass" /&gt;
+      &lt;Method name="writeDataToFile" /&gt;
+      &lt;Bug pattern="OS_OPEN_STREAM" /&gt;
+    &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+	7. Match a particular bug pattern with a given priority in a particular method.
+	
+</p><pre class="programlisting">
+
+    &lt;!-- A method with a dead local store false positive (medium priority). --&gt;
+    &lt;Match&gt;
+      &lt;Class name="com.foobar.MyClass" /&gt;
+      &lt;Method name="someMethod" /&gt;
+      &lt;Bug pattern="DLS_DEAD_LOCAL_STORE" /&gt;
+      &lt;Priority value="2" /&gt;
+    &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+	8. Match minor bugs introduced by AspectJ compiler (you are probably not interested in these unless
+	you are an AspectJ developer).
+	
+</p><pre class="programlisting">
+
+    &lt;Match&gt; 
+      &lt;Class name="~.*\$AjcClosure\d+" /&gt;
+      &lt;Bug pattern="DLS_DEAD_LOCAL_STORE" /&gt;
+      &lt;Method name="run" /&gt;
+    &lt;/Match&gt;
+    &lt;Match&gt;
+      &lt;Bug pattern="UUF_UNUSED_FIELD" /&gt;
+      &lt;Field name="~ajc\$.*" /&gt;
+    &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+	9. Match bugs in specific parts of the code base
+	
+</p><pre class="programlisting">
+
+    &lt;!-- match unused fields warnings in Messages classes in all packages --&gt;
+    &lt;Match&gt; 
+      &lt;Class name="~.*\.Messages" /&gt;
+      &lt;Bug code="UUF" /&gt;
+    &lt;/Match&gt;
+    &lt;!-- match mutable statics warnings in all internal packages --&gt;
+    &lt;Match&gt;
+      &lt;Package name="~.*\.internal" /&gt;
+      &lt;Bug code="MS" /&gt;
+    &lt;/Match&gt;
+    &lt;!-- match anonymoous inner classes warnings in ui package hierarchy --&gt;
+    &lt;Match&gt;
+      &lt;Package name="~com\.foobar\.fooproject\.ui.*" /&gt;
+      &lt;Bug pattern="SIC_INNER_SHOULD_BE_STATIC_ANON" /&gt;
+    &lt;/Match&gt;
+
+</pre><p>
+</p><p>
+	10. Match bugs on fieds or methods with specific signatures
+</p><pre class="programlisting">
+
+	&lt;!-- match System.exit(...) usage warnings in void main(String[]) methods in all classes --&gt;
+	&lt;Match&gt;
+	  &lt;Method returns="void" name="main" params="java.lang.String[]" /&gt;
+	  &lt;Method pattern="DM_EXIT" /&gt;
+	&lt;/Match&gt;
+	&lt;!-- match UuF warnings on fields of type com.foobar.DebugInfo on all classes --&gt;
+	&lt;Match&gt;
+	  &lt;Field type="com.foobar.DebugInfo" /&gt;
+	  &lt;Bug code="UuF" /&gt;
+	&lt;/Match&gt;
+
+</pre><p>	
+
+</p></div><div class="sect1" lang="en"><div class="titlepage"><div><div><h2 class="title" style="clear: both"><a name="d0e2103"></a>6.&nbsp;Complete Example</h2></div></div></div><pre class="programlisting">
+
+&lt;FindBugsFilter&gt;
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.ClassNotToBeAnalyzed" /&gt;
+     &lt;/Match&gt;
+
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.ClassWithSomeBugsMatched" /&gt;
+       &lt;Bug code="DE,UrF,SIC" /&gt;
+     &lt;/Match&gt;
+
+     &lt;!-- Match all XYZ violations. --&gt;
+     &lt;Match&gt;
+       &lt;Bug code="XYZ" /&gt;
+     &lt;/Match&gt;
+
+     &lt;!-- Match all doublecheck violations in these methods of "AnotherClass". --&gt;
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.AnotherClass" /&gt;
+       &lt;Or&gt;
+         &lt;Method name="nonOverloadedMethod" /&gt;
+         &lt;Method name="frob" params="int,java.lang.String" returns="void" /&gt;
+         &lt;Method name="blat" params="" returns="boolean" /&gt;
+       &lt;/Or&gt;
+       &lt;Bug code="DC" /&gt;
+     &lt;/Match&gt;
+
+     &lt;!-- A method with a dead local store false positive (medium priority). --&gt;
+     &lt;Match&gt;
+       &lt;Class name="com.foobar.MyClass" /&gt;
+       &lt;Method name="someMethod" /&gt;
+       &lt;Bug pattern="DLS_DEAD_LOCAL_STORE" /&gt;
+       &lt;Priority value="2" /&gt;
+     &lt;/Match&gt;
+&lt;/FindBugsFilter&gt;
+
+</pre></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="eclipse.html">Prev</a>&nbsp;</td><td width="20%" align="center">&nbsp;</td><td width="40%" align="right">&nbsp;<a accesskey="n" href="analysisprops.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter&nbsp;7.&nbsp;Using the <span class="application">FindBugs</span>&#8482; Eclipse plugin&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top">&nbsp;Chapter&nbsp;9.&nbsp;Analysis Properties</td></tr></table></div></body></html>

@@ -1,0 +1,7 @@
+\subsection{Client Library Internals}
+The Databus client library is the glue between the Databus infrastructure (relays, bootstrap servers) 
+and the Application (business logic in the consumer). 
+The library is responsible for connecting to the appropriate relay and bootstrap server clusters, keeping track of progress in the Databus event stream and switching over automatically between the Relays and Bootstrap servers when necessary. 
+
+The client runs a fetcher thread which is pulling continuously from the relay and a dispatcher thread which fires callbacks into a pool of worker threads. There is local flow control between the fetcher and the dispatcher to ensure a steady stream of Databus events to the consumer. Two forms of multi-threaded processing is supported. The first type allows multi-threaded processing within a consistency window only. This ensures that consistency semantics are maintained at the destination. The second type allows multi-threaded processing without regard to the transaction window boundaries. This provides higher throughput at the consumer at the cost of relaxed consistency. 
+The client maintains state of where it is in the sequence timeline through a pluggable CheckpointPersister which can be overridden by the application. By default, a checkpoint is persisted to disk for every successfully-processed consistency window. Applications that need very close control of the checkpoint will often implement their own storage and restore for checkpoints to tie it to their processing state. 

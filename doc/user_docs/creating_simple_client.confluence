@@ -1,0 +1,336 @@
+|| Contents ||
+| {toc} |
+
+h1. Basic steps
+
+There are five basic steps in creating a Databus 2 client:
+
+* Callback implementation
+* Client initialization
+* Callback registration
+* Client start-up
+* Client shutdown
+
+Below, we will cover each of those steps.
+
+h2. Callback implementation
+
+The Databus callbacks implement the business logic for processing the Databus change events.  The callback classes have to implement the [DatabusStreamConsumer|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/api/javadoc/com/linkedin/databus/client/pub/DatabusStreamConsumer.html]. You should also have the same or a different callback class that implements the [DatabusBootstrapConsumer|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/api/javadoc/com/linkedin/databus/client/pub/DatabusBootstrapConsumer.html] if you are planning to use bootstrapping (highly recommended).
+
+The callback event model is explained at [Chapter II - Event Model and Consumer API].
+
+In general, it is recommended that consumers inherit from the [AbstractDatabusStreamConsumer|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/impl/javadoc/com/linkedin/databus/client/consumer/AbstractDatabusStreamConsumer.html], [AbstractDatabusBootstrapConsumer|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/impl/javadoc/com/linkedin/databus/client/consumer/AbstractDatabusBootstrapConsumer.html], or [AbstractDatabusCombinedConsumer|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/impl/javadoc/com/linkedin/databus/client/consumer/AbstractDatabusCombinedConsumer.html] classes that provide default implementations for all callbacks. That allows you to focus only on the callbacks you care about.
+
+Sample implementation can be found in the Databus 2 code tree:
+
+* [LoggingConsumer|http://viewvc.corp.linkedin.com/viewvc/netrepo/databus2/trunk/databus-client/impl/java/com/linkedin/databus/client/consumer/LoggingConsumer.java?view=markup] - logs (using Log4j) information for the event consumption progress.
+* [DatabusFileLoggingConsumer|http://viewvc.corp.linkedin.com/viewvc/netrepo/databus2/trunk/databus-client/impl/java/com/linkedin/databus/client/generic/DatabusFileLoggingConsumer.java?view=markup] - can convert events to JSON format and log them to a file (used for debugging)  
+
+As an example, we will create a simple consumer that processes MemberProfile events. The code can also be found at
+[databus2-examples/simple-member2-client/java/com/linkedin/databus2/examples/simple_member2_client/SimpleMemberProfileConsumer.java|http://viewvc.corp.linkedin.com/viewvc/netrepo/databus2/trunk/databus2-examples/simple-member2-client/java/com/linkedin/databus2/examples/simple_member2_client/SimpleMemberProfileConsumer.java]
+
+{code:title=SimpleMemberProfileConsumer.java}
+package com.linkedin.databus2.examples.simple_member2_client;
+
+import java.util.List;
+
+import org.apache.avro.generic.GenericRecord;
+import org.apache.log4j.Logger;
+
+import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
+import com.linkedin.databus.client.pub.ConsumerCallbackResult;
+import com.linkedin.databus.client.pub.DbusEventDecoder;
+import com.linkedin.databus.core.DbusEvent;
+
+public class SimpleMember2Consumer extends AbstractDatabusCombinedConsumer
+{
+  public static final Logger LOG = Logger.getLogger(SimpleMember2Consumer.class.getName());
+
+  @Override
+  public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
+  {
+    return processEvent(e, eventDecoder);
+  }
+
+  @Override
+  public ConsumerCallbackResult onBootstrapEvent(DbusEvent e,
+                                                 DbusEventDecoder eventDecoder)
+  {
+    return processEvent(e, eventDecoder);
+  }
+
+  @SuppressWarnings("unchecked")
+  private ConsumerCallbackResult processEvent(DbusEvent e,
+                                              DbusEventDecoder eventDecoder)
+  {
+    GenericRecord decodedEvent = eventDecoder.getGenericRecord(e, null);
+    Integer memberId = (Integer)decodedEvent.get("memberId");
+    List<GenericRecord> positions = (List<GenericRecord>)decodedEvent.get("profPositions");
+    List<GenericRecord> educations = (List<GenericRecord>)decodedEvent.get("profEducations");
+
+    LOG.info("member: id=" + memberId + " #positions=" + positions.size() +
+             " #educations=" + educations.size());
+    return ConsumerCallbackResult.SUCCESS;
+  }
+
+}
+{code}
+
+
+h2. Client Initialization
+
+To initialize a client, one needs to create a configuration object [DatabusHttpClientImpl.Config|http://hudson3.qa.linkedin.com/job/MULTIPRODUCT_DATABUS20_CI/ws/src/build/javadoc/databus-client/impl/javadoc/com/linkedin/databus/client/generic/DatabusGenericClient.Config.html]. 
+
+The main categories to specify are:
+
+* Relays to connect to
+* Bootstrap servers to connect to (if bootstrapping is enabled)
+* Connection parameters
+
+A full list of client library parameters can be found at: [Client Library Configuration|https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Databus+v2.0+Configuration+Properties#Databusv2.0ConfigurationProperties-ClientLibraryConfiguration]
+
+There are several ways to do set up a configuration object:
+
+* In Java code
+
+{code}
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+
+:
+:
+
+DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
+
+// relay configuration for streaming of events
+clientConfig.getRuntime().getRelay("1").setHost("localhost");
+clientConfig.getRuntime().getRelay("1").setPort(9000);
+clientConfig.getRuntime().getRelay("1").setSources("com.linkedin.events.member2.MemberProfile");
+
+// bootstrapping configuration
+clientConfig.getRuntime().getBootstrap().setEnabled(true);
+clientConfig.getRuntime().getBootstrap().getService("1").setHost("localhost");
+clientConfig.getRuntime().getBootstrap().getService("1").setPort(6060);
+clientConfig.getRuntime().getBootstrap().getService("1").setSources("com.linkedin.events.member2.MemberProfile");
+
+// configure the connection parameter
+clientConfig.getConnectionDefaults().getEventBuffer().setMaxSize(5 * 1024 * 1024);
+
+{code}
+
+* From a properties file
+
+You need to prefix the configuration properties with a unique prefix, say {{mydatabus-client.}}
+
+{code:title=mydatabus-client.props}
+
+# relay configuration for streaming of events
+mydatabus-client.runtime.relay(1).host=localhost
+mydatabus-client.runtime.relay(1).port=9000
+mydatabus-client.runtime.relay(1).sources=com.linkedin.events.member2.MemberProfile
+
+# bootstrapping configuration
+mydatabus-client.runtime.bootstrap.enabled=true
+mydatabus-client.runtime.bootstrap.service(1).host=localhost
+mydatabus-client.runtime.bootstrap.service(1).port=6060
+mydatabus-client.runtime.bootstrap.service(1).sources=com.linkedin.events.member2.MemberProfile
+
+
+# configure the connection parameter
+mydatabus-client.connectionDefaults.eventBuffer.maxSize=5000000
+
+{code}
+
+As you can see there is a 1-1 mapping between the name of the properties and the names of the {{DatabusHttpClientImpl.Config}} bean properties and its nested other configuration beans.
+
+To load the property file:
+
+{code}
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+import com.linkedin.databus.core.util.ConfigLoader;
+
+import java.io.FileReader;
+import java.util.Properties;
+:
+:
+
+Properties props = new Properties();
+FileReader propsReader = new FileReader("mydatabus-client.props");
+try
+{
+  props.load(propsReader);
+}
+finally
+{
+  propsReader.close();
+}
+
+DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
+
+//create a ConfigLoader< object to process all properties whose name is prefixed with mydatabus-client.
+ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
+        new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("mydatabus-client.", clientConfig);
+configLoader.loadConfig(props);
+
+{code}
+
+* From a properties object
+
+The names of the properties in the {{Properties}} object is the same as the ones in the properties file.
+
+{code}
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+import com.linkedin.databus.core.util.ConfigLoader;
+
+import java.util.Properties;
+
+:
+:
+
+Properties props = System.getProperties();
+
+DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
+
+//create a ConfigLoader< object to process all properties whose name is prefixed with mydatabus-client.
+ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
+        new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("mydatabus-client.", clientConfig);
+configLoader.loadConfig(props);
+
+{code}
+
+
+
+h2. Callback registration
+
+In its simples form, one needs to specify a consumer callback object and to which sources it has to
+listen to.
+
+{code}
+
+DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
+SimpleMemberProfileConsumer profileConsumer = new SimpleMemberProfileConsumer();
+:
+:
+
+client.registerDatabusStreamListener(profileConsumer, null, "com.linkedin.events.member2.MemberProfile");
+client.registerDatabusBootstrapListener(profileConsumer, null, "com.linkedin.events.member2.MemberProfile");
+
+{code}
+
+Once the Databus client is started (see below), the consumer will start getting callbacks for the incoming events.
+
+It is possible to register multiple consumers as part of a group. The data event callbacks will be spread across all consumers in the group (see [Chapter II - Event Model and Consumer API] for more info how group consumption works.)
+
+{code}
+
+DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
+SimpleMemberProfileConsumer[] profileConsumers = new SimpleMemberProfileConsumer[10];
+for (int i = 0; i < 10; ++i) profileConsumers[i] = new SimpleMemberProfileConsumer();
+:
+:
+
+client.registerDatabusStreamListener(profileConsumers, null, "com.linkedin.events.member2.MemberProfile");
+client.registerDatabusBootstrapListener(profileConsumers, null, "com.linkedin.events.member2.MemberProfile");
+
+{code}
+
+It is also possible to specify filtering conditions on the incoming data events using the second parameter of the {{registerDatabusStreamListener/registerDatabusBootstrapListener}} call. 
+
+{note}*TODO*{note}
+
+h2. Client Start-up
+
+There are multiple ways to start the Databus client:
+
+* {{client.start()}} - starts the client and exits once it has been started successfully
+* {{client.startAsynchronously()}} - initiate the start of the client and exists immediately
+* {{client.startAndBlock()}} - starts the client and blocks the current thread until the client is shutdown or the JVM is killed; convenient for writing simple command-line clients
+
+h2. Client Shutdown
+
+One can shutdown the Databus client by
+
+* {{client.shutdown()}} - request a shutdown of the client and blocks the current thread until the shutdown is complete
+* {{client.shutdownAsynchronously()}} - request a shutdown of the client and exit immediately
+
+Further, one wait until the Databus library is shutdown, either after a {{shutdownAsynchronously()}} call or because of some external reason:
+
+* {{client.awaitShutdown()}} 
+
+h1. Putting Everything Together
+
+{{SimpleMemberProfileConsumer}} ([databus2-examples/simple-member2-client/java/com/linkedin/databus2/examples/simple_member2_client/SimpleMemberProfileConsumer.java|http://viewvc.corp.linkedin.com/viewvc/netrepo/databus2/trunk/databus2-examples/simple-member2-client/java/com/linkedin/databus2/examples/simple_member2_client/SimpleMemberProfileConsumer.java]) contains sample implementation of a client that can be started from the command line.
+
+For completeness, the code is given below.
+
+{code:title=SimpleMemberProfileConsumer.java}
+package com.linkedin.databus2.examples.simple_member2_client;
+
+import java.io.IOException;
+
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+import com.linkedin.databus.client.pub.DatabusClientException;
+import com.linkedin.databus.core.util.InvalidConfigException;
+
+public class SimpleMemberProfileClientMain extends DatabusHttpClientImpl
+{
+  static final String MEMBER_PROFILE_SOURCE = "com.linkedin.events.member2.MemberProfile";
+  SimpleMemberProfileConsumer _profileConsumer;
+
+  @Override
+  public void registerConsumers() throws DatabusClientException
+  {
+    super.registerConsumers();
+    registerDatabusStreamListener(_profileConsumer, null, MEMBER_PROFILE_SOURCE);
+  }
+
+  public SimpleMemberProfileClientMain(Config config) throws InvalidConfigException,
+      IOException
+  {
+    this(config.build());
+  }
+
+  public SimpleMemberProfileClientMain(StaticConfig config) throws IOException,
+      InvalidConfigException
+  {
+    super(config);
+    _profileConsumer = new SimpleMemberProfileConsumer();
+  }
+
+  /**
+   * @param args
+   */
+  public static void main(String[] args) throws Exception
+  {
+    Config staticConfigBuilder = new Config();
+
+    //Try to connect to a relay on localhost
+    staticConfigBuilder.getRuntime().getRelay("1").setHost("localhost");
+    staticConfigBuilder.getRuntime().getRelay("1").setPort(9093);
+    staticConfigBuilder.getRuntime().getRelay("1").setSources(MEMBER_PROFILE_SOURCE);
+
+    DatabusHttpClientImpl.startAndBlockWithCli(args, staticConfigBuilder);
+  }
+
+}
+
+{code}
+
+Our implementation reuses the existing instrumentation to process command-line parameters by invoking {{DatabusHttpClientImpl.startAndBlockWithCli}} in the {{main()}} method. The command-line interface supported is as follows:
+
+{code}
+usage: java <class> [options]
+ -c,--cmdline_props <Semicolon_separated_properties>   Cmd line override
+                                                       of config
+                                                       properties.
+                                                       Semicolon
+                                                       separated.
+ -d,--debug                                            Turns on debugging
+                                                       info
+ -h,--help                                             Prints command-line
+                                                       options info
+ -l,--log_props <property_file>                        Log4j properties to
+                                                       use
+ -p,--container_props <property_file>                  Container config
+                                                       properties to use
+
+{code} 

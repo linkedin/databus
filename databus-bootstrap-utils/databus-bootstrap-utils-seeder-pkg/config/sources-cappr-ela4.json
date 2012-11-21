@@ -1,0 +1,18 @@
+{
+    "name" : "cappr",
+    "uri" : "jdbc:oracle:thin:Encrypted-AES/CBC/PKCS5Padding(1J_gUkU7wiC1IDARb7yLAeIo_UTf9DQaaxf5rbZrzs2,2MJrTDoHQtb747fvhqIEPi,umlHnS9A)@(DESCRIPTION=(LOAD_BALANCE=on)(FAILOVER=on)(ADDRESS=(PROTOCOL=TCP)(HOST=ela4-db68-vip.prod)(PORT=1521))(ADDRESS=(PROTOCOL=TCP)(HOST=ela4-db69-vip.prod)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=PROD_PRPT_CAPPR)(FAILOVER_MODE=(TYPE=SELECT)(METHOD=BASIC)(RETRIES=180)(DELAY=5))))",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 901, 
+         "name": "com.linkedin.events.cappr.ProspectHistory", 
+         "uri" : "cappr.prospect_history_1",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 902,
+         "name": "com.linkedin.events.cappr.ProspectDocuments",
+         "uri":  "cappr.prospect_documents",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

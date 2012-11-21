@@ -1,0 +1,13 @@
+{
+    "name" : "targeting",
+    "uri" : "jdbc:oracle:thin:targeting/targeting@devdb:1521:DB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1302, 
+         "name": "com.linkedin.events.targeting.LixTarget", 
+         "uri" : "targeting.lix_target",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

@@ -1,0 +1,16 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project (':databus-client:databus3-espresso-test-client')
+  compile project (':databus2-linkedin:databus2-linkedin-impl')
+  compile project (':databus2-linkedin:databus2-common-sensor-factory')
+
+  compile spec.product.container.healthcheckApi
+}
+
+test {
+	useTestNG()
+	options.suites(file('testng.xml'))
+}

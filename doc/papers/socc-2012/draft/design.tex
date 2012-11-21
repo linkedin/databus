@@ -1,0 +1,28 @@
+\section{Design}
+
+\begin{figure}
+\centering
+\epsfig{file=figures/databus-arch.eps, width=3.2in}
+\caption{Databus Architecture}
+\label{fig:databus-architecture}
+\end{figure}
+
+The Databus transport system is split into four logical parts. 
+\begin{itemize}
+\item a \emph{fetcher} which extracts changes from the source, 
+\item a \emph{log store} which caches this change stream, 
+\item a \emph{snapshot store} which stores a moving snapshot of the stream, and 
+\item a \emph{subscription client} which moves seamlessly between the various components to provide changes to the application. 
+\end{itemize}
+
+The typical deployment architecture for these modules is shown in Figure~\ref{fig:databus-architecture}. We collocate the fetcher and an in-memory log store in a process we call the \emph{relay} process. We additionally collocate a persistent log store and the snapshot store in a process we call the \emph{bootstrap server}. The subscription client is a library that is linked into the application that needs to consume changes from the stream. For a new type of data source, the only component that needs to change in this architecture is the implementation of the fetcher. 
+ 
+\subsection{Semantics}
+Databus supports transactional semantics across multiple types of entities within a transactional datastore. For example, it can annotate and propagate transactions that span multiple tables within the same database. It supports guaranteed at-least once delivery semantics by default. A single event is delivered multiple times only in the case of failures in the communication channel between the relay and the client, or in case of a hard failure in the consumer application. A consumer which keeps exact checkpoints even across failures can perform de-duping to get exactly once delivery. The guarantee of lossless delivery is provided by the end-to-end pull architecture in Databus. Every failure can be recovered from by going up the chain and re-pulling from the checkpoint of the failure point. 
+
+\input{pullmodel}
+\input{relay}
+\input{bootstrap}
+\input{clientlibrary}
+\input{metadata}
+\input{cluster}

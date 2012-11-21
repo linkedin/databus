@@ -1,0 +1,22 @@
+|| Contents ||
+| {toc} |
+
+h2. (Logical) Sources
+
+A _logical source_ is a collection of data records with the same _record schema_. In Databus v1, those are refered to as just sources. Each record consists of a unique _key_ and a _value_ described by a _key schema K_ and a _value schema V_ respectively. In Databus 2.0, a key can be either a number (long) or a string (arbitrary byte sequence). In Databus 3.0, the key schema can have more complex schema. The byte sequence is interpreted as the binary Avro serialization of an object with the key schema. The value of a Databus record is always the binary serialization of an Avro object with the value schema.
+
+Each logical source can be split in one or more non-overlapping _logical partitions_. The splitting is done using a _partitioning function_ {{p: K --> Short}} which maps the key of a Databus record to a logical partition id. Typical paritioning functions:
+
+* Range partitioning (applicable only on integer keys) {{RangePart_w (k) = (k - min_key)/w}}
+* Mod partitioning (applicable only on integer keys) {{ModPart_n (k) = k mod n}}
+* Hash partitioning with a hash function _h_: {{HashPart_h,n (k) = h(k) mod n}}
+
+A logical source corresponds to a table/view in a relational database. That is also the case for most sources in Databus 2.0. An exception is [SDR/PeopleSearch|Databus V2.3 SDR ARC] where the source is partitioned into multiple tables across same and different physical databases. 
+
+In Databus 3.0/Espresso the typical case will be that a logical source will be represented with multiple tables/tables in multiple databases.   
+
+h2. Physical Sources
+
+A _physical source_ represents a server which stores physically co-located logical sources. Typically this is a Oracle or MySQL server instance. In Espresso, this is the REPL_DBUS storage engine that listens to the binlog stream.
+
+A physical source source can be split into one or more _physical partitions_. Each physical partition contains one or more logical partition is characterized by gives a order of all update events to contained logical partitions. Further, transactional updates are honored by Databus only if they are within the same physical partition.

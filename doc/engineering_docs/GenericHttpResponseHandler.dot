@@ -1,0 +1,35 @@
+digraph GenericHttpResponseHandler {
+  init -> StartResponse [label="messageReceived(HttpResponse)", color=red, fontcolor=red];
+  RequestFailure -> RequestStarted [label="messageReceived(HttpRequest)", color=green, fontcolor=green];
+  init -> RequestStarted [label="messageReceived(HttpRequest)", color=green, fontcolor=green];
+  RequestStarted -> RequestSuccess [label="writeComplete(future), \nfuture.isSuccess()", color=green, fontcolor=green];
+  RequestStarted -> RequestFailure [label="writeComplete(future), \n!future.isSuccess()", color=green, fontcolor=green];
+  RequestStarted -> RequestFailure [label="channelClosed", color=green, fontcolor=green];
+  RequestStarted -> RequestFailure [label="channelException", color=green, fontcolor=green];
+  RequestFailure -> RequestFailure [label="writeComplete(future), \n!future.isSuccess()", color=green, fontcolor=green];
+  RequestSuccess -> ResponseFailure [label="channelException", color=green, fontcolor=green];
+  RequestSuccess -> ResponseFailure [label="channelClosed", color=green, fontcolor=green];
+  RequestSuccess -> StartResponse [label="messageReceived(HttpResponse)", color=green, fontcolor=green];
+  RequestStarted [color=green, fontcolor=green];
+  RequestFailure [color=green, fontcolor=green];
+  RequestSuccess [color=green, fontcolor=green];
+  WaitForChunks [color=green, fontcolor=green];
+  StartResponse -> FinishResponse [label="!HttpResponse.isChunked()"];
+  StartResponse -> WaitForChunks [label="HttpResponse.isChunked()"];
+  StartResponse -> ResponseFailure [label="channelException"];
+  WaitForChunks -> AddChunk [label="messageReceived(HttpChunk)"];
+  WaitForChunks -> AddTrailer [label="messageReceived(HttpChunkTrailer)"];
+  WaitForChunks -> ResponseFailure [label="channelException"];
+  WaitForChunks -> ResponseFailure [label="channelClosed"];
+  AddChunk -> AddChunk [label="messageReceived(HttpChunk)"];
+  AddChunk -> ResponseFailure [label="channelException"];
+  AddChunk -> ResponseFailure [label="channelClosed"];
+  AddChunk -> AddTrailer [label="messageReceived(HttpChunkTrailer)"];
+  AddTrailer -> FinishResponse;
+  FinishResponse -> FinishResponse [label="channelException"];
+  FinishResponse -> ChannelClosed [label="channelClosed"];
+  FinishResponse -> ChannelClosed [label="channelDisconnected", color=red, fontcolor=red];
+  WaitForChunks -> ChannelClosed [label="channelException(ChannelClosedException)", color=red, fontcolor=red];
+  AddChunk -> ChannelClosed [label="channelException(ChannelClosedException)", color=red, fontcolor=red];
+  StartResponse -> ChannelClosed [label="channelException(ChannelClosedException)", color=red, fontcolor=red];
+}

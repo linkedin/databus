@@ -1,0 +1,335 @@
+#!/usr/bin/perl -w
+use strict;
+
+use Getopt::Long;
+
+my $common_bom = sub {
+	my ($JETTY_VERSION,$GLU_VERSION) = @_;
+	my $hash = {
+	'jetty'=>"ivy:/com.linkedin.network.container/container-jetty/${JETTY_VERSION}",
+	'glu-war-script'=>"ivy:/com.linkedin.glu/com.linkedin.glu.glu-scripts-jetty/${GLU_VERSION}/warscript",
+	'glu-script'=>"ivy:/com.linkedin.glu/com.linkedin.glu.glu-scripts-jetty/${GLU_VERSION}/containerscript",
+	};
+	return $hash;
+};
+
+my $dev_bom = sub {
+	my ($SERVICE,$VERSION,$CFG_VERSION,$DOWNLOAD_DIR) = @_;
+	my $list = [
+		#[ "${SERVICE}-war","ivy:/com.linkedin.databus2/${SERVICE}-war/${VERSION}"],
+		[ "${SERVICE}-war","file://${DOWNLOAD_DIR}/${SERVICE}-war-${VERSION}.war"],
+		[ "config.${SERVICE}-war-application","file://${DOWNLOAD_DIR}/${SERVICE}-war-dev-${CFG_VERSION}.tgz"],
+	];
+	return $list;
+};
+
+my $topology_container= sub {
+	my ($TYPE,$PORT) = @_;
+	my $debug_port = $PORT+1;
+	my $hash = {
+		'container'=> { 
+			'id' => "databus2-${TYPE}",
+			'type'=>"jetty",
+			'host'=>"localhost",
+			'port'=>"${PORT}",
+			'debug-port'=>"$debug_port",
+		}
+	}; 
+	return $hash;
+};
+
+my $topology_service = sub {
+	my ($SERVICE,$TYPE) = @_;
+	my $hash = {
+		'service'=> {
+			'id' => "${SERVICE}-war",
+			'container'=> "databus2-${TYPE}",
+			'context-path'=>"${SERVICE}",
+			'cfg2'=>"true",		
+		}
+	};	 
+	return $hash;
+};
+
+
+sub usage {
+	#./databus2-launch   --port <port>  service1, service2,...serviceN --version <version> --cfg-version <version> 
+print STDERR <<END;
+$0 --port <port> --version <version> [--cfg-version <cfg-version>]  --service <service1>[,<service2>,...,<serviceN>] --id <id>  start|stop 			
+END
+}
+
+#main;
+my $port=0;
+my $cfg_version=undef;
+my $version = undef;
+my $help = undef;
+my $id = "default";
+my $service_list = "";
+
+my $result = GetOptions("help"=>\$help, "port=i" => \$port, "version=s"=>\$version,  "cfg-version:s"=>\$cfg_version ,"id:s"=>\$id , "services=s"=>\$service_list );
+
+my $pwd= `pwd`; chomp $pwd; 
+my $app_root = "$pwd/$id";
+my $config_dir = "$app_root/config";
+my $topology_file = "$config_dir/topology.xml";
+my $devbom_file = "$config_dir/dev.BOM";
+my $action = $ARGV[0] || "start" ;
+my $artifact_dir = "$app_root/build";
+my $log_file = "$artifact_dir/databus2-launch.log";
+unlink $log_file;
+
+if (!$result) {
+	usage();
+	exit(1);
+}
+
+if ($help) {
+	usage();
+	exit(0);
+}
+
+if (!defined $cfg_version) {
+	$cfg_version=$version;
+}
+
+my @services = split(/,/,$service_list);
+if (@services == 0) {
+	usage();
+	exit(1);
+}
+
+
+my $mint = `which mint` || die "Cannot find 'mint'" ;
+my $pull_artifact = `which pull-artifact` || die "Cannot find 'pull-artifact'";
+
+#mint dependency
+print_project_spec("./project-spec.json");
+
+if ($action eq "start" ) {
+	gen_dir("$config_dir");
+	gen_dir("$artifact_dir");
+
+	#### generate files
+	gen_devbom($common_bom,$dev_bom,"5.2.1","0.0.1130-RC2.7483",\@services,$version,$cfg_version,$devbom_file) ;
+	gen_topology($topology_container,$topology_service,\@services,$port,$topology_file);
+	#download cfg2 artifacts
+	foreach my $service (@services) { 
+		download_cfg_artifact($service,$cfg_version);
+	}		
+
+	#download service wars
+	foreach my $service (@services) {
+		download_service_artifact($service,$version);
+    download_service_ivy($service,$version);
+	}
+	
+	gen_artifact_spec("${artifact_dir}/artifact-spec.json", \@services);
+
+	#start execution! 
+	chdir $app_root;
+	####### action - start/stop ##############3
+	#launch mint commands
+	my $test_glu = "curl 'localhost:8484' 2>>$log_file 1>&2";
+	if (system($test_glu)) 
+	{
+			
+		#glu requires to be started twice for some reason
+		system("mint glu 2>>$log_file 1>&2");
+		system("mint glu 2>>$log_file 1>&2");
+	}
+
+	# mint gen-model
+	system("mint --buildroot $app_root deploy --gen-model-only  2>>$log_file 1>&2");
+	# mint deploy
+	system("mint --buildroot $app_root deploy --deploy-only  2>>$log_file 1>&2");
+} elsif ($action eq "stop") {
+	chdir $app_root;
+	system ("mint undeploy");
+} else {
+	print STDERR "Unknown command: $action\n";
+	usage();
+	exit(1);
+}
+
+### end main
+
+
+sub download_cfg_artifact {
+	my ($service, $cfg_version) = @_;
+	#pull-artifact com.linkedin.databus2.config.app SERVICE-WAR-dev VERSION tgz
+	my $cmd = "pull-artifact com.linkedin.databus2.config.app $service-war-dev $cfg_version tgz $artifact_dir/  2>>$log_file 1>&2";
+	print "Downloading cfg for service $service: $cmd ...\n";
+	return system($cmd);
+}
+
+sub download_service_artifact {
+	my ($service, $version) = @_;
+	my $cmd = "pull-artifact com.linkedin.databus2 $service-war $version war $artifact_dir/  2>>$log_file 1>&2 ";
+	print "Downloading  service $service: $cmd ...\n";
+	return system($cmd);
+}
+
+sub download_service_ivy {
+  my ($service, $version) = @_;
+  my $cmd = "pull-artifact com.linkedin.databus2 $service-war $version ivy $artifact_dir/  2>>$log_file 1>&2 ";
+  print "Downloading ivy $service: $cmd ...\n";
+  return system($cmd);
+}
+
+sub gen_devbom {
+	my ($common_bom,$dev_bom,$glu_version,$jetty_version,$service_list,$war_version,$cfg_version,$file) = @_;
+	open (F, ">$file") || die "Cannot open file $file for write\n";
+	my $common_components = &$common_bom($jetty_version,$glu_version);		
+	foreach my $k (keys %$common_components) {
+		print F "$k=$common_components->{$k}\n";
+	}
+	my $download_dir = "$artifact_dir";
+	foreach my $service (@$service_list) {
+		my $service_obj= &$dev_bom($service,$war_version,$cfg_version,$download_dir);
+		foreach my $service_war (@$service_obj) {
+			print F "$service_war->[0]=$service_war->[1]\n";
+		}	
+	}
+	close(F);	
+}
+
+sub get_service_types {
+	my ($service_list) = @_;
+	my $hash = {};
+	foreach my $s (@$service_list) {
+		if ($s =~ m/databus2-(.*)$/) {
+			my $provisional_type = $1;
+			my @type = split(/-/,$provisional_type) ;
+			pop @type;
+			$hash->{$s} = join("-",@type);
+		}
+	}	
+	return $hash;
+}
+
+sub unique {
+	my $hash  = {};
+	foreach (@_)  {
+		$hash->{$_} = 1;
+	}
+	return keys %$hash;
+}
+
+sub gen_topology {
+	my ($topology_container,$topology_service,$service_list,$port,$file) = @_;
+	my $service_types = get_service_types($service_list);
+	my @types = unique(values %$service_types);
+	open (F,">$file") || die "Cannot open file $file for write\n";
+print F <<D;
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- For more information on the topology and the bom see:                 -->
+<!-- https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Topology+and+Bom  -->
+<!-- For more information on deployment in DEV see:                        -->
+<!-- https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Deployment+in+DEV --> 
+D
+
+print F <<D1;
+<topology>
+D1
+
+print F <<D3;
+	<containers>
+D3
+	my $start_port = $port;
+	foreach my $type (@types) {	
+		my $container_hash= &$topology_container($type,$start_port);
+		my $xml_elem = hash_to_xml($container_hash);
+		$start_port+=2;
+		print F "\t\t$xml_elem\n";	
+	}
+print F <<D4;
+	</containers>
+D4
+print F <<D6;
+	<services>
+D6
+	foreach my $s (@$service_list) {
+		my $h = &$topology_service($s,$service_types->{$s});
+		my $xml_elem = hash_to_xml($h);	
+		print F "\t\t$xml_elem\n";	
+	}		
+	
+print F <<D5;
+	</services>
+D5
+print F <<D2;
+</topology>
+D2
+	close(F);
+}
+
+sub hash_to_xml {
+	my ($xml_hash) = @_;
+	my $s="";
+	my @k = keys %$xml_hash;
+	my $key = $k[0];
+	$s.="<$key";
+	my $props = $xml_hash->{$key};
+	foreach my $p (keys %$props) {
+		$s.= " $p=\"$props->{$p}\"" ;
+	}	
+	$s.="/>";
+	return $s;
+}
+
+
+sub gen_dir {
+	my ($dir) = @_;	
+	system("mkdir -p $dir");
+}
+
+
+sub print_project_spec {
+   my ($file) = @_;
+   open (F,">$file") || die "Cannot open $file for write\n";
+print F <<lbl;
+{
+  "name": "databus2", 
+  "version": "", 
+  "group" : "",
+  "owners":[
+  ],
+  "build": {
+  },
+
+ "archive": {
+  },
+
+  "external": {
+  },
+
+  "product": {
+  }
+}
+lbl
+
+	close (F);
+}
+
+sub gen_artifact_spec {
+  my ($file,$service_list) = @_;
+  open (F,">$file") || die "Cannot open $file for write\n";
+  print F "{\n  \"artifacts\": {\n";
+  my @items = ();
+  my $item;
+  foreach my $s (@$service_list) {
+    $item =  "    \"$s\": {\n";
+    $item .= "      \"artifact\": \"file://$artifact_dir/$s-war-$version.war\",\n";
+    $item .= "      \"ivy\": \"ivy:/com.linkedin.databus2/$s-war/$version\",\n";
+    $item .= "      \"ivyfile\": \"$artifact_dir/$s-war-$version.ivy\"\n";
+    $item .= "  }";
+    push(@items,$item);
+  }
+  my $itemsStr = join(",\n", @items);
+  print F $itemsStr . "\n},\n";
+  print F "  \"org\": \"com.linkedin.databus2\",\n";
+  print F "  \"version\": \"$version\"\n";
+  print F "}\n";
+}
+

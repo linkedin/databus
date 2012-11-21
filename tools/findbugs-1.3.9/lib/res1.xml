@@ -1,0 +1,501 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<BugCollection version="1.3.9" sequence="0" timestamp="1296085469000" analysisTimestamp="1296337438504" release="">
+  <Project projectName="databus">
+    <Jar>/Users/cbotev/projects/databus2/build/databus-core/impl/classes</Jar>
+    <SrcDir>/Users/cbotev/projects/databus2/databus-core/impl/java</SrcDir>
+    <WrkDir>/Users/cbotev/Downloads/findbugs-1.3.9/lib</WrkDir>
+    <SuppressionFilter>
+      <LastVersion value="-1" relOp="NEQ"/>
+    </SuppressionFilter>
+  </Project>
+  <BugInstance type="DM_STRING_CTOR" priority="2" abbrev="Dm" category="PERFORMANCE">
+    <Class classname="com.linkedin.databus.core.DbusEvent">
+      <SourceLine classname="com.linkedin.databus.core.DbusEvent" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.DbusEvent" name="&lt;clinit&gt;" signature="()V" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.DbusEvent" start="24" end="128" startBytecode="0" endBytecode="670" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.DbusEvent" start="108" end="108" startBytecode="288" endBytecode="288" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+  </BugInstance>
+  <BugInstance type="REC_CATCH_EXCEPTION" priority="2" abbrev="REC" category="STYLE">
+    <Class classname="com.linkedin.databus.core.DbusEvent">
+      <SourceLine classname="com.linkedin.databus.core.DbusEvent" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.DbusEvent" name="appendToEventBuffer" signature="(Ljava/io/BufferedReader;Lcom/linkedin/databus/core/DbusEventAccumulator;Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;)I" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.DbusEvent" start="830" end="849" startBytecode="0" endBytecode="330" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.DbusEvent" start="844" end="844" startBytecode="64" endBytecode="64" sourcefile="DbusEvent.java" sourcepath="com/linkedin/databus/core/DbusEvent.java"/>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.DbusEventBuffer">
+      <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.DbusEventBuffer" name="&lt;init&gt;" signature="(JIIILcom/linkedin/databus/core/DbusEventBuffer$AllocationPolicy;Ljava/io/File;Lcom/linkedin/databus/core/DbusEventBuffer$QueuePolicy;Lcom/linkedin/databus/core/RelayEventTraceOption;)V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" start="495" end="621" startBytecode="0" endBytecode="1743" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+    </Method>
+    <Method classname="java.io.File" name="delete" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="900" end="904" startBytecode="0" endBytecode="59" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" start="543" end="543" startBytecode="534" endBytecode="534" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+    <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" start="584" end="584" startBytecode="832" endBytecode="832" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java" role="SOURCE_LINE_ANOTHER_INSTANCE"/>
+  </BugInstance>
+  <BugInstance type="UL_UNRELEASED_LOCK_EXCEPTION_PATH" priority="2" abbrev="UL" category="MT_CORRECTNESS">
+    <Class classname="com.linkedin.databus.core.DbusEventBuffer">
+      <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.DbusEventBuffer" name="streamEvents" signature="(Lcom/linkedin/databus/core/Checkpoint;ILjava/nio/channels/WritableByteChannel;Lcom/linkedin/databus/core/Encoding;Lcom/linkedin/databus/core/DbusFilter;Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;)I" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" start="1075" end="1360" startBytecode="0" endBytecode="566" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.DbusEventBuffer" start="1097" end="1097" startBytecode="114" endBytecode="114" sourcefile="DbusEventBuffer.java" sourcepath="com/linkedin/databus/core/DbusEventBuffer.java"/>
+  </BugInstance>
+  <BugInstance type="SIC_INNER_SHOULD_BE_STATIC" priority="2" abbrev="SIC" category="PERFORMANCE">
+    <Class classname="com.linkedin.databus.core.EventLogReader$LastModifiedSorter">
+      <SourceLine classname="com.linkedin.databus.core.EventLogReader$LastModifiedSorter" sourcefile="EventLogReader.java" sourcepath="com/linkedin/databus/core/EventLogReader.java"/>
+    </Class>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.EventLogWriter">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.EventLogWriter" name="getNextWriteFile" signature="()Ljava/io/File;" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="387" end="423" startBytecode="0" endBytecode="439" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Method>
+    <Method classname="java.io.File" name="delete" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="900" end="904" startBytecode="0" endBytecode="59" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="420" end="420" startBytecode="230" endBytecode="230" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.EventLogWriter">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.EventLogWriter" name="queueWriteRequest" signature="()V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="236" end="278" startBytecode="0" endBytecode="475" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Method>
+    <Method classname="java.io.File" name="delete" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="900" end="904" startBytecode="0" endBytecode="59" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="273" end="273" startBytecode="193" endBytecode="193" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.EventLogWriter">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.EventLogWriter" name="run" signature="()V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="135" end="192" startBytecode="0" endBytecode="496" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Method>
+    <Method classname="java.io.File" name="delete" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="900" end="904" startBytecode="0" endBytecode="59" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="146" end="146" startBytecode="82" endBytecode="82" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.EventLogWriter">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.EventLogWriter" name="run" signature="()V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="135" end="192" startBytecode="0" endBytecode="496" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Method>
+    <Method classname="java.io.File" name="mkdir" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="1153" end="1157" startBytecode="0" endBytecode="59" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.EventLogWriter" start="151" end="151" startBytecode="99" endBytecode="99" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+  </BugInstance>
+  <BugInstance type="DLS_DEAD_LOCAL_STORE" priority="2" abbrev="DLS" category="STYLE">
+    <Class classname="com.linkedin.databus.core.EventLogWriter$Config">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter$Config" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.EventLogWriter$Config" name="build" signature="()Lcom/linkedin/databus/core/EventLogWriter$StaticConfig;" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.EventLogWriter$Config" start="692" end="742" startBytecode="0" endBytecode="237" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    </Method>
+    <LocalVariable name="encoding" register="2" pc="210" role="LOCAL_VARIABLE_NAMED"/>
+    <SourceLine classname="com.linkedin.databus.core.EventLogWriter$Config" start="714" end="714" startBytecode="209" endBytecode="209" sourcefile="EventLogWriter.java" sourcepath="com/linkedin/databus/core/EventLogWriter.java"/>
+    <Property name="edu.umd.cs.findbugs.detect.DeadLocalStoreProperty.TWO_STORES_MULTIPLE_LOADS" value="true"/>
+    <Property name="edu.umd.cs.findbugs.detect.DeadLocalStoreProperty.LOCAL_NAME" value="encoding"/>
+    <Property name="edu.umd.cs.findbugs.detect.DeadLocalStoreProperty.METHOD_RESULT" value="true"/>
+  </BugInstance>
+  <BugInstance type="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE" priority="2" abbrev="RV" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.FileBasedEventTrackingCallback">
+      <SourceLine classname="com.linkedin.databus.core.FileBasedEventTrackingCallback" sourcefile="FileBasedEventTrackingCallback.java" sourcepath="com/linkedin/databus/core/FileBasedEventTrackingCallback.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.FileBasedEventTrackingCallback" name="openFile" signature="(Ljava/lang/String;)V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.FileBasedEventTrackingCallback" start="43" end="50" startBytecode="0" endBytecode="136" sourcefile="FileBasedEventTrackingCallback.java" sourcepath="com/linkedin/databus/core/FileBasedEventTrackingCallback.java"/>
+    </Method>
+    <Method classname="java.io.File" name="createNewFile" signature="()Z" isStatic="false" role="METHOD_CALLED">
+      <SourceLine classname="java.io.File" start="881" end="883" startBytecode="0" endBytecode="58" sourcefile="File.java" sourcepath="java/io/File.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.FileBasedEventTrackingCallback" start="47" end="47" startBytecode="21" endBytecode="21" sourcefile="FileBasedEventTrackingCallback.java" sourcepath="com/linkedin/databus/core/FileBasedEventTrackingCallback.java"/>
+  </BugInstance>
+  <BugInstance type="BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS" priority="2" abbrev="BC" category="BAD_PRACTICE">
+    <UserAnnotation designation="MUST_FIX" timestamp="1296338531574"/>
+    <Class classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" name="equals" signature="(Ljava/lang/Object;)Z" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" start="387" end="387" startBytecode="0" endBytecode="60" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" start="387" end="387" startBytecode="2" endBytecode="2" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+  </BugInstance>
+  <BugInstance type="HE_EQUALS_USE_HASHCODE" priority="1" abbrev="HE" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" name="equals" signature="(Ljava/lang/Object;)Z" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" start="387" end="387" startBytecode="0" endBytecode="60" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Method>
+  </BugInstance>
+  <BugInstance type="BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS" priority="2" abbrev="BC" category="BAD_PRACTICE">
+    <UserAnnotation designation="MUST_FIX" timestamp="1296338531575"/>
+    <Class classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" name="equals" signature="(Ljava/lang/Object;)Z" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" start="454" end="454" startBytecode="0" endBytecode="60" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" start="454" end="454" startBytecode="2" endBytecode="2" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+  </BugInstance>
+  <BugInstance type="HE_EQUALS_USE_HASHCODE" priority="1" abbrev="HE" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" name="equals" signature="(Ljava/lang/Object;)Z" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" start="454" end="454" startBytecode="0" endBytecode="60" sourcefile="DbusEventsStatisticsCollector.java" sourcepath="com/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector.java"/>
+    </Method>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.ByteSizeConstants">
+      <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.ByteSizeConstants" name="ONE_KILOBYTE_IN_BYTES" signature="I" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" start="5" end="5" startBytecode="3" endBytecode="3" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.ByteSizeConstants">
+      <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.ByteSizeConstants" name="ONE_MEGABYTE_IN_BYTES" signature="I" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.ByteSizeConstants" start="6" end="6" startBytecode="13" endBytecode="13" sourcefile="ByteSizeConstants.java" sourcepath="com/linkedin/databus/core/util/ByteSizeConstants.java"/>
+  </BugInstance>
+  <BugInstance type="WMI_WRONG_MAP_ITERATOR" priority="2" abbrev="WMI" category="PERFORMANCE">
+    <Class classname="com.linkedin.databus.core.util.ConfigLoader">
+      <SourceLine classname="com.linkedin.databus.core.util.ConfigLoader" sourcefile="ConfigLoader.java" sourcepath="com/linkedin/databus/core/util/ConfigLoader.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.ConfigLoader" name="loadConfig" signature="(Ljava/util/Map;)Ljava/lang/Object;" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.ConfigLoader" start="44" end="71" startBytecode="0" endBytecode="534" sourcefile="ConfigLoader.java" sourcepath="com/linkedin/databus/core/util/ConfigLoader.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.util.ConfigLoader" start="56" end="56" startBytecode="104" endBytecode="104" sourcefile="ConfigLoader.java" sourcepath="com/linkedin/databus/core/util/ConfigLoader.java"/>
+  </BugInstance>
+  <BugInstance type="MS_PKGPROTECT" priority="2" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.DatabusEventRandomProducer">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="_statsCollector" signature="Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="40" end="40" startBytecode="36" endBytecode="36" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+  </BugInstance>
+  <BugInstance type="REC_CATCH_EXCEPTION" priority="2" abbrev="REC" category="STYLE">
+    <Class classname="com.linkedin.databus.core.util.DatabusEventRandomProducer">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="run" signature="()V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="276" end="397" startBytecode="0" endBytecode="2097" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="386" end="386" startBytecode="1074" endBytecode="1074" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+  </BugInstance>
+  <BugInstance type="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" priority="1" abbrev="ST" category="STYLE">
+    <Class classname="com.linkedin.databus.core.util.DatabusEventRandomProducer">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="&lt;init&gt;" signature="(Lcom/linkedin/databus/core/DbusEventBuffer;Lcom/linkedin/databus/core/util/DatabusEventRandomProducer$StaticConfig;)V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="65" end="97" startBytecode="0" endBytecode="631" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Method>
+    <Field classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="_statsCollector" signature="Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="79" end="79" startBytecode="116" endBytecode="116" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+  </BugInstance>
+  <BugInstance type="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" priority="1" abbrev="ST" category="STYLE">
+    <Class classname="com.linkedin.databus.core.util.DatabusEventRandomProducer">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="startGeneration" signature="(JIJJIJJLjava/util/List;Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;)Z" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="206" end="225" startBytecode="0" endBytecode="324" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Method>
+    <Field classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="_statsCollector" signature="Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="212" end="212" startBytecode="15" endBytecode="15" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+  </BugInstance>
+  <BugInstance type="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD" priority="2" abbrev="ST" category="STYLE">
+    <Class classname="com.linkedin.databus.core.util.DatabusEventRandomProducer">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="&lt;init&gt;" signature="(Lcom/linkedin/databus/core/DbusEventBuffer;Lcom/linkedin/databus/core/util/DatabusEventRandomProducer$StaticConfig;)V" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="65" end="97" startBytecode="0" endBytecode="631" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Method>
+    <Field classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" name="_statsCollector" signature="Lcom/linkedin/databus/core/monitoring/mbean/DbusEventsStatisticsCollector;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.DatabusEventRandomProducer" start="94" end="94" startBytecode="367" endBytecode="367" sourcefile="DatabusEventRandomProducer.java" sourcepath="com/linkedin/databus/core/util/DatabusEventRandomProducer.java"/>
+  </BugInstance>
+  <BugInstance type="OBL_UNSATISFIED_OBLIGATION" priority="2" abbrev="OBL" category="EXPERIMENTAL">
+    <Class classname="com.linkedin.databus.core.util.PropertiesHelper">
+      <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.PropertiesHelper" name="loadProps" signature="(Ljava/lang/String;)Ljava/util/Properties;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="192" end="206" startBytecode="0" endBytecode="223" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java"/>
+    </Method>
+    <Class classname="java.io.InputStream" role="CLASS_REFTYPE">
+      <SourceLine classname="java.io.InputStream" sourcefile="InputStream.java" sourcepath="java/io/InputStream.java"/>
+    </Class>
+    <Int value="1" role="INT_OBLIGATIONS_REMAINING"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="192" end="192" startBytecode="5" endBytecode="5" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_OBLIGATION_CREATED"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="197" end="197" startBytecode="9" endBytecode="9" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_PATH_CONTINUES"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="198" end="198" startBytecode="19" endBytecode="19" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_PATH_CONTINUES"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="200" end="200" startBytecode="27" endBytecode="27" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_PATH_CONTINUES"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="205" end="205" startBytecode="32" endBytecode="32" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_PATH_CONTINUES"/>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="206" end="206" startBytecode="42" endBytecode="42" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java" role="SOURCE_LINE_PATH_CONTINUES"/>
+    <String value="{InputStream x 1}" role="STRING_REMAINING_OBLIGATIONS"/>
+  </BugInstance>
+  <BugInstance type="OS_OPEN_STREAM" priority="2" abbrev="OS" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.util.PropertiesHelper">
+      <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.PropertiesHelper" name="loadProps" signature="(Ljava/lang/String;)Ljava/util/Properties;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="192" end="206" startBytecode="0" endBytecode="25" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java"/>
+    </Method>
+    <Type descriptor="Ljava/io/InputStream;" role="TYPE_CLOSEIT">
+      <SourceLine classname="java.io.InputStream" start="28" end="350" sourcefile="InputStream.java" sourcepath="java/io/InputStream.java"/>
+    </Type>
+    <SourceLine classname="com.linkedin.databus.core.util.PropertiesHelper" start="192" end="192" startBytecode="0" endBytecode="0" sourcefile="PropertiesHelper.java" sourcepath="com/linkedin/databus/core/util/PropertiesHelper.java"/>
+  </BugInstance>
+  <BugInstance type="EQ_COMPARETO_USE_OBJECT_EQUALS" priority="2" abbrev="Eq" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.util.Range">
+      <SourceLine classname="com.linkedin.databus.core.util.Range" sourcefile="Range.java" sourcepath="com/linkedin/databus/core/util/Range.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.Range" name="compareTo" signature="(Lcom/linkedin/databus/core/util/Range;)I" isStatic="false">
+      <SourceLine classname="com.linkedin.databus.core.util.Range" start="73" end="79" startBytecode="0" endBytecode="102" sourcefile="Range.java" sourcepath="com/linkedin/databus/core/util/Range.java"/>
+    </Method>
+  </BugInstance>
+  <BugInstance type="SIC_INNER_SHOULD_BE_STATIC" priority="2" abbrev="SIC" category="PERFORMANCE">
+    <Class classname="com.linkedin.databus.core.util.RangeBasedReaderWriterLock$LockToken">
+      <SourceLine classname="com.linkedin.databus.core.util.RangeBasedReaderWriterLock$LockToken" sourcefile="RangeBasedReaderWriterLock.java" sourcepath="com/linkedin/databus/core/util/RangeBasedReaderWriterLock.java"/>
+    </Class>
+  </BugInstance>
+  <BugInstance type="MS_FINAL_PKGPROTECT" priority="2" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="schemaMd5" signature="[B" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="18" end="18" startBytecode="63" endBytecode="63" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="Digits" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="13" end="13" startBytecode="7" endBytecode="7" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="Letters" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="12" end="12" startBytecode="2" endBytecode="2" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="LettersAndDigits" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="14" end="14" startBytecode="32" endBytecode="32" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <BugInstance type="MS_SHOULD_BE_FINAL" priority="1" abbrev="MS" category="MALICIOUS_CODE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="seededRandom" signature="Ljava/util/Random;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="16" end="16" startBytecode="45" endBytecode="45" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <BugInstance type="NM_FIELD_NAMING_CONVENTION" priority="2" abbrev="Nm" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="Digits" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+  </BugInstance>
+  <BugInstance type="NM_FIELD_NAMING_CONVENTION" priority="2" abbrev="Nm" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="Letters" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+  </BugInstance>
+  <BugInstance type="NM_FIELD_NAMING_CONVENTION" priority="2" abbrev="Nm" category="BAD_PRACTICE">
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Field classname="com.linkedin.databus.core.util.RngUtils" name="LettersAndDigits" signature="Ljava/lang/String;" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Field>
+  </BugInstance>
+  <BugInstance type="RV_ABSOLUTE_VALUE_OF_RANDOM_INT" priority="1" abbrev="RV" category="CORRECTNESS">
+    <UserAnnotation designation="MUST_FIX" timestamp="1296338542797"><![CDATA[DDS-101]]></UserAnnotation>
+    <Class classname="com.linkedin.databus.core.util.RngUtils">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Class>
+    <Method classname="com.linkedin.databus.core.util.RngUtils" name="randomPositiveInt" signature="()I" isStatic="true">
+      <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="71" end="72" startBytecode="0" endBytecode="57" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+    </Method>
+    <SourceLine classname="com.linkedin.databus.core.util.RngUtils" start="71" end="71" startBytecode="6" endBytecode="6" sourcefile="RngUtils.java" sourcepath="com/linkedin/databus/core/util/RngUtils.java"/>
+  </BugInstance>
+  <Errors errors="0" missingClasses="21">
+    <MissingClass>org.apache.avro.AvroRuntimeException</MissingClass>
+    <MissingClass>org.apache.avro.Schema</MissingClass>
+    <MissingClass>org.apache.avro.io.Encoder</MissingClass>
+    <MissingClass>org.apache.avro.io.JsonEncoder</MissingClass>
+    <MissingClass>org.apache.avro.specific.SpecificDatumWriter</MissingClass>
+    <MissingClass>org.apache.avro.specific.SpecificRecord</MissingClass>
+    <MissingClass>org.apache.avro.specific.SpecificRecordBase</MissingClass>
+    <MissingClass>org.apache.commons.beanutils.BeanUtilsBean</MissingClass>
+    <MissingClass>org.apache.commons.beanutils.PropertyUtilsBean</MissingClass>
+    <MissingClass>org.apache.commons.codec.binary.Hex</MissingClass>
+    <MissingClass>org.apache.log4j.Logger</MissingClass>
+    <MissingClass>org.codehaus.jackson.JsonEncoding</MissingClass>
+    <MissingClass>org.codehaus.jackson.JsonFactory</MissingClass>
+    <MissingClass>org.codehaus.jackson.JsonGenerationException</MissingClass>
+    <MissingClass>org.codehaus.jackson.JsonGenerator</MissingClass>
+    <MissingClass>org.codehaus.jackson.JsonParseException</MissingClass>
+    <MissingClass>org.codehaus.jackson.map.JsonMappingException</MissingClass>
+    <MissingClass>org.codehaus.jackson.map.ObjectMapper</MissingClass>
+    <MissingClass>org.codehaus.jackson.type.TypeReference</MissingClass>
+    <MissingClass>org.junit.Assert</MissingClass>
+    <MissingClass>org.xeril.util.base64.Base64</MissingClass>
+  </Errors>
+  <FindBugsSummary timestamp="Wed, 26 Jan 2011 15:44:29 -0800" total_classes="93" referenced_classes="210" total_bugs="36" total_size="4978" num_packages="4" vm_version="16.3-b01-279" cpu_seconds="1.26" clock_seconds="11.29" peak_mbytes="52.10" alloc_mbytes="123.94" gc_seconds="0.00" priority_2="25" priority_1="11">
+    <PackageStats package="com.linkedin.databus.core" total_bugs="11" total_types="55" total_size="3140" priority_2="11">
+      <ClassStats class="com.linkedin.databus.core.AllowAllDbusFilter" sourceFile="AllowAllDbusFilter.java" interface="false" size="5" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.BootstrapEvent" sourceFile="BootstrapEvent.java" interface="false" size="7" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.BootstrapPhase" sourceFile="BootstrapPhase.java" interface="false" size="13" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.Checkpoint" sourceFile="Checkpoint.java" interface="false" size="190" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DataChangeEvent" sourceFile="DataChangeEvent.java" interface="true" size="7" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusClientMode" sourceFile="DbusClientMode.java" interface="false" size="15" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusConstantPartitionRouter" sourceFile="DbusConstantPartitionRouter.java" interface="false" size="8" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEvent" sourceFile="DbusEvent.java" interface="false" size="475" bugs="2" priority_2="2"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEvent$1" sourceFile="DbusEvent.java" interface="false" size="3" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEvent$2" sourceFile="DbusEvent.java" interface="false" size="8" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventAccumulator" sourceFile="DbusEventAccumulator.java" interface="true" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer" sourceFile="DbusEventBuffer.java" interface="false" size="760" bugs="2" priority_2="2"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$1" sourceFile="DbusEventBuffer.java" interface="false" size="6" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$AllocationPolicy" sourceFile="DbusEventBuffer.java" interface="false" size="13" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$Config" sourceFile="DbusEventBuffer.java" interface="false" size="121" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$DbusEventIterator" sourceFile="DbusEventBuffer.java" interface="false" size="136" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$QueuePolicy" sourceFile="DbusEventBuffer.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$StaticConfig" sourceFile="DbusEventBuffer.java" interface="false" size="52" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventBuffer$WindowState" sourceFile="DbusEventBuffer.java" interface="false" size="17" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventKey" sourceFile="DbusEventKey.java" interface="false" size="36" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusEventKey$KeyType" sourceFile="DbusEventKey.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusFilter" sourceFile="DbusFilter.java" interface="true" size="2" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusHashPartitionRouter" sourceFile="DbusHashPartitionRouter.java" interface="false" size="30" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusHashPartitionRouter$1" sourceFile="DbusHashPartitionRouter.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusHashPartitionRouter$HashType" sourceFile="DbusHashPartitionRouter.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusOpcode" sourceFile="DbusOpcode.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusPartitionId" sourceFile="DbusPartitionId.java" interface="false" size="15" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusPartitionRouter" sourceFile="DbusPartitionRouter.java" interface="true" size="2" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.DbusPartitionRouterFactory" sourceFile="DbusPartitionRouterFactory.java" interface="false" size="33" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.Encoding" sourceFile="Encoding.java" interface="false" size="13" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogReader" sourceFile="EventLogReader.java" interface="false" size="103" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogReader$1" sourceFile="EventLogReader.java" interface="false" size="1" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogReader$Config" sourceFile="EventLogReader.java" interface="false" size="63" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogReader$LastModifiedSorter" sourceFile="EventLogReader.java" interface="false" size="8" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogReader$StaticConfig" sourceFile="EventLogReader.java" interface="false" size="39" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogWriter" sourceFile="EventLogWriter.java" interface="false" size="195" bugs="4" priority_2="4"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogWriter$1" sourceFile="EventLogWriter.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogWriter$BatchState" sourceFile="EventLogWriter.java" interface="false" size="13" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogWriter$Config" sourceFile="EventLogWriter.java" interface="false" size="132" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.EventLogWriter$StaticConfig" sourceFile="EventLogWriter.java" interface="false" size="86" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.EventScanningState" sourceFile="EventScanningState.java" interface="false" size="17" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.FileBasedEventTrackingCallback" sourceFile="FileBasedEventTrackingCallback.java" interface="false" size="57" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.InternalDatabusEventsListener" sourceFile="InternalDatabusEventsListener.java" interface="true" size="2" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.InvalidEventException" sourceFile="InvalidEventException.java" interface="false" size="14" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.KeyRangeFilter" sourceFile="KeyRangeFilter.java" interface="false" size="14" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.KeyTypeNotImplementedException" sourceFile="KeyTypeNotImplementedException.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.ListOfFilters" sourceFile="ListOfFilters.java" interface="false" size="12" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.OffsetNotFoundException" sourceFile="OffsetNotFoundException.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.RelayEventTraceOption" sourceFile="RelayEventTraceOption.java" interface="false" size="24" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.RelayEventTraceOption$Option" sourceFile="RelayEventTraceOption.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.RelayEventTraceOption$RelayEventTraceOptionBuilder" sourceFile="RelayEventTraceOption.java" interface="false" size="39" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.ScnIndex" sourceFile="ScnIndex.java" interface="false" size="234" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.ScnNotFoundException" sourceFile="ScnNotFoundException.java" interface="false" size="14" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.SourceDbusFilter" sourceFile="SourceDbusFilter.java" interface="false" size="10" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.UnsupportedKeyException" sourceFile="UnsupportedKeyException.java" interface="false" size="14" bugs="0"/>
+    </PackageStats>
+    <PackageStats package="com.linkedin.databus.core.monitoring.events" total_bugs="0" total_types="1" total_size="51">
+      <ClassStats class="com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent" sourceFile="DbusEventsTotalStatsEvent.java" interface="false" size="51" bugs="0"/>
+    </PackageStats>
+    <PackageStats package="com.linkedin.databus.core.monitoring.mbean" total_bugs="4" total_types="10" total_size="568" priority_2="2" priority_1="2">
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.AbstractMonitoringMBean" sourceFile="AbstractMonitoringMBean.java" interface="false" size="103" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DatabusMonitoringMBean" sourceFile="DatabusMonitoringMBean.java" interface="true" size="12" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector" sourceFile="DbusEventsStatisticsCollector.java" interface="false" size="175" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$Config" sourceFile="DbusEventsStatisticsCollector.java" interface="false" size="19" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig" sourceFile="DbusEventsStatisticsCollector.java" interface="false" size="18" bugs="2" priority_2="1" priority_1="1"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfigBuilder" sourceFile="DbusEventsStatisticsCollector.java" interface="false" size="23" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig" sourceFile="DbusEventsStatisticsCollector.java" interface="false" size="20" bugs="2" priority_2="1" priority_1="1"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollectorMBean" sourceFile="DbusEventsStatisticsCollectorMBean.java" interface="true" size="10" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats" sourceFile="DbusEventsTotalStats.java" interface="false" size="175" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStatsMBean" sourceFile="DbusEventsTotalStatsMBean.java" interface="true" size="13" bugs="0"/>
+    </PackageStats>
+    <PackageStats package="com.linkedin.databus.core.util" total_bugs="21" total_types="27" total_size="1219" priority_2="12" priority_1="9">
+      <ClassStats class="com.linkedin.databus.core.util.BufferOffset" sourceFile="BufferOffset.java" interface="false" size="63" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ByteBufferCRC32" sourceFile="ByteBufferCRC32.java" interface="false" size="22" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ByteSizeConstants" sourceFile="ByteSizeConstants.java" interface="false" size="10" bugs="2" priority_1="2"/>
+      <ClassStats class="com.linkedin.databus.core.util.ConfigApplier" sourceFile="ConfigApplier.java" interface="true" size="3" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ConfigBuilder" sourceFile="ConfigBuilder.java" interface="true" size="2" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ConfigLoader" sourceFile="ConfigLoader.java" interface="false" size="97" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.util.ConfigLoader$1" sourceFile="ConfigLoader.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ConfigManager" sourceFile="ConfigManager.java" interface="false" size="40" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.DatabusEventProducer" sourceFile="DatabusEventProducer.java" interface="true" size="6" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.DatabusEventRandomProducer" sourceFile="DatabusEventRandomProducer.java" interface="false" size="244" bugs="5" priority_2="3" priority_1="2"/>
+      <ClassStats class="com.linkedin.databus.core.util.DatabusEventRandomProducer$Config" sourceFile="DatabusEventRandomProducer.java" interface="false" size="79" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.DatabusEventRandomProducer$StaticConfig" sourceFile="DatabusEventRandomProducer.java" interface="false" size="37" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.FnvHashFunction" sourceFile="FnvHashFunction.java" interface="false" size="33" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.HashFunction" sourceFile="HashFunction.java" interface="true" size="5" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.IdNamePair" sourceFile="IdNamePair.java" interface="false" size="25" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.InvalidConfigException" sourceFile="InvalidConfigException.java" interface="false" size="11" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.JenkinsHashFunction" sourceFile="JenkinsHashFunction.java" interface="false" size="101" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.PropertiesHelper" sourceFile="PropertiesHelper.java" interface="false" size="71" bugs="2" priority_2="2"/>
+      <ClassStats class="com.linkedin.databus.core.util.Range" sourceFile="Range.java" interface="false" size="44" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.util.RangeBasedReaderWriterLock" sourceFile="RangeBasedReaderWriterLock.java" interface="false" size="110" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.RangeBasedReaderWriterLock$LockToken" sourceFile="RangeBasedReaderWriterLock.java" interface="false" size="9" bugs="1" priority_2="1"/>
+      <ClassStats class="com.linkedin.databus.core.util.RateMonitor" sourceFile="RateMonitor.java" interface="false" size="72" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.RateMonitor$1" sourceFile="RateMonitor.java" interface="false" size="4" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.RateMonitor$State" sourceFile="RateMonitor.java" interface="false" size="17" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.ReadWriteSyncedObject" sourceFile="ReadWriteSyncedObject.java" interface="false" size="40" bugs="0"/>
+      <ClassStats class="com.linkedin.databus.core.util.RngUtils" sourceFile="RngUtils.java" interface="false" size="45" bugs="9" priority_2="4" priority_1="5"/>
+      <ClassStats class="com.linkedin.databus.core.util.Utils" sourceFile="Utils.java" interface="false" size="25" bugs="0"/>
+    </PackageStats>
+    <FindBugsProfile>
+      <ClassProfile name="edu.umd.cs.findbugs.SAXBugCollectionHandler" totalMilliseconds="55" invocations="1" avgMicrosecondsPerInvocation="55506" maxMicrosecondsPerInvocation="55506" standardDeviationMircosecondsPerInvocation="0"/>
+    </FindBugsProfile>
+  </FindBugsSummary>
+  <ClassFeatures></ClassFeatures>
+  <History></History>
+</BugCollection>

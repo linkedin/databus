@@ -1,7 +1,7 @@
 {
   "name": "databus2",
   "group": "com.linkedin.@spec.name@",
-  "version": "2.1.131",
+  "version": "2.1.137",
   "scmUrl": "svn+ssh://svn.corp.linkedin.com/netrepo/databus2/trunk",
   "owners": [
     "cbotev@linkedin.com",
@@ -78,8 +78,6 @@
     },
     "container": {
       "containerImpl": "com.linkedin.container:container-impl:@spec.product.container.version@",
-      "dalApi": "com.linkedin.container:dal-api:@spec.product.container.version@",
-      "databusV1Impl": "com.linkedin.container:databus-impl:@spec.product.container.version@",
       "healthcheckApi": "com.linkedin.container:healthcheck-api:@spec.product.container.version@",
       "version": "3.0.55"
     },
@@ -89,15 +87,11 @@
     },
     "dds-mysql": {
       "MySQLServiceCmpt": "com.linkedin.dds-mysql:mysql-service-cmpt:@spec.product.dds-mysql.version@",
-      "version": "1.0.21"
+      "version": "1.0.25"
     },
     "espresso": {
       "espressoSchema": "com.linkedin.espresso:espresso-schema-impl:@spec.product.espresso.version@",
       "version": "0.5.155"
-    },
-    "util": {
-      "utilCore": "com.linkedin.util:util-core:@spec.product.util.version@",
-      "version": "2.4.0"
     }
   },
 

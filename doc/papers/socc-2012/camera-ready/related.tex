@@ -1,0 +1,20 @@
+\section{Related Work}
+
+Change Data Capture (CDC) is not a new problem. However the environment in which it is required often determines the design trade-offs that get made in the architecture.
+At LinkedIn, the expectations of paying customers and the requirement to offer a premium user experience motivated us to solve change capture in a scalable manner while not sacrificing data consistency or reliability. Related work in this area falls into two categories:
+%Using a single shared data layer, e.g. sharded MySQL, usually works for online processing but data must still be made available to Data Warehouses and other offline processing systems such as Hadoop. One can also build on top of infrastructure such as GFS~\cite{gfs} that can be used for both online and offline use cases.
+%Another common technique is to have the applications or mid-tier services do dual writes to the primary data layer as well a messaging system or write to a messaging layer first and then to the data layer~\cite{gizzard}. 
+%Before we look at related work in this area, it is important to understand the context in which change data capture is implemented in Internet stacks. The common problem in this space is to make the changes to data in online databases available to various specialized systems. There are many different ways this problem gets solved, each with a different set of trade-offs.
+%This works in situations where data loss and/or consistency problems are acceptable. LinkedIn has a large number of paying customers who demand high fidelity of their user data and a premium user experience. This requires that the data pipelines preserve consistency and avoid data loss.
+
+\begin{itemize*}
+\item \emph{Full featured CDC systems}: Many CDC systems such as Oracle DataGuard~\cite{dataguard} and MySQL replication~\cite{mysqlrepl} are restricted to replicating changes between specific source and destination systems. Other products such as Oracle Streams~\cite{streams} also make the change stream available through user APIs. Systems such as Golden Gate~\cite{goldengate} and Tungsten Replicator~\cite{tungsten} are capable of replicating from different sources to different destinations. But these are designed for usecases where the number of destinations is reasonably low and where consumers have a high uptime. In cases where consumer uptime cannot be guaranteed, seamless snapshotting and arbitrarily long catch-up queries must be supported. Most CDC systems are not designed for these scenarios.
+ 
+%CDC systems are also designed to be either push-based or pull-based. In push-based systems, the source pushes changes to configured destinations. These are better suited for cases where low latency is desired but generally assume that destinations are reasonably low in number and largely available. Pull based systems on the other hand are better suited for consumers who may not be available at all times but have better support for batched consumption e.g. ETL into data warehouses. Our use cases require us to support both these use cases efficiently.
+\item \emph{Generic messaging systems}
+Messaging systems are sometimes used as transport to carry CDC data. There are some key trade-offs here. Messaging systems such as Kafka~\cite{kafka}, ActiveMQ~\cite{activemq} and other JMS implementations typically provide publish-subscribe APIs. Publishers are responsible for pushing changes to the messaging system, which is then responsible for guaranteeing the fate of the messages. Thus, the messaging system has to act as a \emph{source-of-truth} system. 
+This leads to extra overhead for durability due to persistence, internal replication, etc. It also introduces potential for data loss in worst-case failure scenarios. In the presence of a reliable data source, this overhead is unnecessary.
+%If reliability is a must, this puts extra burden on the system 
+%If reliability is a must, the system has to go back to the publisher and ask for data if there is loss or corruption in the messaging system. 
+\end{itemize*}
+

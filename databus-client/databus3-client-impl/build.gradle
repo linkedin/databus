@@ -1,0 +1,25 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project(':databus-core:databus2-espresso-core')
+  compile project(':databus-client:databus-client-impl')
+  compile project(':databus-core:databus-core-fwk-test')
+  compile project(':databus2-linkedin:databus2-linkedin-impl')
+
+  compile spec.external.helixCore
+  compile spec.external.avro
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  compile spec.external.netty
+
+  testCompile spec.external.testng
+  testCompile spec.external.easymock
+  testCompile spec.external.easymockext
+}
+
+configurations.compile.exclude(group: "zkclient", module: "zkclient")
+
+test.useTestNG()

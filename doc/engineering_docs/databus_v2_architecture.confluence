@@ -1,0 +1,54 @@
+|| Contents ||
+| {toc:includePages=true} |
+
+h1. High-Level Architecture
+
+Databus is a data change capture transport from the primary databases (currently, Oracle) to external listeners. Such listeners can use the data change captures for activities like inverted index maintenance (e.g. in Lucene), materialized view maintenance, cache maintenance, etc.
+
+Databus provides:
+
+* Near-real time event stream
+* API to ask "what data has changed in the source database since point X in time?"
+* Guaranteed at-least-once delivery of events
+* Consistency points where data is guaranteed consistent (aka transaction boundaries)
+* Ordering of events coming from multiple sources in the same database (e.g. to avoid violation of FK constraints between the sources)
+
+
+The diagram below presents the high-level architecture of Databus v2, which is a complete rewrite of the legacy Databus system (also referred to as Databus v1).
+
+The green arrows/components describe the short look-back (near-real-time) processing of events. The blue arrows/components represent the long look-back processing of events. Gradients are used for components where short look-back and long look-back processing are integrated.
+
+!http://svn.corp.linkedin.com:8070/viewvc/netrepo/databus2/trunk/doc/engineering_docs/databus-v2-archicture.png?view=co|width=700!
+
+The main components in the above architecture are as follows:
+* Databus Relays
+** Read changed rows from the Databus sources in the source database and serialize them as Databus data change events in an in-memory buffer
+** Listen for requests from Databus Clients (including Bootstrap Producers) and transport new Databus data change events
+* Databus Bootstrap Producers
+** A special kind of Databus Clients
+** Check for new data change events on relays
+** Store those events in an MySQL database for client bootstrapping and catchup
+* Databus Bootstrap Servers
+** Listen for requests from Databus Clients and returns long look-back data change events for bootstrapping and catchup
+* Databus Clients
+** Check for new data change events on relays and execute business-logic specific callbacks
+** If they fall too far behind from the relays, run a catchup query to a bootstrap server
+** New Databus Clients run a bootstrap query to a bootstrap server and then switch to a relay for recent data change events
+** Single clients can process an entire Databus stream or they be part of a cluster where each consumer processes only a portion of the stream
+
+
+h1. OLTP Database Instrumentation
+
+For details see [Databus Oracle Instrumentation]
+
+h1. Relays
+
+{include:Databus 2.0 Relay Design}
+
+h1. Bootstrap DB and Servers
+
+{include:Databus v2.0 Bootstrap Service and DB Design}
+
+h1. Client Library and Consumers
+
+{include:Databus 2.0 Client Library Design}

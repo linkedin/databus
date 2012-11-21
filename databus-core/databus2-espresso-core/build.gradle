@@ -1,0 +1,12 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus3-relay:databus-cluster-manager-utils')
+
+  compile spec.external.avro
+  compile spec.external.log4j
+  compile spec.external.netty
+  compile spec.external.zkclientHelix
+  compile spec.external.zookeeper
+}
