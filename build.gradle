@@ -47,6 +47,10 @@ externalDependency = [
     'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3'
 ];
 
+sandboxDependency = [
+    'espressoSchema': 'com.linked.espresso:espresso-schema-impl:0.5.155'
+];
+
 if (!isDefaultEnvironment)
 {
   externalDependency.each { overrideDepKey, overrideDepValue ->
@@ -86,7 +90,7 @@ subprojects {
   dependencies {
     //compile externalDependency.slf4jApi
     //runtime externalDependency.slf4jLog4j12
-    //runtime externalDependency.log4j
+    runtime externalDependency.log4j
   }
 
   if (isDefaultEnvironment)

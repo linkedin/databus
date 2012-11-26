@@ -1,5 +1,3 @@
-apply plugin: 'cmdline'
-
 dependencies {
   compile project(':databus-bootstrap-utils:databus-bootstrap-utils-impl')
   compile project(':databus2-client:databus2-client-util')
@@ -45,4 +43,10 @@ project.tasks.cmdline {
     include('**/*')
   }
 
+  into ("lib") {
+    from project.configurations.runtime
+    if (project.tasks.findByName("jar")) {
+       from projects.tasks.jar
+    }
+  }
 }
