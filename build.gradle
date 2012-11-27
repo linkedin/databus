@@ -65,7 +65,7 @@ if (!isDefaultEnvironment)
 
 allprojects {
   tasks.withType(Compile).all { Compile compile ->
-    compile.options.compilerArgs = ['-Xlint', '-Xlint:-path', '-Werror']
+    compile.options.compilerArgs = ['-Xlint', '-Xlint:-path']
   }
 }
 
