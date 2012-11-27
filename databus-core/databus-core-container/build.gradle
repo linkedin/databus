@@ -6,6 +6,9 @@ dependencies {
   compile externalDependency.avro
   compile externalDependency.log4j
   compile externalDependency.netty
+  compile externalDependency.commonsCli
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.jacksonCoreAsl
 
   testCompile externalDependency.testng
   testCompile externalDependency.easymock

@@ -7,4 +7,6 @@ dependencies {
   compile externalDependency.commonsCli
   compile externalDependency.json
   compile externalDependency.log4j
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
 }
