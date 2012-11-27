@@ -1,0 +1,5 @@
+owners: [ pganti, cbotev, snagaraj, bvaradar, stopiwal, bshkolni, zwhite, kkrawez, mgandhi, bkozumpl, sdas, ksurlake, thendric, nsomasun, ssubrama ]
+whitelist: [ pganti, cbotev, snagaraj, bvaradar, stopiwal, bshkolni, zwhite, kkrawez, mgandhi, bkozumpl, sdas, ksurlake, thendric, nsomasun, ssubrama ]
+paths: [
+  '.*'
+]
