@@ -1,3 +1,5 @@
+import org.gradle.api.tasks.bundling.Tar
+
 ext.build_script_dir = "${projectDir.path}/build_script"
 
 ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
@@ -202,4 +204,27 @@ subprojects {
       workingDir = file(rootDir.toString())
     }
   }
+ 
+  task cmdlinePkg() {
+        Tar cmdline = project.tasks.add('cmdline', Tar.class)
+        project.configure(cmdline) {
+            extension = 'tar.gz'
+            baseName = project.name
+            version = project.version
+            compression = Compression.GZIP
+
+            into("bin/") { from "bin"}
+            into("conf/") { from "conf" }
+            into("components/") { from "components" }
+            into("resources/") { from "resources" }
+            into("lib/") {
+                from project.configurations.runtime
+                if (project.tasks.findByName("jar")) {
+                    from project.tasks.jar
+                }
+
+            }
+        }
+  }
+  
 }
