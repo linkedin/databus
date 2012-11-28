@@ -1,7 +1,0 @@
-\begin{abstract}
-
-In Internet architectures, data systems are typically categorized into source-of-truth systems that serve as primary stores for the user-generated writes, and derived data stores or indexes which serve reads and other complex queries.
-The data in these query or index stores is often derived from the primary data through custom transformations, sometimes involving complex processing driven by business logic. Similarly data in caching tiers is derived from reads against the primary data store, but needs to get invalidated or refreshed when the primary data gets mutated. A necessary consequence of this kind of heterogeneous data architecture is the need to reliably capture, flow and process data changes happening in the primary data stores.
-
-We have built Databus, a source-agnostic distributed change data capture system, which is an integral part of LinkedIn's data processing pipeline. The Databus transport layer provides latencies in the low milliseconds and handles throughput of thousands of events per second per server while supporting infinite lookback capabilities and rich subscription functionality. This paper covers the design and implementation and tradeoffs of the latest generation of Databus technology, experimental results from stress-testing the system and describes our experience supporting a wide range of LinkedIn production applications built on top of Databus.
-\end{abstract}
