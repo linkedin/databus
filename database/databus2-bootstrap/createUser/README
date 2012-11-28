@@ -1,3 +1,0 @@
-To create databus2 bootstrap database and user in MySQL:
-
-  sh cr_databus2.sh [username (default: bootstrap)] [password(default: bootstrap)] [database(default: bootstrap)] [hostname(default: localhost)]

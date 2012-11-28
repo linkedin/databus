@@ -1,7 +1,0 @@
-apply plugin: 'java'
-
-dependencies {
-  compile externalDependency.log4j
-  compile externalDependency.netty
-  compile externalDependency.testng
-}

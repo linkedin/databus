@@ -1,7 +1,0 @@
-apply plugin: 'java'
-
-dependencies {
-  compile project(':databus2-relay:databus2-relay-impl')
-
-  compile externalDependency.log4j
-}

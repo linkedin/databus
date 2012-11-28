@@ -1,9 +1,0 @@
-apply plugin: 'java'
-
-dependencies {
-  compile project(':databus-group-leader:databus-group-leader-api')
-  compile project(':databus-group-leader:databus-group-leader-impl')
-
-  compile externalDependency.log4j
-  compile externalDependency.zkclient
-}

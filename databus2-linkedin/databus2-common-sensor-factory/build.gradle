@@ -1,8 +1,0 @@
-apply plugin: 'java'
-
-dependencies {
-  compile project (':databus2-linkedin:databus2-linkedin-impl')
-
-  compile spec.product.container.healthcheckApi
-}
-
