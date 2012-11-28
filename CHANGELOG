@@ -1,0 +1,3137 @@
+
+2.1.136
+--------------------
+* registerRequests should update event.numRequest , not numErrors (RB=113502)
+* Have Base64 implementation in databus.core and not from xeril (coming in indirectly through healthCheck -> Util -> xeril )
+* Remove dependency of databus.core from org.xeril.ConfigHelper (RB=113539)
+* Move Sensors implementation to a separate folder, without changing package structure. (RB=113588)
+* do not allocate bootstrap buffer if bootstrap is disabled
+* added ability to validate multiple config files at the same time
+* Move xxxSensorFactory to databus2-linkedin/databus2-linkedin-sensor-factory directory (RB=114067)
+* Improvements to HTTP request logging: adding error indication
+* move relay startable into a separate directory. more startables to follow
+* RB=114279 Removing unneeded relay defs for SDR
+* RB=114273 Adding shutdown hook for clean shutdown of the command-line databus produce
+* RB=114285 Don't build and upload the hadoop artifacts as those use up 1.5+GB
+* Address race condition in TestNettyHttpDatabusRelayConnection.runHappyPathIteration
+* Implementing a timeLag metric that shows contains the time lag of the last event in buffer. (RB=114362)
+* debug cleanup in rpldbus  (RB=114677)
+* Enable TXN Chunking for UCPX Espresso (non-ucpxactivityevent ).
+ 
+2.1.135
+---------------------
+
+* RB=112076 Support regular expressions in trJson.py
+* RB=112013 Remove utilCore from external dependencies. Seems like this is not used anywhere.
+* add more logging to debug some SIGMOD issues
+* RB=112169 Remove central config repo, now that we are on cfg2.
+* RB=112158 Remove dependency on container.databusV1Impl
+* RB=112344 Fix help message in trJson.py
+* RB=112588 Move linkedin monitoring specific code into separate directory. First patch to isolate health check dependencies to linkedin specifc monitoring directory
+* RB=112591 Cleanup healthCheck dependencies from all code directories, except databus2-linkedin 
+* RB=112601 Simple script to send reminders for on-call schedule 
+* RB=112629 Adding a script to parse SCN into genid/seqno or vice versa
+* Adding a helper method runWithTimeout to the testing DbusEventBufferConsumer 
+* BUG=DDS-4126 RB=112823 Fix potential event loss in espresso client if there is an error in the middle of readEvents
+* adding a function for final test report to test_common.inc
+* Making test output more readable for ./espresso_dbusmgr_5_3_3_test3.test 
+* RB=113075 adding LEVEL to the rpldbus and tcp log to be able to grep for ERRORs
+* Making test output more readable for ./espresso_dbusmgr_5_3_3_test6.test 
+
+
+
+2.1.134
+---------------------
+
+Updating db_url for collab sources for seeding on ei, stg-beta
+BUG=DDSDBUS-999
+updating espresso test client configs and war version in PROD-ELA4
+Changes for cappr seeding script to add accomodate the new view
+BUG=DDSDBUS-1248
+fix a bug where resourceGroup was not reported for a non-replicating resource, another bug retry when unable to get logical source id
+tuning jvm params for databus espresso test client.
+A command for the client to drop existing relay connections and try new ones
+BUG=DDSDBUS-1258
+Storage nodes not able to connect consistency to databus relay instances on app3599.prod .
+Chavdar tracked cause down to out of stack memory in the jvms.
+fixing jvm settings for databus test client in ELA
+collab sedding scripts
+fix enableDynamic property
+Collab check point serializer
+add some approximate buf size calculations, and treat them as a minimum values
+fixing integ4 testcases. Changed relay replication factor to 2. Disabled a couple of checks that would fail with replciation factor set to 2
+Fix : https://jira01.corp.linkedin.com:8443/browse/DDSDBUS-1277
+Delay registering for external view change notification, until the observer ( in this case, the databus client object )
+ is added
+When killing client connections, do not kill the command session
+BUG=DDSDBUS-1175
+Re-implement resetRelayConnecitons to hard-kill the connection and not enqueue pick-server.
+BUG=DDSDBUS-1258
+Calling start() on V3 client is not valid anymore. Instead, individual registrations must be started.
+BUG=DDSDBUS-1276
+Get rid of external dependency on dalApi  in our client. Seems like we just needed an interface for which we provide the implementation.
+continue if failed to got invalid schema during register call
+Fixing cappr cp serializer
+Fix: DDS-4150 : Remove start() method from client start. As part of feature implemented yesterday by Subbu to throw when start is called in V3 client.
+Fix: DDS-4159 : Fix Concurrent modification exception. Use iterator to remove
+
+2.1.133
+-------
+
+Release 2.1.131
+Fixed typo
+Automatic version increment by mint publish
+Changed mysql.baseDir basing on bshkolni's requirement
+Path name now contains war name: databus3-relay-repldbus
+updated scripts
+move to curl command to drop database to get rid of one fat package
+add svninfo before striipping .svn info and moving to git
+Adding rpldbus war to prod-ela4 so that I can upgrade the PROD EVG clusters to the latest version.
+APPOPS-11351: databus relay config changes for expanded uscp 0.8 cluster in ela4
+Adding missing container instance overrides for rpldbus war.
+RPLDBUS container config support for USCP cluster
+APPOPS-11351: More app container configuration fixes for uscp relay cluster
+APPOPS-11351: Even more config changes for databus3-relay-espresso cluster for uscp 0.8 in ela4
+adding ech3 cluster
+adding new service
+Where is the 12th monkey? He fell off the bed and hit his head.
+databus3-relay-espresso container is missing it's 12th instance container config in PROD_ELA4's RELAY_EVG cluster.
+adding ech3 configs
+adding ech3 configs for espresso
+adding ech3
+adding configs
+adding ech3
+adding ech3 ucpx configs
+upgrade version to 2.1.131
+bumping ucpx versions
+Upgrade to helix package 0.5.28 from 0.5.24 to get bucketization on relay cluster.
+Improve simple fields generation for relay states - copy all simple fields from storage cluster, but overwrite those that are different to make it forward compatible.
+Automatic version increment by mint publish
+update release to 132 on ech3
+Adding relay configs for new view on capp
+revert helix version upgrade, as it is causing classNotFound errors from schemas registry library. This may require an upgrade on schemas lib as well. To debug with Jason later
+Adding example for configurating source specific event buffer for multi-tenant relay
+BUG=DDSDBUS-1267
+changing client subs for ft1
+upgrade change log
+adding first draft for config validation
+changing databus client config to sub all partitions
+Point RELAY_EVG databus3-relay-espresso-war clusters to a single-node zk instance
+for Sigmod perf experiments.
+change numOfStopped threads in rpldbus to be a guage
+increased frequency of removing old execHandlers and added Logging
+Removing the CORP-ESV4 RELEASE.BOM
+Bump ech3 relay-espresso to 2.1.133
+2.1.133 is not released yet. Reverting to databus3-relay-espresso 2.1.131 to avoid fault in 2.1.132 instead.
+findbugs warning - LOG should be 'final'
+upgrading rpl-dbus war to v25 which is what the mysql master version is at for M1,M3 release
+Fixing flex query hint for faster seeding
+BUG=DDSDBUS-1272
+copy all simple fields from storage cluster, overwrite as required
+A relay command to kill all connected databus clients.
+BUG=DDSDBUS-1175
+we don't need to specify database name when connecting to the master mysql
+updating config file for prod testing databus client
+updating client config for FT4 to subscribe to partial partitions and tables
+
+
+2.1.132
+--------
+Please do not USE
+Upgrade helix client version to 0.5.28
+
+2.1.131
+--------
+
+Fixing mixed mode (chained and direct) relay sensor registration
+Automatic version increment by mint publish
+Adding skip_name_resolve=1 to rpl-dbus war config
+Reverting skip_name_resolve=1 since Antony said he needs to fix the Connector/MXj code for that to work.
+update mysqld version to 1.0.21
+
+2.1.130
+------
+
+Upgrade databus2-relay-member2
+Adding chained member2 relay in ECH3
+Remove unnecessary parameter espressoDBs. Replicates all DBs from storage cluster.
+Tested it on corp-esv4 cluster for compatibility.
+Delete unneeded mmap and meta files when relay exits gracefully.
+We could call removeUnusedSessionDirs() on start-up as well. In that case,
+we don't hang on to old session directories after a crash (when they cannot
+be trusted anyway).
+Or, may be we want to keep them around and reconstruct meta file to examine
+(like a core dump)?
+BUG=DDSDBUS-1180
+adding correct db string
+adding chained relay test box
+fixes for dropDatabase. reviewed earlier
+Do not delete any files yet.
+BUG=DDSDBUS-1180
+version bump
+changing to vip as source
+Reducing Txn Chunk size set to 2K
+Upgrading RELAY_EVG to new config convention using global ports and databus.relay.instanceNN variable.
+RPLDBUS instance tag configs for PROD_ELA RELAY_EVG (RPLDBUS_EVG) cluster.
+more in prod testing, because thats what we do, because we are too lazy to test in a dev env
+Reducing Txn Chunk size set to 200
+start for drop database pkg
+add bucket size to relay IS. FIx. DDSDBUS-1225
+initial file add
+Move old session and metadata files into a backup directory for later analysis.
+When relay is shutdown, we move the entries under mmap directory into mmap.BAK directory
+that is cleaned up periodically. See https://jira01.corp.linkedin.com:8443/browse/APPOPS-12065
+BUG=DDSDBUS-1180
+Updating FT3 cluster to MailboxDB schema
+Updating collab bootstrap producer war
+Adding collab source to multi-tenant relay on stg-beta
+Fixing config for collab source
+config client_dev_ft_4 to use MailboxDB
+write bucket size only if available
+Rev1 for drop database tool
+adding collab bootstrap
+use milliseconds instead of nanoseconds for session id generation
+updated mysql version to 1.0.20
+
+2.1.129
+---------------------------
+Adding missing spring file for collab source
+update configs for dev sandbox cluster
+
+2.1.128
+---------------------------
+fixing collab spring config
+Automatic version increment by mint publish
+
+2.1.127
+---------------------------
+Updating change log
+Adding bootstrap producer for collab 
+Adding databus3-relay-rpldbus-war 
+Decreasing memory usage for databus2-bootstrap-producer-collab
+Adding container config for databus3-relay-rpldbus to STG-BETA
+Adding app config for databus3-relay-rpldbus
+Upgrading dark launch versions
+Update to use the product DDS-MySQL rel24a
+
+2.1.126
+---------------------------
+Adding a config option for databus test client to ignore checks of SCN Holes
+Pushing new gdr sources in EI multi-tenant relay
+add log message for drop db notification
+Adding collab bootstrap producer war
+Fix Bootstrap DB Cleaner timestamp handling
+log a warning if server id is less <= 0
+RB=106152 Turning off checkpoint history by default as this has significant performance impact on multi-partitiion consumers
+reporting rpldbusbehind master in seconds, and measure errors as gauge
+dding rpldbus filter for index tables in config
+Adding experimental tagged config
+add zk command line tools
+Moving back to single table subscription to execute Subset Tables CHO
+Repurposing former DEV_FT_2 relays and rpldbusses for MULTITENANT_1_EI
+Relay instance config links were pointing to old-style instance configs which use old port numbers.
+Adding SOCC-2012 paper and presentation
+RB=106782 Upgrading wars in STG-BETA
+Add the parameter for reducing kafka error log messages.
+removing instance config
+Fix trJson to parse output of rplDbusAdmin/rplDbusStates correctly
+
+
+2.1.125
+---------------------------
+
+Final configs for databus3-relay-rpldbus
+I assigned port numbers where needed and changed paths to conform to LI conventions
+New RB because "svin review --update" didn't work
+Put the EI config into an EI directory
+Handle database drop from clusters. 
+Part 1 : When relays are online, and there is no traffic for the old databases.
+- Cleanup Helix resource groups ( already reviewed earlier, but included again )
+- Remove persistence files ( one more unit tests to come here )
+- Remove cached schema entries
+- Remove all buffers hosted for this DB
+Friendly reminder
+The following wiki is a start and will be updated
+https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Database+Drop+Support
+Fix the listenerPort variable
+Switching databus3-relay-rpldbus entirely to tagged configs.
+Remove a pointless config key
+Fix for DDSDBUS-1209 : Fix for relay to disconnect from ZK during normal shutdown 
+Invoke a disconnect on RelayAdapter
+adding company producer war
+adding company producer war
+Fixing espresso_client_5_3_2_test3.test
+Fixing espresso_client_5_3_2_test4.test
+Readd the <entry> that pulls in the zkAddress
+make tests single threaded
+Increasing client buffer size for CLIENT_COMM_INDEX
+fix failing setUp in unit test
+fixing client properties for Client Dev FT1
+Create the mysql.rpl_dbus_config if required on rpldbus start.
+we do not need to specify relay tcp port in config, it will be set by rpldbusmanager
+grant rplespresso permission for all hosts
+Filter expression for tables not supposed to be replicated by rpl-dbus
+updated databus3-relay-espresso to 2.1.124 in ELA4
+Bootstrap Cleaner configs for liar and member2 in EI
+Bootstrap Cleaner configs for liar and member2 in EI
+Fix the port configuration for the FT clusters
+This also adds pre-defined ports to the global config we can reference in the future
+TestNG wierdness correction . adding a class level annotation runs all public methods
+Rearrange rpldbus instance configs
+Bootstrap Cleaner : Bug in time-spaced retention
+New stats:
+{"name": "scnOfLastEventProcessed", "type": "long", "doc": "scn of last data event processed by the consumer"},
+{"name": "maxSeenWinTimestamp", "type": "long", "doc": "the maximum window scn seen by the dispatcher"}
+Modified stats:
+{"name": "minSeenWinScn", "type": "long", "doc": "the minimum window scn seen by the dispatcher"},
+{"name": "maxSeenWinScn", "type": "long", "doc": "the maximum window scn seen by the dispatcher"},
+added instance configs for rpldbus for DEV_FT_4
+added instance configs for rpldbus for DEV_FT_[1,2,3]
+Fixing NPE
+Update dds-mysql import to use 1.0.5 - This updates the MySQL LinkedIn MXJ to rel24
+Fixing logging for Espresso test consumer
+added container configs for EI instances 4,5,6
+
+2.1.124
+--------------------------
+updating to latest release(123)
+pre-commit-status-crumb=bf01d1ac-1cef-44fb-9d78-20b23370088b
+fixing findbugs warnings
+Reenable tests in TestRegistrationIdGenerator
+Added scripts for operability
+   To retrieve registration names from a client
+   To retrieve statistics from a client or relay
+   To get any element from Json output
+BUG=DDSDBUS-1172,DDSDBUS-1174,DDSDBUS-1176,DDSDBUS-1177
+pre-commit-status-crumb=d1f641ad-c3f5-4f47-939d-aa4c39c6d00e
+Databus3 RPLDBUS MySQL WAR added.
+pre-commit-status-crumb=00e351a7-8595-46aa-be3b-18803827e56c
+Tuning config of RPLDBUS WAR
+pre-commit-status-crumb=c65891c5-9470-4943-9d82-5a88404f07e7
+added url of the rpldbus to the rplDbusStates curl call
+adding a very long sleep in the test client when consistancy checker detects a failure. This is a hack to stop the client from doing a rollback and fixing the race condition.
+pre-commit-status-crumb=ee487e1d-d664-4c94-8dd8-8dfce2205894
+1. Make sure that the prevScn is set if we start with an empty buffer in the Espresso relay
+2. Use stricter barriers in the callbacks to address potential race condutions in the multi-partition consumer
+pre-commit-status-crumb=498a5d06-994d-465d-b731-69ec00131cb2
+Increasing log verbosity for client on FT4 cluster
+Fixing integeration test failure based on timestamp
+pre-commit-status-crumb=fa53b7cd-3a0b-4528-9ee5-0872912d372f
+Enhancements, bug-fixes, and extra comments in the scripts.
+Get arrays to work (in some way) in trJson. Can be improved later.
+Some comments were needed on how we get the reg names
+Debug levels fixed to do the right thing.
+BUG=DDSDBUS-1172,DDSDBUS-1174
+pre-commit-status-crumb=407acee2-200b-4d7d-ba30-8aed0892a6be
+Warning cleanup
+warning cleanup
+added configs for databus3-relay-rpldbus-war package
+added EI instance specific settings for  configration for databus3-relay rpldbus
+UPDATE: Fixes to unit and integraion tests failures. 
+pre-commit-status-crumb=3ee99795-1c08-452a-bd54-8fdde1e5306c
+added rpldbus war package to RELEASE.BOM
+Container configs for new rpldbus war
+pre-commit-status-crumb=a3c21fbc-75fa-45ec-8221-c9fe5d883bb5
+changed version of packages to 2.1.124 in RELEASE.BOM
+Automatic version increment by mint publish
+
+2.1.123
+-------
+Increase read buffer size on client
+Company bootstrap seeding config fix
+APPOPS-11496: upgrading databus relay version
+increase rb size
+Changing config again to subscribe to all partitions for FT3
+Adding flex seeding scripts
+BUG=DDSDBUS-870
+updating rb size
+backrevving targeting bootstrapper
+Changing the naming of the log categories in SendEventsRequest for easier control
+Move the espresso test client to its own container 
+DDSDBUS-857 Repair Bootstrap Producer Checkpoints when checkpoint validation fails
+Decreasing logging verbosity for DbusEventBuffer and EspressoTestDatabusClient
+Changing subscription to single table to reproduce DDSDBUS-1190
+Subscribing to ActivityEvent only for FT4
+remove merge code for RplDbusTotalStats
+Decreasing logging verbosity in DispatcherState
+RB=103106 Catch JVM shutdowns and shutdown properly for command-line apps
+Remove deprecated sources from targeting seeding config
+Decreasing logging verbosity in DatabusHttpClientImpl
+Rename sas to seas configs
+added separate metric for IOErrors and SQL Errors
+getIOError should check for null
+
+2.1.122
+------
+
+only allow updates to RPLDBUSManager from CM
+RB=102263 Decreasing client logging verbosity; changes to RegistrationIdGeneration
+* Adding thread-safety to RegistrationIdGeneration
+* Decreasing number of retries in RegistrationIdGeneration due to id collision
+Targetting seeding config missing 2 sources
+fixed failing RplDbusCMAdapter test and change tcp logging level to info. Also disabeld TestRegistrationIdGenerator
+Upgrading FT Cluster relay and client to new build
+Setting up for company bootstrap seeding
+RB=101267 DDSDBUS-559: Clearing event buffer when all its events are control events: now signalling empty condition
+
+
+2.1.121
+-------
+2.1.120
+-------
+
+Release 2.1.118 for databus2-relay-member2-war
+Adding chunking to member2 relays
+New war for member2 relay
+update subscription format for espresso client
+adding server side filtering with tests
+Fix RplDbusAdapter to not rely on load order to get the DriverManager class in constructor
+Fixing memory sizes for databus2-espresso-test-client-war
+Fixing databus2-beta-CI-integ since STG-ALPHA seems to be decommisioned
+JVM optimization for Dtail launch script
+BUG=DDSDBUS-1158 RB=100743 Optimizing Avro usage in the client library
+mass update to 2.4.5
+Fixing potential int overflow 
+RB=100609 Handling array of records validation in bootstrap audit script
+DDS-3926: databus relay reconfiguration for USCP cluster
+DDS-3926: Correcting off-by-one error
+Fix multipartition testcases.
+Even though this is an external consumer, we have to force subscribe for MASTER relays, as there is no replication between the two storage nodes.
+Don't register sensors if the enablePerConnectionStats is disabled
+
+2.1.118
+-------
+* BUG=DDSDBUS-1131 RB=99368 Puller thread now populates the logical source id if the subscription does not have it
+* Launch chunking query and chaining member2 relay
+* testcases for wildcard partition on pp and lp
+* changed espresso_buffer_5.3.3_test2 to match partition transition and  add OFFLINE partition
+* enable mp integration tests
+* Introduced new aggregated metrics for multiple DbusEventBuffers.
+* Reject events with SCN = 0. Fix DDSDBUS-1033
+* Global consistancy checker ( Used for checking consistancy when there are generation bumps in SCN's).Ported from espresso branch.
+* BUG=DDSDBUS-1127 RB=99876 Fixing handling of logical wildcards: 
+* BUG=DDSDBUS-901 RB=100042 If the multi-thread setup, events were double counted because they counters were increased before it was checked if the events had to be dropped or not
+* Adding chunking parameters to Member2 relay spring. Will add to other relays later
+
+2.1.117
+-------
+* Fixing broken clients stats REST
+* Adding sas container
+* Fix databus fragility with new use cases or code re-factoring
+  Added tests for DbusEventKey, and new test cases for the new behavior of the
+  buffer initialization, and key retrieval.
+* added a new state when processing resource keys (OFFLINE) for BasePhysicalSourceConfigBuilder
+* Migrate Hudson 4 tests to use TestNG tags. Add multi partition test client tests to Hudson automated runs.
+  ( currently it is test 1 ), others to follow as they start passing locally
+* consolidate update/validate functionality in RplDbusManger into one extra thread instead of two
+* Chunking in Databus V2
+* Adding restartScnOffset functionality to chained relays 
+* mpconsumer relay kill test
+* Fix event process time to get appended in the correct place
+  Changed the code to append the event data after completing all processing, instead of
+  appending it before the process time. This also allows us to catch errors in later
+  part of the code, if any.
+* remove dbNames parameters from tests
+* relay side resilience to malformed schemas. This was earlier reviewed and committed, but backed out because of failing integration tests. Turned out they were fialing for a different reason. Ran schema update integration tests and unit tests which all pass
+* fix to dbus2 script to flag error when no callbacks are received
+* update multi partition test suite to be able to run all 5 written up tests. Not enabled yet
+* RB=98727 BUG=515 Multi-partition consumption for Espresso fixes
+  1. Adding a legacy URI decoder to handle the old DatabusSubscription <-> String conversions
+  2. Adding DatabusSubscriptions field to ServerInfo; ServerInfo should be automatically converting between sources and subs
+  3. DatabusHttpV3Client should be using the subs field instead of the sources in ServerInfo
+  4. Fixes to statistics aggregation for multiple partitions
+
+
+2.1.115
+-------
+* Relay Chaining
+* Adding databus2-bootstrap-producer-targeting
+* RB=96167 BUG=DDSDBUS-1101 Expose multi-partition info in clientStats/registration: 
+	1. multiPartition: true/false if the registration is a multi-physical-partition registration
+	2. childrenRegistrations: list of registration ids for all per-partition registrations
+	3. Add clientStats/mpRegistrations to list only the multi-partition registrations
+* RB=96319 Adding logger unification for multi-partition consumer
+* Add utility method to get a list of multipartition consumer subscriptions from a string list
+* Expose an API to get number of partitions for a given DB from V3Client. To get number of partitions on a registration from registration API. Fix for DDSDBUS-1103
+* adding sas producer war and updated global fabric for sas relay, changed target relay to point to the new VIPs
+* refactoring rpldbusmanager code. Removing assumption that there may be more then one rpldbus controlled by this manager
+* upping memory sizes by 4x to try to increase relay timespan
+* RB=96595 BUG=DDSDBUS-1091 Exposing through REST event and callback statistics for single-partition registration PCVALIDATIONOVERRIDE
+	1. Extended the DatabusV3Registration API to get access to the statistics 
+	2. Moved the ConsumerCallbackStats to databus-client-api because of (1)
+	3. Fixed double merging of stats in RelayPullThread
+	4. Exposed the stats through /registration REST call
+	5. Adding aggregation for the multi-partition registrations.
+	6. Unifying the registration info generation across /clientStats and /regopgs
+	7. Adding highWatermark to RegistrationStatsInfo
+
+2.1.114
+-------
+
+* Adding com.linkedin.events.espresso.ucp.UcpxContentEvent to the list bootstrap sources for espresso-ucpx
+* Adding ContentEvent initialization for espresso-ucpx bootstrap
+* Changing checkpoint serializer script for espresso-ucpx to support ContentEvent
+* RB=92836 BUG=DDSDBUS-1050 bootstrap failover test with different timelines
+* RB=93428 BUG=DDSDBUS-1074 Added progress bar to RplDbusManager validate task output (every minute)
+* Add one more testcase for PartialWindow Consumption
+* BUG=DDS-3664 Changing zkclient dependency
+* fix ddsdbus-799. invoke onError callbacks
+* record binlogoffset of the FIRST event in the window, and throw UNRECOVERABLE error in case of out-of-order EOW
+* fix duplicate suspend on error message
+* RB=94352 Fix script to nuke the right log files
+RB=92744 BUG=DDSDBUS-1012 Adding support for Configurable buffer sizes for multi-tenant relay
+* added rplDbusadmin/restart command
+* RB=95162 Adding MultiPartitionSCN
+* drain events in a rpldbus thread before stopping it
+* Ensure duplicate state transition messages are caught in puller state machine unit tests.
+* Fixes to perf script
+* renamed to RplDbusManagerAdminRequestProcessor.java
+* synchronized saveBufferMetaInfo
+* First pass at the consistency checker and transaction tracker port from the async engine..
+* Enable logging for TestEspressoFlush
+* Adding logging to TestEspressoDynamicClient2
+* RB=95514 Adding testNG group annotations and new test target for espresso client tests
+* fixes for flush integration testcases
+* RB=94872 BUG=DDSDBUS-515 Adding conversion from a string URI to/from a subscription object to simplify the creation of subscriptions
+* DDSDBUS-515 Adding partition multiplexing consumer implementation
+* RB=95338 Relay resilience to missing db / document schemas. This becomes important during multi-tenancy.
+* RB=95960 BUG=DDSDBUS-515 Patch 3: integration of multi-partition consumer with client library
+* Fixing checkpoint creation for targeting bootstrap
+
+
+2.1.112
+-------
+* RB=93092 fix failing unit test.
+* upgrade helix client version. All tests pass ( yesterday s unit test failure was an orthogonal issue )
+* Fix missing method in TestCMClientAdapter
+* BUG=DDSDBUS-1071 Moving file PROFILEVSSOURCE_v1.java to proper directory/package
+* removing duplicate copy of PROFILEVSSOURCE_v1.java java file
+* RB=93003 BUG=DDSDBUS-1051 Client doesn't startup in follower mode
+* RB=93003 Fixing findBugs issue 
+* updating the espresso version number to 155 ( latest stable known version ).
+* BUG=DDSDBUS-1074 RB=93128 Reduce volume in tcp log, and print more information on errors
+* Temporarily disabling the rpl_dbus config reload
+
+
+2.1.111
+------
+Had a fix for parsing ideal states when list fields are missing ( due to v0.8 CUSTOMIZED ) ideal state generation in storage node
+
+2.1.110
+------
+
+Automagically generated by Oliver with some assistance from create_relay_cluster_config.sh
+Upgrading espresso in EI to 2.1.109
+DDSDBUS-852: Databus Client: Retry Support on SCNNotFoundException
+Allow fabric level config for disabling Applier
+Adding checkpoint scripts for targeting
+Testing multi-tenant relay with new sources
+Fixing dev config for databus2-bootstrap-producer-targeting
+CM-9733
+CM-9733
+Automatically generated by create_relay_cluster_config.sh.
+Retaining global port assg for deployment tests
+Adding instance specific configs for eat1-app83. I have added these steps as decribed by Chavdar here: https://rb.corp.linkedin.com/r/89925/
+Changing jvm settings and buffer size of multi-tenant relay
+increase schema reg refresh to once every 5 min
+fix for v0.8 cluster setup
+Fix to DDSDBUS-1063.  Optimizations on schemas registry. 
+fix DDSDBUS-963
+upgrade helix pacakges
+Fix TestDeployment to use multi-tenant relay port
+RB=92240 BUG=DDSDBUS-1063 SchemaManagerFactory will create a in-memory cache for parsed document and table schema objects
+A script to qualify mysqld release
+Trunk Merge for DDSDBUS-1050 Fix issue in RelayPuller while switching relays
+stopping bin logging while doing truncates
+A script to qualify mysqld release
+RB=92503 BUG=DDSDBUS-1050 integration test for bootstrappping with different timelines
+
+2.1.109
+-------
+
+DDSDBUS-1046: Trying new names for the rpldbus user/pass
+Change the mysql port to 3306
+DDS-3232: updating prod-ela4 databus3-relay-espresso to 2.1.108 to fix idealState size issue
+BUG=DDSDBUS-1019 adding a helper script to set ulimit -u for setup-rpl-dbus-slave
+Adding logs in RplDbusManager and marking UpdateTask handle as volatile
+
+It is not yet clear why we see many validate tasks seemingly executing 
+in quick succession when they are supposed to be executing only once every
+60 seconds.
+
+Added logs, and marked _updateTaskFuture as volatile, since there we may
+get called on notifyUpdate() via multiple threads, each of which could 
+look at a thread-local copy.
+
+Fixing log4j to get time-based rollover
+
+Apparently RollingFileAppender does not work, we need DailyRollingFileAppender.
+Also added binlog offset to the log on exception
+
+RB=90660 BUG=DDSDBUS-1048 Adding configuration for targeting to the multi-tenant relay
+
+Multitenant relay config for flex store and flex store avro schemas
+pre-commit-status-crumb=c634da6e-4f58-4159-9c23-bce659836d6c
+
+Chaning multiconsumer config to point to multitenant relay on EI
+BUG=DDSDBUS-1048 adding bootstrap producer war for targeting
+BUG=DDSDBUS-1048 setting configs for databus2-bootstrap-producer-targeting
+Fix for DDSDBUS-1000
+The bug happened because processSendEvents() can be called in multiple threads (although
+next thread is never started before one ends). In our case, the variable _mostRecentBuffer
+was observed to be null when a control event came in on thread-2 after a data event
+was processed bu thread-1. thread-1 set _mostRecentBuffer but thread-2 saw a local copy.
+
+Fixed by having a single thread processing events in a connection (basically, letting
+the netty i/o thread do the processing as well, instead of spawning a new thread).
+sync_tools.sh should not ask to add unknown hosts to known_hosts
+
+Update the config for ESPRESSO_DR_SRC relay configs, slave mysql now uses port29000
+Automatically generated by create_relay_cluster_config.sh
+
+Automatically generated by create_relay_cluster_config.sh
+
+Code review comments. Ran schema_Registry update integration tests.
+
+2.1.208
+-------
+adding instance container configurations for espresso perf sanbox cluster
+fix in the multi-instance rpl_dbus control script
+Adding creation of rpl_dbus config table to the setup script
+Set databus3-relay-espresso to use the user rplespresso
+Changing tcp log to rotate time-based
+Rotating tcp log on size-based probably requires apache-log4j-extra. For now,
+changing it back to time-based. Meanwhile here is a link that may help:
+http://osdir.com/ml/log4j-user.logging.apache.org/2009-02/msg00062.html
+Also changed some log levels and log messages in in the code.
+r486406 | pganti | 2012-08-27 14:17:58 -0700 (Mon, 27 Aug 2012) | 1 line
+upgrade storage to 2.1.107
+r486426 | zwhite | 2012-08-27 14:28:58 -0700 (Mon, 27 Aug 2012) | 1 line
+databus config for USCP in ela4
+r486460 | cbotev | 2012-08-27 15:04:17 -0700 (Mon, 27 Aug 2012) | 1 line
+Adding cluster tag config for RELAY_DEV_FT_4
+r486475 | cbotev | 2012-08-27 15:17:27 -0700 (Mon, 27 Aug 2012) | 6 lines
+RB=89925 Adding instance configs for RELAY_DEV_FT_4
+r486618 | zwhite | 2012-08-27 17:42:03 -0700 (Mon, 27 Aug 2012) | 1 line
+APPOPS-10089: more relay config
+r486621 | zwhite | 2012-08-27 17:46:45 -0700 (Mon, 27 Aug 2012) | 1 line
+APPOPS-10089: more relay config
+r486630 | pganti | 2012-08-27 18:00:23 -0700 (Mon, 27 Aug 2012) | 1 line
+update helix to 0.5.22
+
+
+2.1.107
+-------
+r483005 | tester | 2012-08-21 16:19:16 -0700 (Tue, 21 Aug 2012) | 1 line
+updating v2 test clients and espresso relay to 2.1.105 in EI
+Fix Configs for bootstrapping in stg-beta
+DDS-3232: fixing bad heap sizes
+Fix config for bootstrapping
+Fix validation in validateRelayPullerMessageQueue.pl
+adding member2 bootstrap producer ports for chaos monkey script
+espresso relay setup fixes
+RB=88421 BUG=1005 Automated tests for varous relay connection failure scenarios
+Share project "databus2-databus-client-impl" into "svn+ssh://svn.corp.linkedin.com/netrepo/databus2/trunk/databus-client"
+Try to address timeing issues in unit tests
+Fixing a FindBugs warning in AbstractActorMessageQueue
+dds-3232: fixing databus2 parameters per phani
+dds-3232: databus property changes per phani part two - the reckoning
+dds-3232: committal part 3: return of the property
+Add a UknownPartitionException unit test
+implement reset 
+Integrate RelayPullerState verification  with rest of Integration-test code
+Take 2 for addressing a timing issue in a TestGenericHttpResponseHandler test.
+dds-3232: setting proper repldbus ports for multi-instance databus
+Adding missed privileges to espresso relay setup script
+Remove requiring that a database is required for relay to come.
+Earlier this dependency existed because of a hack to get an eventWriter for a DbusEventBufferMult ( I cleaned that up in an earlier checkin ).
+Fix the invalid assertion in validateRelayPullerMessageQueue.pl
+fix integration test
+DDS-3232: reducing relayReplicationFactor to 2 per Chavdar in response to DDS-2600 and HELIX-34
+When we hold an event for an updated schema, we need need to put the new
+schema into the sourcename to schema ID mapping.
+Automatic version increment by mint publish
+missed committing this file earlier - part of fix for DDSDBUS-1023
+DDS-3366 - add container/app configs for databus3-relay-espresso for ESPRESSO_COMM
+remove list fields from ideal state. fix failing unit test. Getting in one checkin to get quicker feedback to make a release
+Automatic version increment by mint publish
+fix DDSDBUS-998
+fix intermittent failure of tests. deregister on registrations to ensure connections are closed properly.
+script to create an espresso relay cluster in helix
+Disable default replication thread on startup
+Fixing mysql initialization issue for espresso multi-instance relay
+Adding a remote relay setup script
+Fixing the espresso relay cluster setup script
+rename remote espresso relay setup script
+make these two scripts executable
+Undoing the change I made for this bug. We are not able to determine readily why
+the espresso_schema_5_3_3_test4 breaks due to the change.
+
+TODO: Reprioritize this one against other bugs.
+Updating databus3-relay to 107 build
+Adding a script to setup the espresso relay topology
+Relay cluster tag config RELAY_FT_RELAY_PERF_SANDBOX in EI
+Adding a script to generate relay cluster config
+Fix to the espresso setup sync tool
+adding a helper script to control multiple rpl_dbus instances
+Adding instance config for perf sandbox cluster
+Updating espresso test client to 2.1.107 in EI
+
+2.1.106
+-------
+Failed 
+
+2.1.105
+-------
+
+* DDSDBUS-1005 Make messageLoggingConfigurable and fix the bug(Closed Channel at Request_Stream transitions to Register_Request_Error)
+
+
+2.1.104 ( 2.1.103 had an issue in publishing configs )
+------
+
+Java discovery fix for setup.inc
+Adding instance level setting for multi-client-test-consumer
+Adding member2 relay ports
+fixed accidental clearing of a hashmap in rpldbusmanager.validateCurrentState
+Reduce pullInterval and set timeout to be low for Member2 client for partition 6
+save binlog offset in SendEventsRequest only on EOW
+Added a test for buffer reset
+Fix GenericHttpResponseHandler and other related classes to correctly enqueue messages.
+Changing bootstrap server heapsize
+Increasing size of bootstrap heap sizes
+Checkin missed change to trunk 
+implement dropped from offline method. remove dropped from standby notification
+Upgrading espresso relays in EI to 2.1.102
+Disable logTypedValue for multi-consumer
+BUG=DDSDBUS-1017 adding unit tests for Balaji's fixes
+DDS-3232 databus config changes for prod comm cluster
+BUG=DDSDBUS-1025 Reducing fetch size to fit in JVM heap
+BUG=DDSDBUS-999 Collab schemas
+BUG=DDSDBUS-1025 Reducing fetch size to fit in JVM heap
+construct the exception object when there is an error to get the correct stack trace
+Fix test-consumer configs
+upgrading helix client version to v5.20
+Attempt to fix a timing issue in unit test.
+Adding multitenant relay war to release file
+
+2.1.102
+-------
+
+* DDSDBUS-1004 : RelayPuller hang/shutdown issue in Prod (for PeopleSearch)
+* RB=87039 BUG=DDSDBUS-1011 Fix a deadlock when starting the v2 library with no consumers; replace other dangerous uses of client.shutdown() with client.shutdownAsynchronously() to avoid potential deadlocks.
+* Add sleep for test client to consume all events
+* EI chaos monkey now kills single servers instead 
+
+2.1.101
+-------
+
+* RB=86573 BUG=DDSDBUS-994 Fix race condition for obtaining the max scn on relay start up
+* RB=85985 Up container version to 3.0.55
+* Adding missing grants to the espresso relay setup scripts.
+* RB=86838 BUG=DDSDBUS-1007 Make sure channels are closed after FindMaxScn calls; instruct Netty not to rename our threads for easier debugging.
+* RB=86873 Fix flush implementation when dispatcher has not seen any events
+* take special care when validating/restarting thread for localhost in rpldbusmanager
+* DDSDBUS-964 configure tcp port on rpldbus
+* DDSDBUS-1009 separate logging for rpldbusmanager into a separate file
+
+
+2.1.100
+------
+
+Automatic version increment by mint publish
+Creating RC branch 2.4.0
+RB=85513 1. Adding continuos undeployment test for the multi-client test consumer. Each iteration will undeploy first a random set of relays and then try to undeploy the client.
+2. Adding simple bash asserts.
+3. Modifying the bootstrap redeployment test to use the bash asserts
+If you run it locally, you may have to change the GLU port in dbus2_driver.py to 8484. I haven't changed it yet, not to break hudson.
+updating EI to 2.1.99
+Using more manageble iterations number for multiclient_test_war_undeploy_inf_retries.test
+Pointing test-clients to non-existant BS for Shutdown test
+Pointing test-clients to non-existant BS for Shutdown test
+Pointing test-clients to non-existant BS for Shutdown test
+Pointing test-clients to non-existant Relays for Shutdown test
+Pointing test-clients to non-existant Relays for Shutdown test
+Reverting back configs used for Shutdown tests
+RB=85871 kill random relays and bootstraps among anet,bizfollow,liar and the test multi-client in EI; very deployment/undeployment
+Switching databus2 in EI to 2.4.0
+fix bug where newly added databases in storage cluster were ignored
+upgrade helix client version to 0.5.19
+Ignore schema resources on storage cluster
+Add new file to svn
+fix helix admin port. 
+remove bizfollow from kill list as it causes problems for company-bizfollow
+remove one old integration test, that was trying to connect to a cluster that has been removed on zk. same fucntionality exercised in the test after
+When client's current SCN is set as -1, and MaxSCN to be reached is set as 0, then flush returns error code TIMED_OUT and not REACHED.
+r478226 | ssubrama | 2012-08-13 08:53:04 -0700 (Mon, 13 Aug 2012) | 19 lines
+Support for http commands to get the relay binlog position.
+On the relay side, the binlog position is described by (int, int) for
+file-ID and offset in file.
+
+The relay stores the offset of the last event that it saw, whereas
+the master reports the offset of the next event it is going to write.
+So, the operator should manually verify that the offset of the last
+BEGIN by executing show binlog events in 'binlog-file-name' on the master
+and making sure that it equals the number reported by the relay.
+
+Tested by starting up a relay with rplbusmanager enabled.
+move metaInfo file for persistence aside, after a buffer has been loaded and started (to avoid loading invalid data). Plus unit tests for this case and for persistence in general
+update configs for espresso relay GC
+Enable persistance check on relay
+Disable Bootstrap for liar and bizfollow
+Disable Bootstrap for liar
+Pointing EI client to stg-beta BS
+RB=85903 adding databus-events library
+Pointing EI client to stg-beta BS
+Fixing event buffer sizes for RELAY_USCP_PERF_TEST
+Increasing NewGen size for EI
+RB=85877 Adding timeout behaviour to test consumer
+BUG=DDSDBUS-970 RB=86271 Adding UcpxContentEvent for espresso UCP
+UPDATE: Adding spring and config for new source
+make sure to close ResultSet from mysql query
+Adding default values for restoreMMapedBuffers and restoreMMapedBuffersValidateEvent properties
+explicitly specify inices for file size based log rotation
+tagged config for databus3-relay-espresso multitenant-1
+incorporate feedback from Balaji.
+call tearConnection during pickRelay to ensure the flag tearConnAfterResponse is reset to false.
+ 
+Tweaking buffer sizes for RELAY_DEV_FT_3
+Switching to standard relay buffer config for 512 partitions.
+Release 2.4.1 to EI
+Add a unit test case to a cover a bug found during review
+Added unit test cases to have upto 10 pending external view change notifications and two concurrent flushes.
+While attempting to fix flush synchronization, reevaluated the current synchronization architecture on client. Here is an attempt at simplifying it. This shold fix the flush issue, and DDSDBUS-818 as well.
+Idea is :
+
+1) All client datastructures are thread safe
+2) One datastructure RelayClusterInfoProvider, by itself would be thread safe. Specifically, it has a ClientAdapter, whose methods are synchronized on itself.
+3) All other API calls per registration are synchronized on the registration object. This includes flush, deregister, start
+4) The only methods inside the client library that are synchronized are :
+   - registerV3DatabusListener ( because we want to ensure back to back synchronizations do not create duplicate connections / do not get same regId )
+   - During externalview change notification, before we send a message to SET_SERVER_CHANGE message, synchronize on the registration
+
+reduce verbosity of log messages for some api calls
+------------------------------------------------------------------------
+
+2.1.99
+------
+* add logs to API calls
+* check for null inputs for registration id that is possible in testcases
+* rpldbus background thread will use change master on rpldbus when it is stopped and start it
+* RB=85405 Exit early the connection retry loop in case of shutdown request
+* BUG=DDSDBUS-947 RB=85467 Explicitly keep track of all channels so that they can be closed on shutdown
+* RB=85503 Basic integration test for repeated deployment/undeployment. 
+* DSDBBUS-965 MultiConsumerCallback bug and enable graceful shutdown in integration-test
+* rpldbus background thread will use change master on rpldbus when it is stopped and start it
+* Fixed error message for timeout=0
+* Shutdown with zero consumerTimeBudgetMs test
+* RB=85782 Reverting the change of not throwing exceptions on closed channels as it broke unit tests; shutdown is still working
+
+
+2.1.98
+------
+* Simple scripts used for ft3 cluster setup.
+* New and improved relay setup script
+* DDSDBUS-971 Create databus-multi-client-test-consumer which simulates nimbus client setup
+
+2.1.97
+------
+* Improvements to DatabusBaseIntegTest
+* More logging for TestTwoSourcesBootstrap
+* More logging for ExtendedWriteTimeoutHandler and ExtendedReadTimeoutHandler
+* RB=84072 Change rpl-install.sh to work across espreso and databus. Set appropriate env variables so that it does not ask questions.
+* RB=84093 BUG=DDSDBUS-947 Fix various shutdown issues
+* Reverting part of the changes in RB 84072 since it will cause tests to fail. RB=84255
+* Changing databus3-relay-espresso TCP port for multi-instance deployments
+* Enabled member2 sources
+* BUG=DDSDBUS-895 Removing stopped connections from the client connections list
+* BUG=DDS-3290 We see memory leaks with avro schemas; part of these can be attributed to messages to the bootstrap which are never processed
+* BUG=DDSDBUS-862 RB=84279 Adding code to reset a buffer
+* remove databus2 espresso test client
+* RB=84602 Fix error in detection of old events - skip control events as they have seq = 0.
+* DDSDBUS-961 Support for seeding a specific chunking Key range
+
+
+2.1.96
+------
+Bootstrap bizfollow in EI
+Using VIP for test consumer in EI
+DDS-3254: databus3 config for parallel USCP perf test cluster in EI
+Disable Applier for ANets and Bizfollow in EI and STG-BETA
+Synchronize on start() method to prevent to guard for back to back registrations for same partition
+Adding avro based event generator, initial commit, this has not yet been completely tested
+Fix default backoff timer for bsPullerRetriesBeforeCkptCleanup
+Fix integration test failures because of bootstrap-server changes
+upgrade schemas registry library. Integration test is still failing
+Fixing edge case in json comparison
+fixing 533 rpl testcase
+Changing the zk client dependency for helix components to be from github.
+This gets EspressoRelay working when started under eclipse. We could not find
+other ways of getting this to work.
+
+The zkclient dependencies in these files are still the same as before (0.1.0):
+  ./databus-group-leader/databus-group-leader-impl/build.gradle
+  ./databus2-tools/databus2-dtail-impl/build.gradle
+
+ligradle test passes
+Restoring STG-ALPHA from the STG-BETA RELEASE.BOM
+fixing 5_3_3 schema registry tests
+Fix unit test testReadEventsAssertSpanError to respect the new check. Ensure the SCNs generated are same.
+Fix a code bug, where we were not updating EOW event when stg buffer size is bigger than available size
+Updated with more unit tests and code fixes for the same.
+One unit test testReadEventsAssertSpanError is failing after the changes. At this point, seems like a test issue.
+The test increases seqId without a endOfWindow in between.
+Guard in the relay for missing EOW events
+Fix for DDSDBUS-931 and DDSDBUS-926
+sleep for a minute during initialization
+shutdown clustermanager started by rplDbusManager
+
+2.1.95
+------
+simple curl tool to get events from the relay by partion id. May be imroved if needed
+DDSDBUS-922 Switching between Bootstrap Servers while doing snapshot reading could potentially lead to gaps
+remove sync on addNewBuffer / removeBuffer in HttpRelay. 
+DDSDBUS-939 decrease restartScnOffset to speed up relay bounce
+Reduce number of calls to obtain logical source id list from schemas registry 
+Cache list of tables for a given source at startup. An update to table is handled when an event is received for the new table.
+Config change for making bootstrap snapshot bypass default for anets and conns
+Fixing server side filtering test cases in integration test-suite. 
+
+2.1.94
+------
+dispatcher DOT diagram draft
+optimize synchronization overheads on callback processing 
+1. Remove synchronizations in state transitions code path. Remove wait on relay to block until it has received one notification.
+2. Move synchronization in remove resource key path ( onOfflineFromOnline ) to DbusEventBufferMult from Relay
+fixing cleanup of storage node
+fixing 5_3_2 testcases
+Enabling logging to a file for TestEspressoDynamicRelay*
+Reverting RELAY_COMM_INDEX cluster name to minimize changes in one shot
+Adding logging to TestEspressoCMIntegrationStatic
+Add logic to log the output of failed tests RB=82924
+Simple change in LoggingConsumer to avoid a possible NPE
+Moving RELAY_comm-index.src to RELAY_COMM_INDEX.src for consistent naming convention. Likewise, updating cluster names and schema registry paths for proper naming conventions
+Moving RELAY_comm-index.src to RELAY_COMM_INDEX.src for consistent naming convention. Likewise, updating cluster names and schema registry paths for proper naming conventions
+Cleanup eventLogReader and eventLogWriter code, which is not used right now
+removing erroneous configs
+
+2.1.93
+------
+Upgrade helix client to 0.5.13
+
+2.1.92
+--------------
+
+increment version to 2.1.91
+Automatic version increment by mint publish
+Java runtime exec escapes the quotes
+BUG=DDSDBUS-902
+pre-commit-status-crumb=a1f8e361-97c1-4854-a0f2-bb6e2838f35b
+Making SendEventsRequest perf log to be server-id specific 
+fixes for schemata for unit tests
+fix unit test failures
+setting logging level for tcp back to debug
+fix unit test failures
+Upgrading databus2-relay-member2 to 2.1.91 in ELA4
+fix unit tests
+Fixing EI release model
+Enabling bootstrap in EI for test consumer
+in RplDbusCMAdapter ignore CM updates for relay in not ONLINE state.
+size based log rolling for tcp . RB=81593
+reverted 468216
+adding new host to prod relays
+Make ECH3 bootstrap producer member2 point to VIP back
+Sort relay, storage instances before obtaining the initial Ideal state assignment.
+Verified with unit test that without it, ideal state assignment is different and fails, and after the sort, test passes.
+Should fix DDS-3230, part 1 ( where different ideal states are written by different relays )
+pre-commit-status-crumb=17a8b9aa-197d-4dbe-a0a1-1d05cbd2a741
+Rolling back bizfollow-war in EI 
+Rolling back bizfollow-war in EI 
+Update checks, fix a logging bug, fix a potential race during ideal state writing. ok@slu
+fix another log
+remove setting log level explicitly
+Make EI test-consumer bootstrap for liar
+Make EI test-consumer bootstrap for liar
+Making unknown partition a recoverable error
+when relay starts - stop and reset all the threads in the rpldbus
+Share project "databus2-databus-core-impl" into "svn+ssh://svn.corp.linkedin.com/netrepo/databus2/trunk/databus-core/databus-core-impl"
+Share project "databus2-databus-core-impl" into "svn+ssh://svn.corp.linkedin.com/netrepo/databus2/trunk/databus-core/databus-core-impl"
+Making unknown partition a recoverable error
+Update: Adding a unit test
+Update: Addressing review comments
+R=pganti,stopiwal,bshkolni
+A=pganti,stopiwal,bshkolni
+pre-commit-status-crumb=0bf18317-da15-43a4-a3f0-c4f25392b2a8
+Adding response verification for errors to TestSendEventsExecHandler
+Optimize result printing in SendEventsRequest.ExecHandler
+removing bad password entry
+Removing spurious directories
+DDSDBUS-913 Fix Seeding to work for sources where Chunking key is first of the composite key
+RB=82086 Turning off RMI registration to get rid of annoying exceptions in forum relay
+pre-commit-status-crumb=eae7a023-b028-4d82-9672-ec235e8a5fd6
+Update: Added tests
+Perform connection setup during start()
+pre-commit-status-crumb=e326b60c-bf70-466d-b32d-93058f370e61
+DDSDBUS-911 1. On rollback error, shutdown the dispatcher
+2. Add a watcher thread which will shutdown the how connection if any of the pullers or dispatchers dies.
+Update: 
+3. Remove the second status in GenericDispatcher
+4. Add a unit test for the shutdown
+BUG=DDSDBUS-911
+pre-commit-status-crumb=308ddb85-b1a4-4da4-912e-ec04b7d51d4f
+added periodical validation task for RPLDBUSManager, and show warnings for start/stop commands to mysql
+
+2.1.91
+------
+DDSDBUS-502: checking in unreviewed code. Will revert if needed
+using class.getSimpleName() causes mismatch of logging level
+using class.getSimpleName() causes mismatch of logging level, and moving [Start]SendEventRequest to a request.tcp package
+Fixing test case - The default applier state when not running is -1, earlier used to be 0
+BUG=DDSDBUS-896
+fix bug in reporting of minSCN value
+move to perf logger
+upgrade to 0.5.11 helix client to fix session id 0 bug
+release v90 for EI
+use StorageNode for espresso tests
+update schemaId only if it is not present
+Making unit tests more resilient
+updated StorageNode properties file for the stand-alone tests
+ignore e.v changes when type is finalized
+Adding cleaner configuration to databus-bootstrap-utils-seeder-pkg
+
+2.1.89
+-----
+Release 2.1.88 in EI
+Wrong key type for seeding member_business_attr
+RB=80425 Fixing stats collection when we loading an events file 
+Fix PK indices for Member2 seeding
+DDSDBUS-849 Don't let internal databus exceptions while processing callbacks propagate up
+check for shutdown requested state during flush call
+DDSDBUS-894 Reuse the NioClientSocketChannelFactory across client connections so that we have effective pooling
+RB=80426 Make the LoggingConsumer extend DelegatingDatabusCombinedConsumer so that it can wrap the real consumer call rather than run parallel to it. This is the first step of simplifying the tracking of registered consumers and is part of the work on DDSDBUS-895 (unregister/deregister API should clean up associated DatabusSourcesConnection objects). 
+Add stats on repl-event buffer code path
+Add stats on espresso schemas registry code path
+fix test, more instrumentation
+
+2.1.88
+------
+* DDSDBUS-828 databus configs for comm-index test cluster
+* disconnect clusterManager on become standby from leader RB=80319
+* Fix DDSDBUS-848 : Error out if a puller / dispatcher is not available during FLUSH
+* bigger batching window for rpldDbusManager updates, checking SNs state when filtering CM messages
+* move sync block to relay specific sync methods. should not make operational impact RB=80360
+* DDSDBUS-837 Bootstrap Producer: Set correct state automatically
+* RB=80383 BUG=DDSDBUS=844 :  Iterator equivalence changed to fix recovery failure
+
+
+2.1.86
+------
+*tuning tcp logging 
+*Upgrade schemas registry client library version ( the existing version was pulling in an older helix client version, and hence the performance issues lingered ) RB=79101
+*added validateBufferEvents command - to dump buffer stats
+*RB=79016 Moving per-physical-partition stats collector collection to HttpRelay UPDATE: Fixing handling of events with srcid 0 which were incorrectly counted as system events UPDATE 2: Enabling dynamic registration of per-partition monitoring mbeans
+*migrate to TestNG . Hope is to get clean reports across espresso targets RB=79334
+*added logging for RPLDbusManager
+*RB=79345 Fixing inbound event stats for test relays and outbound event stats for HttpServer
+*changing member2.db_url
+*add gnutar. remove later
+*upgrading to espresso version 109
+*added logging for EventRewriter
+*Add useTestNG() as tests are in TestNG
+*DDSDBUS-868 Fix log4j configuration for databus2-relay-member2
+*Added config support to bootstrap producer to control the applier
+*Added the applier test script to the integration tests
+*DDSDBUS-873 Change the interval for flushin binlog offsets for espresso relay
+*change error to warn for removing psource in DbusEventBufferMult
+*adding logs for schema update in SendEventsRequest
+*Adding member2 setting for ech3
+*Machine level override settings for databus2-bootstrap-producer-member2 in ECH3
+*RB=79761 Move the global stats merge thread to ServerContainer so everyone can use it
+*Reduce restartScnOffset value to 1K
+
+2.1.83
+------
+* Remove caching of espresso schemas 
+* espresso relay log4j to redirect logs to tcp.log 
+* upgrade rum version to 0.13.63
+* Changing databus relay ports to reflect other fabrics
+* DDSDBUS-840 Merging with Sunil's change to statistics collection: 1. Making MBean names of partition stats collectors unique 2. Adding caching to avoid synchronization when possible 3. Removing stats merges from the critical path 4. Removing merging of stats in streamEvents since it will be done on read. 
+* RB=77781 Multi-tenant client monitoring support; new consumer stats; code consolidation of metrics 
+* Committing updates to the perf scripts used for SOCC
+* enable debug log for tcp
+* script/harvest_logs.py fixes
+* fix unit tests. avoid returning null values from API
+* removed DisableExplicitGC fro EI
+* add schemas for IdNamePair for EspressoDB128
+* added a command to runGC in the relay
+* added missing close() to loadMetaInfo()
+* DDSDBUS-835 Exit streamEvents if a write of an event fails; merge 2 - remove duplicated code due to merge
+
+2.1.82
+-----
+
+* update changelog for release
+* updating release.bom to version 2.1.81 of databus wars
+* Automatic version increment by mint publish
+* go back to 0.4.29
+* fix build
+* remove corbertura plugin until excessive logging is removed.
+* recommended by gradle consultant
+* remove jetty container specific configs, remove stg-alpha 
+* fix test
+* fixed testSameScnError test. Account for new policy of doropping same scn events after EOW
+* fix mock to add num replicas
+* Improved test logging, some tidy-up, TOOLS-10790
+* 1. Configures the logging for all test tasks to capture all messages and route them to Gradle's debug level. This way the console output is clean. If you need to see the output from tests, run with --debug. Please adjust the level if necessary (for example, you might want to change it to 'INFO'). This solves the problem reported in TOOLS-10790.
+* 2. Rationalized the code that configures the test tasks into a separate statement that is cleaner, does not use afterEvaluate and no longer depends on the order of evaluation
+* make INFO default level - per discussion with Sajid
+* add perf log4j
+* remove kill from test, make logs more readable
+* use long for mysql bin log offset in RplDbusState
+* add log4j2 for perf
+* reverted 458550
+* add separate properties files for tests with high partitions to be able to finetune params. Change loggername to distinguish
+* update sources of company for all fabrics
+* add missing sources for jobs on all fabrics, add beta specific file
+* Fix option processing in script/grep_logs.py
+* enable fetchMaxScn in registration not started case. minor update in jobs sources file
+* increase number of threads to 500
+* Automatic version increment by mint publish
+
+2.1.81
+------
+* Instrumentation for perf benchmarking on stream callflows
+* Expose offsetNotFound exception so client can pick another relay when this error happens
+* Fix concurrent modification exception in client
+* Upgrade helix client version 0.5.8
+
+2.1.80
+-------
+* Add company.Profiles DTO classes and schemas.
+
+2.1.79
+------
+* Expose minScn in flush call
+* clean up databussourcesconnection by terminating thread properly
+
+2.1.78
+--------
+Upgrade Helix client version
+
+2.1.77
+------
+* Fix bug is realy where an espresso phy partition would error out if DBName had underscores
+* Change Relay ideal state to CUSTOMIZED mode, include replication factor
+* Increase index buffer size to 10MB for FT1 cluster
+* Fix company schemas index,, configsIncrease index buffer size to 10MB for FT1 cluster
+* Fix company schemas index,, configs. Updated scripts for all tables except FLex
+
+2.1.76
+-----
+* Fix NPE in esp schemas backed registry
+* make total stats collector not threadSafe to test perf problems
+
+2.1.75
+------
+* Fix bug in client library where Netty was using ioExecutor thread pool and hence number of outstanding connections were less than 100
+
+2.1.74
+------
+* reduce logging for RpldDbusManager
+* Adding tags support to harvest_logs.py
+* Automatic version increment by mint publish
+* Adding in-flight compression for harvest_logs.py
+* RB=74416 Fixing list of consumer registration in DatabusGenericClient
+* Bypass Snapshot for UCP/UCPX
+
+2.1.73
+------
+* DDSDBUS-765 : Duplicate stateMessages from ResponseProcessors causes null-pointer exception in RelayPullThread (rid:74339)
+* Fix couple of blocker tickets found on FT cluster
+* Fix company and jobs schema versions
+
+
+2.1.72
+------
+* Bootstrap Producer incorrectly stores string keys in the log table
+
+2.1.71
+------
+* remove dev relay deployment test no longer in use
+* commit databus events for company additional databusified sources DTO files
+* commit databus events for company additional databusified sources avro files
+* add remaining sources to seeding scripts
+* Added wrapper utility to add/remove std bootstrap tables that depends on sources.json conf
+* Bootstrap Seeder Configs for UCP
+* company / jobs seeding
+* connections relay test
+* DDSDBUS-777 Adding generator and consumer for connections data
+
+2.1.70
+------
+* Workaround for schema registry slowness, building a cache on top of espresso backed schemas registry
+
+2.1.69
+------
+* Publish databus2-bootstrap-producer-war for espresso-ucp
+
+2.1.68
+------
+* Publish databus2-bootstrap-producer-war for espresso-ucpx and espresso-ucpxactivityevent 
+
+2.1.67
+------
+* Make ConnectionStateMessage as immutable for enqueue/dequeue ops
+
+2.1.66
+------
+* RB-71745 Remove hard-coded ivy path, use classpath files generated by gradle instead
+* RB-72109 fix "null" error on database reinit in CI job
+* RB-72300 fix starting zookeeper in integ test
+* DDSDBUS-747 Disable OracleTxlogEventReader.filterSources() until we figure out a better solution for slow sources
+* DDSDBUS-750 add a config option for the oracle puller to pull only events with scn < infinity
+
+2.1.65
+------
+* Split databus2-relay-espresso-ucp-war (RB=71985)
+
+2.1.64
+------
+* Fix default value for relaysList attribute to ""
+
+2.1.63
+------
+* Fix incorrect state check in flush api 
+
+2.1.62
+------
+
+* Add tag level configs for relays
+* RB=71667 Make binary decoder of avro threadsafe
+
+2.1.61
+------
+* Databus Event Holder missing key and txn fields (RB=71468)
+* Benchmarks addition for consumer callbacks to isolate performance issues (RB=71156)
+* API only change for registration.start() (RB=71264)
+* Single war multi-tenant relay changes (RB=67788)
+
+2.1.60
+------
+* Fix bugs related to removing wrong FlushConsumer. Reduce verbosity of logging external view changes, deadlock in rpldbumgr
+
+2.1.59
+------
+* DDSDBUS-686 Fix relay cluster bootstrap case. Handle resource keys from ideal state at partition level
+
+2.1.58
+------
+* FetchMaxSCN/Flush API changes to track bootstrapping case
+* Primary key defined in espresso ucp schemas
+* Added bootstrap seeding sources for FUSE. RB=68440
+* Added bootstrap drop sources for fuse, and fixed some bootstrap fuse settings
+* Espresso ucp schema change
+* Integrate backoff timer for managing timeouts for fetchMaxSCN
+* DDSDBUS-687 Fix FileSystemCheckpointPersistenceProvider use of files withvery long names
+
+
+2.1.57
+------
+* Schema change for espresso-ucp-war
+
+2.1.56
+------
+*update configs to push jobs relay to dev
+*Adding dummy entries for bootstrap-producer espresso ucp war
+*Added new schema to espresso-ucp
+*Fixing dashboard templates and dashboard generation.
+*Fixing espresso-ucp war with new tables
+
+
+2.1.55
+------
+
+* DDSDBUS-668 UCPX activity_event is read twice
+* Replace version with variable in config/dev.BOM
+* Databus V3 Client should start automatically for the first registration
+
+
+2.1.54
+------
+
+* Adding a war ref for espresso_ucp bootstrap producer
+* DDSDBUS-667 Fixing avro bytes field value from byte[] to ByteBuffer
+
+2.1.53
+------
+
+* Changing default logfile mask to *.log in harvest_logs.py
+* Created jiras for TODO in RplDbusManager + some cleanup
+* Add company/ jobs to stg-beta
+* Fixes to add-source-to-topology.sh script. add --instance to add-instance
+* Renamed databus2-bootstrap/databus2-bootstrap-producer-fuse-cmpt/src/main/spring/databus2-bootstrap-producer-cappr.spring to ..fuse.sprint
+* Adding databus2-relay-espresso-ucp war
+* DDS-666 Fixing a 0-based position that should be 1-based
+
+2.1.52
+------
+install of fuse
+reducing fuse relay mem size from 8 to 4 gb
+adding fuse
+fixing release ver
+fixing fuse version
+server_conf.sh for FUSE in ECH3
+DDSDBUS-658
+DDSDBUS-658
+Increasing cappr dbPollIntervalMs
+add sleep after relays come up. Based on logs, after Databus service started, there are about 3 seconds before external view changes come in 
+that are ignored on the client side.
+RB=66995
+pre-commit-status-crumb=2e649208-d51c-44d5-af45-6b035b6bcb60
+Allow concurrent flush by different registrations
+pre-commit-status-crumb=5e727132-37dd-47cb-8501-5cb5d9de24d6
+add company / jobs configs
+dev container fabrics
+commit configs for company and jobs
+add missing configs for jobs, company
+fix configs for databus2 company
+fix hudson
+Unit test for parallel flush
+upgrade companies war 
+cleanup configs
+pre-commit-status-crumb=63987680-d196-46b8-bf42-4ade762a7840
+check configs for company
+pre-commit-status-crumb=5a8d10e5-e1c1-444f-a615-5042da229889
+configs change for databus2-relay-company
+refactoring TestRplDbusManager to use EV updates
+added bootstrap-fuse war and configs
+
+2.1.51
+------
+
+up release version in EI
+configs for databus3-relay-espresso
+Adding sleep to dbusmgr cases before verifying the rpl thread states
+Removing accidental checkin of exit on dbusmgr test1
+Config for FUSE for ELA4
+upgrade helix to 0.4.23
+r427600 | pganti | 2012-05-18 15:42:18 -0700 (Fri, 18 May 2012) | 1 line
+reduce verbose logging
+r427601 | pganti | 2012-05-18 15:42:54 -0700 (Fri, 18 May 2012) | 1 line
+add logging to debug a config not found error
+r427611 | cbotev | 2012-05-18 15:52:29 -0700 (Fri, 18 May 2012) | 8 lines
+Fixing an NPE in flush() for cold bootstrap
+r428475 | pganti | 2012-05-21 11:34:58 -0700 (Mon, 21 May 2012) | 11 lines
+Ignore relayLeaderStandby as a database on the client side
+Fixes : https://jira01.corp.linkedin.com:8443/browse/DDSDBUS-656
+
+2.1.50
+-------
+Fix property manipulation for rpldbus port mapping
+
+2.1.49
+------
+
+Adding databus2-relay-espresso-ucp to glu-on-desktop topology.xml .
+espresso flush test
+correct offset from MaxScn; do not reconnect to a "up" rpldbus, unless new realy, refacatoring rpldbusconfiguration builder. RB=66209
+Create wars for jobs. Correct appName in companies war.
+schemas for jobs version 12
+jobs events java format
+Support for figuring out multiple databases from relay cluster in a single client.
+If helix integration is enabled, it will ignore the property DbNames
+DDSDBUS-647: Relay to publishi rpldbus port to Relay Cluster manager. RB=66367
+FUSE.member_restriction for BETA
+fix startup conditions for test driver script
+RB=66016 BUG=DDSDBUS-619 : Dispatcher shut down causes client to shutdown rather than go into suspend mode; remove excessive logging
+
+2.1.48
+-------
+release 2.1.47 made
+change configs to use useLocalHostName
+fix configs
+configs change
+upgrade to 2.1.47
+fix relay clusterName property
+more logging, fix prop
+add one more test
+added avro schema for fuse.member_restriction
+added databus2-relay-fuse-war/cmpt
+added config/app/databus2-relay-fuse-war/application.scr
+deploy relay configs for initial integraiton
+add rpl dbus clustermanager name
+committing a typo
+fix mysql port mapping on masters
+change configs dummy to get c-d to work
+ do not resolve any hostnames that are coming from EV from CM
+PCVALIDATIONOVERRIDE Fixing rpl dbus manager cases. They were failing because of a recent change in expected behavior where threadnames do not resolve hostname.
+fuse-relay dev.BOM configs. PCVALIDATIONOVERRIDE
+PCVALIDATIONOVERRIDE Espress Databus 5.3.4 code changes. Review comments yet to be addressed
+PCVALIDATIONOVERRIDE. Remove problematic wars
+PCVALIDATIONOVERRIDE. Remove problematic wars
+testing commits
+fix tests
+DDSDBUS-640: use useLocalHostName for RplDbusManager config. PCVALIDATIONOVERRIDE
+fuse database container setup for alpha
+2.1.47
+
+------
+Ability to interpret hostname during runtime with useLocalHost flag
+
+2.1.46
+------
+starting work on 2.1.46
+up the espresso relay in EI
+fix commit mistake
+DDSDBUS-628: rpl dbus manager should only listen to updates for its database
+add configs for databus3 espresso relay for EI
+add default configs
+more config changes. set instance Name and dbName for relay.
+fix config typo
+bump up relay version to 2.1.45
+enable rpl dbus mgr
+change property name
+when getting updates from relay CM consolidate updates from all the databases;
+Flush API (only) release
+
+2.1.45
+------
+Adding convenience constructor to create a client with confiugration in a Properties collection 
+Make relay replication factor configurable
+moved databus-rpldbus-manager to databus3-relay
+moved databus-cluster-manager-utils to databus3-relay
+changed location of log4j file for rpldbusmanager
+changed location of the cluster-manager-utils for rpldbusmanager
+fix espresso release.bom and upgrade to 44 for 5.3.1 release
+fix espresso ver
+added missing argument for CMRelayProcess.java
+fixing this file although it seems unused
+add RplDbusManager to EspressoRelay
+script(from test) to create Cluster with no Relay or Clients
+Initial implementation of a command-line tool to read events from a relay
+5.3.2 testcases 2 and 5
+Fixing merge routine
+fixing ts, column state in anet_members
+fixing ts, column state in anet_members
+Improve help formatting for command-line.
+Adding checkpointinf control and improving JSON print to dtail.
+Removing echo's from setup.inc as they can interfere with other output for command-line utilities
+Helper class to help identify threads from thread pools
+Adding naming of threads and clean up code to ServerContainer
+parameterizing rpl install script
+Adding missing step for anet_members seeding
+api changes to make the verification work for multiple client registrationsscript/dbus2_driver.py
+Storage Nodes ideal state json files
+espresso 532 tests
+adding api for relay/bs puller inactive check
+fixing bug in dbus2_driver
+ensure we never set localhost as masterHost in rplDbus
+fixes in driver script for 532
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+APPOPS-7563 adding new colo for this application
+fixes to dbus2_driver for 532 cases
+DDSDBUS-562: added rest interface to get status from rpldbusmanager
+remove packages .. as some jars seem to have been left out
+re-add packages
+add remaining tests
+pre-commit-status-crumb=3d02cfd8-3f22-4281-88dc-5a307fddc47f
+Fix Unit test failures
+r408972 | bshkolni | 2012-04-16 16:14:59 -0700 (Mon, 16 Apr 2012) | 1 line
+using RplDbusNodeCoordinates in RplDbusManager.updateRecords()
+fixes for helix upgrade from v3 to v4
+removing espresso router package
+add dropped resource notifications. dummy for now to enable rebalance on storage nodes and unblock sajid / balaji
+fixing bug in compare script
+fixed formatting in RplDbusManager
+Espresso Launch Diagrams
+bumping release version to whats in stg, to test cleaning up settings
+Remove read call from the integration test
+Added cappr war to prod RB=60974 ACLOVERRIDE
+matching configs from dev to 2 prod instances
+add recreate thread script
+changing the recreate rpl thread call to use user root instead of espresso
+changing stop_by_port function to delete using kill -9 instead of relying on fuser
+remove 0.4.19 pakages
+add 0.4.22 packages
+added validate to stop all 'unmanaged' threads. and some RPLDbusManager code refactoring
+Change puller and dispatcher thread name to include source/parition name
+first test of 533 passes !
+wait event on client rather than sleep
+
+1) Fix DDSDBUS-624. Modifications from an earlier rb. Feedback incorporated.
+   Some of the earlier code was confusing and hard-to-follow.
+   Functionality related detecting schema update, handing / waiting for update, and reacting to it decoupled into methods.
+   
+Fixes espresso_schema_5_3_3_testcase4.test.
+espresso_schema_5_3_3_testcase5.test not passing reliably yet.
+------------------------------------------------------------------------
+2.1.44
+------
+Bumping EI war versions
+value compares
+handle case when external view is null
+Fixing dev.BOM for new databus2 version
+automating rpl setup
+Fixing a typo in server_conf.sh for databus2-espresso-test-client
+Fix integration issue
+Fixing databus2-bootstrap-producer-cappr config issue.
+Allowing recursive creation of checkpoint directories
+Fixing topology generatio
+fix to rpl install script
+espresso rpl install fixes
+Adding checkpoint scripts for CAPPR and NEWS
+Adding CAPPR and NEWS seeding configs
+Adding CAPPR seeding configs
+Adding NEWS seeding configs
+reg_id support final change
+Seeding config fixes
+Upgrading dark launch version to 2.1.43
+syncing alpha RELEASE.BOM to BETA
+upping xmx and xms to 500 in coordination w chavdar
+fixed bug in espresso_cluster_manager_client_3
+upped jvm xmx and xms size on canary w chavdar. tuning
+Fixing anet pig query
+Checking in cluster-aware json compare
+Adding CAPPR/NEWS to dashboard
+added rpldbus configuration over jdbc by RplDbusManager
+fixing 5.3.1 test cleanups
+Fix unit tests.
+1) In V3 client, a registration succeeds even if there isn't a relay for that source ( as it may become available later )
+2) Also, num of registrations == number of connections
+changing canary configs to be prod config for ela4
+making canary config the prod config
+comment out setup as wel. ok@Boris
+added svnignore file
+Fixing issue where storage node rebalanced cluster on start causing the move partition to fail, adding capability in json compare to verify #of events when merging
+Integrated Mihir's API for log verification
+Fixing expected event verification in dbus2_json_compare
+
+2.1.43
+------
+
+start work on 2.1.43
+upgrading espresso to 2.1.42
+Adding container config for bootstrap server
+Adding war config for bootstrap server in ech3
+DDSDBUS-533 1. Fix driver interface to use client registration stats to wait for events. The individual testcases still needs to be modified to use this interface. 2. Add more methods to retrieve current relay/bootstrap-server and their status per registration
+RB=57117 Added new hints to bootstrap seeder queries
+canary host host specific config for CM-5732 --bkozumpl
+Allow support for two different zookeeper instances for relay and storage node clusters. Need this for simulating some 5.3.3 race conditions for dynamic schema discovery
+Added RplDbusManager and Adapter
+specify defaults in app configs before overriding for fabric
+reorganize configs for espresso test client
+Adding explicit cfg2 version to databus2-relay-{cappr,news}-war, databus2-bootstrap-producer-{cappr,news}-war
+correcting configs ( was put in incorrectly to test out fabric level app overrides)
+
+
+
+
+2.1.42
+------
+Start work on 2.1.42
+Automatic version increment by mint publish
+script changes to start multiple versions of espresso storage node on a single machine
+Removing unsused directory in config
+Temp switch to 2.1.38 for bootsrap server in STG-ALPHA
+bug fixes to prev patch. Fix bootstrap services case as well.
+Connections seeding script enhancements
+Optimizing databus2-relay-bizfollow config in STG-ALPHA
+Optimizing databus2-relay-liar config in STG-ALPHA
+Fixing an issue with member2 config
+Optimizing all databus2-relay config in STG-ALPHA
+Decreasing heap size for databus2-relay-liar in STG-ALPHA
+remove leader elect tests from remaining 5.3.1 tests ( when relays are not up, we should check IS not EV
+EI configs for databus2-relay-mbrrec
+Adding a helper script to add application definition to modtopo for a new Databus source. Documentation https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Databus+2.0+Dev+Tools#Databus2.0DevTools-AddingservicesforanewDatabussource 
+Fixing anet source name
+Switching bootstrap server to 2.1.41
+have unique clusters for each test
+5.3.3 Automation Plumbing pieces
+
+------------------------------------------------------------------------
+
+2.1.41
+------
+Automatic version increment by mint publish
+upgrade to storage node on dev cluster
+Starting work on 2.1.41
+Provide functionality in Espresso test client to create a single client, and as many consumers as there are subscriptions
+( 1 consumer / subscription )
+Expose the registrations, and their corresponding subscriptions through a rest call.
+added script to stop espresso node
+Making SCN configurable for connections bulk generation
+Pig automation
+Adding bootstrap utilities to the fat hadoop jar
+updated espresso tests refactored some common code to setup_env
+script to wipe remote espresso dbs
+adding new router coordinates
+DDSDBUS-443: valid espresso events of size 57 are triggering partial event error. RB=54351
+Workaround for intermittent glu-on-desktop undeploy failures
+Decreasing memory sizes
+Click to star DDSDBUS-475: fix find bug - incorrect removal from a set. RB=54416
+Hadoop script improvement
+Script fix
+Switching to global setup.inc
+Adding news bootstrap producer 
+Script fix
+531 testcases some refactoractirng and fixing
+fixes for rpl management
+checking in missing file
+updating databus2-espress-test-client to listen to all BizProfile partitions
+downgrading databus2-espress-test-client to 2.1.37, because 38 has a bug
+fixing testcase
+fix bugs in test client
+espresso test
+Test client was getting initialized with default params, causing the _cmEnabled to be set to false.
+This would in turn not initialize code where client tries to connect to relays
+Adding CAPPR prospect_history relay
+Adding CAPPR bootstrap producer
+RB=55210 Launch as many services as required- removing notion of types
+bug fixes for testclient for 5.3style initialization
+More automation for the connections seeding
+fix ideal state generation to ensure partitions in a storage node go to same relay
+Set up checkpoint at the end
+------------------------------------------------------------------------
+
+2.1.40
+* upgrade helix to 0.3.13
+* Fixing scn location for databus2-relay-liar in dev
+* Schemaregistry integration with relay. When there is a schema version change detected from incoming dbus events from rpl-dbus, hold the event from entering the buffer and disconnect all dbus clients
+* adding integration tests to code coverage
+* script change to fix passing tests with 0 event size
+* DbusEventBufMult will map/find buffer by physicalPartiton id only. RB=52876
+* fix tests. performing verifyIdealState in a loop. From the logs, it shows that after relay has started it takes > 2 seconds to converge to ideal state
+* add ref counts for buf in DbusEventBuffMult. RB=52958
+* fixed failing test TestEspressoAddRemoveBufferPerf  - should not accept any args
+* Adding a helper script for generic hadoop commands
+* Adding a utility for creation of bootstrap tab_* tables; refactoring existing utilities to use a common setup.inc with JAVA_HOME setup logic
+* Providing default implementation for the DatabusV3Consumer
+* Forcing single-threaded execution of deployment tests.
+* Add processing multiple -p options in command-line interface
+* DDSDBUS-439. add mapping between buffer(p.partId) and physicalSource. RB=53253
+* Fixing app name for databus2-relay-dev-war
+* Fixing deploy issue with latest databus2-bootstrap-server-war
+* leader election testcases added to regression run
+* Set temp password for bootstrap producer until we are done with all pre-launch activites
+* Fixed bug in Helix. Bump up version
+** Fix bug in relay, where we have to wait till first notification is obtained and then sleep for 15s
+* DDSDBUS-215: additional tests to see that buffers are not leaked because of TCPEndpoint. Also add a configuration for bufferRemovalWaitPeriod
+* Adding news relay in dev war
+
+2.1.39
+* adding more espresso tests. fixing ordering of drop cluster in older tests
+* added two scripts as part of tests to start espresso and rpl dbus and to genereate some espresso data
+* DDSDBUS-425 This will let RPL_DBUS to descide whether to keep retrying; All error code < -64 are non recoverable ; RB=51850
+* Fix testcases
+** Make number of relay instances as 2 ( replication factor )
+** Kill both the relays
+** Have a sleep between dropREsource and dropCluster RB=52139
+* add/remove buffer tests + mem leak in BufMult
+* catch RunTimeException in closeBuffer in DusEventBuffer
+* Initial hadoop automation work: 1. Created hadoop packages with a fat jar for databus2-hadoop-impl; 2. Some pig automation
+* DDSDBUS-434. test failure. redusing the size of scn index 
+* Hadoop connections automation
+* RB=52468 Added query hints for bootstrap seeding queries
+* RB=52471 composite relay war for trunk, reorged relay wars to reduce noise in config 
+* Fixing deployment tests
+
+
+2.1.38
+* Start work on 2.1.38
+* Adding export of transitive dependencies as a system property
+* added set/SchemaVersion for DbusEvent
+* code changes for checkpoint modifications and making a single connection per registration
+* DDSDBUS-222 Make sure that buffers for the same physical partition (e.g. stream and bootstrap) write to different files
+* Cleanup of port assignment for dark-launched services of databus2
+* remove CRC computation from checkpoint on disk format
+* Splitting testReaderWriter into sub-test for easier triaging; 
+** Exposing exceptions being swallowed; 
+** Adding finer control over DbusEventBuffer assertion level
+** Fixing a problem with processing partial events: trying to read fields which are not there yet
+* Fixing a high-priority FindBugs warning
+* add a programmatic way of verifying if the relay is a LEADER or STANDBY
+* Refactor databus-client/databus-client-impl/src/main/java/com/linkedin/databus/client/ChunkedBodyReadableByteChannel.java to get rid of a high priority FindBugs warning.
+* Fixing a high-priority FindBugs warning in EventGenPerfMain
+* updated version for espresso relay and client to 2.1.37
+* fixing espresso setup issue with hardcoded hudson path
+* DDSDBUS-233. remove dependancy on hardcoded DBName in building ideal state for CM integration
+* Fix IllegalMonitorStateException for FaultRelayOnClose Integration tests
+* Fixing a high-priority FindBugs warning in EventGenPerfMain
+* check in EspressoRelay for one DB only is valid only if CM is enabled
+* RB=50144 DDSDBUS-407: remove on DbusEventIterator causes indexOutOfBoundsException
+* Fix a findbug find. override hashCode, use equals
+* The resume checkpoint should never be null; add an explicit check and error if that happens
+* DDSDBUS-180 Moving TestChunkedBodyReadableByteChannel to TestNG
+* RB=50252 FindBugs warning about use of clonable
+* DDSDBUS-186  Move databus-profile-client-test to TestNG
+* moving databus-core unit tests from junit to testng
+* DDSDBUS-178: moved all tests from databus2-relay-test to databu2-relay-impl and converted to testng
+* DDSDBUS-181 Move databus-bootstrap-server-test to TestNG
+* change directories inside databus-core-impl
+* cluster manager integration for driver script and a sample test
+* DDSDBUS-413 Adding news relay war
+* DDSDBUS-233: dynamically add/remove buffers based on callbacks from CM
+* RB=50499 bootstrap seeding configs
+* Updated Pig Scripts
+* SCN missing fix for Bootstrap Seeding from Hadoop
+* Anets schema changed ints to longs which broke the test; fixing types to comply with new schema
+* Upgrading databus trunk and RC branch for multiproduct work.
+* Upgraded to use ligradle, with necessary project-spec.json and build.gradle changes.
+** Builds were tested with "mint build" and "mint snapshot".
+* DDSDBUS-415: ignore CM notifications after 15 secs
+* RB=50934 DDSDBUS-364 changing expected state during relay-bootstrap switchover 
+* upgrade cluster manager version
+* make clustername unique and base it off of the host from which test is being run
+
+
+2.1.37
+* RB=49621 Updating index of schemas* 
+* RB=49519 schema upgrader for existing schemas
+* RB=49409 int to long schema changes for new sources
+* DDSDBUS-390: if no events in the buffer stats should return 0 (instead of Exceptions) for inbound events
+* get latest version of rum plugins
+* updated version for databus2-bootstrap-producer forum/bizfollow/liar to 2.2.2
+* changing ivy caches paths in integration tests to point to container deps
+* Partial checking for Databus2 Bootstrap Seeding from Hadoop
+* move bizfollow to the end to workaround tools bug and to potentially get deployment tests to pass
+* Updatting v1 log parse script
+* DDSDBUS-233: refactoring for future dynamic adding/removing partition's buffers in MULT buffer
+* fixes to relay code, and bring parity in pssc when cm is enabled / disabled
+* RB=48395 Adding more metrics in logs to oracle relay
+* Fixing the script to open a tunnel to prod
+* Adding instrumentation for performance stats
+* DDSDBUS-385 1. Adding assertions to ScnIndex\n 2. Adding logic to deal with head overshooting head on removing events from an incomplete window\n 3. Adding logic to update scnindex entries if we remove events from the beginning of a window
+* when appendOnly is set to true - append to the trace files, instead of rewrite
+* enable client to work with cluster manager and find out relays to connect to
+* use write lock to reset stats, make sure event iterators is released in case of errors
+* Upgrade util-* versions; explicitly set default logging level to info
+
+2.1.36
+* Starting work on 2.1.36
+* RB=45420 Bootstrap seeding scripts
+* Upgrade dark-launch wars to 2.1.34
+* cfg2 changes for bootstrap producers
+* Increasing relay buffer size in prod
+* Bootstrap Seeding not working for Sources with string key types
+* RB=45601 more bs seeding conf changes
+* Add containers for bs producers
+* DDSDBUS-314 adjusting JVM configs for databus2-bootstrap-producer-bizfollow, databus2-bootstrap-producer-liar, databus2-bootstrap-server
+* Disable Executing count() query by default
+* RB=45836 Changing pk meta info about Anet
+* RB=45838 Bootstrap seeding configs
+* DDSDBUS-356: espresso databus slave databus consumer getting RunTimeException due to issues in statue transition
+* a factory for client side cluster manager integration
+* Reducing buf relay for member2
+* changing the espresso reset to do a truncate instead of db drops. Should speed up tests. Also added events per sec to 100 from default 10
+* DDSDBUS-353 : Allow bootstrap Snapshot phase to be bypassed
+* Tweaking espresso relay memory params in PROD-ELA4
+* Tweaking espresso relay memory params in STG-BETA
+* Tweaking databus3-relay-espresso JVM configs
+* RB=46039 DDSDBUS-362; new schemas for member2
+* Switching to 2.2.1 artifacts
+* Fixing memory configuration
+* Increasing relay capacity of conn 
+* Increasing relay capacity of conn 
+* DDSDBUS-378 Bootstrap Seeding modifications to support non-primary key based chunk queries
+* lowering restart scn as query on restart takes too long
+* Fix Unit test failure
+* port collision resolution
+* increate timeout for test with cm integration
+* Removing wrong override
+* DDSDBUS-357: removed redundant logging, optimize/minimize index printing
+* DDSDBUS-383 Add support for configurable asserts in the code at various levels
+* refactor Java Integration test logging. RB=46696
+* Adding dev seeding config
+* DDSDBUS-211 Adding initial package for test deployment
+* DDSDBUS-211 Initial library for test event generation
+* added waits for espresso clients
+* DDSDBUS-387, DDSDBUS-388 EVB Corruption fix
+
+2.1.35
+* Starting work on 2.1.35
+* Not a complete version. Use 2.1.36
+
+2.1.34
+
+* remove topology-mpbeta.xml, bom-mpbeta.xml.template
+* add topology.xml and dev.BOM ( deprecates older files topology-mpbeta.xml.template and bom-mpbeta.xml.template
+* Bootstrap seeding conf 
+* make DatabusHttpClientImpl code more readable, with tags for comments and organizing functions with their access levels
+* RB=45372 typo fix in oracle query hint ; affects Oracle source and relays
+
+2.1.33
+
+Starting work on 3.1.33
+Updating model for inversion services to 3.1.32
+Pointing ela4-prod member2 database to local stand-by
+Correcting port number
+Pointing ela4-prod member2 database to local stand-by
+RB=44744
+DDSDBUS-351. Loggin consumer fails with NPE
+changing espresso client timing
+espresso client config varies tests
+adding more espresso tests to hudson
+DDSDBUS-237: added clearAll to DbusEventBufferMult
+fixed build break with espresso test checkins
+SCN index doc update
+Fixing invalid JVM config for databus3-relay-espresso in STG-BETA
+Add bootstrap seeder configs for new sources
+Fixing dashboard generation
+removing all dashboard templates
+DDSDBUS-358 updating JVM settings to increate direct memory
+RB=44944 Adding query hint for filter source query
+RB=44943. Remaining two API functions implemented 
+DDSDBUS-357. improved memory perfomance of SCNIndex assert printing
+rolling back databus2-relay-forum to 2.1.26
+Increasing buffer size in STG-BETA
+ignore:test
+Modifying db poll interval in STG-BETA
+
+2.1.32
+
+* DDSDBUS-350 Fixing an NPE in databus2-relay-anet caused by incorrect processing of null values in nested records fields
+
+
+2.1.31
+* new war for conn
+* DDSDBUS-271: added some java doc and renamed an attributed in CheckpointMult.java
+* DDSDBUS-235: when updating scn index - if we skip some blocks in the index make sure to adjust the head
+* move ClientSensorFactory into the client dir
+* RB=44143 adding bs seeding for new sources
+* DDSDBUS-338 adding support for nested records and arrays in events
+* DDSDBUS-338 moving the anet test to integration tests
+* test fwk: adding delays for espresso. Now it supports event rate throttling
+
+2.1.30
+*Adding databus2-bootstrap-producer-anet to RELEASE.BOM
+*Fixing version in RELEASE.BOM
+*Adding container config for databus2-bootstrap-producer-anet
+*RB=43491; /DDSDBUS-337 Fix rollback behaviour when consumers return non-success onCheckpoint() 
+
+2.1.29
+*configs for databus3-relay-espresso
+*chaninging file format of client event dump file.
+*utils for espresso cleanup
+*Adding more logging to triage the TestBootstrapLogSwitch failures
+*Avro SpecificRecord generation fixes
+*API changes to support Client 3.0
+*Provide access to checkpoint persistence provider in the registration
+* RegistrationId, as a parameter to registerXXX calls.
+*Diagnostics provided inside the returned DatabusV3Register object.
+*Relay ideal state computation with leader election
+*Create Databus2 bootstrap producer WARs for cloud super-blocks
+*Increasing direct memory size for the espresso relay in STG because of OOM errors
+*adding forum-search_databus2 dashboard
+*DDSDBUS-171 Removing dependency on ojdbc 1.4
+*Generate unique registration id, with a prefix ( name of consumer class ) + first 8 byte hash of concatenated subscriptions + uniquifying count in case of collisions
+*Refactor client register code to handle invalid inputs - null consumers, subscriptions and the likes
+*Refactor client code to collect duplicate code in streaming / bootstrap in common functions and reuse
+*Setting SCN dir for anet to be consistent with other relays
+*Adding missing properties to databus2-relay-anet cfg2
+*Temp fix to get around a incorrectly-referenced property in databus2-relay-conn spring
+
+
+2.1.28
+* Starting work on 2.1.28
+
+*add app config for PROD-ELA4 databus2-espresso-test-client
+*add container config to databus2 espresso test client
+*add release model for 2.1.26. Likely not useful for STG-BETA
+*Removed the current implementation of using an internal listener to rewrite events from REPL_DBUS because it was incorrect if there are multiple RPL_DBUS instances writing to the same buffer. Instead, we are doing the rewrite before we add the event. The current implementation is fairly inefficient and I have opened a follow up bug to fix this once RPL_DBUS starts send real logical source ids (DDS-2135).
+*Adding cloud superblock relay deps
+*fixed typo in spring config
+*Upgrade to espresso version 0.4.2.13 and cluster manager 0.3.5
+*fix build
+*integration test failure
+*Add Leader Standby state model
+*upgrade container version
+*do not force creating of the Table schema for schema registry (remove the hack)
+*DDS-2115 : Exit readEvents when interrupted while waiting on notFull condition var
+*Defining primary key in schema in absence of 'key' 
+*updated version for jackson lib and fixed espresso-schemal-impl lib entry in run_base.py
+*updated espresso-schema-* to 0.4.2.14
+*refactoring some espresso tests
+*RB=40746 ckpt changes
+*RB=40838 reducing relay buffer config
+*more espresso tests
+*RB=40940 newer sources for anet
+*some fixes for failing hudson tests
+*batch compare for  espresso tests
+*pre-commit-status-crumb=284529b2-281f-42e4-86ce-e64330ae2dc8
+*DDS-2116 Decrease logging at info level in MultiConsumerCallback
+*pre-commit-status-crumb=6f992415-286e-4fd6-84b3-20740be7b242
+*DDS-2068 Adding support for per-physical partition statistics for TCP endpoint and /stream
+*DDS-2002. Dropping events with SCN less then the current one (RELAY side only). RB=40982
+*RB=41238 nullable complex type
+*fixes for batch compare espresso tests..adding compare to the testcases. All tests are now self-checking
+*DDS-1897: throw an exception if cannot find index to write another event to buffer. RB=41376
+*DDS-2004 Remove FIXME and TODO's from Code
+*BUG=DDS-2004
+*DDS-2159 Sanitizing strings used in MBean objects names
+*integration test fix.
+*- catch exception when adding a model that is already present ( change due to upgrade in cm lib )
+*-package rename from databus2 to databus3 changes.
+*DDS-2162 Remove RateMonitor from the LoggingConsumer
+*adding espresso tests to Hudson
+*RB=41610 ACLOVERRIDE Create fabric specific release directories
+*AVRO optimization, LI_SOCKET_PORT is 23757 by default, RB=41620
+*moving espresso tests
+*removing espresso tests from integ
+*RB=41754 skipping 2.1.27 
+*removed MaxSCNHandler config from PhisicalSourceConfig. RB=40654
+*fixed failing test in hudson
+*fix build
+*DDS-2164: Hudson Integration Test Failure: TestBootstrapLogSwitch and more. RB=41794
+*DDS-2173 Reason is that the class is in src/test/java and not src/main/java. As a result, it does not get included in the .jar
+*DDS-2166 Moving test configs out of the testcase for easier control over configs
+
+2.1.26
+======
+
+*Starting work on 2.1.26
+*Updated execution model
+*added release databus2_2.1.25
+*slides - migration
+*Merged Slides
+*changes to data file format
+*added espresso tests
+*changes for espresso tests
+*fixed bug in espresso gen script
+*DDS-1972: create connection name (based on subscription) used by mbean
+*slides - migration
+*slides - migration
+*Merged Slides
+*LI_SOCKET batch GET, initial work on AVRO
+*slides - migration
+*DDS-1895: read schema registry from espresso only once
+*slides - migration
+*make sure iterators are released in case of failures in DbusEventBuffer.readEvents
+*Merged Slides
+*Initial error log scraper
+*Merged Slides
+*Error log scraper improvements
+*slides - migration
+*Databus v2 migration -shell
+*added logging for TEST Espresso consumer
+*forum search prod topology
+*adding json config files for 24 and 32 partition dbs
+*added 24 and 32 partition schemas
+*updates to config file
+*fixes to espresso test script
+*fixes to espresso test script
+*different tcp.log file
+*DDS-1969: use old style checkpoint file name for v2
+*make CheckpointPersistenceProviderAbstract class abstract
+*Fix seeder packaging 
+*Drop Source run script
+*Adding release model 2.1.1.3.1
+*pre-commit-status-crumb=f88a33df-e769-4cd0-b3ef-1eba22058732
+*databus2-bizfollow-relay is cfg2
+*Fix Topology for stg-beta
+*pre-commit-status-crumb=dfcdccc1-3b9e-4d30-96cf-d374732410b9
+*DDS-2045: databus2 for EI
+*Seeder script improvements
+*Log scraper improvements
+*cfg2 conversion
+*edit cfg2 refs
+*make live model same as current model to unblock make deploy
+*LI_SOCKET GET updates, AVRO_FETCH/AVRO_REGISTER_SCHEMA()
+*LI_SOCKET GET updates, AVRO_FETCH/AVRO_REGISTER_SCHEMA()
+*prepare for config 2 liar migration
+*migrate test consumer to config 2 on STG
+*add test client to dev desktop
+*rename to be same as war .. although not reqd 
+*Scraper fixes
+*Adding support for scraping ELA3
+*Adding mbrrec source
+*Switching databus2-relay-forum to Config 2.0
+*Reverting the switch of databus2-relay-forum to Config 2.0
+*Removing prod-ela4 placeholders
+*cfg2 activation for bizfollow producer
+*DDS-2002. Drop events with the SCN less then the one in the buffer
+*DDS-2063 Switching databus2-relay-forum to Config 2.0
+*push mbrrec schema
+*Added following
+*DDS-2063 Switching to 2.1.18 for databus2-forum-search
+*DDS-2063 Switching to Config 2.0 for databus2-bootstrap-producer-forum
+*adding more ela4 hosts to monitor
+*Cfg2 for databus2 liar service
+*migrate test client to Cfg 2
+*Add support for value_file option to the test consumer
+*BUG=DDS-1948
+*pre-commit-status-crumb=cee660f8-1c12-42e0-8ddb-2d0a8f5ebb25
+*databus2 client failed to reconnect on relay bounce
+*Notes on the Diff:
+*1. The changes in HttpResponseProcessor fixes the bug. Every other change is for test instrumentation
+*2. Implemented a FaultRelay" and processors to allow the tests to invoke relay failure scenario. The test "relay_fault_close_on_request" uses it command the relay to close the connection while serving the stream request
+*BUG=DDS-1964
+*pre-commit-status-crumb=b6408b77-9506-4657-bb66-132c282ed34f
+*DDS-1964 : Checking in missed changes
+*pre-commit-status-crumb=105f90b4-9591-432c-948e-74ef020e9324
+*DDS-1695 Adding databus2-bootstrap-producer-forum to the ELA4 topology
+*Adding new sources 
+*Fixing gradle config for Following relay
+*Topology for databus2-espresso-test-client
+*espresso test framework enhancements
+*Consumer callbacks for V3 and V2 consumers will be the same.
+*Maintain the Espresso consumer interfaces for forward-compatibility.
+*pre-commit-status-crumb=83268cb4-f07b-44ec-ad69-ced4b37aa701
+*Fixes for AVFO_FETCH
+*adding missing file for espresso test
+*fix failing integration test
+*multipe client test
+*DDS-2076 GC config changes for databus2-relay-liar, databus2-relay-bizfollow, databus2-client-test-consumer
+*add flexibility to espresso tests
+*code review changes
+*espresso regression setup. code coverage stuff too
+*Remove these two directories which were added initially for some testing, when V3 client was being developed.
+*These are incomplete and adding to confusion for people looking at the code.
+*pre-commit-status-crumb=eb06782d-3d3f-40a3-a796-0686528219c4
+*tweaks to get random event generator to work with multiple sources. simplify test to increment scn by 1, update a given key
+*ELA4 configs for forum
+*RB=39481
+*pre-commit-status-crumb=8bbe2b2a-cb5f-4fe9-a007-de31a545cb3c
+*add app level fabric config for forum war
+*allow creating multiple clients/consumers for v3 with single configuration
+*add EI fabric for databus2-bootstrap-producer-war
+*EI configs for bizfollow
+*AVRO_UPDATE() initial release
+*espresso test cases
+*updated topology for databus2-epresso-test-client.xml to use ela4-app0493 and 373
+*Ticket number: DDS-2081. copy over configs from 2.1.13.1 which indicates the correct cs/cfg2 ness of services. remove sdr as it is no longer deployed on any fabric
+*add PROD fabric.src for databus2-bootstrap-producer forum
+*fix config for bootstrap producer for forum on PROD
+*DDS-2120 updating def config to set the relay maxSCN directory correctly
+*DDSDBUS-6 moving databus-client-test-ng tests to databus-client-impl/src/test
+*want some early feedback about rename
+*fix failing unit tests
+*Fixing relay MaxSCN setitings
+*BUG=DDS-2121
+*RB=39818
+*pre-commit-status-crumb=6ced55e9-0995-4f16-b0d3-788c605d9671
+*Fixing relay MaxSCN setitings
+*BUG=DDS-2121
+*pre-commit-status-crumb=f73eadf3-3f75-4732-9f9c-70bb1848171f
+*With the Cfg2 switch, we pushed an older configuration which had an insufficient event buffer size
+*BUG=DDS-2123
+*pre-commit-status-crumb=5e2619b1-e5b6-49f5-9a13-973ebdac6e6e
+*add app level configs for EI
+*add container level server_conf.sh files for all services
+*add machine to EI topology for relays
+*fix topology for databus2-bootstrap-producers
+*add topology for bootstrap server and forum
+*espresso changes
+*make container config come from Cfg2
+*make all containers Cfg2
+*make initial push of forum relay and bootstrap producer in EI on CCS
+*switch forum to Cfg2 for push on EI
+*change topology file to reflect name of war
+*rename Cfg2 names for espresso war
+*rename container configs for espresso relay
+*remove unused extservices files .. as we are moving to Cfg2
+*remove unused spring files
+*DDS-2079 moving relay test-ng tests
+*DDS-2079 moving relay test-ng tests
+*Fixing broken unit test configuration
+*1. changed file name format for client's trace files.
+*2. for non-append mode do not do delete on exit
+*migrate desktop services to Cfg2
+*Cleanup wars that are not used.
+*pre-commit-status-crumb=e844ad97-85f5-443d-9225-c5496e5b13fd
+*fix property
+*ability to deploy SNAPSHOT versions using SNAPSHOT configs
+*fix for SegmentedBootstrapSnapshot test. making test wait on correct events
+*Fix https://jira01.corp.linkedin.com:8443/browse/DDS-1901
+*pre-commit-status-crumb=47b09916-0d11-4625-9cbc-f46c9eff48c6
+*espresso should be listed as a multiproduct dependency for better tooling support
+*reverting to deleteOnExit() for trace file
+*commit espresso test client configs
+
+2.1.25
+
+
+*Starting work on 2.1.25
+*added databus2_2.1.24 release
+*espresso setup script update
+*correct use of props for EspressoClient
+*improve error message
+*JL's QCon'07 presentation
+*Updated slides with How-to and Liar
+*databus2 migration updated
+*databus2 migration
+*Execution Model
+*EspressoTestDatabusClient to use default partiion 0 if not specified in prop file
+*DDS-1975: timestamp of end-of-window is max timestamp of event in window
+
+2.1.24
+
+*Starting work on 2.1.24
+*Initial version of Migration slides (WIP)
+*dds-rel-usr password has changed in artifactory
+*R=pganti A=pganti RB=36524 pre-commit-status-crumb=c79f41ab-14fd-4f91-aedb-fd2ec2ee843a
+*fixes for tests
+*DDS-1956. Create separate checkpoints for different subscriptions
+*using (buf.limit()-position) in DbusEvent instead of buf.ramaining() in is*Partial() methods
+*Final revistion of the CIKM 2011 presentation
+*Trying cfg2 for databus2 bizfollow producer and bootstrap server
+*Support for replication of LI_SOCKET load
+*use checkpointMult for v3 client-relay communication
+*DDS-1955. Fixing test failures realted to DbusEvent.isHeaderPartial
+*reverted r335231 commit
+*DDS-1962 Fix DBPuller Failure handling issue
+*use checkopointMult for v3 client requests
+*Diagrams for API state diagram and execution model
+*Diagrams for API state diagram and execution model
+*Databus v2 migration -shell
+*Updating hostname to fqdn to allow glu to recognize agent
+*Diagrams for API state diagram and execution model
+*call listeners on each event in readEvents() before updating tail and ScnIndex
+
+2.1.23
+* Bug fixes related to Espresso client integration / checkpointing
+
+2.1.22
+* Please see below for 2.1.21
+* 2.1.22 got uploaded what should have been 2.1.22. Aditya was the only customer using it
+
+2.1.21
+* There was a bug in hudson that caused 2.1.22 to get pushed instead of 2.1.22
+
+2.1.20
+
+*starting work on 2.1.20
+*generate espresso style events
+*fixes for Espresso random event generator and client (supporting subs)
+*Add configRefs for converting bizfollow relay to cfg2
+*Initial work on the li_socket plugin
+*special case for relay - single checkpoint for subs
+*DatabusSubscription.equals to support wild cards
+*use dbName and partition id when creating subscriptions for multiCallback onDataEven
+
+2.1.19
+
+*Starting work on 2.1.19
+*Missed adding newly added File EspressoConsumerRegistration earlier. Please disregard the previous patch. 
+*If that has been reviewed, just look at EspressoCOnsumerRegistration.java in here.
+*  - Add implementation for V3 consumers registration.
+*  Notes on approach taken to implement V3:
+*  - Similar to EspressoDatabusHttpClientImpl extending DatabusHttpClientImpl, EspressoConsumerRegistration extends ConsumerRegistration
+*  - This is because, existing V2 consumers may be using ConsumerRegistration objects and hence interfaces may not be changed.
+*  - V3 consumers would create EspressoConsumerRegistration objects.
+*  - It was not possible to extend ConsumerRegistration objects with functions to take List<DatabusSubscription> objects, as the 
+*  functions taking List<String> would have the same Erasure.
+*RB=34730
+*removing dist foldering for espresso storage node
+*Adding cp=serializer for forum
+*Changes ICDE 2011 section
+*Removing esv4-bed02.stg from databus2-bootstrap-producer-forum role in STG-BETA fabric
+*Setup script for espresso replication. mysql, storage nodes, relay.
+*updated schema mappings
+*change port number
+*updated schema mapping
+*espresso relay setup. Put the correct source id for EspressoDB.IdNamePair.
+*espresso test with 2 schemas
+*Updates to the presentation
+*Adding combined ICDE 2012 paper
+*add dev.BOM for mint deploy
+*revert prev checkin
+*create dev.BOM softlink to bom-mpbeta.xml.template
+*move topology.xml to topology.xml.unused
+*add topology.xml
+*gradle build creates release wars now. To get mint to work
+*initial unit tests for client, with enhanced consumer interface
+*fixed espresso schema settings
+*espresso relay settings
+*espresso relay settings
+*espresso setup script update
+*fixed operator precedence in SendEventsRequest
+*first checkin from linux. fix unit test setup
+*checked in schema_id_mapping with the new values and update the TestEspressobackedRegistry with these values
+*espresso setup script update
+*merge unit tests from client_dev_6
+*added num_events for espresso event generator. Combined relay and tcp logs
+*fix build.gradle
+*updated phys_conf.json files in databus2-relay-cmdline-pkg/config with the right source id
+*add testcase for V3 style consumer registration / start
+*barebones random event producer for espresso relay
+*created V3 version for createSimpleSubs and ServerInfo.checkContains
+*STG configs for databus2-relay-bizfollow
+*Remove dummy databus2-relay configs so that we can compile.  Will do a
+*real conversion later.
+*RB=35372
+*R=cfg2,pganti
+*A=acabrera
+*updating user and credentials for publishing to artifactory
+*added register and stream/subs call to the Espresso Client code
+*random event generator for espresso
+*checking in missing config file
+*Espresso test consumer and event generator fixes
+
+2.1.18
+* 
+* Starting work on 2.1.18
+* Presentation update
+* Espresso test client spring config
+* About to change to symlink
+* Changing spring config to a symlink
+* Presentation update
+* updated release model for 2.1.17  and created container databus2-espresso-test-client
+* DDS-1852: relay and bootstrap for forum
+* migrate to DatabusSubscription
+* Updated presentation
+* Initial commit for ICDE 2011 section
+* Changes ICDE 2011 section
+* udapted to 0.4.0.5 version of espressSchema library
+* Removing databus2-relay-sdr
+* Add missing forum files
+* fix unit test 
+* Add forum to databus2_2.1.13
+* Fix forum war definition
+* 
+2.1.17
+
+*Starting work on 2.1.17
+
+2.1.16
+
+* Do not reject events with part_id == 0 in RPL_DBUS 
+* Bug fix with int/uint types in RPL_DBUS
+* data files for espresso
+* fixed PhConfig generation script to specify the correct location of the binlog_ofs
+* Setup the espresso-databus-relay in prod
+* Add the espresso-databus-relay-war
+* Removing the sdr databus2 relay
+* Fix up the databus2 model for ela4
+* DDS-1837: when LogicalPartition is not provided in a streaming request - stream from all partitions
+* have a setting for a different base_dir to run HttpRelay in eclipse
+* Fixed performance problem in RPL_DBUS
+* fix for failing test bootstrap_catchup_restart.test. Race condition in the framework
+* fix failing test, add one more test to cover various integration cases while computing e.v. from i.s
+* adding code coverage target
+* changed name of the partition in the example json file to not include part_id
+* added script to generate physical partitions configs for dev staging
+* MySQL RPM and RPL_DBUS scripting fixes
+* DDS-1583: Scn Index incorrectly reports it's empty: unit test 
+* Making LiarJobRelay v2 available in schema registry
+* Releasing 2.1.15
+* espresso random event test case
+* updated json format for relay buffer init
+* add basic cm integration blocks for consumer
+* move espresso test out of databus2-relay-test-ng, create one for databus2-espresso-relay-test-ng
+* fix for espresso schema ids. Changes in espresso relay config
+* rewrite schema id of the event from REPL_DB. Disregard name space when builidng schema name
+* remove schema reg deps from project-spec
+* skip shcemaId mapping initialization for databases not present in EspressoBacked schema registry
+* fixed v3 relay configs
+
+2.1.15
+* DDS-1583: Scn Index incorrectly reports it's empty: unit test
+* Making LiarJobRelay v2 available in schema registry
+
+2.1.14
+
+* 2.1.13 release model
+* Do not reject events with part_id == 0 in RPL_DBUS
+* Bug fix with int/uint types in RPL_DBUS
+* CIKM 2011 presentation draft
+* data files for espresso
+* CIKM 2011 presentation draft
+* fixed PhConfig generation script to specify the correct location of the binlog_ofs
+* Setup the espresso-databus-relay in prod
+* Add the espresso-databus-relay-war
+* Fix the container definition
+* Removing the sdr databus2 relay
+* Fix up the databus2 model for ela4
+* DDS-1837: when LogicalPartition is not provided in a streaming request - stream from all partitions
+* have a setting for a different base_dir to run HttpRelay in eclipse
+* missed adding the file
+* Adding forgotten espresso test client files
+* Fixed performance problem in RPL_DBUS
+* fix for failing test bootstrap_catchup_restart.test. Race condition in the framework
+* fix failing test, add one more test to cover various integration cases while computing e.v. from i.s
+* adding code coverage target
+* changed name of the partition in the example json file to not include part_id
+* added script to generate physical partitions configs for dev staging
+* MySQL RPM and RPL_DBUS scripting fixes
+
+2.1.13
+
+* DDS-1622 fix relay_small_buffer_4.test
+* Removing the word liar from DatabusV1V2ClientStarter
+* DDS-1706 allowing logical source id to be zero; script to create 64 partitions for BizProfile
+
+2.1.12
+
+* DDS-1800 renaming forum-search schema names
+* fixed physical config generation to format BizFollow.BizCompany and created symlink to extservices.springconfig
+* added symbolic link to ../databus2-relay/extservices.springconfig to databus2-espresso-relay
+* upgrade zookeeper version
+* DDS-1615: Physical Partition id is not unique in the json files for Databus
+* removed CheckpointMult(id, string) constructor and refactored code that used it. and DDS-1794 -checkpointMult mapped by PhysicalPartition
+
+2.1.11
+
+* Adding war for an espresso dummy client
+* Logging improvements
+
+2.1.10
+
+* fix clustermanager integration tests / integration with version 3.4 / reenable tests ..
+* DDS-1754: Adding event statistics to the TCP endpoint
+* DDS-1757: crashes in espresso relay for /stream requests 
+* Checking in the first revision of RplDbusMonitor. 
+* Removing SDR from the dev war because of problems with deploying the network stub
+* fixed script file for single node setup
+* changes to espresso test
+* Adding constructor with default and override properties for BootstrapProducerStartable; fixing spring config and logging for dev war
+* enable server filtering tests to run on hudson. Fixed waiting consumer logic.
+* merge timeout related changes from cm_actualtimeout
+* Removed PhysicalPartition(id) and map binlogOfsWriter by ServerName instead of PhysicalPartition
+* partition id is same as partition num
+* upgrading version of espresso schema registry
+* liar wraparound test
+* DDS-1791 Adding war for an espresso dummy client
+
+22.1.9
+
+* Fixing databus2-espresso-relay appname
+
+.1.8
+
+* DDS-1674 renaming event objects for forum search
+* liar consumer with filter settings 
+* fix integration test. port collision due to a random process on hudson
+* DDS-1675: failing integration tests
+* DDS-1686 forum relay
+* Remove explicit Log level setting for BProducer
+* multiple consumer liar file
+* Removing company-bizfollow from databus2 release model
+* DDS-1687 adding forum bootstrap producer 
+* DDS-1688 adding forum relay and bootstrap producer to dev war  
+* DDS-1215 console changes
+* DDS-1698 1. Added physicalSourcesConfigs option to the HttpRelay config that lets one specify the physical sources configuration as a property; 2. Added physicalSourcesConfigsPattern option to the HttpRelay config that lets one specify a directory path and file pattern (e.g. conf/*.json) where the files with the physical sources configurations are; 3. Added EspressoRelayStartable to be used for the WAR deployment of the espresso relay
+* Remove the no longer needed company-bizfollow-dbus2
+* changes from branch cm_mod1, RB=31818
+* Disable CM by default
+* added server side filtering integration tests
+* add testcase for T$ setup in staging
+* DDS-1626: Checkpoint too frequently when buffer occupancy limit has been exceeded
+* merge from cm_mod1 . modify ideal state to what is on dev cluster
+* DDS-1740 Add source names to various DB-related logging messages so that it is easier to track progress in the dev-war logs.
+* adding a helper script to generate GLU dev models
+* DDS-1668 Adding sensor registry for the espresso relay
+* DDS-1626: Fixing integration test config values
+* update to the latest espresso schema, related fixes, and espresso library update.
+* DDS-1668 espresso relay war and config
+* DDS-1487 removing commons-pool from sandbox-repo
+* Updating espresso schemas; adding a new physical config generator for STG launch
+* DDS-1680. integrate EspressoBackedSchemaRegistryService with logical source ids from Espresso Schema Registry
+* merge from branch with updates to CM v2.4 .Hopefully this works for v3.2 as well
+* fix integration test. race condition between runcleaner and mysql command
+* Topology for databus2-relay-espresso
+*  Add the databus2-relay-espresso container
+
+2.1.7
+DDS-1576 Renaming RelayFactory to the more accurate OracleEventProducerFactory
+DDS-1576 Adding RelayFactory interface
+DDS-1576 Adding stubs for OracleRelayFactory and EspressoRelayFactory 
+DDS-1577: add PhysicalSourceConfigBuilder
+decouple HttpRelay dependencies on ClusterManager
+DDS-1576 integrating OraclRelayFactory with PhysicalSourceConfigBuilder
+fix api change that broke builder pattern 
+Added initial implementations of EspressoRelayFactory
+EspressoBackedSchemaRegistryService now populates the logical source ids
+eclipse configuration for espresso relay
+DDS-1579: add new constructor to PhysicaSourceConfig
+Fixes in RPL_DBUS and RPM
+adding artifact/scm section
+Adding processing physical sources configuration from files for espresso relays if CM is disabled
+Adding a ServerContainer.Cli class for easier extensibility of the CLI processing
+Adding the db_config_file parameter to HttpRelay
+Move scripts in command-line packages to script/ since bin/ is conflicting with Eclipse's default output directory
+updating build commands
+DDS-1580 wDisabling Event writer for Espresso 
+End-to-end integration with cluster manager. Gets configs from cluster manager and instantiates the relay
+Adding presentations
+modify /physicalSources http rest call content
+pluggable RelayIdealStateGenerator to be used in integration tests, refactored existing tests to enhance them with ideal state manipulation. Also try ignore-on-commit
+revert earlier change on eclipse properties
+buffer overrun test
+Configuration improvements for the espresso relay; 2. Logging improvements for the espresso relay 3. Adding gracious handling of the case of CM integration off and no physical sources configuration specified
+DDS-1583 Adding more logging when scnindex head is set to -1
+integration tests with easier to access toolsets for cluster manager
+add fiel to svn 
+DDS-1582: add new integration test for MultipleBuffer relay
+descreasing logging
+RPM fixes, RPL_DBUS fixes
+DDS-1372: moved to com.linkedin.databus2.relay.config package
+reverted changed in databus-core-test/build.gridle, not to use test.useTestNG()
+DDS-1372: TestPhysicalSourceConfig should be moved to com.linkedin.databus2.relay.config
+Fix handling of multi-message sendEvent commands; add more logging for TCP endpoint;
+DDS-1593. remove DbusEventAccumulator and all the references to it
+RPL_DBUS bug fixes
+RPM script fix
+another RPM fix
+Fixing FindBugs issues
+DDS-1603: add unit test for new add/remove buffers api for dbuseventbuffermult
+integration tests for cluster manager
+made integration-test/testcases/mult_buf_bizfollow_liar.test executable
+Safety fixes in RPL_DBUS
+DDS-1603. addes synchronized to DbusEventBufferMult.addNewBuffer
+review feedback to incorporate only selected feedback into /physicalSources rest call
+overall tech talk presentation
+changes after discussion with Chavdar
+initial commit for the console to be used for debugging/testing 
+Adding dependency for the console
+1. Fixing a ConcurrentModificationException due to removal from a Hashtable while iterating it
+2. The regular espresso start-up script was not passing the static physical sources configuration files
+Fixed a couple of memory problems in RPL_DBUS
+Finally fixed the nasty RPL_DBUS memory problem
+Architecture and feature updates
+fix integration test failure. checkin run.py
+add one more missing file, more logging
+fix build
+DDS-1601: physical partition id is not being populated for end-of-window events
+Adding new schema version for LiarJobRelay
+new dependency?
+Espresso command-line package for client and consumer
+Currently just parses out parameters from properties file and can be started.
+ClusterManagerConfigBuilder added to this client builder.
+No operational functionality yet. A preliminary commit to get initial feedback.
+Refactoring inside DatabusHttpClientImpl.
+fix build . renaming Config to StaticConfigBuilder is a can of worms ...
+Fix Liar specific integ test failures
+fix some FindBugs bugs in ConfigLoader and DbusKeyCompositeFilter
+1. Relay-side changes to client-relay protocol for Databus for Espresso
+- The "sources" parameter for the /register call is no optional; if unspecified all sources will be returned
+- /stream takes a "subs" parameter which replaces "sources" in v3
+- The /sources call now takes an optional "v" parameter for versioning since in v3 we return a different object type. Default is "1"
+- Updated protocol Wiki with above changes
+2. Moved all filters to the own package since databus.core because too crammed.
+3. Various other clean ups
+BUG=DDS-1531
+espresso package
+restart-all-mysqld script
+deleting database files
+DDS-1602: DbusEventBufferAppendable.appendEvent should allow the producer specify event op
+ LiarJobRelay V2 schema commit - phase 1. Rest to be completed as part of DDS-1625
+add additional deps that EspressoRelay seems to require
+add two perf tests
+Initial work on setup-rpl-dbus-slave
+remove hardcoded options in the test. ok@stopiwal
+scripts for performance testing - bootstrap bizfollow
+changes to BF and Liar migration slides
+chomd +x to all bootstarap performance scripts
+setup-rpl-dbus-slave, small reorganization
+removing temp dirs
+1. Created a common library databus-core/databus2-espresso-core to contain files shared between the relay and the client so the client library does not depend on the relay-library
+2. Created the new Espresso client library class: EspressoDatabusHttpClientImpl
+NOTE: ClusterManagerStaticConfig.java and ClusterManagerStaticConfigBuilder.java have been moved to databus-core/databus2-espresso-core but the svn diff does not show that (see http://stackoverflow.com/questions/2178366/svn-diff-when-files-are-marked-with-history-scheduled-with-commit)
+BUG=DDS-1630
+1. Created a common library databus-core/databus2-espresso-core to contain files shared between the relay and the client so the client library does not depend on the relay-library
+2. Created the new Espresso client library class: EspressoDatabusHttpClientImpl
+NOTE: ClusterManagerStaticConfig.java and ClusterManagerStaticConfigBuilder.java have been moved to databus-core/databus2-espresso-core but the svn diff does not show that (see http://stackoverflow.com/questions/2178366/svn-diff-when-files-are-marked-with-history-scheduled-with-commit)
+BUG=DDS-1630
+scripts for consumer side instrumentation
+relay side instrumentation for perf testing
+adding hudson_loc and owners to project spec
+script fixes to wait
+1. Created a common library databus-core/databus2-espresso-core to contain files shared between the relay and the client so the client library does not depend on the relay-library
+2. Created the new Espresso client library class: EspressoDatabusHttpClientImpl
+NOTE: ClusterManagerStaticConfig.java and ClusterManagerStaticConfigBuilder.java have been moved to databus-core/databus2-espresso-core but the svn diff does not show that (see http://stackoverflow.com/questions/2178366/svn-diff-when-files-are-marked-with-history-scheduled-with-commit)
+BUG=DDS-1630
+python utils to read off perf metrics
+more metrics 
+parameterize client_poll_freq
+tech talk preso update
+Adding command-line package for schema generation
+Changing schema generation to match current naming scheme
+mods to scripts. bug fixes
+Adding support for NVARCHAR to avro schema genertion
+Adding anet schemas
+adding company event schemas
+moving anet schemas as they seem to be broken
+fixing avro schema generation for user and table types
+write out to parseable log files for graph generation later
+more fixes - pass PATH when invoking over SSH, remove an extra verbose log
+bug fix in script
+split consumer script to blocking and non-blocking parts
+seems like nohupping not reqd. extend test cases
+Adding connections event schemas
+Adding leo event schemas
+we do need to nohup the consumer side trigger
+adding entitlements event schema
+Fix the issue of rebootstrapping when client gets restarted during bootstrap
+BUG=DDS-1627
+adding eos event schema
+DDS-1648 Increasing client connect timeout
+adding jobs event schemas
+enahnce perf metrics collection script 
+get metrics for more params
+adding news event schemas
+adding nus event schemas
+fix formatting errors
+adding sas event schemas
+adding event java objects for anet
+Configuration fixes in the MySQL RPM and setup-rpl-dbus-slave
+adding event java objects for company
+adding Java classes for connections events
+adding java objects for nus events
+removing debugging hooks in testcases
+add an error only log4j for relay
+disable trace 
+diable logging on consumer as well
+fix format in stats script
+nohup is pita 
+changed RandomEvents timestamp to System.currentTimeMilliSec
+added bootstrap performance test loggin
+adjust buffer sizes in bootstrap performance script for bootstarp_producer
+adjust bootstrap relay performance testing buffer to 1G
+ disabled some loggers to improve performance measuring
+espresso config files for integration test
+espresso schemas for integration test
+removing old files
+adding Java classes for EOS events
+adding Java classes for Entitlements events
+adding Java classes for jobs events
+adding Java classes for leo events
+adding Java classes for news events
+adding Java classes for sas events
+adding Anet relay war
+adding company relay
+fixing build file
+separated dbrest into a separate script and set producer.bootstrapLogSize to 1M
+separate script for bootstrap db reset
+provision for multiple c.p dirs for multiple clients ( not used for single consumer)
+remove bootstrap related params
+modified test setup
+minor improvements / tweaks to log collect script
+ log message when there is a runtime exception from relay loading data
+enable timestamps in logs
+remove duplicate entry
+tune test setup params 
+Added content to Migration slides
+Presentation update
+ adjusted readTimeout, checkoutThreshHodPct
+add perf test for consumer scalability
+Updating the tech talk preso
+set property to disable constant checkpointng when consumer is not able to catch up
+bug fix to handle code when we do not want to checkpoint as consumer falls behind
+bootrstrap performance Excell with graphs
+new tech talk presentation draft
+Shorten Migration slide
+perf script for integration test
+poll more frequently for results
+add a log4j with http call logs from client
+Add more Validation for server-side filtering configs
+add perf metrics
+forced bizfollow events generator to respect the min/max Length value, and updated a test that uses it
+fixed databus.bootstrap.bootstrapLogSize key name
+DDS-1655 switching from -db_relay_config to --db_relay_config for the espresso relay
+DDS-1674 schemas and specific records for the forum relay
+setup-rpl-dbus-test-cluster, xtrabackup-wrapper bug fix
+DDS-1667 Make schema URI configurable for databus2 relay
+additions to test framework for espresso
+DDS-1676 moving mpbeta_trunk to trunk
+fix integration test. One item to be fixed where format for querying from sourceIdNameRegistry is artifically mangled inside. WIll track with ticket / clarifying for fix
+DDS-1667 : Liar Job Relay Schema/View upgrade
+2
+2.1.6
+fixed case with zookeeper test interfering with GLU operation
+fixing db-related tests
+Fixes for RPL_DBUS source list - relay protocol version 3
+set log level to warning
+adding missed library
+Based on comments from Ops, we need to make event logging more consistent with v1
+DDS-1494: mapping between physical/logical Source/Partition and the mult buffer
+point to RC_6 grrovy scripts to come from ivy
+1. Moved Espresso relay in a separate package to limit the dependencies on espresso packages
+2. Created an adapter from Databus schema registry to Databus espresso registry
+3. Added sample espresso schemas
+1. Moved Espresso relay in a separate package to limit the dependencies on espresso packages
+2. Created an adapter from Databus schema registry to Databus espresso registry
+3. Added sample espresso schemas
+RPL_DBUS configuration fixes + binlog_id_auto_activate option
+forgot binlog_id_auto_activate option patch
+migrate deployment tests to use GLU
+migrate deployment tests to use GLU
+fix build break
+Updating graphs
+RPM build problem fix, works on Kapil's desktop
+DDS-1521: Cluster manager API for adding/removing a buffer
+Fix for binlog-group-auto-activate
+deployment test cases fix. Changing zookeeper ports
+reverting accidental change
+removing generated file
+DDS-1531 adding JSON deserialization for Subscription objects
+Fixing FindBugs warning
+DDS-1531 enabling the unit tests from gradle
+cleanup, type fix
+Fixed bugs in binlog_id_auto_activate
+Initial clusterManager integration 
+disable cm tests to see if there is port conflict
+fix build
+link zookepper for EspressoRelay
+fixes for deployment test
+RPL_DBUS fix for binlog_id, needs to be tested
+Fixes for binlog_id propogation in RPL_DBUS
+integrate with callbacks coming from clustermanager
+upgrade zookeeper 3.3.3 and cluster manager to 0.0.8
+DDS-1557: api refactoring - appendEvent - add physicalPartition id
+Movin TestNG tests
+restoring incorrectly removed file
+incorporate code review comments
+add javadoc style comments 
+enabling cluster manager tests
+Use timestamp column when available in RPL_DBUS, preliminary checkin, still needs testing against the relay
+RPL_DBUS timestamp fix testing complete
+DDS-1559: add monitoring for multiple buffer relay
+Map incoming events over the TCP endpoint to a event buffer based on their physical partition id.
+minor refactor 
+utility code to parse / contruct and test ResourceKeys from ClusterManager
+fix build
+add to source control
+rename the file to a more meaningful, non-existing in another package name ...
+fixed zookeeper test to kill processes started by it
+enable zookeeper test in Hudson
+minor changes to Espresso Relay Client 
+removing generated test files
+DDS-1552 Changing naming convention
+Remove databus2-client dependency on databus2-relay
+
+2.1.5
+Fixed a small memory leak in replicate-wild-fetch-nx-table
+integration test to be able to run a DummyProcess / RelayProcess. Changes to corresponding cmclient codebase
+adding missed files
+fixing schema registry issue
+adding truncation of txlog to dbus2_gen_event.py; fixing DB-related tests failing because of race conditions
+
+2.1.3
+Changes to bootstrap consumer stats accumulation, glu deployment issues with clients fixed
+DDS-1473: support for multiple physical sources configuraion
+Fix local deployment issue and upgrade to 2.1.2
+DDS-1401 adding better logging for TCP commands
+add integration test with DummyProcess for clustermanager integration
+clean up DummyProcess.java to not use default values / clusternames and ports
+reafactor code to collect hardcoded ports into one location for consts
+Added fallbackToResources option to the FileSystemSchemaRegistryService configuration. If true and the schema registry directory does not exist, the implementation tries to load a resource named index.schemas_registry. The file should contain the names of the resources with the schemas, one per line. Those will be loaded only on start up.
+BUG=DDS-1501
+create a group id for each physical storage node, as per feedback
+create a cmclient directory for cm client integration with relay
+extservices.dev.springconfig, dev.config and default.config are not used anymore. Please modify in mpbeta_trunk/central_config_repo/xx/extservices.springconfig
+Compliation fix for build mode on Linux
+remove duplicate springconfig files .. will shortly be making them symlinks
+create symlinks to databus2-relay/extservices.springconfig
+Reduce Logging for BootstrapServer
+Remove non-debug logging of /stream calls
+DDS-1507 Fixing handling of v3 startSendEvent requests with no mapped sources
+
+2.1.2
+* Fixing logging issues for wars
+
+2.1.1
+Making Databus Generic Client work with SensorFactory Framework
+Databus Client fixes for Liar App
+
+2.1.0
+Databus Client fixes for Liar App
+First WAR Release from mpbeta_trunk
+
+2.0.35
+
+New duration option added in TestInprocessProducerConsumer.java
+Updated duration option in TestInprocessProducerConsumer.java
+Moving Databus v2 to R1130 artifacts 
+integration test script fixes
+DDS-1385: Correct consumer stats aggregation 
+Adding alternate ivy-cache path
+Fixed a bug in the constructor for DatabusEventRandomProducer.java
+Updated logging for TestInprocessProducerConsumer.java
+changed liar-cmpt dependency on healthcheck-api and specified .rootDir property for TestDeployment test
+Fixed buffer size allocation in TestInprocessProducerConsumer.java
+
+2.0.34
+
+Start work on 2.0.34
+DDS-1409: Extraneous logging removed
+Adding streamFromLatestSCN functionality for Relay Consumers
+BUG=DDS-1423
+r294895 | bvaradar | 2011-07-29 17:32:14 -0700 (Fri, 29 Jul 2011) | 1 line
+Fix stream test failure and DDS-1376
+Code clean up while working on the user guide
+1. Remove the public ServerContainer.init() method since failure to call it can create hard to track errors for users.
+2. Clean up initialization to make it easier to read.
+3. Remove some try-catch in constructors so we have quick failure instead of error messages buried in logs
+4. Example application fixes
+BUG=DDS-583
+DDS-1357 Upgrading netty to 3.2.4.Final
+Integration test cleanup
+integration tests changes
+Driver script fixes
+Added perf test for multiple buffers
+Updated MultipleProducersConsumers to use DbusEventBufferMult instead of DbusEventBuffer
+Added parsing to TestInprocessProducerConsumer.java
+BINLOG_UNDO - work in progress
+Changes:
+* Added class ConsumerCallback that keeps track of consumer callback queue and run time
+* Modified MultiConsumerCallback to use the new class for callback timing
+DDS-1404: use DbusEvenbufMult streaming in ReadEventsRequestProcessor.java
+
+2.0.33
+DDS-1384: add streamEvents functionality to DbusEventBufMult
+reverting previous commit and going back to version r293308
+DDS-1384: add streamEvents functionality to DbusEventBufMult
+migrate change from mp-beta branch to switch to using previous db reinit scripts to see if this lets integration t
+Adding client example
+remove Jetty glu scripts. these come from artifactory now
+update deployment.json to reflect model for GLU Beta
+Improving consumer callback logic - calls are scheduled ASAP and periodically checked for completion
+Adding bootstrap producer perf tests
+Integration tests fixes
+Starting a guide for creation of Databus consumers
+Adding example consumer implementation
+Improvements to databus client library API
+rename deployment model as template .. as it is a template
+remove testClientSimpleRequestResonse from running on every checkin
+Reverting commenting out of tests (see DDS-1357)
+fix test in mp-beta
+change String arg[] to String [] args
+Memory corruption fix in RPL_DBUS table descriptor, support for all INT types in the primary key, initial work on BINLOG_UNDO capability
+DDS-1421 : Support Override configs for databus2 clients
+
+2.0.32
+copying schemas registry for the espresso relay
+configuring the espresso relay package to use its local schemas registry
+DDS-1260 first stab at client api
+have ability to specify sdr sources in extservices
+remove cluster manager jars from repo, as they are in artifactory now
+Adding more loggin; temporarily increasing logging level to DEBUG for TestRelayBootstrapSwitch
+innodb_records_in_range variable
+add proper dependency for cluster-manager
+MP-Beta migration: removed ant debug adding option. code cleanup
+identify the functionality that GLU would replace in driver script
+define method before usage. fix test failure
+preliminary state model and adapter to integrate with cluster manager
+sdr relay spring fixes
+script to do simple fault injection by suspending random processes
+move rmi ant target to python. Hack: hardcode rmi_port to 1099 inside the script
+replace gradle deployment calls with placeholder for GLU control script
+DDS-1258: Create new interfaces for multiple buffer relay
+bizfollow v1 -> v2 schema change integration test
+DDS-1341: introduce physical source id into PhysicalSourceConfiguration.java and config files
+DDS-1351: replace DbusEventBuffer with DbusEventBufferMult
+DDS-1340 Fix issues found during Liar App testing
+fix DDS-1334
+DDS-1385: Databus v2: Monitoring: Add stats to consumer
+
+2.0.31
+backoff cluster mgr dep to get builds on network going
+
+2.0.30
+
+Liar Random Producer Fix
+cleanup, prepare for gradle migration 
+Fix for crash in SELECT SET_BINLOG_SEQ_ID()
+make default sources for SDR only 1 partition on desktop
+add 14 sources for sdr to get deployment going on stg
+DDS-1245 fixing notification to HttpResponseProcessors for channel closures
+doc updates
+
+
+2.0.29
+
+Starting work on 2.0.29
+Adding release model for 2.0.28
+configuration files / parameters for member2 relay deployment with one source - privacy settings
+DDS-1209 fixing handling of buffer endianness for /stream calls
+DDS-1173 Reactivate db.reinit
+DDS-1215 initial events convert tool
+RPL_DBUS integration with relay is working, checking in the test case
+DDS-1215 events tool separate package
+DDS-1215 changes to the event tool
+DDS-1215 changes to the event tool
+add schema for member_account_2 view
+schema for member_setting
+schema for member_business_attr
+schema for member_profile
+schema generation for member_search_profile
+DDS-1215 event tool fixes
+fix schema for member_Search_profile. earlier was generated against sy$member_Search_profile and not sy$member_search_profile_1
+DDS-1215 event tool fixes
+privacy settings schema
+add all sources for member2, bug fixes in spring, small misc stuff
+fix dir location
+add member2 for target-all
+DDS-1215 event tool fixes
+update product.props
+fix schema namespaces. member2 deploys fine with all six sources
+
+2.0.28 
+
+* mybus: DDS-1034 SendEvents serialization/deserialzation; making binary byte order easily changeable
+* bug fixes ... fix config dir. Some tests corrected to not pass params that are not used by java programs ( earlier ignored by ant/build.xml)
+* Fixing util-core version
+* mybus: DDS-1034 making byte order changable for event buffers
+* fix test failure of TestBootstrapDBTooOld
+* fix configs to export debug options. migrate profile relay to run script
+* fix in run script: set the config and log4j files names only if the options parameter is null
+* DDS-1153 Bootstrap Init scripts to be structured like network DB scripts
+* CM-1515: deploy databus2-relay-sdr
+* Adding SDR dashboard generation
+* Fixing DB initialization issue for integration tests
+* DDS-1172 Bootstrap Server should throw RequestProcessingException if bootstrap request is for an unavailable/invalid source
+* Adding utility to selectively drop BootstrapDB state for inidividual sources
+* Driver script fixes
+* DDS-1190 waking up reader threads on channel close
+* mybus: RPL_DBUS fixes for the protocol
+* mybus: DDS-1034 changes to TCP protocol; adding storage for binlong offsets; unit tests
+* mybus: DDS-1034 adding set of endianness for network buffers
+* DDS-1191 Multi-Schema Support for Databus Client
+* add schemas for partitions 2-10 for SDR
+* add schemas for partitions 11-22 for SDR
+* Adding a command-line tool for computing CRCs
+* config file changes to source sdr relay from all partitions
+* keep dev box sdr relay listen to a single partition only
+* mybus: Adding c version of the CRC algo
+* add schema for member2
+* mybus:Fixes for RPL_DBUS to talk to the relay, it actually talks!
+* DDS-1190 removing events when the buffer is full even when the checkpoint save fails
+* mybus: DDS-1034 fixing a NPE in ErrorResponse
+
+2.0.27
+
+* DDS-1109 Bootstrap Server should not be suspended if BootstrapDB fell-off relay for some sources
+* DDS-1034 more work on the TCP end point
+* add support mp-beta, but not enabled yet
+* add a run script for databus profile client - not being invoked as yet. this is to checkpoint the development
+* add sleep_after_wait to get test to pass , reliably collect events from relay to profile consumer
+* DDS-541 : Added attribute latencyEvent to track latency between event generation and event arrival in buffers 
+* switch bizfollow consumer to python
+* DDS-1034 More TCP end-point changes
+* DDS-541: Added databus2 prefix for Sensor names
+* Integration and unit test fixes
+* migrate bootstrap_bizfollow_generator_1 to mp_beta. tested change with bootstrap_bizfollow_generator_1.test
+* start migrating databus-relay run script. Initial copy from databus-profile-client 
+* DDS-1034 unit tests for GetLastSequence evaluation
+* change network branch version dep to 0.0.1118-RC2.2374
+
+2.0.25
+
+* DDS-1131 Fix for the clients gettings stuck on fail-over
+
+2.0.24
+
+* Adding databus2-relay-dev-cmpt and databus2-relay-dev-war as release artifacts
+* fix spring property name to be prefixed with databus2
+* DDS-1034 creating a class for TCP message decoding
+* DDS-1094 adding logic to shutdown relay if it runs out of memory
+* mybus: Initial revision of xtrabackup-wrapper
+* Fix FellOffRelay monitoring
+* DDS-1116 Fixing problem with connections getting stuck by replacing IO thread pool type
+* mybus: Xtrabackup build environment checkin
+
+2.0.23
+
+* Adding 2.0.22 release model
+* fix config errors for sdr
+* DDS-1072 Adding a compound relay war for dev environment
+* DDS-541: Fixing minScn merge; fixed unit test with new sizeData metric semantics 
+* Dashboard creation automation
+* commit sdr config changes - not complete yet. checkpoint. 
+* DDS-735 Refactoring out generic V2 Consumer
+* Binlog generation ID support
+* DDS-735 Refactoring out generic V2 Consumer
+* More dashboards
+* DDS-735 Refactoring out generic V2 Consumer
+* RPM fixes
+* pass in schema for sdr as a property. fix errors being seen on staging
+* DDS-1097 fixing a memory leak in ConnectionChannelRegistrationHandler
+* Netty dashboard improvement
+
+2.0.22
+
+* parse tests for databus-bootstrap-client cmdline pkg
+* Use longblob for bootstrap log/tab val column
+* Adding databus2-relay-sdr container
+* Monitoring fixes
+* Logging fixes
+* Fixing a memory leak due to temp mbeans not being unresgistered
+* Adding esv4-app23 and esv4-app24 to databus2
+* support for mem mapped benchmarking - changes to how temp file is created
+* script changes when ant is absent
+* parser destination vars to be python friendly
+* rename cmdline-pkg for run targets to run dir itself for naming consistency, and also to avoid confusion for config 2.0 changes
+* add run.py for databus-bootstrap-server
+* add run.py for databus-bootstrap-utils
+* add run.py for databus-client
+* add run.py for databus-profile-client
+* add run.py to profile relay
+* add run.py to databus-relay
+
+2.0.21
+
+* DDS-448 adding improved network timeouts handling
+* add a script to undergo cfg2 changes (that will replace dbus2_driver_cfg2.py
+
+
+2.0.20
+* Move impl and test from dtabus-relay to databus2-relay
+* Enhancement to the multi-table-bench test to support multiple databases
+* Moving FileMaxSCNHandler to databus2 package
+* fixing a release problem
+
+2.0.19
+* mysql rpm changes
+* sdr changes
+* DDS-940 Expose sql exceptions
+* DDS-449 Server Side Filtering merge
+* DDS-796 : Added shell script previously omitted 
+* DDS-937 initial checkin
+* DDS-937 for whatever reasons expectedExceptions annotation does not work on hudson
+* DDS-976 Initial version of BS Query Utility
+* DDS-976 Fix bugs in DBReader
+* DDS-989 Set WindowSCN to TargetSCN always
+* DDS-937 OracleEventProducer, RelyaPuller, BootstrapPuller, GenericDispatcher share the same errors-retry code; Exposing an MBean with the error retries state; Exposing an OracleEventProducer state sensor; configuration settings for the error retries for OracleEventProducer, RelyaPuller, BootstrapPuller, GenericDispatcher
+* DDS-937 unit test fixes
+* Fix findbugs reported issues and cleanup printStackTrace in bootstrap utils
+* add a command line package to be able to run bootstrap client
+* DDS-918,DDS-824 : Addded DSC module for shared and local cp mode , Temporary losses to zk connection handled by shutting down client; fixed stats in clients
+* DDS-824: restoring extservices.springconfig ; added zk config but disabled it by default
+* Add support for passing custom hints to Boootstrap Seeder
+* Adding config for SDR
+* fix bootstrap seeder conf file for sdr
+
+2.0.18
+* mybus: Fixes for Mac OS package build
+* DDS-921 versioned schemas set imlpementation moved to databus trunk since it is no longer supported in avro-schema-tools
+* Code clean up
+* DDS-796  :Utility to read/write/remove shared Zookeeper state created by Databus Clients 
+* mybus: Checkpoint thread patch
+* mybus: RPM build fix, revert of the wrong patch for server.patch
+
+2.0.17
+
+* DDS-869 Fix Bootstrap Resume bug
+* DDS-873 Set checkpoint and BS Connection when resuming incomplete BS
+* add verification for bootstrap client restart test
+* DDS-890 initial relay command-line package
+* DDS-873 Fix BS snapshot start/restart issues
+* mybus: Initial checkin of the binlog group id marker patch
+* Setting topology for databus2-relay-bizfollow in ela4
+* Setting topology for databus2-relay-liar
+* finalize topology for databus v2 in prod dark launch
+* DDS-870 Fix BS Checkpoint issue
+* mybus: Clean up of the MySQL server patch
+* DDS-907 1. reuse connections between OracleTxlogEventReader.filterSources; 2. don't run filterSources query if there is a single source from the DB
+* fixing FindBugs issues
+* Decreasing logging verbosity in FileMaxSCNHandler
+* Fix Seeding startup scripts
+* enable asserts for databus core tests. 
+* Once events are generated, no need to invoke an explicit start with an scn, followed by startEvents. ok@snagaraj
+* fix another case of invoking an explict start on the scn state machine. 
+* DDS-823: Race condition in leader election fixes
+* DDS-893: Race condition in leader election fixes; unit test uses single-node zk 
+* DDS-796: Changes to enable utility to manip shared state of DbusClient in zk
+* mybus: Support for per database binlog group event ids
+* DDS-679 fixing container shutdown
+* Added GC and memory-related sensors
+* Added BizFollow v2
+* mybus: Test for persistence of binlog group id values through server restart, binlog group ID info in SHOW BINLOG EVENTS
+* Added basic dirs for generating schema for sdr, enable asserts in all unit test dirs
+* mybus: Fixing patch oops
+* DDS-914 adding an integer status code to DatabusComponentAdminMBean
+* take 2. fix assert for TestEventLogWriter
+* mybus: Fix for Python version check in RPL_DBUS test
+* mybus: Portability fix for MacOS in RPL_DBUS test
+* schema for sdr partition 1
+* add sdr for automatic build
+* add sdr component, spring files
+* config additions for new client - spring / delay properties addition
+* Change integration tests to store logs and events in sub-dirs per test
+* DDS-824: Simulating temp isolation of master 
+* Adding a command-line tool for simple avro conversions from one schema to another
+* minor state machine fixes to handle endEvents, when there is nothing to process in the window. Accept a state transition from endEvents to start state with an scn
+* Fix test failures due to changing of work dir
+* DDS-917 Provide monitoring support for Bootstrap Producer and Applier
+* integration tests setup fixes
+
+2.0.16
+
+* mybus: Mysql benchmark: support for --pre-warm and --load-ratios
+* mybus: MySQL benchmark: added force key to the union query
+* Fix zookeeper test failure in hudson. zookeeper jar is in /ivy/.ivy2 in hudson.
+* reduce sampling while measuring perf to decrease overall test running time
+* DDS-825 Bootstrap Package Split to databus-bootstrap-producer databus-bootstrap-server databus-bootstrap-common databus-bootstrap-utils
+* mybus: MySQL benchmark: workarounds for the optimizer bugs
+* allocate buffer once and reuse across tests for quicker execution, sample a fraction of available operations for faster test execution. add a dummy test to pacify hudson
+* DDS-541: Min metric , timeRange didn't work in readEvents
+* Adding a trivial YAML parser
+* New container stats event: container thread pool usage, container errors
+* DDS-541: Ops req metrics 
+* DDS-541 : Fixed db connection last update time; added more efficient per src maxScn query
+* Fixing stats collection and renaming attributes in ContainerTrafficTotalStats
+
+2.0.15
+
+* DDS-541: event Buffer age , latency , time span stats: Unit test fixes: 
+* benchmark: added --innodb-locks-unsafe-for-binlog
+* Bump databus2 to the new release
+* enhance perf testing for random vs sequential access of memory buffers;
+* remove read/write perf measurement from test suite, as it takes a lot of time
+* MySQL benchmark: support for --innodb-use-sys-malloc
+* DDS-793 Fix corruption in readEvents
+* MySQL benchmark: support for --innodb-adaptive-hash-index
+* Switching back to BizFollow schema v1
+* DDS-541: Fixed issue with readEvents() and timeSpan, timeSinceLastEvent metric
+* DDS-820 making healthcheck path configurable
+* Fixing schema location issue
+* DDS-634: dashboards
+
+2.0.14
+
+* innodb-flush-neighbor-pages patch port from the Percona patch
+* DDS-774: Removing illegal invocation of methods in generic sensors
+* DDS-805 initial tests for deploying/undeploying relays
+* Fix hudson failures which is due to an host with devdb:1521 is available on our network. Now check the oracle connection instead of just check host:port.
+* mybus: configurable innodb_io_capacity in the benchmark
+* DDS-806 : Runtime config impl for shared checkpoint persister
+* mybus: Fixes to run the benchmark from a prepared set of xtrabackup files speeding up the setup
+* DDS-541: renamed latency Mbean method to 'latency' ; corrected impl of duration metric for /stream
+* Adding simple macro expansion for yaml generation
+* DDS-541 : Time since last access instead of timestamp 
+* Adding a new version of the BizFollow schema; Deployment test improvements
+* DDS-793 Fix BufferOverflow and corruption issue in EVN.readEvents()
+* DDS-820 Adding /admin healthcheck
+* Adding client-side relay calls statistics
+* Hudson fixes in generator and comparison script after the bizfollow new column. Initail test driver support for zookeeper.
+* mybus: Adaptive checkpoint patch
+* use static consts through class, remove potential access to a null ptr. ok@balaji
+* remove unused imports to reduce build warnings
+* mybus: innodb-purge-threads option support
+* innodb-buffer-pool-instances support in the benchmark
+* DDS-541: event Buffer age , latency , time span stats
+* Move BizFollow.1.0.avsc to another directory. The order Avro loading schema from schema_registry is underministic. It is possible that 1.0 schema is loaded last and this caused intermittent failures in hudson.
+* quick test to measure random read/write perf on Java
+
+2.0.13
+
+* DDS-805: Relay doesn't start - spring config error fixed 
+
+2.0.12
+
+* FindBugs fixes
+* fixed the bug with the wrong innodb-group-log-home-dir argument to xtrabackup
+* benchmark reporting improvements and --sleep-between-queries
+* JMX API cleanup
+* DDS-379 adding quotes to json field names
+* DDS-797 adding waits for shutdowns of the oracleeventproducer, monitoringeventproducer and the schema registry refresh thread
+* DDS-797 Making sure that the OracleEventProducer is shutdown before netty.
+* Initial checkin of mytop with the queries per second fix for newer MySQL versions
+* DDS-592 - Zookeeper integration for Databus V2 Clients
+* DDS-793: Enable debugging on repeated runtime error detection
+* implemented GDB and InnoDB status dump and live viewing in mytop
+* DDS-774 : Create sensor MBeans for Databus V2
+* Adding a check for file existence before attempting to delete
+
+2.0.11
+
+* Test driver script update for starting containers
+* Fixing findbugs warnings
+* Adding support for findbugs
+* DDS-762 Make logging of Applier State as info level
+* DDS-720 : Not checking config var for db puller in main 
+* DDS-365 - Stats added to Bootstrap service 
+* DDS-721 Fixes to server container shutdown; more robus mbena unregistration; more strucuted oracleeventproducer logging
+* DDS-769 Make Target/StartSCN Processor thread-safe and close connections on exception
+
+2.0.10
+
+* Consumer API renaming and clean-up
+* Added utility consumer classes
+* DDS-720 : start db puller on restart 
+* test driver support to start/stop container and deploy/undeploy war
+* DDS-719 Fixing bootstrap retries reset
+* DDS-737 - Race condition encountered in /stream before first full window of events appears in buffer
+* DDS-762 Move applier thread logging to different file and reduce duplicate logging
+
+2.0.9
+
+* Tests for multiple bootstrap relay server, relay restart
+* DDS-737 - Race condition between the producer and the relay
+* DDS-721 Fixing exception because of trying to deregister the server container's shutdown hooks during shutdown
+* DDS-721 Adding timeout during shutdown
+* DS-738 Fix NullPointerException in BootstrapRequestProcessor
+* DDS-722 fixing response time reporting
+* DDS-737 making restartScnOffset easier to change; 
+* DDS-721 Making event producer thread daemon 
+* DDS-719 Made the number of retries configurable; added exponentially sleep between retries
+* Adding databus-events-bizfollow and databus-events-liar as release artifacts
+
+2.0.8
+
+* DDS-717 Fixing an issues with the MaxSCN not being loaded on relay startup
+* DDS-717: Relay doesn't account for special value scn's 0 and 1 when keeping track of  prevScn
+
+2.0.7
+
+* Update Seeder/Cleaner config properties to work with latest version of Seeder/Cleaner.
+* Adding a named constant for PhaseCompleted header 
+* DDS-704 Adding better handling of server errors on the client side
+* DDS-685 On relay and bootstrap failover, the puller thread should now try to continue from the in-memory checkpoint rather than the persistent one
+* DDS-700 onPickBootstrapServer: the bootstrap server selection is now before the determination of at what phase of the bootstrap we are
+* DDS-699: /stream calls with scn < scn of the first window 
+* DDS-701 Fix startSCN bug when BootstrapDB is in Multi tenancy mode. Make sure slowsource case is handled
+* DDS-702 Downgrade BootstrapEventWriter callback log messages to that of debug.
+ 
+2.0.6
+
+* Bootstrap seeder tests
+* DDS-672 Fix Seeding catchup, Make PK_Index configurable
+* Fixes for faster table setup
+* DDS-670 fixing the relay pull thread to correctly retry on the scnindex exception
+* DDS-692 Expose exception if it happens.
+* Adding helper scripts and configs for bootstrap producer initialization
+* MyBus: Wait for log checkpointing to complete before starting XtraBackup
+* MyBus: Strict regexp pattern to avoid copying unneeded tables with xtrabackup
+* Release configuration changes
+* Fix the failures because of db.json file changes. Also member2 bootstrap tests and a few driver updates.
+* Fix Seeding Status issue
+* DDS-446 DDS-447 adding http request logger for servers and clients
+* DDS-572 Avoid too many Applied messaged by sampling them
+* DDS-670: Added unit tests for /stream outcomes; fixed minor bug with scnIndex clear() ; return fewer scn's in MISSED_WINDOW_ZONE 
+* Fixed for fast population of external keys
+* Bootstrap Applier and Producer should be able to handle transient errors gracefully
+* Fixed check for no bootstrap services
+
+2.0.5
+
+* Release and topology setup update
+* MySQL Benchmark updates for external/secondary tests under write load - not yet finished
+* DDS-641 : Use maxRowId field in a consistent way
+* Test for DDS-641. Log table with ids not contiguous
+* DDS-652 adding round-robin picking of servers after the initial random pick
+* Adding support for test-ng tests
+* Test setup changes
+* Adding architecture diagrams
+* Log message fixes to RPL DBUS engine
+* Tests for multiple relays failover
+* Test driver support to start bootstrap seeder
+* Enable bootstrap_bizfollow_generator_7.test
+* DDS-657 Adding proper handling of peer disconnects for client connections 
+* DDS-657 fixing state handling in the dispatcher
+* Innodb patch to extend the tablespace with extra padding + instrumentation to test it
+* DDS-578 adding a check if the loaded checkpoint is a bootstrap one and switching to bootstrap  puller
+* Fixed statistics bug
+* DDS-668 Support Paginated Seeding for Databus v2 Bootstrap
+* fixing appname in war files
+
+2.0.4
+
+* First official war files
+

@@ -1,0 +1,13 @@
+{
+    "name" : "jobs",
+    "uri" : "jdbc:oracle:thin:jobs/jobs@${db.hostname}:1521:${db.sid}",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1201, 
+         "name": "com.linkedin.events.jobs.Jobs", 
+         "uri" : "jobs.Jobs",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

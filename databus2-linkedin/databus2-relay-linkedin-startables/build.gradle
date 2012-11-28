@@ -1,0 +1,7 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus2-relay:databus2-relay-impl')
+  compile project(':databus2-linkedin:databus2-common-sensor-factory')
+  compile project(':databus2-linkedin:databus2-linkedin-impl')
+}

@@ -1,0 +1,13 @@
+{
+    "name" : "news",
+    "uri" : "jdbc:oracle:thin:news/news8uat2@esv4-db19.stg:1521:SNEWS",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 801, 
+         "name": "com.linkedin.events.news.TaggedSlices", 
+         "uri" : "news.TAGGED_SLICES",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

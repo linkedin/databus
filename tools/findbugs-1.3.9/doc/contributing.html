@@ -1,0 +1,120 @@
+<html>
+<head>
+<title>Contributing to FindBugs</title>
+<link rel="stylesheet" type="text/css" href="findbugs.css">
+
+</head>
+<body>
+
+<table width="100%"><tr>
+
+
+<td bgcolor="#b9b9fe" valign="top" align="left" width="20%"> 
+<table width="100%" cellspacing="0" border="0"> 
+<tr><td><a class="sidebar" href="index.html"><img src="umdFindbugs.png" alt="FindBugs"></a></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><b>Docs and Info</b></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="demo.html">Demo and data</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="users.html">Users and supporters</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://findbugs.blogspot.com/">FindBugs blog</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="factSheet.html">Fact sheet</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="manual/index.html">Manual</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="ja/manual/index.html">Manual(ja/&#26085;&#26412;&#35486;)</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="FAQ.html">FAQ</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="bugDescriptions.html">Bug descriptions</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="mailingLists.html">Mailing lists</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="publications.html">Documents and Publications</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="links.html">Links</a></font></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><a class="sidebar" href="downloads.html"><b>Downloads</b></a></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><a class="sidebar" href="http://www.cafeshops.com/findbugs"><b>FindBugs Swag</b></a></td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><b>Development</b></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://sourceforge.net/tracker/?group_id=96405">Open bugs</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="reportingBugs.html">Reporting bugs</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="contributing.html">Contributing</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="team.html">Dev team</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="api/index.html">API</a> <a class="sidebar" href="api/overview-summary.html">[no frames]</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="Changes.html">Change log</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://sourceforge.net/projects/findbugs">SF project page</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://code.google.com/p/findbugs/source/browse/">Browse source</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://code.google.com/p/findbugs/source/list">Latest code changes</a></font></td></tr> 
+</table> 
+</td>
+
+<td align="left" valign="top">
+
+<h1>Contributing to FindBugs</h1>
+
+<p> If you have a bug fix or feature enhancement you would like to contribute,
+we would be happy to consider it for inclusion.</p>
+
+<h2>Import FindBugs code as Eclipse projects</h2>
+
+<p>The preferred way to get the FindBugs source code and create the patch is to use Eclipse + SVN.
+You can easily import FindBugs code into Eclipse by following the steps described
+here: <a href="http://code.google.com/p/findbugs/source/browse/trunk/eclipsePlugin/doc/building_findbugsplugin.txt">Import Eclipse projects</a>
+. 
+</p>
+
+<h2>Preparing a patch</h2>
+
+<p> The best way to
+send an enhancement is to create a patch against the latest code
+in the FindBugs Subversion repository 
+at <a href="http://findbugs.googlecode.com/svn/trunk/">http://findbugs.googlecode.com/svn/trunk/</a>
+(those people who have been given commit priviledges should use 
+<a href="https://findbugs.googlecode.com/svn/trunk/">http<b>s</b>://findbugs.googlecode.com/svn/trunk/</a>).
+</p>
+
+<p>To create a patch from Eclipse, please right click the [findbugs] or [findBugsEclipsePlugin] project
+and choose [Team | Create Patch...] context menu.
+</p>
+
+<p> Please follow these guidelines when preparing your patch:</p>
+<ul>
+<li> <b>Use the same indentation style as the source file(s) you
+     are modifying</b>.&nbsp; In particular, please use tabs (not spaces)
+     to indent your code; one tab per indent level.
+<li> If at all possible, avoid making whitespace modifications.
+<li> Small patches are appreciated.
+<li> If you are submitting a new bug detector, please submit a small
+     standalone source file that contains an instance of the
+     kind of bug the detector looks for.
+</ul>
+
+<p> Following these guidelines makes it much easier for us
+to incorporate new code.
+
+<h2>How to submit a patch</h2>
+
+<p> Patches may be submitted through the
+<a href="http://sourceforge.net/tracker/?atid=614695&group_id=96405&func=browse">Patches</a> tracker on the
+<a href="http://sourceforge.net/projects/findbugs/">sourceforge project page</a>.
+
+
+<hr> <p> 
+<script language="JavaScript" type="text/javascript"> 
+<!---//hide script from old browsers 
+document.write( "Last updated "+ document.lastModified + "." ); 
+//end hiding contents ---> 
+</script> 
+<p> Send comments to <a class="sidebar" href="mailto:findbugs@cs.umd.edu">findbugs@cs.umd.edu</a> 
+<p> 
+<A href="http://sourceforge.net"><IMG src="http://sourceforge.net/sflogo.php?group_id=96405&amp;type=5" width="210" height="62" border="0" alt="SourceForge.net Logo" /></A>
+
+</td>
+
+</tr></table>
+
+</body>
+</html>

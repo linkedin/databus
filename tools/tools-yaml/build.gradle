@@ -1,0 +1,7 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile spec.external.commonsCli
+  compile spec.external.log4j
+  compile spec.external.snakeyaml
+}

@@ -1,0 +1,15 @@
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="databus2.core.tests" parallel="false" thread-count="1">  
+  <test name="IntegrationTests">
+  <groups>
+    <run>
+      <exclude name="broken" />
+    </run>
+  </groups>
+    <packages>
+      <package name="com.linkedin.databus.*" />
+      <package name="com.linkedin.databus2.*" />
+      <package name="com.linkedin.databus3.*" />
+   </packages>
+  </test>
+</suite>

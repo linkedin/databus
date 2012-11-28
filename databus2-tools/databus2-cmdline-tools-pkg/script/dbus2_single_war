@@ -1,0 +1,62 @@
+#! /usr/bin/perl -w
+use strict;
+use File::Basename;
+
+my $source = $ARGV[0] || "";
+$source = "*".$source;
+
+
+
+my $cmd = "find databus2-relay/ -name \"*databus2-relay-${source}.spring\"";
+
+my @files = `$cmd`;
+foreach my $f (@files) 
+{
+	open (F,"<$f" ) || die "Cannot open $f\n";
+	my $name = get_name($f);
+	my $list=0;
+	my @spaces = ();
+	while (<F>) {
+		if ($list > 0) {
+			if (m/(\s+)<list/) {
+				$list++;
+				print "$1<list>\n";				
+			} elsif (m/(\s+)<bean/) {
+				push(@spaces,$1);
+				print "$1<map>\n";	
+			} elsif (m/<\/bean>/) {
+				my $s = pop @spaces;
+				print "$s</map>\n";
+			} else {				
+				s/<property/<entry/;
+				s/<\/property/<\/entry/;
+				s/name=/key=/;
+				if (m/<\/list>/) {
+					$list--;
+				}
+				if ($list==0) {
+					my $s=pop @spaces;
+					print "$s</property>\n";
+				} else {
+					print $_;
+				}
+			}
+		}
+		if (m/(\s+)<list(.*?)PhysicalSourceConfig/ ) {
+			$list++;
+			push(@spaces,$1);	
+			print "$1<property name=\"databus2.${name}\">\n"; 	
+		} 
+	
+	}
+}
+
+sub get_name {
+	my $path = shift;
+	my $fname = basename($path);
+	if ($fname =~ m/databus2-relay-(.*?)\.spring/) 
+	{
+		return $1;
+	}
+	return "";
+}

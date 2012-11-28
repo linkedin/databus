@@ -1,0 +1,14 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-bootstrap-common:databus-bootstrap-common-api')
+  compile project(':databus-bootstrap-common:databus-bootstrap-common-impl')
+  compile project(':databus-bootstrap-utils:databus-bootstrap-utils-impl')
+  compile project(':databus-client:databus-client-http')
+  compile project(':databus-core:databus-core-impl')
+
+  compile spec.external.log4j
+  compile spec.external.mysqlConnectorJava
+  compile spec.external.ojdbc6
+  compile spec.external.spring
+}

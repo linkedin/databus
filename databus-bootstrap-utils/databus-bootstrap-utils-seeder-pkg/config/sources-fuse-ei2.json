@@ -1,0 +1,13 @@
+{
+    "name" : "fuse",
+    "uri" : "jdbc:oracle:thin:fuse/fuse8uat@eat1-dc1-eidb-fuse.stg.linkedin.com:1521:EI_EIDB_FUSE",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1001, 
+         "name": "com.linkedin.events.fuse.MemberRestriction", 
+         "uri" : "fuse.Member_Restriction",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

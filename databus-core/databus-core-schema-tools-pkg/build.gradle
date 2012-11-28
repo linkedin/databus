@@ -1,0 +1,16 @@
+apply plugin: 'li-cmdline'
+
+dependencies {
+  compile project(':databus-core:databus-core-schema-tools')
+}
+
+project.tasks.cmdline {
+
+  into("conf") { from "config/" }
+
+  from("bin") {
+    into ("bin")
+    fileMode = 0755
+  }
+
+}

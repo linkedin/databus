@@ -1,0 +1,13 @@
+{
+    "name" : "cappr",
+    "uri" : "jdbc:oracle:thin:sas/sas@devdb:1521:DB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 2101, 
+         "name": "com.linkedin.events.sas.Creatives", 
+         "uri" : "sas.sy$creatives_4",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

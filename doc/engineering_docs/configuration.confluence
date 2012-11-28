@@ -1,0 +1,680 @@
+
+h1. Contents
+
+{toc}
+
+h1. Introduction
+
+
+The following document describes the configuration properties available for the various Databus components: the relay, the bootstrap producer, the bootstrap server, and the bootstrap client library.
+
+Configuration properties are generally split in static configuration properties and dynamic configuration properties.
+
+h2. Static configuration
+
+Static configuration properties are initialized at start up and cannot be changed later. Static configuration properties can be set using
+
+* Java property files
+* JSON
+* (LI)Spring
+
+h2. Dynamic (runtime) configuration
+
+Dynamic (runtime) configuration properties can also be initialized at start up, but they can also be changed at runtime. They can be changed using
+
+* a /config call
+* JMX configuration beans
+
+h2. Property File Syntax
+
+* All property names must be prefixed with {{databus.}}, for example {{databus.relay.container.id=666}}
+* Properties for nested configurations are separated with a dot ("."), for example: {{fileSystem.refreshPeriodMs = 60000}}
+* Array-type properties are set using the notation {{propertyName\[index\]}}
+* Map-type properties are set using the notation {{propertyName(key)}}, for example: {{databus.relay.sourceName(1)=databus.test.source1}}
+
+*Example*
+
+{code}
+databus.relay.container.id = 9786
+databus.relay.container.port = 8080
+databus.relay.runtime.statsCollector.enabled = false
+databus.relay.runtime.container.requestProcessingBudgetMs = 60000
+databus.relay.runtime.container.defaultExecutor.maxThreadsNum = 200
+databus.relay.runtime.container.defaultExecutor.coreThreasdNum = 100
+databus.relay.runtime.container.statsCollector.enabled = false
+databus.relay.sourceName(1001)=com.linkedin.events.liar.jobrelay.LiarJobRelay
+databus.relay.sourceName(1002)=com.linkedin.events.liar.jobrelay.LiarMemberRelay
+{code}
+
+
+h2. JSON notation
+
+* Nested configurations are represented as nested objects
+* Array-type properties are set using JSON arrays
+* Map-type properties are set using a nested object where the attribute names are the keys
+
+*Example*
+
+{code}
+{"databus":
+    {"relay":
+        {"container": {"id": 9786, "port": 8080\}},
+        {"runtime":
+            {"statsCollector": {"enabled": "false"}},
+            {"container":
+                {"requestProcessingBudgetMs": 60000,
+                 "defaultExecutor": {"maxThreadsNum": 200, "coreThreasdNum": 100},
+                 "statsCollector": {"enabled": "false"}
+            },
+        {"sourceName": {"1001": "com.linkedin.events.liar.jobrelay.LiarJobRelay",
+                        "1002": "com.linkedin.events.liar.jobrelay.LiarMemberRelay"}}
+{code}
+
+
+h2. Command-line
+
+Sample Java properties configuration (can be used with the {{\-p}} command-line option): [config/relay-config.properties|http://svn.corp.linkedin.com:8070/viewvc/netrepo/databus2/trunk/config/relay-config-template.properties?view=markup]
+
+{anchor:relayConfiguration}
+
+h1. Relay Configuration
+
+{anchor:relayStaticConf}
+
+h2. Relay Static Configuration
+
+Property prefix: {{databus.relay}}
+
+|| Property name || Type || Description || Default value ||
+| container | [Netty Serving Container Static Configuration|#serverContainerStaticConf] | Configuration options for the relay netty container | |
+| eventBuffer | [Event Buffer Static Configuration|#eventBufferStaticConf] | Configuration options for the relay event buffer | |
+| eventLogReaderConfig | [Event Reader Static Configuration|#eventLogReaderStaticConf] | Configuration options for the event log reader | |
+| eventLogWriterConfig | [Event Writer Static Configuration|#eventLogWriterStaticConf] | Configuration options for the event log writer | |
+| httpStatsCollector | [HTTP Calls Statistics Collector Static Configuration|#relayHttpStatsCollectorStaticConf] | Configuration options for the HTTP calls statistics collector | |
+| randomProducer | [Random Event Producer Static Configuration|#randomProducerStaticConf] | Configuration options for the relay random events producer (testing) | |
+| runtime | [Relay Runtime Configuration|#relayRuntimeConf] | Relay runtime configuration options | |
+| schemaRegistry | [Schema Registry Static Configuration|#schemaRegistryStaticConf] | Configuration options for the schema registry | |
+| sourceName | Map from source id to Databus source name | Databus sources registered in the relay | |
+| startDbPuller | Boolean | Configuration option for starting db puller thread on startup | false |
+
+
+{code}
+databus.relay.container.id = 9786
+databus.relay.container.jmx.jmxServicePort = 9988
+databus.relay.runtime.statsCollector.enabled = false
+databus.relay.runtime.container.requestProcessingBudgetMs = 60000
+databus.relay.runtime.container.defaultExecutor.maxThreadsNum = 200
+databus.relay.runtime.container.defaultExecutor.coreThreasdNum = 100
+databus.relay.runtime.container.statsCollector.enabled = false
+databus.relay.sourceName(1001)=com.linkedin.events.liar.jobrelay.LiarJobRelay
+databus.relay.sourceName(1002)=com.linkedin.events.liar.jobrelay.LiarMemberRelay
+{code}
+
+
+{anchor:relayRuntimeConf}
+
+h2. Relay Runtime Configuration
+
+
+Property prefix: {{databus.relay.runtime}}
+
+
+|| Property name || Type || Description || Default value ||
+| httpStatsCollector | [Relay Statistics Collector Runtime Configuration|#relayHttpStatsCollectorRuntimeConf] | Runtime configuration options for the HTTP calls statistics collector | |
+| container | [Serving Container Runtime Configuration|#serverContainerRuntimeConf] | Runtime configuration for the Netty serving container | |
+
+{code}
+databus.relay.runtime.statsCollector.enabled = false
+databus.relay.runtime.container.requestProcessingBudgetMs = 60000
+databus.relay.runtime.container.defaultExecutor.maxThreadsNum = 200
+databus.relay.runtime.container.defaultExecutor.coreThreasdNum = 100
+databus.relay.runtime.container.statsCollector.enabled = false
+{code}
+
+{anchor:eventLogReaderStaticConf}
+
+h2. Event Log Reader Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | A flag that indicates if the event log reader is to be invoked on relay startup | false |
+| readSessionDir | String | The directory where the event logs are read for the current session | |
+| topLevelLogDir | String | The parent directory for all session directories | |
+
+{anchor:eventLogWriterStaticConf}
+
+h2. Event Log Writer Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| blockOnWrite | Boolean | A flag that indicates if the log writer should hold locks in the buffer until logs are written to disk | false |
+| enabled | Boolean | A flag that indicates if the event log writer is to be invoked on relay startup | false |
+| encoding | JSON, BINARY | The encoding of the events | BINARY |
+| fsyncIntervalInMillis | Integer | The number of milliseconds between fsyncs to ensure logs are securely written to disk | 10000 |
+| individualFileMaxBytes | Integer | The max size of a file with event logs in the write session directory | 500000000 |
+| maxFiles | Integer | Max number of files in the write session directory | 5 |
+| maxPendingWrites | Integer | Max number of events that can be buffered before the event log writer gives up trying to keep up with the event stream | 20 |
+| topLevelLogDir | String | The parent directory for all session directories | |
+| writeSessionDir | String | The directory where the event logs are written for the current session | |
+| writeBatchSizeInBytes | Integer | The number of bytes to buffer before writing the logs | 64000 |
+
+h2. Schema Registry Configuration
+
+{anchor:schemaRegistryStaticConf}
+
+h3. Schema Registry Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| type | FILE_SYSTEM, REMOTE, EXISTING | The type of the schema registry service to use | FILE_SYSTEM |
+| fileSystem | [File System Schema Registry Static Configuration|#fsSchemaRegistryStaticConf] | Configuration for the file system registry service | |
+| existingService | com.linkedin.schemaregistry.SchemaRegistryService | Dependency injection to an already instantiated registry service \\
+NOTE: Only meaningful in Spring configurations | none |
+
+*Example*
+
+{code}
+databus.relay.schemaRegistry.type = FILE_SYSTEM
+{code}
+
+
+{anchor:fsSchemaRegistryStaticConf}
+
+h3. File System Schema Registry Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| schemaDir | String | The path to the schema registry directory; if relative, the default start directory is used | ./schemas_registry |
+| refreshPeriodMs | Long | The time in milliseconds between checks for changes in the schema registry directory | 3600000 |
+
+*Example*
+
+{code}
+databus.relay.schemaRegistry.fileSystem.schemaDir = /var/share/databus/schemas_registry
+databus.relay.schemaRegistry.fileSystem.refreshPeriodMs = 60000
+{code}
+
+{anchor:randomProducerStaticConf}
+
+h2. Random Producer Static Configuration
+
+
+{anchor:DatabaseSourcesStaticConf}
+
+h1. Database Sources Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| name | String | The name of the source database | *required* |
+| uri | String | Database JDBC connection URI | *required* |
+| slowSourceQueryThreshold | Integer | The max time in ms with no updates after which the database event puller switches to slow source mode. | 3000 |
+| restartScnOffset | Integer | The delta to rollback the last scn read on relay restart. This is meant to not start the relay with an empty buffer.  The value is ignored if it is <= 0. | 0 |
+| source | an array of [Logical Source Static Configuration|#logicalSrcStaticConf] | Configuration of the logical Databus sources available in the physical database. | |
+| maxScnHandler | [MaxSCN Handler Static Configuration|#maxScnHandlerStaticConf] | Configuration for MaxSCN handler which persists the last scn processed and reads it on relay restart. | |
+
+
+{anchor:maxScnHandlerStaticConf}
+
+h2. MaxSCN Handler Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| type | DISABLED, FILE, EXISTING | Type of of the MaxSCN handler | FILE |
+| file | [File-Based MaxSCN Handler Static Configuration|#fileMaxScnHandlerStaticConf] | The configuration for the file-system based MaxSCN handler; used only if {{getType()}} returns {{FILE}}. | |
+| existing | | Wired MaxSCN handler; used only if {{getType()}} returns {{EXISTING}}. This setting makes sense only of Spring-based configuration. | |
+
+{anchor:fileMaxScnHandlerStaticConf}
+
+h3. File-Based MaxSCN Handler Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| key | String | the name of the file used for storing the SCN | MaxSCN |
+| scnDir | String | the directory where the SCN will be saved | databus2-maxscn |
+| initVal | Long | the initial scn value if none is persisted on disk | 0 |
+| flushItvl | Long | the number of SCN updates before the SCN is persisted to disk | 1 |
+
+{anchor:logicalSrcStaticConf}
+
+h2. Logical Source Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| id | Short | Globally unique source id | *required* |
+| name | String | Fully qualified source name as specified by the Avro schema for the source | *required* |
+| uri | String | DB connection URI (table name) | *required* |
+| partitionFunction | String | Partitioning function spec | *empty* |
+
+h1. Bootsrap Reader Configuration
+
+h2. BootstrapDB and Schema Configuration
+Property prefix: {{databus.reader}}
+
+|| Property name || Type || Description || Default value ||
+| bootstrap.bootstrapDBHostname | String | The hostname of the Bootstrap DB server | localhost |
+| bootstrap.bootstrapDBPassword | String | The password for access to the Bootstrap DB | bootstrap |
+| bootstrap.bootstrapDBUsername | String | The user name for access to the Bootstrap DB | bootstrap |
+| bootstrap.bootstrapLogSize | Integer | The maximum number of rows in a bootstrap DB log_\* table. | 10000 |
+| schemaRegistry.type | String/enum | Schema Source Type | FILE_SYSTEM |
+| schemaRegistry.fileSystem.schemaDir | String | Schema Location | ./schemas_registry |
+
+h2. Query Configuration
+
+Property prefix: {{databus.query}}
+
+|| Property name || Type || Description || Default value ||
+| SourceId | Integer | The SourceId to query | 0 |
+| SourceName | String | The SourceName to query | _empty_ |
+| tablePrefix | String | Log Table (log_) or Source Table (tab_) | _empty_ |
+| field | String | The Column Name to query | _empty_ |
+| rangeQuery | Boolean | Is it a range Query | false |
+| logId | Integer | LogId of the log table to be queries ( used only when tablePrefix = "log_" | 0 |
+| value | Integer | Value of the point Query ( isRangeQuery = false) | 0 |
+| minValue | Integer | Min Value of the range Query ( isRangeQuery = true) | 0 |
+| maxValue | Integer | Max Value of the range Query ( isRangeQuery = true) | 0 |
+ 
+h1. Bootsrap Seeder/Audit/Cleaner Configuration
+
+{anchor:bootstrapSeederStaticConf}
+
+h2. Bootstrap Cleaner Static Configuration
+
+Property prefix: {{databus.cleaner}}
+|| Property name || Type || Description || Default value ||
+| bootstrap.bootstrapDBHostname | String | The hostname of the Bootstrap DB server | localhost |
+| bootstrap.bootstrapDBPassword | String | The password for access to the Bootstrap DB | bootstrap |
+| bootstrap.bootstrapDBUsername | String | The user name for access to the Bootstrap DB | bootstrap |
+| backLog | Integer | The number of archive log tables to be retained | 5 |
+
+h2. Bootstrap Seeder Static Configuration
+
+Property prefix: {{databus.seed}}
+
+|| Property name || Type || Description || Default value ||
+| bootstrap.bootstrapDBHostname | String | The hostname of the Bootstrap DB server | localhost |
+| bootstrap.bootstrapDBPassword | String | The password for access to the Bootstrap DB | bootstrap |
+| bootstrap.bootstrapDBUsername | String | The user name for access to the Bootstrap DB | bootstrap |
+| bootstrap.bootstrapLogSize | Integer | The maximum number of rows in a bootstrap DB log_\* table. | 10000 |
+| schemaRegistry.type | String/enum | Schema Source Type | FILE_SYSTEM |
+| schemaRegistry.fileSystem.schemaDir | String | Schema Location | ./schemas_registry |
+| controller.commitInterval | Integer | Checkpoint Interval for MySQL Write | 10000 |
+| controller.numRowsPrefetch | Integer | Oracle JDBC NumRowsPrefetch Argument | 10 |
+| controller.LOBPrefetchSize | Integer | Oracle JDBC LOBPrefetch Size Argument | 4000 |
+| controller.numRowsPerQuery | Integer | Oracle Read Chunk/Page Size | 100000 |
+| controller.keyTxnMapFile(SOURCE) | String | KeyTxn File generated during Seeding and used by Audit to track if rows got changed | Empty |
+| controller.keyTxnFileBufferSize(SOURCE\} | Integer | Buffer Size for Writing KeyTxn file during Seeding | 0 |
+| controller.pKeyName\{SOURCE\} | String | Primary Key for the Source | key |
+| controller.pKeyIndex(SOURCE\} | String | Primary Key Index for the Source | SOURCE_PK |
+
+{anchor:bootstrapProducerConfiguration}
+
+h1. Bootstrap Producer Configuration
+
+{anchor:bootstrapProducerStaticConf}
+
+h2. Bootstrap Producer Static Configuration
+
+Property prefix: {{databus.bootstrap.producer}}
+
+|| Property name || Type || Description || Default value ||
+| bootstrapDBHostname | String | The hostname of the Bootstrap DB server | localhost |
+| bootstrapDBPassword | String | The password for access to the Bootstrap DB | bootstrap |
+| bootstrapDBUsername | String | The user name for access to the Bootstrap DB | bootstrap |
+| bootstrapLogSize | Integer | The maximum number of rows in a bootstrap DB log_\* table. | 10000 |
+| client | [Client static configuration|#clientStaticConf] | The Databus client static configuration for the bootstrap producer | |
+
+*Example*
+
+{code}
+databus.bootstrap.bootstrapLogSize=360000
+databus.bootstrap.producer.client.container.httpPort=4567
+{code}
+
+{anchor:bootstrapServerConfiguration}
+
+h1. Bootstrap Server Configuration
+
+{anchor:bootstrapServerStaticConf}
+
+h2. Bootstrap Server Static Configuration
+
+Property prefix: {{databus.bootstrap.server}}
+
+|| Property name || Type || Description || Default value ||
+| bootstrapBatchSize | Integer | The maximum number of rows per bootstrap snapshot or catchup call | 1000 |
+| bootstrapDBHostname | String | The hostname of the Bootstrap DB server | localhost |
+| bootstrapDBPassword | String | The password for access to the Bootstrap DB | bootstrap |
+| bootstrapDBUsername | String | The user name for access to the Bootstrap DB | bootstrap |
+| bootstrapHttpPort | String | The HTTP port of the bootstrap server. *Deprecated:* Use {{container.httpPort}} instead | 6060 |
+| container | [Netty Serving Container Static Configuration|#serverContainerStaticConf] | The Netty serving container static configuration | |
+
+*Example*
+
+{code}
+databus.bootstrap.bootstrapBatchSize=10000
+databus.bootstrap.producer.container.httpPort=666
+{code}
+
+
+{anchor:clientConfiguration}
+
+h1. Client Library Configuration
+
+{anchor:clientStaticConf}
+
+h2. Client Library Static Configuration
+
+Property prefix for standalone use: {{databus.client}}
+
+|| Property name || Type || Description || Default value ||
+| checkpointPersistence | [Checkpoint Persistent Provider Static Configuration|#cpPersistenceStaticConf] | The checkpoint persistent provider static configuration | |
+| connection | [Databus Sources Connection Static Configuration|#sourcesConnStaticConf] | A map from a comma-separated Databus source list to the connection static configuration for that list of sources | |
+| connectionDefaults | [Databus Sources Connection Static Configuration|#sourcesConnStaticConf] | The default static configuration for all Databus sources connections | |
+| container | [Netty Serving Container Static Configuration|#serverContainerStaticConf] | The Netty container static configuration |
+| cluster | [Shared state zookeeper cluster config|#clusterStaticConf] | Zookeeper cluster configuration | |
+| httpStatsCollector | [HTTP Calls Statistics Collector Configuration|#relayHttpStatsCollectorStaticConf] | The static configuration for statistics collector for all HTTP calls to the relays | |
+| loggingListener | [Logging Consumer Static Configuration|#loggingConsumerStaticConf] | Static configuration for the logging consumer | |
+| runtime | [Client Library Runtime Configuration|#clientRuntimeConf] | The client runtime configuration | |
+
+{anchor:clientRuntimeConf}
+
+h2. Client Library Runtime Configuration
+
+Property prefix for standalone use: {{databus.client.runtime}}
+
+|| Property name || Type || Description || Default value ||
+| bootstrap | [Client Bootstrapping Runtime Configuration|#clientBootstrappingRuntimeConf] | Runtime configuration for bootstrapping | |
+| checkpointPersistence | [Checkpoint Persistent Provider Runtime Configuration|#cpPersistenceRuntimeConf] | Runtime configuration for the checkpoint persistence provider | |
+| container | [Netty Serving Container Runtime Configuration|#serverContainerRuntimeConf] | Runtime configuration for the Netty serving container | |
+| httpStatsCollector | [HTTP Calls Statistics Collector Runtime Configuration|#relayHttpStatsCollectorRuntimeConf] | Runtime configuration for statistics collector for the HTTP calls to the relays | |
+| loggingListener | [Logging Consumer Runtime Configuration|#loggingConsumerRuntimeConf] | Runtime configuration for the logging consumer | |
+| relay | A map from a relay ID to a Relay [Server Configuration|#serverConf] | Server configuration for the available relays | *empty* |
+
+{anchor:clientBootstrappingRuntimeConf}
+
+h2. Client Bootstrapping Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | A flag that indicates if bootstrapping is enabled | false |
+| service | A map from a bootstrap server ID to a Bootstrap [Server Configuration|#serverConf] | Server configuration for the bootstrap servers | *empty* |
+
+h2. Server Side Filtering Configuration
+
+There will be per source configurations for Server Side Filtering. The following are the parameters:
+
+|| Property name || Type || Description || Default value || Example ||
+| serversidefilter.filter(source).type | String (RANGE, MOD, NONE) | The filter type for this source | NONE | RANGE |
+| serversidefilter.filter(source).range.size | Long | The Size of each range. Applicable only for Range Partitioning | 0 | 5000000 |
+| serversidefilter.filter(source).range.partitions | String | The list of partitionIds to filte.Applicable only for Range Partitioning | NONE | \[1,3-6\] (With the size set to 5M, the ranges 5M to(10M - 1) and 15M to (30M - 1) will be filtered) |
+| serversidefilter.filter(source).mod.numBuckets | Long | The number of buckets. Applicable only for MOD partitioning | NONE | 2 |
+| serversidefilter.filter(source).mod.buckets | String | The list of bucketIds to filter. Applicable only for MOD partitioning | NONE | \[0\] (With numBuckets set to 2, all the even number keys will be filtered) |
+
+{anchor:clusterStaticConf}
+
+h2. Shared State Cluster Configuration
+
+Top level property name: databus.client.cluster
+
+|| Property name || Type || Description || Default value ||
+| enabled | boolean | Enable cluster failover, shared persistence of checkpoint | false |
+| clusterServerList | string | Comma separated list of server:port that specifies zookeeper servers | empty |
+| sessionTimeoutMillis | int | Zookeeper session timeout in milliseconds | 5000 |
+| connectionTimeoutMillis | int | Zookeeper connection timeout in milliseconds | 10000 |
+| group | string | Group to which this databus client belongs. e.g. all members of failover cluster will have the same group, will see the same shared-data | default-databus-group |
+| domain | string | Top level zookeeper path that defines the namespace for the family of applications e.g. all databus2 client groups will be under /databus2 | /Databus-Client-Domain |
+| name | string | Name of this databus client ,  ideally this should be unique within a group | default-name+randomInt |
+
+
+h2. Checkpoint Persistent Provider Configuration
+
+{anchor:cpPersistenceStaticConf}
+
+h3. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| existing | com.linkedin.databus.client.pub.CheckpointPersistenceProvider | A spring-wired existing checkpoint persistence provider if one has been specified. {{type}} needs to be {{EXISTING}} for this property to have an effect. NOTE: This is meaningful only for Spring-wired configurations. | *null* |
+| fileSystem | [File-system Checkpoint Persistence Provider Static Configuration|#fsCpPersistenceStaticConf] | The static configuration for the file system checkpoint persistence provider. {{type}} needs to be {{FILE_SYSTEM}} for this property to have an effect. | |
+| shared | [Shared-state Checkpoint Persistence Provider Static Configuration|#shCpPersitenceStaticConf] | The static configuration for the shared state checkpoint persistence provider. {{type}} needs to be {{SHARED}} for this property to have an effect. [Shared State Cluster|#clusterStaticConf] must be appropriately configured. \\
+Note that if mode=SHARED and databus.client.cluster.enabled=false or if databus.client.cluster.clusterServerList is empty, a config exception is thrown. \\ | |
+| runtime | [Checkpoint Persistent Provider Runtime Configuration|#cpPersistenceRuntimeConf] | The runtime configuration for the checkpoint persistence provider | |
+| type | FILE_SYSTEM, SHARED, EXISTING, NONE | The type of the checkpoint persistence provider.
+* FILE_SYSTEM specifies to store the checkpoints in a directory on a local file system
+* SHARED specifies to store the checkpoints in shared state; in the current implementation Zookeeper provides the shared-state storage
+* EXISTING specifies to use a Spring-wired checkpoint persistence provider
+* NONE specifies not to persist checkpoints (*Use at your own risk\!*) | FILE_SYSTEM |
+| clearBeforeUse | Boolean | A flag that indicates whether to clear any existing persisted checkpoints on first use | false |
+
+{anchor:cpPersistenceRuntimeConf}
+
+h3. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| fileSystem | [File-system Checkpoint Persistence Provider Runtime Configuration|#fsCpPersistenceRuntimeConf] | Runtime configuration for the file system checkpoint persistence provider | |
+
+h3. File System Checkpoint Persistence Provider Configuration
+
+{anchor:fsCpPersistenceStaticConf}
+
+h4. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| rootDirectory | String | The root directory for all checkpoint files. | ./databus2-checkpoints |
+| runtime | [File-system Checkpoint Persistence Provider Runtime Configuration|#fsCpPersistenceRuntimeConf] | The runtime configuration properties | |
+
+{anchor:fsCpPersistenceRuntimeConf}
+
+h4. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| historySize | Integer | The number of archived checkpoints to store | 5 |
+| historyEnabled | Boolean | A flag that indicates if the provider should archive previously-persisted checkpoints | true |
+
+{anchor:shCpPersitenceStaticConf}
+
+h3. Shared Checkpoint Persistence Provider Configuration
+
+h4. Static Configuration
+
+|| Property name \\ || Type \\ || Description \\ || Default value \\ ||
+| maxNumWritesSkipped \\ | int \\ | Specifies the number of checkpoint persistence skipped before committing to shared storage \\ | 0 \\ |
+| sharedDirectory (not available) \\ | string \\ | Specifies the directory within zookeeper where shared data is written \\ | shareddata \\ |
+
+{anchor:sourcesConnStaticConf}
+
+h2. Databus Sources Connection Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| checkpointThresholdPct | Double | The percentage of event buffer occupancy that will trigger a checkpoint attempt. This is to ensure that we can make progress in large event windows without having to reprocess them entirely in case of a failure. | 90.0 |
+| consumerParallelism | Integer | Max number of consumers that can be called in parallel to process an event | 1 |
+| consumerTimeBudgetMs | Integer | Max time that a consumer should use to process an event before it is considered failed | 300000 |
+| eventBuffer | [Event Buffer Static Configuration|#eventBufferStaticConf] | The relay event buffer static configuration. Currently, this is also used for the bootstrapping event buffer. | |
+| pullerRetries | [Retries Static Configuration|#retriesStaticConf] | Pull requests and error retries configuration when talking to the relays or bootstrap servers. NOTE: {{initSleep}} is used to determine the sleep between subsequent pull requests from the relay | initSleep=100  |
+| dispatcherRetries | [Retries Static Configuration|#retriesStaticConf] | Error retries configuration calling the consumer code | |
+
+h2. Logging Consumer Configuration
+
+{anchor:loggingConsumerStaticConf}
+
+h3. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| runtime | [Logging Consumer Runtime Configuration|#loggingConsumerRuntimeConf] | Runtime configuration properties | |
+| logTypedValue | Boolean | A flag that indicates if the consumer should log the typed value of data events as JSON | false |
+
+{anchor:loggingConsumerRuntimeConf}
+
+h3. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | A flag that indicates if the consumer is enabled | true |
+| logLevel | FATAL, ERROR, WARN, INFO, DEBUG, TRACE, OFF | The logging level to be used by the consumer | INFO |
+| verbosity | EVENTS_ONLY, EVENT_WINDOWS, ALL | The verbosity of the consumer, that is, which events are to be logged.
+* {{EVENTS_ONLY}} \- only {{onEvent()}} and {{onBootstrapEvent()}} calls are logged
+* {{EVENT_WINDOWS}} \- all calls in {{EVENTS_ONLY}} plus {{start/endEventSequence()}} and {{start/endBootstrapSequence()}} are logged
+* {{ALL}} \- all calls are logged | {{EVENT_WINDOWS}} |
+| validityCheckEnabled | Boolean | A flag that indicates if the consumer should check the validity of the events it gets | true |
+
+
+h1. Common Configuration Options
+
+h2. Netty Serving Container Configuration
+
+{anchor:serverContainerStaticConf}
+
+h3. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| httpPort | Integer | HTTP port to listen on | 8080 |
+| id | Integer | Container ID | Hash(hostname) + port |
+| inboundEventsStatsCollector | [Event traffic statistics collector static configuration|#eventsStatsCollectorStaticConf] | Static configuration of the statistics collector for the inbound event traffic | |
+| jmx | [JMX static configuration|#jmxStaticConf] | JMX static configuration | |
+| outboundEventsStatsCollector | [Event traffic statistics collector static configuration|#eventsStatsCollectorStaticConf] | Static configuration of the statistics collector for the outbound event traffic | |
+| runtime | [Netty serving container runtime configuration|#serverContainerRuntimeConf] | Runtime configuration | |
+| statsCollector | [Network traffic statistics collector static configuration|#nettyStatsCollectorStaticConf] | Static configuration for the netty container statistics collector | |
+| healthcheckPath | String | Path on which the healthcheck will respond (sans the initial /) | admin |
+| readTimeoutMs | Long | Timeout for reading parts of HTTP requests (in milliseconds) | 15000 |
+| writeTimeoutMs | Long | Timeout for confirmation from the peer when sending a response | 15000 |
+| tcp | [TCP Static Config|#tcpStaticConf] | Static configuration for the TCP command interface | | 
+
+
+{anchor:serverContainerRuntimeConf}
+
+h3. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| defaultExecutor | [Executor Runtime Configuration|#executorRuntimeConfig] | Runtime configuration for the request executor threads pool | |
+| ioExecutor | [Executor Runtime Configuration|#executorRuntimeConfig] | Runtime configuration for the io threads pool | |
+| statsCollector | [Netty Statistics Collector Runtime Configuration|#nettyStatsCollectorRuntimeConf] | Runtime configuration for the statistics collector | |
+| inboundEventsStatsCollector | [Events statistics collector runtime configuration|#eventsStatsCollectorRuntimeConf] | Runtime configuration for the inbound event traffic statistics collector | |
+| outboundEventsStatsCollector | [Events statistics collector runtime configuration|#eventsStatsCollectorRuntimeConf] | Runtime configuration for the outbound event traffic statistics collector | |
+| requestProcessingBudgetMs | Integer | Maximum time in milliseconds to process a request before interrupting the request processing | 100 |
+| statsCollector | [Netty statistics collector runtime configuration|#nettyStatsCollectorRuntimeConf] | Runtime configuration for the netty statistics collector | |
+
+
+Example
+
+{code}
+databus.relay.container.requestProcessingBudgetMs = 60000
+databus.relay.container.defaultExecutor.maxThreadsNum = 200
+databus.relay.container.defaultExecutor.coreThreasdNum = 100
+databus.client.container.statsCollector.enabled = false
+{code}
+
+{anchor:executorRuntimeConfig}
+
+h3. Executor Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| maxThreadsNum | Integer | The maximum number of threads | 100 |
+| coreThreadsNum | Integer | The default number of threads | 50 |
+| keepAliveMs | Integer | The time in milliseconds to keep an idle thread above the {{coreThreadsNum}} threshold idle before killing them | 60000 |
+
+h3. Netty Statistics Collector Configuration
+
+{anchor:nettyStatsCollectorStaticConf}
+
+h4. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| runtime | [Netty Statistics Collector Runtime Configuration|#nettyStatsCollectorRuntimeConf] | Runtime configuration for container statistics collection | |
+
+
+{anchor:nettyStatsCollectorRuntimeConf}
+
+h4. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | Enables/disables container statistics collection | true |
+
+{anchor:jmxStaticConf}
+
+h3. JMX Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| rmiEnabled | Boolean |  A flag if the RMI connector is to be enabled | true |
+| jmxServicePort | Integer | The port for the JMX service | 9999 |
+| jmxServiceHost | String | The hostname for the JMX service | localhost |
+| rmiRegistryPort | Integer | The port of the RMI registry where the JMX server will be registered | 1099 |
+| rmiRegistryHost | String | The hostname of the RMI registry where the JMX server will be registered | localhost |
+
+{anchor:eventBufferStaticConf}
+
+h2. Event Buffer Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| allocationPolicy | HEAP_MEMORY, DIRECT_MEMORY, MMAPPED_MEMORY | Allocation policy for the eventBuffer. Controls if the event buffer should be allocated as a jvm heap buffer, direct buffer (not GC-ed) or mmapped buffer. | MMAPPED_MEMORY if maxSize > 10000; HEAP_MEMORY otherwise |
+| defaultMemUsage | Double | The fraction of available memory to be used by the event buffer if no {{maxSize}} has been explicitly specified | 0.75 |
+| maxIndividualBufferSize | Integer | The maximum size of one single sub-buffer in the event buffer for data | 500000000 |
+| maxSize | Long | The maximum size of the buffer | 0.8 * {{defaultMemUsage}} \* (available memory) |
+| mmapDirectory | String | Top-level directory for mmapped files. Session directories are located under the mmapDirectory and cleaned up on jvm exit. Ideally mmapDirectory and eventLogWriter.topLevelDir should be located on different disks for optimum performance. | mmapDir |
+| queuePolicy | BLOCK_ON_WRITE, OVERWRITE_ON_WRITE | The queueing policy for the event buffer. A flag if the event buffer should overwrite the oldest events if there is no space (OVERWRITE_ON_WRITE) for new events or whether it should block (BLOCK_ON_WRITE). | OVERWRITE_ON_WRITE |
+| readBufferSize | Integer | The amount of memory to be used for the event buffer for read buffering | 0.1 * {{defaultMemUsage}} \* (available memory) |
+| scnIndexSize | Integer | The amount of memory to be used for the event buffer for the SCN index | 0.1 * {{defaultMemUsage}} \* (available memory) |
+| existingBuffer | com.linkedin.databus.core.DbusEventBuffer | Dependency injection to an existing event buffer \\
+NOTE: Only meaningful in Spring configurations | none |
+
+{code}
+databus.relay.eventBuffer.maxSize=2048000000
+databus.client.eventBuffer.maxSize=10000000
+{code}
+
+
+h2. Events Statistics Collector Configuration
+
+{anchor:eventsStatsCollectorStaticConf}
+
+h3. Static configuration
+
+|| Property name || Type || Description || Default value ||
+| runtime | [Events Statistics Collector Runtime Configuration|#eventsStatsCollectorRuntimeConf] | Runtime configuration for container statistics collection | |
+
+
+{anchor:eventsStatsCollectorRuntimeConf}
+
+h3. Runtime configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | Enables/disables events statistics collection | true |
+
+
+h2. HTTP Calls Statistics Collector Configuration
+
+{anchor:relayHttpStatsCollectorStaticConf}
+
+h3. Static Configuration
+
+|| Property name || Type || Description || Default value ||
+| runtime | [HTTP Calls Statistics Collector|#relayHttpStatsCollectorRuntimeConf] | Runtime configuration | |
+
+{anchor:relayHttpStatsCollectorRuntimeConf}
+
+h3. Runtime Configuration
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | A flag that indicates if the statistics collector is enabled and if it will update the stats counters | false |
+
+{anchor:tcpStaticConf}
+h2. TCP Static Configuration 
+
+|| Property name || Type || Description || Default value ||
+| enabled | Boolean | A flag if the TCP command interface is to be enabled | false |
+| port | int | The port for the TCP command interface | 8180 |
+
+
+{anchor:serverConf}
+
+{anchor:retriesStaticConf}
+h2. Retries Configuration
+
+|| Property name || Type || Description || Default value ||
+| initSleep | Long | base sleep (when no errors) in milliseconds | 0 |
+| maxSleep | Long | the maximum sleep between retries in milliseconds | 60000 |
+| sleepIncFactor | Double | The exponential increase part in the sleep | 2.0 |
+| sleepIncDelta | Long | The linear increase part in the sleep | 1 |
+| maxRetryNum | Integer | Max number of error retries before giving up; < 0 infinite retries | 10 | 
+
+h2. Server Configuration
+
+|| Property name || Type || Description || Default value ||
+| host | String | Host name or IP address of the server | localhost |
+| id | Integer | Container ID of the server | \-1 |
+| name | String | A name that identifies the server | {{host}}\[{{id}}\] |
+| port | Integer | The HTTP port on which the server listens | 8080 |
+| sources | String | Comma-separated list of sources supported by the server | *empty* |
+
+
+h1. List of all top-level properties
+
+* Relay Java properties: [http://svn.corp.linkedin.com:8070/viewvc/netrepo/databus2/trunk/config/relay-config-template.properties?view=markup]

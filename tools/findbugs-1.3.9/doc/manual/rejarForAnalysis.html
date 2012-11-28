@@ -1,0 +1,33 @@
+<html><head>
+      <meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+   <title>Chapter&nbsp;11.&nbsp;Using rejarForAnalysis</title><meta name="generator" content="DocBook XSL Stylesheets V1.71.1"><link rel="start" href="index.html" title="FindBugs&#8482; Manual"><link rel="up" href="index.html" title="FindBugs&#8482; Manual"><link rel="prev" href="annotations.html" title="Chapter&nbsp;10.&nbsp;Annotations"><link rel="next" href="datamining.html" title="Chapter&nbsp;12.&nbsp;Data mining of bugs with FindBugs&#8482;"></head><body bgcolor="white" text="black" link="#0000FF" vlink="#840084" alink="#0000FF"><div class="navheader"><table width="100%" summary="Navigation header"><tr><th colspan="3" align="center">Chapter&nbsp;11.&nbsp;Using rejarForAnalysis</th></tr><tr><td width="20%" align="left"><a accesskey="p" href="annotations.html">Prev</a>&nbsp;</td><th width="60%" align="center">&nbsp;</th><td width="20%" align="right">&nbsp;<a accesskey="n" href="datamining.html">Next</a></td></tr></table><hr></div><div class="chapter" lang="en"><div class="titlepage"><div><div><h2 class="title"><a name="rejarForAnalysis"></a>Chapter&nbsp;11.&nbsp;Using rejarForAnalysis</h2></div></div></div><p>
+If your project consists of many jarfiles or the jarfiles are scattered
+over many directories, you may wish to use the <span><strong class="command">rejarForAnalysis
+</strong></span> script to make
+FindBugs invocation easier.  The script collects many jarfiles and combines them
+into a single, large jarfile that can then be easily passed to FindBugs for
+analysis.  This can be particularly useful in combination with the 'find' command
+on unix systems; e.g. <span><strong class="command">find . -name '*.jar' | xargs rejarForAnalysis
+</strong></span>.
+</p><p>
+The <span><strong class="command">rejarForAnalysis</strong></span> script
+can also be used to split a very large project up into a set of jarfiles with
+the project classfiles evenly divided between them.  This is useful when running
+FindBugs on the entire project is not practical due to time or memory consumption.
+Instead of running FindBugs on the entire project, you may use <span><strong class="command">
+rejarForAnalysis</strong></span> build one large, all-inclusive jarfile
+containing all classes, invoke <span><strong class="command">rejarForAnalysis</strong></span>
+again to split the project into multiple jarfiles, then run FindBugs
+on each divided jarfiles in turn, specifying the the all-inclusive jarfile in
+the <span><strong class="command">-auxclasspath</strong></span>.
+</p><p>
+These are the options accepted by the <span><strong class="command">rejarForAnalysis</strong></span> script:
+</p><div class="variablelist"><dl><dt><span class="term"><span><strong class="command">-maxAge</strong></span> <em class="replaceable"><code>days</code></em></span></dt><dd><p>
+       Maximum age in days (ignore jar files older than this).
+       </p></dd><dt><span class="term"><span><strong class="command">-inputFileList</strong></span> <em class="replaceable"><code>filename</code></em></span></dt><dd><p>
+       Text file containing names of jar files.
+       </p></dd><dt><span class="term"><span><strong class="command">-maxClasses</strong></span> <em class="replaceable"><code>num</code></em></span></dt><dd><p>
+       Maximum number of classes per analysis*.jar file.
+       </p></dd><dt><span class="term"><span><strong class="command">-prefix</strong></span> <em class="replaceable"><code>class name prefix</code></em></span></dt><dd><p>
+       Prefix of class names that should be analyzed (e.g., edu.umd.cs.).
+       </p></dd></dl></div></div><div class="navfooter"><hr><table width="100%" summary="Navigation footer"><tr><td width="40%" align="left"><a accesskey="p" href="annotations.html">Prev</a>&nbsp;</td><td width="20%" align="center">&nbsp;</td><td width="40%" align="right">&nbsp;<a accesskey="n" href="datamining.html">Next</a></td></tr><tr><td width="40%" align="left" valign="top">Chapter&nbsp;10.&nbsp;Annotations&nbsp;</td><td width="20%" align="center"><a accesskey="h" href="index.html">Home</a></td><td width="40%" align="right" valign="top">&nbsp;Chapter&nbsp;12.&nbsp;Data mining of bugs with <span class="application">FindBugs</span>&#8482;</td></tr></table></div></body></html>

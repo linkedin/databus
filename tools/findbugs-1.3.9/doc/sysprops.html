@@ -1,0 +1,205 @@
+<html>
+<head>
+<title>FindBugs Optional System Properties</title>
+<link rel="stylesheet" type="text/css" href="findbugs.css">
+</head>
+<body>
+
+<table width="100%"><tr>
+
+
+<td bgcolor="#b9b9fe" valign="top" align="left" width="20%"> 
+<table width="100%" cellspacing="0" border="0"> 
+<tr><td><a class="sidebar" href="index.html"><img src="umdFindbugs.png" alt="FindBugs"></a></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><b>Docs and Info</b></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="demo.html">Demo and data</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="users.html">Users and supporters</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://findbugs.blogspot.com/">FindBugs blog</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="factSheet.html">Fact sheet</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="manual/index.html">Manual</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="ja/manual/index.html">Manual(ja/&#26085;&#26412;&#35486;)</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="FAQ.html">FAQ</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="bugDescriptions.html">Bug descriptions</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="mailingLists.html">Mailing lists</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="publications.html">Documents and Publications</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="links.html">Links</a></font></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><a class="sidebar" href="downloads.html"><b>Downloads</b></a></td></tr> 
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><a class="sidebar" href="http://www.cafeshops.com/findbugs"><b>FindBugs Swag</b></a></td></tr>
+
+<tr><td>&nbsp;</td></tr>
+
+<tr><td><b>Development</b></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://sourceforge.net/tracker/?group_id=96405">Open bugs</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="reportingBugs.html">Reporting bugs</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="contributing.html">Contributing</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="team.html">Dev team</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="api/index.html">API</a> <a class="sidebar" href="api/overview-summary.html">[no frames]</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="Changes.html">Change log</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://sourceforge.net/projects/findbugs">SF project page</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://code.google.com/p/findbugs/source/browse/">Browse source</a></font></td></tr> 
+<tr><td><font size="-1"><a class="sidebar" href="http://code.google.com/p/findbugs/source/list">Latest code changes</a></font></td></tr> 
+</table> 
+</td>
+
+<td align="left" valign="top">
+
+<h1>FindBugs Optional System Properties</h1>
+
+<p> These system properties can be added to the command line to alter the way
+findbugs works. These options should be considered experimental. The description
+gives information if the field is set to true.
+</p>
+
+<table width="100%" border="1">
+	<tr bgColor="#F0F0F0"><th>System Property</th><th>Description</th></tr>
+	
+	<tr>
+		<td>findbugs.assertionmethods</td>
+		<td>methods supplied by user that have assertions</td>
+	</tr>
+	<tr>
+		<td>findbugs.checkreturn.loadtraining
+			<br/>findbugs.checkreturn.savetraining</td>
+		<td>file name to read/write list of methods whose return values must be checked</td>
+	</tr>
+	<tr>
+		<td>findbugs.de.comment</td>
+		<td>Don't report empty catch blocks if a source comment is found in the block.</td>
+	</tr>
+	<tr>
+		<td>findbugs.dls.exclusions</td>
+		<td>local variables that will be excluded from Dead Local Store</td>
+	</tr>
+	<tr>
+		<td>findbugs.fis.unsyncFactor</td>
+		<td>Default value is 2.0, which means that we report a bug if more than 1/3 of accesses are unsynchronized.</td>
+	</tr>
+	<tr>
+		<td>findbugs.fis.writeBias</td>
+		<td>Default value is 2.0. The idea is that this should be above 1.0, because unsynchronized writes are more dangerous than unsynchronized reads.</td>
+	</tr>
+	<tr>
+		<td>fundbugs.gui.bugCount</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>findbugs.maskedfields.locals</td>
+		<td>Report on local variables that mask fields.</td>
+	</tr>
+	<tr>
+		<td>findbugs.noSummary</td>
+		<td>Don't create the report summary</td>
+	</tr>
+	<tr>
+		<td>findbugs.nullderef.assumensp</td>
+		<td>sets value for IsNullValueAnalysisFeatures.UNKNOWN_VALUES_ARE_NSP, but is not used by FindBugs</td>
+	</tr>
+	<tr>
+		<td>findbugs.refcomp.reportAll</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>findbugs.report.SummaryHTML</td>
+		<td>emit SummaryHTML element</td>
+	</tr>
+	<tr>
+		<td>findbugs.sf.comment</td>
+		<td>Ignore switch fall thru bugs if a comment is found with 'fall' or 'nobreak'
+	</tr>
+	<tr>
+		<td>ba.checkAssertions</td>
+		<td>throw excptions on certain illegal class type signatures</td>
+	</tr>
+	<tr>
+		<td>ba.verifyIntegrity</td>
+		<td>enable data structure integrity checks</td>
+	</tr>
+	<tr>
+		<td>BCPMethodReturnCheck.java</td>
+		<td>Add methods to the list requiring a check. (format: "class:method:sig|...")</td>
+	</tr>
+	<tr>
+		<td>dataflow.stackonly</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>fis.eval</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>fis.noAdjustSubclass</td>
+		<td>Adjust field so its class name is the same as the type of reference it is accessed through.</td>
+	</tr>
+	<tr>
+		<td>fos.allowWUS</td>
+		<td>Ignore wrapping streams that are wrapping uninteresting streams (like in memory streams).</td>
+	</tr>
+	<tr>
+		<td>ic.createInstance</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>inva.ncpExtraBranch</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>inva.noAssertHack</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>inva.noSplitDowngradeNSP</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>inva.noSwitchDefaultAsException</td>
+		<td>Don't consider switch default cases as exception paths.</td>
+	</tr>
+	<tr>
+		<td>lineNumberBug</td>
+		<td>Disable the workaround for the bug in BCEL 5.0's LineNumberTable class.</td>
+	</tr>
+	<tr>
+		<td>ma.ugly</td>
+		<td>Report method signature with method class and name.</td>
+	</tr>
+	<tr>
+		<td>mrc.checkall</td>
+		<td>Check for 1.5-specific method return values being ignored even if runtime Java predates 1.5.</td>
+	</tr>
+	<tr>
+		<td>ta.accurateExceptions</td>
+		<td>?</td>
+	</tr>
+	<tr>
+		<td>vna.noRLE</td>
+		<td>Perform redundant load elimination and forward substitution (but not in a correctness-preserving way).</td>
+	</tr>
+
+</table>
+
+
+<hr> <p> 
+<script language="JavaScript" type="text/javascript"> 
+<!---//hide script from old browsers 
+document.write( "Last updated "+ document.lastModified + "." ); 
+//end hiding contents ---> 
+</script> 
+<p> Send comments to <a class="sidebar" href="mailto:findbugs@cs.umd.edu">findbugs@cs.umd.edu</a> 
+<p> 
+<A href="http://sourceforge.net"><IMG src="http://sourceforge.net/sflogo.php?group_id=96405&amp;type=5" width="210" height="62" border="0" alt="SourceForge.net Logo" /></A>
+
+</td>
+
+</tr></table>
+
+</body>
+</html>

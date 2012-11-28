@@ -1,0 +1,9 @@
+create sequence SY$SCN_SEQ
+ increment by 1
+ start with 1000
+ maxvalue 999999999999999999999999999
+ minvalue 1000
+ nocycle
+ cache 20
+/
+

@@ -1,0 +1,16 @@
+\section{Conclusion and Future Work}
+In this paper, we've introduced Databus, LinkedIn's change data capture pipeline. 
+Databus supports partitioned and non-partitioned transactional sources, very granular subscription capabilities and full re-processing of the entire data set while providing very low latencies and scaling to thousands of consumers with diverse consumption patterns. 
+The interesting challenges we faced were mostly in the areas of:
+\begin{itemize*}
+\item low-level systems design in building a low-latency high-throughput buffer that can scale to arbitrary size while supporting deep filtering on records.
+\item building an algorithm that can support consumers catching up from arbitrary points in time while maintaining a bounded amount of persistent state.
+\item layering the architecture in a way that is conducive to integration with a variety of data source technologies and amenable to flexible deployment strategies.
+\end{itemize*}
+
+Databus will be used as the internal replication technology for Espresso~\cite{linkedin12}, our distributed data platform solution. Databus will also provide external subscribers the capability to listen to the changes happening to the base dataset. We intend to explore some interesting avenues in the future. 
+\begin{itemize*}
+\item \emph{Relay-Client Protocol}: The current relay-client protocol is poll based. The client polls frequently to fetch new changes. With lots of clients polling frequently, this can lead to unnecessary resource utilization at the relay. We plan to add support for a streaming protocol, so that the client can make a request and just continue to read new changes off the response stream. This will lead to lower latencies as well as lower resource consumption. 
+\item \emph{User defined processing}: The current subscription model allows consumers to pass in pre-defined filters for the changes that they are interested in consuming. We would like to extend that to support running user-defined processing on top of the stream. 
+\item \emph{Change-capture for eventually consistent systems}: Our current implementation requires the source to provide a single transaction log or a set of partitioned transaction logs. Systems like Voldemort~\cite{linkedin12} do not fit into either category. It would be interesting to extend Databus to support such systems as data sources. 
+\end{itemize*}

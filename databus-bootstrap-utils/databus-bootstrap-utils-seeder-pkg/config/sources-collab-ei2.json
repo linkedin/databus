@@ -1,0 +1,23 @@
+{
+    "name" : "collab",
+    "uri" : "jdbc:oracle:thin:collab/collab8uat@//eat1-dc1-eidb-collab.stg.linkedin.com:1521/EI_EIDB_COLLAB",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1401, 
+         "name": "com.linkedin.events.collab.TeamRelationships", 
+         "uri" : "collab.SY$TEAM_RELATIONSHIPS",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 1402, 
+         "name": "com.linkedin.events.collab.Teams", 
+         "uri" : "collab.SY$TEAMS",
+         "partitionFunction" : "constant:1"
+        },
+        {"id" : 1403, 
+         "name": "com.linkedin.events.collab.MemberData", 
+         "uri" : "collab.SY$MEMBER_DATA",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

@@ -1,0 +1,9 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-group-leader:databus-group-leader-api')
+  compile project(':databus-group-leader:databus-group-leader-impl')
+
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+}

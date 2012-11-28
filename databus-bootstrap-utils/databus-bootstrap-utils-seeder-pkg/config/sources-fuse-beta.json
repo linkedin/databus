@@ -1,0 +1,13 @@
+{
+    "name" : "fuse",
+    "uri" : "jdbc:oracle:thin:Encrypted-AES/CBC/PKCS5Padding(03XW5O0gOD3Dzf-uND6Uoo,1KHoSMqM8exx2MU9qG9H-8,umlHnS9A)@esv4-db20.stg:1521:SCM",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 1001, 
+         "name": "com.linkedin.events.fuse.MemberRestriction", 
+         "uri" : "fuse.Member_Restriction",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}

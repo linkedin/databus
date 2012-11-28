@@ -1,0 +1,1040 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>FindBugs Report</title>
+<style type="text/css">
+		.tablerow0 {
+			background: #EEEEEE;
+		}
+
+		.tablerow1 {
+			background: white;
+		}
+
+		.detailrow0 {
+			background: #EEEEEE;
+		}
+
+		.detailrow1 {
+			background: white;
+		}
+
+		.tableheader {
+			background: #b9b9fe;
+			font-size: larger;
+		}
+
+		.tablerow0:hover, .tablerow1:hover {
+			background: #aaffaa;
+		}
+
+		.priority-1 {
+		    color: red;
+		    font-weight: bold;
+		}
+		.priority-2 {
+		    color: orange;
+		    font-weight: bold;
+		}
+		.priority-3 {
+		    color: green;
+		    font-weight: bold;
+		}
+		.priority-4 {
+		    color: blue;
+		    font-weight: bold;
+		}
+		</style>
+<script type="text/javascript">
+			function toggleRow(elid) {
+				if (document.getElementById) {
+					element = document.getElementById(elid);
+					if (element) {
+						if (element.style.display == 'none') {
+							element.style.display = 'block';
+							//window.status = 'Toggle on!';
+						} else {
+							element.style.display = 'none';
+							//window.status = 'Toggle off!';
+						}
+					}
+				}
+			}
+		</script>
+</head>
+<body>
+<h1>
+<a href="http://findbugs.sourceforge.net">FindBugs</a> Report</h1>
+<h2>Project Information</h2>
+<p>Project: 
+		databus</p>
+<p>FindBugs version: 1.3.9</p>
+<p>Code analyzed:</p>
+<ul>
+<li>/Users/cbotev/projects/databus2/build/databus-core/impl/classes</li>
+</ul>
+<p>
+<br/>
+<br/>
+</p>
+<h2>Metrics</h2>
+<p>4978 lines of code analyzed,
+	in 93 classes, 
+	in 4 packages.</p>
+<table width="500" cellpadding="5" cellspacing="2">
+<tr class="tableheader">
+<th align="left">Metric</th>
+<th align="right">Total</th>
+<th align="right">Density*</th>
+</tr>
+<tr class="tablerow0">
+<td>High Priority Warnings</td>
+<td align="right">11</td>
+<td align="right">2.21</td>
+</tr>
+<tr class="tablerow1">
+<td>Medium Priority Warnings</td>
+<td align="right">25</td>
+<td align="right">5.02</td>
+</tr>
+<tr class="$totalClass">
+<td>
+<b>Total Warnings</b>
+</td>
+<td align="right">
+<b>36</b>
+</td>
+<td align="right">
+<b>7.23</b>
+</td>
+</tr>
+</table>
+<p>
+<i>(* Defects per Thousand lines of non-commenting source statements)</i>
+</p>
+<p>
+<br/>
+<br/>
+</p>
+<h2>Contents</h2>
+<ul>
+<li>
+<a href="#Warnings_BAD_PRACTICE">Bad practice Warnings</a>
+</li>
+<li>
+<a href="#Warnings_CORRECTNESS">Correctness Warnings</a>
+</li>
+<li>
+<a href="#Warnings_EXPERIMENTAL">Experimental Warnings</a>
+</li>
+<li>
+<a href="#Warnings_MALICIOUS_CODE">Malicious code vulnerability Warnings</a>
+</li>
+<li>
+<a href="#Warnings_MT_CORRECTNESS">Multithreaded correctness Warnings</a>
+</li>
+<li>
+<a href="#Warnings_PERFORMANCE">Performance Warnings</a>
+</li>
+<li>
+<a href="#Warnings_STYLE">Dodgy Warnings</a>
+</li>
+<li>
+<a href="#Details">Details</a>
+</li>
+</ul>
+<h1>Summary</h1>
+<table width="500" cellpadding="5" cellspacing="2">
+<tr class="tableheader">
+<th align="left">Warning Type</th>
+<th align="right">Number</th>
+</tr>
+<tr class="tablerow0">
+<td>
+<a href="#Warnings_BAD_PRACTICE">Bad practice Warnings</a>
+</td>
+<td align="right">15</td>
+</tr>
+<tr class="tablerow1">
+<td>
+<a href="#Warnings_CORRECTNESS">Correctness Warnings</a>
+</td>
+<td align="right">1</td>
+</tr>
+<tr class="tablerow0">
+<td>
+<a href="#Warnings_EXPERIMENTAL">Experimental Warnings</a>
+</td>
+<td align="right">1</td>
+</tr>
+<tr class="tablerow1">
+<td>
+<a href="#Warnings_MALICIOUS_CODE">Malicious code vulnerability Warnings</a>
+</td>
+<td align="right">8</td>
+</tr>
+<tr class="tablerow0">
+<td>
+<a href="#Warnings_MT_CORRECTNESS">Multithreaded correctness Warnings</a>
+</td>
+<td align="right">1</td>
+</tr>
+<tr class="tablerow1">
+<td>
+<a href="#Warnings_PERFORMANCE">Performance Warnings</a>
+</td>
+<td align="right">4</td>
+</tr>
+<tr class="tablerow0">
+<td>
+<a href="#Warnings_STYLE">Dodgy Warnings</a>
+</td>
+<td align="right">6</td>
+</tr>
+<tr class="tablerow1">
+<td>
+<b>Total</b>
+</td>
+<td align="right">
+<b>36</b>
+</td>
+</tr>
+</table>
+<h1>Warnings</h1>
+<p>Click on a warning row to see full context information.</p>
+<h2>
+<a name="Warnings_BAD_PRACTICE">Bad practice Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66264');">
+<td>
+<span class="priority-2">BC</span>
+</td>
+<td>Equals method for com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig assumes the argument is of type DbusEventsStatisticsCollector$RuntimeConfig</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66264" style="display: none;">
+<a href="#BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS">Bug type BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS (click for details)</a>
+<br/>In class com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig<br/>In method com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig.equals(Object)<br/>At DbusEventsStatisticsCollector.java:[line 387]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66374');">
+<td>
+<span class="priority-2">BC</span>
+</td>
+<td>Equals method for com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig assumes the argument is of type DbusEventsStatisticsCollector$StaticConfig</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66374" style="display: none;">
+<a href="#BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS">Bug type BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS (click for details)</a>
+<br/>In class com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig<br/>In method com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig.equals(Object)<br/>At DbusEventsStatisticsCollector.java:[line 454]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67170');">
+<td>
+<span class="priority-2">Eq</span>
+</td>
+<td>com.linkedin.databus.core.util.Range defines compareTo(Range) and uses Object.equals()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67170" style="display: none;">
+<a href="#EQ_COMPARETO_USE_OBJECT_EQUALS">Bug type EQ_COMPARETO_USE_OBJECT_EQUALS (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.Range<br/>In method com.linkedin.databus.core.util.Range.compareTo(Range)<br/>At Range.java:[lines 73-79]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66319');">
+<td>
+<span class="priority-1">HE</span>
+</td>
+<td>com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig defines equals and uses Object.hashCode()</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66319" style="display: none;">
+<a href="#HE_EQUALS_USE_HASHCODE">Bug type HE_EQUALS_USE_HASHCODE (click for details)</a>
+<br/>In class com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig<br/>In method com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$RuntimeConfig.equals(Object)<br/>At DbusEventsStatisticsCollector.java:[line 387]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66429');">
+<td>
+<span class="priority-1">HE</span>
+</td>
+<td>com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig defines equals and uses Object.hashCode()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66429" style="display: none;">
+<a href="#HE_EQUALS_USE_HASHCODE">Bug type HE_EQUALS_USE_HASHCODE (click for details)</a>
+<br/>In class com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig<br/>In method com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector$StaticConfig.equals(Object)<br/>At DbusEventsStatisticsCollector.java:[line 454]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N67526');">
+<td>
+<span class="priority-2">Nm</span>
+</td>
+<td>The field name com.linkedin.databus.core.util.RngUtils.Digits doesn't start with a lower case letter</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N67526" style="display: none;">
+<a href="#NM_FIELD_NAMING_CONVENTION">Bug type NM_FIELD_NAMING_CONVENTION (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.Digits<br/>In RngUtils.java</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67575');">
+<td>
+<span class="priority-2">Nm</span>
+</td>
+<td>The field name com.linkedin.databus.core.util.RngUtils.Letters doesn't start with a lower case letter</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67575" style="display: none;">
+<a href="#NM_FIELD_NAMING_CONVENTION">Bug type NM_FIELD_NAMING_CONVENTION (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.Letters<br/>In RngUtils.java</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N67624');">
+<td>
+<span class="priority-2">Nm</span>
+</td>
+<td>The field name com.linkedin.databus.core.util.RngUtils.LettersAndDigits doesn't start with a lower case letter</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N67624" style="display: none;">
+<a href="#NM_FIELD_NAMING_CONVENTION">Bug type NM_FIELD_NAMING_CONVENTION (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.LettersAndDigits<br/>In RngUtils.java</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67102');">
+<td>
+<span class="priority-2">OS</span>
+</td>
+<td>com.linkedin.databus.core.util.PropertiesHelper.loadProps(String) may fail to close stream</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67102" style="display: none;">
+<a href="#OS_OPEN_STREAM">Bug type OS_OPEN_STREAM (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.PropertiesHelper<br/>In method com.linkedin.databus.core.util.PropertiesHelper.loadProps(String)<br/>Need to close java.io.InputStream <br/>At PropertiesHelper.java:[line 192]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N65664');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>new com.linkedin.databus.core.DbusEventBuffer(long, int, int, int, DbusEventBuffer$AllocationPolicy, File, DbusEventBuffer$QueuePolicy, RelayEventTraceOption) ignores exceptional return value of java.io.File.delete()</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N65664" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.DbusEventBuffer<br/>In method new com.linkedin.databus.core.DbusEventBuffer(long, int, int, int, DbusEventBuffer$AllocationPolicy, File, DbusEventBuffer$QueuePolicy, RelayEventTraceOption)<br/>Called method java.io.File.delete()<br/>At DbusEventBuffer.java:[line 543]<br/>Another occurrence at DbusEventBuffer.java:[line 584]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N65838');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>com.linkedin.databus.core.EventLogWriter.getNextWriteFile() ignores exceptional return value of java.io.File.delete()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N65838" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogWriter<br/>In method com.linkedin.databus.core.EventLogWriter.getNextWriteFile()<br/>Called method java.io.File.delete()<br/>At EventLogWriter.java:[line 420]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N65909');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>com.linkedin.databus.core.EventLogWriter.queueWriteRequest() ignores exceptional return value of java.io.File.delete()</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N65909" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogWriter<br/>In method com.linkedin.databus.core.EventLogWriter.queueWriteRequest()<br/>Called method java.io.File.delete()<br/>At EventLogWriter.java:[line 273]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N65980');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>com.linkedin.databus.core.EventLogWriter.run() ignores exceptional return value of java.io.File.delete()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N65980" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogWriter<br/>In method com.linkedin.databus.core.EventLogWriter.run()<br/>Called method java.io.File.delete()<br/>At EventLogWriter.java:[line 146]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66051');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>com.linkedin.databus.core.EventLogWriter.run() ignores exceptional return value of java.io.File.mkdir()</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66051" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogWriter<br/>In method com.linkedin.databus.core.EventLogWriter.run()<br/>Called method java.io.File.mkdir()<br/>At EventLogWriter.java:[line 151]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66193');">
+<td>
+<span class="priority-2">RV</span>
+</td>
+<td>com.linkedin.databus.core.FileBasedEventTrackingCallback.openFile(String) ignores exceptional return value of java.io.File.createNewFile()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66193" style="display: none;">
+<a href="#RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">Bug type RV_RETURN_VALUE_IGNORED_BAD_PRACTICE (click for details)</a>
+<br/>In class com.linkedin.databus.core.FileBasedEventTrackingCallback<br/>In method com.linkedin.databus.core.FileBasedEventTrackingCallback.openFile(String)<br/>Called method java.io.File.createNewFile()<br/>At FileBasedEventTrackingCallback.java:[line 47]</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_CORRECTNESS">Correctness Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67673');">
+<td>
+<span class="priority-1">RV</span>
+</td>
+<td>Bad attempt to compute absolute value of signed 32-bit random integer in com.linkedin.databus.core.util.RngUtils.randomPositiveInt()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67673" style="display: none;">
+<a href="#RV_ABSOLUTE_VALUE_OF_RANDOM_INT">Bug type RV_ABSOLUTE_VALUE_OF_RANDOM_INT (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>In method com.linkedin.databus.core.util.RngUtils.randomPositiveInt()<br/>At RngUtils.java:[line 71]</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_EXPERIMENTAL">Experimental Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66963');">
+<td>
+<span class="priority-2">OBL</span>
+</td>
+<td>Method com.linkedin.databus.core.util.PropertiesHelper.loadProps(String) may fail to clean up java.io.InputStream</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66963" style="display: none;">
+<a href="#OBL_UNSATISFIED_OBLIGATION">Bug type OBL_UNSATISFIED_OBLIGATION (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.PropertiesHelper<br/>In method com.linkedin.databus.core.util.PropertiesHelper.loadProps(String)<br/>Reference type java.io.InputStream<br/>1 instances of obligation remaining<br/>Obligation to clean up resource created at PropertiesHelper.java:[line 192] is not discharged<br/>Path continues at PropertiesHelper.java:[line 197]<br/>Path continues at PropertiesHelper.java:[line 198]<br/>Path continues at PropertiesHelper.java:[line 200]<br/>Path continues at PropertiesHelper.java:[line 205]<br/>Path continues at PropertiesHelper.java:[line 206]<br/>Remaining obligations: {InputStream x 1}</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_MALICIOUS_CODE">Malicious code vulnerability Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66484');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.ByteSizeConstants.ONE_KILOBYTE_IN_BYTES isn't final but should be</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66484" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.ByteSizeConstants<br/>Field com.linkedin.databus.core.util.ByteSizeConstants.ONE_KILOBYTE_IN_BYTES<br/>At ByteSizeConstants.java:[line 5]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66537');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.ByteSizeConstants.ONE_MEGABYTE_IN_BYTES isn't final but should be</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66537" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.ByteSizeConstants<br/>Field com.linkedin.databus.core.util.ByteSizeConstants.ONE_MEGABYTE_IN_BYTES<br/>At ByteSizeConstants.java:[line 6]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66645');">
+<td>
+<span class="priority-2">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector should be package protected</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66645" style="display: none;">
+<a href="#MS_PKGPROTECT">Bug type MS_PKGPROTECT (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.DatabusEventRandomProducer<br/>Field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector<br/>At DatabusEventRandomProducer.java:[line 40]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N67261');">
+<td>
+<span class="priority-2">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.RngUtils.schemaMd5 should be both final and package protected</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N67261" style="display: none;">
+<a href="#MS_FINAL_PKGPROTECT">Bug type MS_FINAL_PKGPROTECT (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.schemaMd5<br/>At RngUtils.java:[line 18]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67314');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.RngUtils.Digits isn't final but should be</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67314" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.Digits<br/>At RngUtils.java:[line 13]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N67367');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.RngUtils.Letters isn't final but should be</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N67367" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.Letters<br/>At RngUtils.java:[line 12]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67420');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.RngUtils.LettersAndDigits isn't final but should be</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67420" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.LettersAndDigits<br/>At RngUtils.java:[line 14]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N67473');">
+<td>
+<span class="priority-1">MS</span>
+</td>
+<td>com.linkedin.databus.core.util.RngUtils.seededRandom isn't final but should be</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N67473" style="display: none;">
+<a href="#MS_SHOULD_BE_FINAL">Bug type MS_SHOULD_BE_FINAL (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RngUtils<br/>Field com.linkedin.databus.core.util.RngUtils.seededRandom<br/>At RngUtils.java:[line 16]</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_MT_CORRECTNESS">Multithreaded correctness Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N65747');">
+<td>
+<span class="priority-2">UL</span>
+</td>
+<td>com.linkedin.databus.core.DbusEventBuffer.streamEvents(Checkpoint, int, WritableByteChannel, Encoding, DbusFilter, DbusEventsStatisticsCollector) does not release lock on all exception paths</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N65747" style="display: none;">
+<a href="#UL_UNRELEASED_LOCK_EXCEPTION_PATH">Bug type UL_UNRELEASED_LOCK_EXCEPTION_PATH (click for details)</a>
+<br/>In class com.linkedin.databus.core.DbusEventBuffer<br/>In method com.linkedin.databus.core.DbusEventBuffer.streamEvents(Checkpoint, int, WritableByteChannel, Encoding, DbusFilter, DbusEventsStatisticsCollector)<br/>At DbusEventBuffer.java:[line 1097]</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_PERFORMANCE">Performance Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N65554');">
+<td>
+<span class="priority-2">Dm</span>
+</td>
+<td>com.linkedin.databus.core.DbusEvent.&lt;static initializer&gt;() invokes inefficient new String(String) constructor</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N65554" style="display: none;">
+<a href="#DM_STRING_CTOR">Bug type DM_STRING_CTOR (click for details)</a>
+<br/>In class com.linkedin.databus.core.DbusEvent<br/>In method com.linkedin.databus.core.DbusEvent.&lt;static initializer&gt;()<br/>At DbusEvent.java:[line 108]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N65802');">
+<td>
+<span class="priority-2">SIC</span>
+</td>
+<td>Should com.linkedin.databus.core.EventLogReader$LastModifiedSorter be a _static_ inner class?</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N65802" style="display: none;">
+<a href="#SIC_INNER_SHOULD_BE_STATIC">Bug type SIC_INNER_SHOULD_BE_STATIC (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogReader$LastModifiedSorter<br/>At EventLogReader.java:[lines 42-48]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N67225');">
+<td>
+<span class="priority-2">SIC</span>
+</td>
+<td>Should com.linkedin.databus.core.util.RangeBasedReaderWriterLock$LockToken be a _static_ inner class?</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N67225" style="display: none;">
+<a href="#SIC_INNER_SHOULD_BE_STATIC">Bug type SIC_INNER_SHOULD_BE_STATIC (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.RangeBasedReaderWriterLock$LockToken<br/>At RangeBasedReaderWriterLock.java:[lines 25-30]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66590');">
+<td>
+<span class="priority-2">WMI</span>
+</td>
+<td>Method com.linkedin.databus.core.util.ConfigLoader.loadConfig(Map) makes inefficient use of keySet iterator instead of entrySet iterator</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66590" style="display: none;">
+<a href="#WMI_WRONG_MAP_ITERATOR">Bug type WMI_WRONG_MAP_ITERATOR (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.ConfigLoader<br/>In method com.linkedin.databus.core.util.ConfigLoader.loadConfig(Map)<br/>At ConfigLoader.java:[line 56]</p>
+</td>
+</tr>
+</table>
+<h2>
+<a name="Warnings_STYLE">Dodgy Warnings</a>
+</h2>
+<table class="warningtable" width="100%" cellspacing="0">
+<tr class="tableheader">
+<th align="left">Code</th>
+<th align="left">Warning</th>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66122');">
+<td>
+<span class="priority-2">DLS</span>
+</td>
+<td>Dead store to encoding in com.linkedin.databus.core.EventLogWriter$Config.build()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66122" style="display: none;">
+<a href="#DLS_DEAD_LOCAL_STORE">Bug type DLS_DEAD_LOCAL_STORE (click for details)</a>
+<br/>In class com.linkedin.databus.core.EventLogWriter$Config<br/>In method com.linkedin.databus.core.EventLogWriter$Config.build()<br/>Local variable named encoding<br/>At EventLogWriter.java:[line 714]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N65609');">
+<td>
+<span class="priority-2">REC</span>
+</td>
+<td>Exception is caught when Exception is not thrown in com.linkedin.databus.core.DbusEvent.appendToEventBuffer(BufferedReader, DbusEventAccumulator, DbusEventsStatisticsCollector)</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N65609" style="display: none;">
+<a href="#REC_CATCH_EXCEPTION">Bug type REC_CATCH_EXCEPTION (click for details)</a>
+<br/>In class com.linkedin.databus.core.DbusEvent<br/>In method com.linkedin.databus.core.DbusEvent.appendToEventBuffer(BufferedReader, DbusEventAccumulator, DbusEventsStatisticsCollector)<br/>At DbusEvent.java:[line 844]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66698');">
+<td>
+<span class="priority-2">REC</span>
+</td>
+<td>Exception is caught when Exception is not thrown in com.linkedin.databus.core.util.DatabusEventRandomProducer.run()</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66698" style="display: none;">
+<a href="#REC_CATCH_EXCEPTION">Bug type REC_CATCH_EXCEPTION (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.DatabusEventRandomProducer<br/>In method com.linkedin.databus.core.util.DatabusEventRandomProducer.run()<br/>At DatabusEventRandomProducer.java:[line 386]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66753');">
+<td>
+<span class="priority-1">ST</span>
+</td>
+<td>Write to static field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector from instance method new com.linkedin.databus.core.util.DatabusEventRandomProducer(DbusEventBuffer, DatabusEventRandomProducer$StaticConfig)</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66753" style="display: none;">
+<a href="#ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD">Bug type ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.DatabusEventRandomProducer<br/>In method new com.linkedin.databus.core.util.DatabusEventRandomProducer(DbusEventBuffer, DatabusEventRandomProducer$StaticConfig)<br/>Field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector<br/>At DatabusEventRandomProducer.java:[line 79]</p>
+</td>
+</tr>
+<tr class="tablerow1" onclick="toggleRow('N66823');">
+<td>
+<span class="priority-1">ST</span>
+</td>
+<td>Write to static field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector from instance method com.linkedin.databus.core.util.DatabusEventRandomProducer.startGeneration(long, int, long, long, int, long, long, List, DbusEventsStatisticsCollector)</td>
+</tr>
+<tr class="detailrow1">
+<td/>
+<td>
+<p id="N66823" style="display: none;">
+<a href="#ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD">Bug type ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.DatabusEventRandomProducer<br/>In method com.linkedin.databus.core.util.DatabusEventRandomProducer.startGeneration(long, int, long, long, int, long, long, List, DbusEventsStatisticsCollector)<br/>Field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector<br/>At DatabusEventRandomProducer.java:[line 212]</p>
+</td>
+</tr>
+<tr class="tablerow0" onclick="toggleRow('N66893');">
+<td>
+<span class="priority-2">ST</span>
+</td>
+<td>Write to static field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector from instance method new com.linkedin.databus.core.util.DatabusEventRandomProducer(DbusEventBuffer, DatabusEventRandomProducer$StaticConfig)</td>
+</tr>
+<tr class="detailrow0">
+<td/>
+<td>
+<p id="N66893" style="display: none;">
+<a href="#ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD">Bug type ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD (click for details)</a>
+<br/>In class com.linkedin.databus.core.util.DatabusEventRandomProducer<br/>In method new com.linkedin.databus.core.util.DatabusEventRandomProducer(DbusEventBuffer, DatabusEventRandomProducer$StaticConfig)<br/>Field com.linkedin.databus.core.util.DatabusEventRandomProducer._statsCollector<br/>At DatabusEventRandomProducer.java:[line 94]</p>
+</td>
+</tr>
+</table>
+<h1>
+<a name="Details">Details</a>
+</h1>
+<h2>
+<a name="BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS">BC_EQUALS_METHOD_SHOULD_WORK_FOR_ALL_OBJECTS: Equals method should not assume anything about the type of its argument</a>
+</h2>
+
+<p>
+The <code>equals(Object o)</code> method shouldn't make any assumptions
+about the type of <code>o</code>. It should simply return
+false if <code>o</code> is not the same type as <code>this</code>.
+</p>
+
+    
+<h2>
+<a name="DLS_DEAD_LOCAL_STORE">DLS_DEAD_LOCAL_STORE: Dead store to local variable</a>
+</h2>
+
+<p>
+This instruction assigns a value to a local variable,
+but the value is not read or used in any subsequent instruction.
+Often, this indicates an error, because the value computed is never
+used.
+</p>
+<p>
+Note that Sun's javac compiler often generates dead stores for
+final local variables.  Because FindBugs is a bytecode-based tool,
+there is no easy way to eliminate these false positives.
+</p>
+
+    
+<h2>
+<a name="DM_STRING_CTOR">DM_STRING_CTOR: Method invokes inefficient new String(String) constructor</a>
+</h2>
+
+  <p> Using the <code>java.lang.String(String)</code> constructor wastes memory
+  because the object so constructed will be functionally indistinguishable
+  from the <code>String</code> passed as a parameter.&nbsp; Just use the
+  argument <code>String</code> directly.</p>
+
+    
+<h2>
+<a name="EQ_COMPARETO_USE_OBJECT_EQUALS">EQ_COMPARETO_USE_OBJECT_EQUALS: Class defines compareTo(...) and uses Object.equals()</a>
+</h2>
+
+  <p> This class defines a <code>compareTo(...)</code> method but inherits its
+  <code>equals()</code> method from <code>java.lang.Object</code>.
+	Generally, the value of compareTo should return zero if and only if
+	equals returns true. If this is violated, weird and unpredictable
+	failures will occur in classes such as PriorityQueue.
+	In Java 5 the PriorityQueue.remove method uses the compareTo method,
+	while in Java 6 it uses the equals method.
+
+<p>From the JavaDoc for the compareTo method in the Comparable interface:
+<blockquote>
+It is strongly recommended, but not strictly required that <code>(x.compareTo(y)==0) == (x.equals(y))</code>. 
+Generally speaking, any class that implements the Comparable interface and violates this condition 
+should clearly indicate this fact. The recommended language 
+is "Note: this class has a natural ordering that is inconsistent with equals."
+</blockquote>
+
+    
+<h2>
+<a name="HE_EQUALS_USE_HASHCODE">HE_EQUALS_USE_HASHCODE: Class defines equals() and uses Object.hashCode()</a>
+</h2>
+
+  <p> This class overrides <code>equals(Object)</code>, but does not
+  override <code>hashCode()</code>, and inherits the implementation of
+  <code>hashCode()</code> from <code>java.lang.Object</code> (which returns
+  the identity hash code, an arbitrary value assigned to the object
+  by the VM).&nbsp; Therefore, the class is very likely to violate the
+  invariant that equal objects must have equal hashcodes.</p>
+
+<p>If you don't think instances of this class will ever be inserted into a HashMap/HashTable,
+the recommended <code>hashCode</code> implementation to use is:</p>
+<pre>public int hashCode() {
+  assert false : "hashCode not designed";
+  return 42; // any arbitrary constant will do 
+  }</pre>
+
+    
+<h2>
+<a name="MS_SHOULD_BE_FINAL">MS_SHOULD_BE_FINAL: Field isn't final but should be</a>
+</h2>
+
+   <p>
+ A mutable static field could be changed by malicious code or
+        by accident from another package.
+        The field could be made final to avoid
+        this vulnerability.</p>
+
+    
+<h2>
+<a name="MS_FINAL_PKGPROTECT">MS_FINAL_PKGPROTECT: Field should be both final and package protected</a>
+</h2>
+
+ <p>
+   A mutable static field could be changed by malicious code or
+        by accident from another package.
+        The field could be made package protected and/or made final
+   to avoid
+        this vulnerability.</p>
+
+    
+<h2>
+<a name="MS_PKGPROTECT">MS_PKGPROTECT: Field should be package protected</a>
+</h2>
+
+  <p> A mutable static field could be changed by malicious code or
+   by accident.
+   The field could be made package protected to avoid
+   this vulnerability.</p>
+
+    
+<h2>
+<a name="NM_FIELD_NAMING_CONVENTION">NM_FIELD_NAMING_CONVENTION: Field names should start with a lower case letter</a>
+</h2>
+
+  <p>
+Names of fields that are not final should be in mixed case with a lowercase first letter and the first letters of subsequent words capitalized.
+</p>
+
+    
+<h2>
+<a name="OBL_UNSATISFIED_OBLIGATION">OBL_UNSATISFIED_OBLIGATION: Method may fail to clean up stream or resource</a>
+</h2>
+		  
+		  <p>
+		  This method may fail to clean up (close, dispose of) a stream,
+		  database object, or other
+		  resource requiring an explicit cleanup operation.
+		  </p>
+		  
+		  <p>
+		  In general, if a method opens a stream or other resource,
+		  the method should use a try/finally block to ensure that
+		  the stream or resource is cleaned up before the method
+		  returns.
+		  </p>
+		  
+		  <p>
+		  This bug pattern is essentially the same as the
+		  OS_OPEN_STREAM and ODR_OPEN_DATABASE_RESOURCE
+		  bug patterns, but is based on a different
+		  (and hopefully better) static analysis technique.
+		  We are interested is getting feedback about the
+		  usefulness of this bug pattern.
+		  To send feedback, either:
+		  </p>
+		  <ul>
+			<li>send email to findbugs@cs.umd.edu</li>
+			<li>file a bug report: <a href="http://findbugs.sourceforge.net/reportingBugs.html">http://findbugs.sourceforge.net/reportingBugs.html</a></li>
+		  </ul>
+		  
+		  <p>
+		  In particular,
+		  the false-positive suppression heuristics for this
+		  bug pattern have not been extensively tuned, so
+		  reports about false positives are helpful to us.
+		  </p>
+		  
+		  <p>
+		  See Weimer and Necula, <i>Finding and Preventing Run-Time Error Handling Mistakes</i>, for
+		  a description of the analysis technique.
+		  </p>
+		  
+	  
+<h2>
+<a name="OS_OPEN_STREAM">OS_OPEN_STREAM: Method may fail to close stream</a>
+</h2>
+
+<p> The method creates an IO stream object, does not assign it to any
+fields, pass it to other methods that might close it, 
+or return it, and does not appear to close
+the stream on all paths out of the method.&nbsp; This may result in
+a file descriptor leak.&nbsp; It is generally a good
+idea to use a <code>finally</code> block to ensure that streams are
+closed.</p>
+
+    
+<h2>
+<a name="REC_CATCH_EXCEPTION">REC_CATCH_EXCEPTION: Exception is caught when Exception is not thrown</a>
+</h2>
+  
+  <p>
+  This method uses a try-catch block that catches Exception objects, but Exception is not
+  thrown within the try block, and RuntimeException is not explicitly caught.  It is a common bug pattern to
+  say try { ... } catch (Exception e) { something } as a shorthand for catching a number of types of exception
+  each of whose catch blocks is identical, but this construct also accidentally catches RuntimeException as well,
+  masking potential bugs.
+  </p>
+  
+     
+<h2>
+<a name="RV_ABSOLUTE_VALUE_OF_RANDOM_INT">RV_ABSOLUTE_VALUE_OF_RANDOM_INT: Bad attempt to compute absolute value of signed 32-bit random integer</a>
+</h2>
+
+<p> This code generates a random signed integer and then computes
+the absolute value of that random integer.  If the number returned by the random number
+generator is <code>Integer.MIN_VALUE</code>, then the result will be negative as well (since 
+<code>Math.abs(Integer.MIN_VALUE) == Integer.MIN_VALUE</code>).
+</p>
+
+    
+<h2>
+<a name="RV_RETURN_VALUE_IGNORED_BAD_PRACTICE">RV_RETURN_VALUE_IGNORED_BAD_PRACTICE: Method ignores exceptional return value</a>
+</h2>
+
+   <p> This method returns a value that is not checked. The return value should be checked
+since it can indicate an unusual or unexpected function execution. For
+example, the <code>File.delete()</code> method returns false
+if the file could not be successfully deleted (rather than 
+throwing an Exception).
+If you don't check the result, you won't notice if the method invocation
+signals unexpected behavior by returning an atypical return value.
+</p>
+
+    
+<h2>
+<a name="SIC_INNER_SHOULD_BE_STATIC">SIC_INNER_SHOULD_BE_STATIC: Should be a static inner class</a>
+</h2>
+
+  <p> This class is an inner class, but does not use its embedded reference
+  to the object which created it.&nbsp; This reference makes the instances
+  of the class larger, and may keep the reference to the creator object
+  alive longer than necessary.&nbsp; If possible, the class should be
+   made static.
+</p>
+
+    
+<h2>
+<a name="ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD">ST_WRITE_TO_STATIC_FROM_INSTANCE_METHOD: Write to static field from instance method</a>
+</h2>
+
+  <p> This instance method writes to a static field. This is tricky to get
+correct if multiple instances are being manipulated,
+and generally bad practice.
+</p>
+
+    
+<h2>
+<a name="UL_UNRELEASED_LOCK_EXCEPTION_PATH">UL_UNRELEASED_LOCK_EXCEPTION_PATH: Method does not release lock on all exception paths</a>
+</h2>
+
+<p> This method acquires a JSR-166 (<code>java.util.concurrent</code>) lock,
+but does not release it on all exception paths out of the method.  In general, the correct idiom
+for using a JSR-166 lock is:
+</p>
+<pre>
+    Lock l = ...;
+    l.lock();
+    try {
+        // do something
+    } finally {
+        l.unlock();
+    }
+</pre>
+
+    
+<h2>
+<a name="WMI_WRONG_MAP_ITERATOR">WMI_WRONG_MAP_ITERATOR: Inefficient use of keySet iterator instead of entrySet iterator</a>
+</h2>
+
+<p> This method accesses the value of a Map entry, using a key that was retrieved from
+a keySet iterator. It is more efficient to use an iterator on the entrySet of the map, to avoid the
+Map.get(key) lookup.</p>
+
+        </body>
+</html>

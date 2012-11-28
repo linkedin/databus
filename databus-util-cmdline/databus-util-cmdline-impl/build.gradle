@@ -1,0 +1,10 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile spec.external.avro
+  compile spec.external.log4j
+  compile spec.external.ojdbc6
+  compile spec.external.commonsCli
+  compile spec.external.json
+  compile spec.external.log4j
+}

@@ -1,0 +1,102 @@
+#!/usr/bin/perl -w
+use strict;
+
+
+#Usage: ./manage-db-sources add|remove <source> fabric
+
+#Assume: add and remove scripts exist; ../conf exists with sources-<source>-<fabric>.json
+
+
+sub usage {
+	print STDERR "Usage: $0 add|remove <source-db-name> <fabric> \n"; exit(1);
+}
+
+
+my $add_source_script="./run-add-source-meta.sh";
+my $remove_source_script="./run-db-drop-source-meta.sh";
+
+
+my $action  = $ARGV[0]  || usage();
+my $source_db = $ARGV[1] || usage();
+my $fabric  = $ARGV[2] || usage();
+
+
+my $scripts = { 'add'=>$add_source_script , 'remove' => $remove_source_script } ;
+
+if (!defined $scripts->{$action}) {
+   usage();
+}
+
+if ($action eq "remove") {
+	my $answer = prompt("This command will wipe out local DB for source $source_db, Are you sure y/n?") ;	
+	if ($answer==0) {
+		print "Remove aborted! \n";
+		exit(0);
+	}
+} 
+
+my $sources_json = "../conf/sources-${source_db}-${fabric}.json";
+if (! -e $sources_json) {
+	print STDERR "Error: File $sources_json does not exist\n";	
+	exit(1);
+}
+
+my $sources_hash = parse_json($sources_json);
+if (!defined $sources_hash) {
+	print STDERR "Error: Parsing $sources_json\n";
+	exit(1);
+}
+
+my $sources = $sources_hash->{'sources'};
+foreach my $src (@$sources) {
+	my $cmd = make_command($action,$src->{'name'},$src->{'id'}); 
+	print STDERR "$cmd\n";
+	system($cmd);	
+	if ($action eq "add") 
+	{
+		#temp fix for status 
+		my $src_id=$src->{'id'} ;
+		my $mysql = "mysql -ubootstrap -Dbootstrap -pbootstrap -e 'update bootstrap_sources set status=4 where id=$src_id'";
+		print STDERR "Modifying table: $mysql\n";
+		system("$mysql");
+	}
+}
+
+
+sub make_command {
+	my ($action, $table_name,$src_id) = @_;
+	my $script = $scripts->{$action};
+	if ($action eq "add") 
+	{
+		return "$script $table_name $src_id" ;	
+	} else {
+		my $e_src_id = `mysql -ubootstrap -pbootstrap -Dbootstrap -e ' select id from bootstrap_sources where src="$table_name" ; ' |  tail -n 1`; chomp $e_src_id;
+		if (defined $e_src_id) {
+			print STDERR "Changing srcid from $src_id to $e_src_id\n";
+			$src_id=$e_src_id;
+		}
+		return "$script $src_id";
+	}	
+}
+
+sub parse_json {
+	my $file = shift;
+	open (F,"<$file") || die "Cannot read file $file for read\n";
+	my $json;
+	while (<F>) {
+		s/:/=>/;
+		s/@/\\@/;
+		$json.=$_;
+	}
+	my $hash = eval $json;
+	return $hash;
+}
+
+
+sub prompt {
+	my $message = shift;
+	print STDOUT "$message\n";
+	system "stty", '-icanon', 'eol', "\001"; 
+	my $k = getc(STDIN);
+	return ($k eq "y") or ($k eq "Y");
+} 
