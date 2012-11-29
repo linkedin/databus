@@ -1,4 +1,3 @@
-apply plugin: 'li-cmdline'
 
 dependencies {
   compile project(':databus-util-cmdline:databus-util-cmdline-impl')
