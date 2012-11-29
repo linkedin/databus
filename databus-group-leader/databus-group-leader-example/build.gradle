@@ -6,4 +6,6 @@ dependencies {
 
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.zkclient
 }
