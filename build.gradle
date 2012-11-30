@@ -83,7 +83,7 @@ subprojects {
 
   configurations {
     compile {
-      transitive = true
+      transitive = false
     }
 
     all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
@@ -138,14 +138,9 @@ subprojects {
   }
 
   test {
-	maxHeapSize = '1g'
-
-    useTestNG() {
-      excludeGroups 'not_implemented'
-      excludeGroups 'integration'
-      excludeGroups 'integration_external_product_dependent'
-	  excludeGroups 'known_issue'
-    }
+	maxHeapSize = '4g'
+    jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
+    useTestNG() 
   }
 
   task integrationTests(type: Test) {
