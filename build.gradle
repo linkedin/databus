@@ -73,6 +73,7 @@ task wrapper(type: Wrapper) {
   gradleVersion = '1.0'
 }
 
+
 subprojects {
   apply plugin: 'java'
   apply plugin: 'idea'
@@ -82,16 +83,18 @@ subprojects {
 
   configurations {
     compile {
-      transitive = false
+      transitive = true
     }
+
+    all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
+    all*.exclude group: 'com.sun.jmx', module: 'jmxri'
+    all*.exclude group: 'javax.jms', module: 'jms'
 
     testArtifacts
   }
-
+ 
   // Default dependencies for all subprojects
   dependencies {
-    //compile externalDependency.slf4jApi
-    //runtime externalDependency.slf4jLog4j12
     runtime externalDependency.log4j
   }
 
@@ -135,7 +138,7 @@ subprojects {
   }
 
   test {
-	  maxHeapSize = '1g'
+	maxHeapSize = '1g'
 
     useTestNG() {
       excludeGroups 'not_implemented'
@@ -204,27 +207,4 @@ subprojects {
       workingDir = file(rootDir.toString())
     }
   }
- 
-  task cmdlinePkg() {
-        Tar cmdline = project.tasks.add('cmdline', Tar.class)
-        project.configure(cmdline) {
-            extension = 'tar.gz'
-            baseName = project.name
-            version = project.version
-            compression = Compression.GZIP
-
-            into("bin/") { from "bin"}
-            into("conf/") { from "conf" }
-            into("components/") { from "components" }
-            into("resources/") { from "resources" }
-            into("lib/") {
-                from project.configurations.runtime
-                if (project.tasks.findByName("jar")) {
-                    from project.tasks.jar
-                }
-
-            }
-        }
-  }
-  
 }
