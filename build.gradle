@@ -45,8 +45,7 @@ externalDependency = [
     'zkclient': 'zkclient:zkclient:0.2.0',
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
     'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
-    'helixCore': 'com.linkedin.helix:helix-core:0.5.24',
-    'avroSchemaTools': 'com.linkedin.avro-schema-tools:avro-schema-tools:0.1.3'
+    'helixCore': 'com.linkedin.helix:helix-core:0.5.24'
 ];
 
 sandboxDependency = [
