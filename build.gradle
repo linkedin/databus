@@ -44,8 +44,9 @@ externalDependency = [
     'testng': 'org.testng:testng:6.4',
     'zkclient': 'zkclient:zkclient:0.2.0',
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
-    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
-    'helixCore': 'com.linkedin.helix:helix-core:0.5.24'
+    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3'
+//   Add this conditionally for V3 builds on gradle
+//    'helixCore': 'com.linkedin.helix:helix-core:0.5.24'
 ];
 
 sandboxDependency = [
