@@ -7,7 +7,7 @@ dependencies {
 
   compile externalDependency.commonsIo
   compile externalDependency.log4j
-  compile externalDependency.zkclient
+  compile externalDependency.zkclientHelix
   compile externalDependency.zookeeper
 
   testCompile externalDependency.testng
