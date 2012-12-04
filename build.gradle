@@ -23,8 +23,8 @@ externalDependency = [
     'commonsLang': 'commons-lang:commons-lang:2.5',
     'commonsLogging': 'commons-logging:commons-logging:1.1',
     'commonsParent': 'org.apache.commons:commons-parent:5',
-    'easymock': 'org.easymock:easymock:2.4',
-    'easymockext': 'org.easymock:easymock-class-extension:2.4',
+    'easymock': 'org.easymock:easymock:3.1',
+    'easymockext': 'org.easymock:easymockclassextension:3.1',
     'googleCollections': 'com.google.collections:google-collections:1.0-rc2',
     'hadoopCore': 'org.apache.hadoop:hadoop-core:0.20.2',
     'jacksonCoreAsl': 'org.codehaus.jackson:jackson-core-asl:1.8.5',
@@ -44,9 +44,9 @@ externalDependency = [
     'testng': 'org.testng:testng:6.4',
     'zkclient': 'zkclient:zkclient:0.2.0',
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
-    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
-    'helixCore': 'com.linkedin.helix:helix-core:0.5.24',
-    'avroSchemaTools': 'com.linkedin.avro-schema-tools:avro-schema-tools:0.1.3'
+    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3'
+//   Add this conditionally for V3 builds on gradle
+//    'helixCore': 'com.linkedin.helix:helix-core:0.5.24'
 ];
 
 sandboxDependency = [
@@ -83,7 +83,7 @@ subprojects {
 
   configurations {
     compile {
-      transitive = true
+      transitive = false
     }
 
     all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
@@ -138,14 +138,9 @@ subprojects {
   }
 
   test {
-	maxHeapSize = '1g'
-
-    useTestNG() {
-      excludeGroups 'not_implemented'
-      excludeGroups 'integration'
-      excludeGroups 'integration_external_product_dependent'
-	  excludeGroups 'known_issue'
-    }
+	maxHeapSize = '4g'
+    jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
+    useTestNG() 
   }
 
   task integrationTests(type: Test) {

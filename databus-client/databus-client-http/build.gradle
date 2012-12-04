@@ -24,4 +24,4 @@ dependencies {
   testCompile externalDependency.easymockext
 }
 
-test.useTestNG()
+//test.useTestNG()
