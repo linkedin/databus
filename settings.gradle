@@ -9,7 +9,7 @@ def modules = [
 'databus-core',
 'databus-events',
 'databus-group-leader',
-//'databus-profile-client',
+'databus-profile-client',
 //'databus-profile-relay',
 'databus-relay',
 'databus-util-cmdline',
