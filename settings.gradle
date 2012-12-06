@@ -15,6 +15,7 @@ def modules = [
 'databus-relay',
 'databus-util-cmdline',
 //'databus2-examples',
+'databus2-example',
 'databus2-relay',
 //'databus3-relay',
 //'databus3-client',

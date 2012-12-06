@@ -1,0 +1,7 @@
+To setup Person Schema:
+   run ./dbreinit_persons.sh
+This will setup databus tables with credentials (person/person) using SID "DB"
+
+To load rows, use the loadPersons script:
+  Usage: ./loadPersons.sh <username/password[@SID]> <num_records> <start_primary_key> [load|unload]
+This will insert some rows to Person table which can be used to test the  propagation of change events in databus relay.

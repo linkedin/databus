@@ -1,0 +1,271 @@
+User : person
+Password : person
+SID : DB
+DB : person/person@DB
+TBS : tbs_person
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> Creating Sequence 'vercontrol_seq'
+SQL>   2    3    4    5    6    7    8  
+Sequence created.
+
+SQL> SQL>   2    3    4    5    6    7    8  
+Sequence created.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> Creating table for version control
+SQL>   2    3    4    5    6    7    8    9   10   11   12  
+Table created.
+
+SQL> SQL> SQL> SQL> SQL> creating sources table
+SQL>   2    3    4    5    6    7    8    9  
+Table created.
+
+SQL> SQL> creating table sy$txlog
+SQL>   2    3    4    5    6    7    8    9   10   11  
+Table created.
+
+SQL> SQL> creating sync core settings table
+SQL> by setting the value in this table
+SQL> we can make the databus to be sync/async with insert/updates
+SQL> SQL>   2    3    4    5    6    7    8  
+Table created.
+
+SQL> SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+Processing Table definition File : ../../../databus2-example/database/person//person.tab
+Creating Table person. File is ../../../databus2-example/database/person//person.tab
+sqlplus person/person@DB @../../../databus2-example/database/person//person.tab DB person person TBS_PERSON
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 'creating person table'
+old  13: PCTFREE 10 tablespace &tbs
+new  13: PCTFREE 10 tablespace TBS_PERSON
+
+Table created.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+INFO: creating Primary Key contstraints on sy$txlog
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> SQL>   2    3    4    5    6    7    8  
+Table altered.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+INFO: creating index on SCN
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> creating index on scn
+SQL>   2    3    4    5  
+Index created.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+Setting up Alerts for  person. File is ../../../databus2-example/database/person//person.tab
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> SQL> SQL>   2    3    4    5    6    7    8    9   10   11   12   13  
+Procedure created.
+
+SQL> No errors.
+SQL> SQL> SQL> SQL> SQL> SQL> SQL> creating sync_core package
+SQL> SQL> SQL> SQL>   2    3    4    5    6    7    8    9  
+Package created.
+
+SQL> No errors.
+SQL> SQL>   2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36   37   38   39   40   41   42   43   44   45   46   47   48   49   50   51   52   53   54   55   56   57   58   59   60   61   62   63   64   65   66   67   68   69   70   71   72   73   74   75   76   77   78   79   80   81   82   83   84   85   86   87   88   89   90   91   92   93   94   95   96   97   98   99  100  101  102  103  104  105  106  107  108  109  110  111  112  113  
+Package body created.
+
+SQL> SQL>   2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23  
+PL/SQL procedure successfully completed.
+
+SQL> SQL>   2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19  
+PL/SQL procedure successfully completed.
+
+SQL> SQL> No errors.
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> Creating Databus view
+SQL> SQL>   2    3    4  
+View created.
+
+SQL> SQL> No errors.
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+Processing View definition File : ../../../databus2-example/database/person//person.view
+Creating view sy$person
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:46 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 
+View created.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+Creating trigger for source person
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:47 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> creating sync_alert package
+SQL> SQL> SQL> SQL>   2    3    4    5    6    7  
+Package created.
+
+SQL> No errors.
+SQL> SQL>   2    3    4    5    6    7    8    9   10   11   12   13   14   15   16   17   18   19   20   21   22   23   24   25   26   27   28   29   30   31   32   33   34   35   36   37   38   39   40   41   42   43   44   45   46   47   48   49   50   51   52   53   54   55   56   57   58   59   60   61   62   63   64   65   66   67   68   69   70   71   72   73   74   75   76   77   78   79   80   81  
+Package body created.
+
+SQL> No errors.
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+Creating trigger for source person
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:47 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> creating new trigger for person
+SQL>   2    3    4    5    6    7    8    9   10   11   12  
+Trigger created.
+
+SQL> SQL> No errors.
+SQL> 
+Commit complete.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+INFO: compiling types
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:47 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 
+PL/SQL procedure successfully completed.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+INFO: Sync_core seeding 
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:47 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 
+1 row created.
+
+SQL> 
+Commit complete.
+
+SQL> No errors.
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+INFO: sy$SOURCES setup
+Processing Table definition File : ../../../databus2-example/database/person//person.tab
+Creating Table person
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:47 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 
+1 row created.
+
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options

@@ -1,0 +1,71 @@
+INFO: creating user and tablespace
+
+SQL*Plus: Release 10.2.0.4.0 - Production on Wed Dec 5 18:34:45 2012
+
+Copyright (c) 1982, 2007, Oracle.  All Rights Reserved.
+
+
+Connected to:
+Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options
+
+SQL> 
+Tablespace dropped.
+
+SQL> 
+Tablespace dropped.
+
+SQL> 
+Tablespace created.
+
+SQL> 
+Tablespace created.
+
+SQL> drop user person cascade
+*
+ERROR at line 1:
+ORA-01940: cannot drop a user that is currently connected
+
+
+SQL> create user person identified by person default tablespace tbs_person temporary tablespace temp1
+            *
+ERROR at line 1:
+ORA-01920: user name 'PERSON' conflicts with another user or role name
+
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+Grant succeeded.
+
+SQL> 
+User altered.
+
+SQL> 
+User altered.
+
+SQL> No errors.
+SQL> Disconnected from Oracle Database 10g Enterprise Edition Release 10.2.0.1.0 - Production
+With the Partitioning and Data Mining options

@@ -1,0 +1,20 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-core:databus-core-container')
+  compile project(':databus2-relay:databus2-relay-impl')
+  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLang
+  compile externalDependency.commonsCli
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.avro
+  compile externalDependency.ojdbc6
+
+}
