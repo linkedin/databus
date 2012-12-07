@@ -15,11 +15,10 @@ gradle test     -- runs all the unit-tests that come packaged with the source
 
 Licensing
 --------
-Databus will be licensed under Apache 2.0 license
+Databus will be licensed under Apache 2.0 license.
 
 Example Relay
 -------------
-
 An example of writing a DatabusRelay is available at PersonRelayServer.java. To be able to start a relay process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-relay-pkg/distributions/databus2-example-relay-pkg.tgz. This relay is configured to get changestreams for a view Person.
 
 After extracting to a directory, please cd to that directory and start the relay using the following command :
@@ -31,7 +30,6 @@ $ curl http://localhost:11115/sources
 
 Example Client
 --------------
-
 An example of writing a DatabusClient is available at PersonalClientMain.java. A sample consumer implementation can be found at [[https://gitli.corp.linkedin.com/databus/databus2/blobs/master/databus2-example/databus2-example-client/src/main/java/com/linkedin/databus/client/example/PersonConsumer.java]]. To easily be able to start the client process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-client-pkg/distributions/databus2-example-client-pkg.tgz. This client is configured to get data from the relay started previously, and configured to susbscribe for table Person.
 
 After extracting to a directory, please cd to that directory and start the client using the following command :
