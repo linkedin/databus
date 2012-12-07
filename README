@@ -1,4 +1,6 @@
 
+Introduction
+-----------
 Databus is a low latency change capture system which has become an integral part of LinkedIn’s data processing pipeline. Databus addresses a fundamental requirement to reliably capture, flow and process.
 Even though Databus is source agnostic ( meaning it works for different kinds of Database systems ), the current version comes with Adapters to capture change streams from Oracle.
 It is assumed that the user has a license to work with an Oracle database, and therefore access to jar with ivy co-ordinates of com.oracle:ojdbc6:11.2.0.2.0. Due to licensing constraints, we cannot 
