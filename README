@@ -1,10 +1,83 @@
 
 Introduction
------------
-Databus is a low latency change capture system which has become an integral part of LinkedIn’s data processing pipeline. Databus addresses a fundamental requirement to reliably capture, flow and process.
-Even though Databus is source agnostic ( meaning it works for different kinds of Database systems ), the current version comes with Adapters to capture change streams from Oracle.
-It is assumed that the user has a license to work with an Oracle database, and therefore access to jar with ivy co-ordinates of com.oracle:ojdbc6:11.2.0.2.0. Due to licensing constraints, we cannot 
-provide that jar.
+------------
+
+In Internet architectures, data systems are typically categorized into source-of-truth systems that serve as primary stores for the user-generated writes, and derived data stores
+or indexes which serve reads and other complex queries. The data in these secondary stores is often derived from the primary data through custom transformations, sometimes 
+involving complex processing driven by business logic. Similarly data in caching tiers is derived from reads against the primary data store, but needs to get invalidated or refreshed
+when the primary data gets mutated. A fundamental requirement emerging from these kinds of data architectures is the need to reliably capture, flow and process primary data changes.
+
+We have built Databus, a source-agnostic distributed change data capture system, which is an integral part of LinkedIn's data processing pipeline. The Databus transport layer 
+provides latencies in the low milliseconds and handles throughput of thousands of events per second per server while supporting infinite look back capabilities and rich subscription
+functionality. 
+
+Use-cases
+----------
+
+Typically, Primary OLTP data-stores take user facing writes and some reads, while other specialized systems serve complex queries or accelerate query results through caching. The most 
+common data systems found in these architectures include relational databases, NoSQL data stores, caching engines, search indexes and graph query engines. This specialization has in
+turn made it critical to have a reliable and scalable data pipeline that can capture these changes happening for primary source-of-truth systems and route them through the rest of the 
+complex data eco-system. There are two families of solutions that are typically used for building such a pipeline.
+
+Application-driven Dual Writes: 
+In this model, the application layer writes to the database and in parallel, writes to another messaging system. This looks simple to implement since the application code writing to the
+database is under our control. However it introduces a consistency problem because without a complex co-ordination protocol (e.g. Paxos or 2-Phase Commit ) it is hard to ensure that both 
+the database and the messaging system are in complete lock step with each other in the face of failures. Both systems need to process exactly the same writes and need to serialize
+them in exactly the same order. Things get even more complex if the writes are conditional or have partial update semantics.
+
+Database Log Mining: 
+In this model, we make the database the single source-of-truth and extract changes from its transaction or commit log. This solves our consistency issue, but is practically hard to implement
+because databases like Oracle and MySQL (the primary data stores in use at LinkedIn) have transaction log formats and replication solutions that are proprietary and not guaranteed to have 
+stable on-disk or on-the-wire representations across version upgrades.  Since we want to process the data changes with application code and then write to secondary data stores,
+we need the replication system to be user-space and source-agnostic. This independence from the data source is especially important in fast-moving technology companies, because it avoids 
+technology lock-in and tie-in to binary formats throughout the application stack.
+
+After evaluating the pros and cons of the two approaches, we decided to pursue the \log mining" option, prioritizing consistency and "single source of truth" over ease of implementation.
+In this paper, we introduce Databus, LinkedIn's Change Data Capture pipeline, which supports Oracle sources and a wide range of downstream applications. The Social Graph Index which serves 
+all graph queries at LinkedIn, the People Search Index that powers all searches for members at LinkedIn and the various read replicas for our Member Profile data are all fed and kept consistent 
+via Databus.
+
+More details about the architecture, usecases and performance evaluation can be obtained from a paper that got accepted for publication at the ACM Symposium on Cloud Computing - 2012.
+The slides for the presentation are available at http://www.slideshare.net/ShirshankaDas/databus-socc-2012
+
+Dependencies
+------------
+
+It is assumed that the user has a license to work with an Oracle database, and therefore access to jar with ivy co-ordinates of com.oracle:ojdbc6:11.2.0.2.0. Due to licensing constraints, 
+we cannot provide that jar. All of the other jars are available for use in the opensource community :
+
+Ivy co-ordinates of the other jars required to build Databus :
+
+'org.apache.avro:avro:1.4.0',
+'commons-beanutils:commons-beanutils:1.7.0',
+'commons-cli:commons-cli:1.2',
+'commons-codec:commons-codec:1.3',
+'commons-collections:commons-collections:3.2.1',
+'commons-io:commons-io:1.4',
+'commons-lang:commons-lang:2.5',
+'commons-logging:commons-logging:1.1',
+'org.apache.commons:commons-parent:5',
+'org.easymock:easymock:3.1',
+'org.easymock:easymockclassextension:3.1',
+'com.google.collections:google-collections:1.0-rc2',
+'org.apache.hadoop:hadoop-core:0.20.2',
+'org.codehaus.jackson:jackson-core-asl:1.8.5',
+'org.codehaus.jackson:jackson-mapper-asl:1.8.5',
+'jline:jline:1.0',
+'org.json:json:20070829',
+'junit:junit:4.8.1',
+'log4j:log4j:1.2.15',
+'org.apache.lucene:lucene-analyzers:2.9.1',
+'org.apache.lucene:lucene-core:2.9.1',
+'org.apache.lucene:lucene-queries:2.9.1',
+'org.mysql:mysql-connector-java:5.1.14',
+'org.jboss.netty:netty:3.2.4.Final',
+'org.yaml:snakeyaml:1.8',
+'org.springframework:spring:2.5.5',
+'org.testng:testng:6.4',
+'com.github.sgroschupf:zkclient:0.1',
+'org.apache.zookeeper:zookeeper:3.3.3'
+
 
 Build System
 ------------
