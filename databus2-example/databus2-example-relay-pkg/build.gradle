@@ -1,3 +1,5 @@
+apply plugin: 'java'
+
 dependencies {
   compile project(':databus2-relay:databus2-relay-impl')
   compile project(':databus2-example:databus2-example-relay')

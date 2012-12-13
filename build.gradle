@@ -76,10 +76,11 @@ task wrapper(type: Wrapper) {
 }
 
 
-subprojects {
-  apply plugin: 'java'
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
+subprojects { subproj ->
+
+  subproj.plugins.withType(JavaPlugin) {
+      subproj.plugins.apply('eclipse')
+      subproj.plugins.apply('idea')
 
   sourceCompatibility = JavaVersion.VERSION_1_6
 
@@ -207,4 +208,5 @@ subprojects {
       workingDir = file(rootDir.toString())
     }
   }
+}
 }
