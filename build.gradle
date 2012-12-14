@@ -1,5 +1,11 @@
 import org.gradle.api.tasks.bundling.Tar
 
+import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
+import org.gradle.api.Project
+
 ext.build_script_dir = "${projectDir.path}/build_script"
 
 ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
@@ -75,6 +81,27 @@ task wrapper(type: Wrapper) {
   gradleVersion = '1.0'
 }
 
+class GenerateClasspath extends DefaultTask {
+
+  public static final String TASK_NAME = "generateClasspath"
+
+  @OutputFile
+  File classpathFile = project.file("${project.buildDir}/${project.name}.classpath")
+
+  @Input String configurationName = "default"
+          
+  public GenerateClasspath() {
+      this.outputs.upToDateWhen { false }
+  }      
+        
+  @TaskAction 
+  def generateClasspath() { 
+    def configuration = project.configurations.getByName(configurationName)
+    def runtimePath = configuration.resolve().join(":")
+    
+    classpathFile.write(runtimePath + ":" + configuration.allArtifacts.files.getAsPath())
+  } 
+}
 
 subprojects { 
 
@@ -85,6 +112,8 @@ subprojects {
 
     sourceCompatibility = JavaVersion.VERSION_1_6
     configurations {
+
+
       all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
       all*.exclude group: 'com.sun.jmx', module: 'jmxri'
       all*.exclude group: 'javax.jms', module: 'jms'
@@ -99,6 +128,9 @@ subprojects {
     //def configuration = project.configurations.getByName("default")
     //def runtimePath = configuration.resolve().join(":")
     //println "rt=" + runtimePath
+
+   def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class, dependsOn: 'jar')
+
 
     if (isDefaultEnvironment) {
       task sourcesJar(type: Jar, dependsOn: classes) {
