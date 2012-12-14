@@ -76,61 +76,67 @@ task wrapper(type: Wrapper) {
 }
 
 
-subprojects { subproj ->
+subprojects { 
 
-  subproj.plugins.withType(JavaPlugin) {
-      subproj.plugins.apply('eclipse')
-      subproj.plugins.apply('idea')
 
-  sourceCompatibility = JavaVersion.VERSION_1_6
+  plugins.withType(JavaPlugin) {
+    plugins.apply('eclipse')
+    //plugins.apply('idea')
 
-  configurations {
-    compile {
-      transitive = false
-    }
-    runtime {
-      transitive = false
-    }
+    sourceCompatibility = JavaVersion.VERSION_1_6
+    configurations {
+      all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
+      all*.exclude group: 'com.sun.jmx', module: 'jmxri'
+      all*.exclude group: 'javax.jms', module: 'jms'
 
-    all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
-    all*.exclude group: 'com.sun.jmx', module: 'jmxri'
-    all*.exclude group: 'javax.jms', module: 'jms'
-
-    testArtifacts
-  }
- 
-  // Default dependencies for all subprojects
-  dependencies {
-    runtime externalDependency.log4j
-  }
-
-  if (isDefaultEnvironment)
-  {
-    task sourcesJar(type: Jar, dependsOn: classes) {
-      from sourceSets.main.allSource
-      classifier = 'sources'
+      testArtifacts
     }
 
-    task javadocJar(type: Jar, dependsOn: javadoc) {
-      from javadoc.destinationDir
-      classifier = 'javadoc'
+    // Default dependencies for all subprojects
+    dependencies {
+        runtime externalDependency.log4j
+    }
+    //def configuration = project.configurations.getByName("default")
+    //def runtimePath = configuration.resolve().join(":")
+    //println "rt=" + runtimePath
+
+    if (isDefaultEnvironment) {
+      task sourcesJar(type: Jar, dependsOn: classes) {
+        from sourceSets.main.allSource
+        classifier = 'sources'
+      }
+  
+      task javadocJar(type: Jar, dependsOn: javadoc) {
+        from javadoc.destinationDir
+        classifier = 'javadoc'
+      }
+
+      artifacts {
+        archives sourcesJar
+        archives javadocJar
+      }
+    }
+    task testJar(type: Jar){
+      from sourceSets.test.output
+      classifier = 'tests'
     }
 
     artifacts {
-      archives sourcesJar
-      archives javadocJar
+      testArtifacts testJar
+    }
+
+    test {
+      	maxHeapSize = '4g'
+        jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
+      useTestNG() 
     }
   }
 
-  task testJar(type: Jar){
-    from sourceSets.test.output
-    classifier = 'tests'
-  }
+ 
 
-  artifacts {
-    testArtifacts testJar
-  }
 
+
+/*
   // Configure the IDEA plugin to (1) add the codegen as source dirs and (2) work around
   // an apparent bug in the plugin which doesn't set the outputDir/testOutputDir as documented
   idea.module {
@@ -142,20 +148,15 @@ subprojects { subproj ->
     outputDir = sourceSets.main.output.classesDir
     testOutputDir = sourceSets.test.output.classesDir
   }
+*/
 
-  test {
-	maxHeapSize = '4g'
-    jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
-    useTestNG() 
-  }
-
+/*
   task integrationTests(type: Test) {
     useTestNG() {
       includeGroups 'integration'
       excludeGroups 'integration_external_product_dependent'
     }
   }
-
   //all functional tests which are expected to pass assuming proper environment setup
   task allTests(type: Test) {
 	  maxHeapSize = '1g'
@@ -192,6 +193,7 @@ subprojects { subproj ->
     }
   }
 
+*/
   task cleanBuildDir(type: Exec){
     delete(rootDir.toString()+'build')
     commandLine = ['rm', '-rf', rootDir.toString() + '/build']
@@ -208,5 +210,4 @@ subprojects { subproj ->
       workingDir = file(rootDir.toString())
     }
   }
-}
 }

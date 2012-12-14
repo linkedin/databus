@@ -13,7 +13,7 @@ def base_modules = [
 'databus2-linkedin-relay',
 'databus-relay',
 'databus-util-cmdline',
-'databus2-example',
+//'databus2-example',
 'databus2-relay',
 'database'
 ]
