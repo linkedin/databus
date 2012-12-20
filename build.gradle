@@ -120,16 +120,17 @@ subprojects {
 
       testArtifacts
     }
+    
 
     // Default dependencies for all subprojects
     dependencies {
-        runtime externalDependency.log4j
+      runtime externalDependency.log4j
     }
     //def configuration = project.configurations.getByName("default")
     //def runtimePath = configuration.resolve().join(":")
     //println "rt=" + runtimePath
 
-   def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class, dependsOn: 'jar')
+    def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class, dependsOn: 'jar')
 
 
     if (isDefaultEnvironment) {
@@ -157,9 +158,12 @@ subprojects {
       testArtifacts testJar
     }
 
+    assemble {
+     dependsOn GenerateClasspath.TASK_NAME
+    }
     test {
-      	maxHeapSize = '4g'
-        jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
+      maxHeapSize = '4g'
+      jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
       useTestNG() 
     }
   }
