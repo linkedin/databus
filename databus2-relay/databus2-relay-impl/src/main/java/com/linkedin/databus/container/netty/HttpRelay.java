@@ -283,8 +283,8 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
       // NOTE. some of tests REQUIRE specific values
       // This values are incorporated into sources-TEST.json
       // (id=1,2,3, sourceNames="source1, source2, source1"
-      String dbRelayConfigFileTest = "integration-test/config/sources-TEST.json";
-      String dbRelayConfigFileTest1 = "integration-test/config/sources-TEST1.json";
+      String dbRelayConfigFileTest = "config/sources-TEST.json";
+      String dbRelayConfigFileTest1 = "config/sources-TEST1.json";
 
       String[] sources = new String[]{dbRelayConfigFileTest,dbRelayConfigFileTest1};
       PhysicalSourceConfigBuilder builder = new PhysicalSourceConfigBuilder(baseDir, sources);
