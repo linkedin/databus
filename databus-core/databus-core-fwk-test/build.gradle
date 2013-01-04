@@ -1,0 +1,10 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile spec.external.log4j
+  compile spec.external.netty
+  compile spec.external.commonsIo
+  compile spec.external.zookeeper
+  compile spec.external.zkclientHelix
+  compile spec.external.testng
+}

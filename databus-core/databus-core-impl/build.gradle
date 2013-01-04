@@ -1,0 +1,29 @@
+apply plugin: 'li-java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile spec.external.avro
+  compile spec.external.commonsBeanutils
+  compile spec.external.commonsCli
+  compile spec.external.commonsCodec
+  compile spec.external.commonsCollections
+  compile spec.external.commonsIo
+  compile spec.external.commonsLang
+  compile spec.external.commonsLogging
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.json
+  compile spec.external.log4j
+  compile spec.external.netty
+
+  testCompile spec.external.testng
+  testCompile spec.external.easymock
+  testCompile project(':databus-core:databus-core-fwk-test')
+}
+
+test {
+  useTestNG()
+  options.suites(file('testng.xml'))
+  systemProperties.put('test.datadir', 'databus-core/databus-core-impl/test_data')
+}

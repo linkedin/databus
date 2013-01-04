@@ -1,0 +1,51 @@
+
+The below commands should be used to setup trigger-based Oracle instrumentation for your tables (databusification). Currently, Databusification works in views. So, if it is a single table that you need to databusify, you need to create asingle table view. Please look at example schema under databus2-examples.
+
+
+REQUIREMENTS:
+============
+1. Oracle 10/11g DB
+2. SQLPlus 10.x.x  ( Validated against 10.2.0.4.0)
+3. Oracle admin credential system/manager
+
+
+COMMANDS:
+==========
+
+There are 3 setup scripts available. The usage can be obtained by just executing the scripts with no arguments.
+
+1. TABLESPACE/USER Reinit
+    This is a one time execution script which will create the tablespace under which databus tables/views will be created. Also, users and their permissions is setup by this script. The username and password are provided as arguments to this script. This is the first step in setting up Oracle views.
+
+     Usage: ./createUser.sh username password dbname tablespace dbdir
+               username := Username for the new account to be used for creating tables/views
+               password := Password for the new account to be used for creating tables/views
+               dbname   := DB Name under which user/tablespace will be created. The DB must be created before running this script
+               tablespace := The new tablespace name in which all the tables/views and other objects will be created. Please note that index will have its own tablespace
+               dbdir := The dd data directory under which tablespace files will be created.
+
+2. Drop Schema
+    This is a reset schema utility. All tables/views created with the above user credentials will be deleted and reset.
+      Usage: ./dropSchema.sh <username/password[@SID]>
+              username := Username for the account which created the databus tables/views
+              password := Password for the account which created the databus tables/views
+              SID      := The SID used in tnsnames.ora
+
+3. Create Schema (Databusification)
+    This sets up the entire schema (tables, views,triggers,constraints,db_alerts) for table/view which needs to be databusified.
+      Usage: Usage: ./createSchema.sh <username/password@SID> <SRC_VIEW_DIR>
+              username := Username for the account which created the databus tables/views
+              password := Password for the account which created the databus tables/views
+              SID      := The SID used in tnsnames.ora
+              SRC_VIEW_DIR := The directory containing tables and views definition files. Please see below for the structure.
+
+
+SRC_VIEW_DIR:
+=============
+
+The createSchema scripts constructs db objects some of which are common and which will be constructed by the framework itself. But the actual source table and source views is specific to application and should be specified in this directory. It contains the following files:
+
+1. tablespace : The tablespace name should be stored in this file. 
+2. <table_name>.tab : The table create SQL statement should be placed in this file.
+3. <table_name>.view : The create view SQL statement should be placed in this file.
+

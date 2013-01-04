@@ -1,0 +1,20 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-core:databus-core-container')
+  compile project(':databus2-relay:databus2-relay-impl')
+  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+
+  compile spec.external.commonsIo
+  compile spec.external.commonsLang
+  compile spec.external.commonsCli
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  compile spec.external.netty
+  compile spec.external.avro
+  compile spec.external.ojdbc6
+
+}

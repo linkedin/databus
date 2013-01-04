@@ -1,0 +1,42 @@
+{
+    "name" : "espresso-ucp",
+    "uri" : "jdbc:oracle:thin:FIXME/FIXME@FIXME:1521:SDRF",
+	"sources" :
+	[
+		{"id" : 1101, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpApp",
+		 "uri": "espresso.UCP_APP", 
+		 "partitionFunction" : "constant:1"
+		},
+		{"id" : 1102, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpAppFeed",
+		 "uri": "espresso.UCP_APPFEED", 
+		 "partitionFunction" : "constant:1"
+		},		
+                {"id" : 1103, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpObjectSchema",
+		 "uri": "espresso.UCP_OBJECTSCHEMA", 
+		 "partitionFunction" : "constant:1"
+		},		
+		{"id" : 1104, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpSequence",
+		 "uri": "espresso.UCP_SEQUENCE", 
+		 "partitionFunction" : "constant:1"
+		},		
+		{"id" : 1105, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpSharedFeed",
+		 "uri": "espresso.UCP_SHAREDFEED", 
+		 "partitionFunction" : "constant:1"
+		},		
+		{"id" : 1106, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpTranslatableContent",
+		 "uri": "espresso.UCP_TRANSLATABLECONTENT", 
+		 "partitionFunction" : "constant:1"
+		},		
+		{"id" : 1107, 
+		 "name" : "com.linkedin.events.espresso.ucp.UcpVerbSchema",
+		 "uri": "espresso.UCP_VERBSCHEMA", 
+		 "partitionFunction" : "constant:1"
+		},		
+	]
+}

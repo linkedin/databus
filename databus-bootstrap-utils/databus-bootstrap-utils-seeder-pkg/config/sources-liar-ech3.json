@@ -1,0 +1,28 @@
+{
+    "name" : "liar",
+    "uri" : "jdbc:oracle:thin:liar/liar8uat@//eat1-dc1-eidb-liar.stg.linkedin.com:1521/EIDB",
+        "sources" :
+        [
+                {"id" : 201,
+                 "name" : "com.linkedin.events.liar.jobrelay.LiarJobRelay",
+                 "uri": "liar.liar_job_relay_2",
+                 "partitionFunction" : "constant:1"
+                },
+                {"id" : 202,
+                 "name" : "com.linkedin.events.liar.memberrelay.LiarMemberRelay",
+                 "uri": "liar.liar_member_relay",
+                 "partitionFunction" : "constant:1"
+                },
+                {"id" : 203,
+                 "name" : "com.linkedin.events.liar.ScsMemberRelay",
+                 "uri": "liar.scs_member_relay",
+                 "partitionFunction" : "constant:1"
+                },
+                {"id" : 204,
+                 "name" : "com.linkedin.events.liar.LiarNewsRelay",
+                 "uri": "liar.liar_news_relay",
+                 "partitionFunction" : "constant:1"
+                }
+        ]
+}
+

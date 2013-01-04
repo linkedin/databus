@@ -1,0 +1,8 @@
+
+This directory is to hold data files for testing, if we need to.
+
+DbusEventUpsertByOldJava.evt: Has dbus event generated when we used to set
+the same bit multiple times in the attribute array. The event has a numeric
+key (12345L), timestamp(3456L), physPartition(0),logicalPartition(30),and 
+srcId(15), schemaId of "abcdefghijklmnop".getBytes(). It is a non-replicated
+data event.

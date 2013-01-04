@@ -1,0 +1,10 @@
+apply plugin: 'li-java'
+
+dependencies {
+  testCompile project(':databus-core:databus-core-fwk-test')	
+  compile spec.external.log4j
+  compile spec.external.helixCore
+  testCompile spec.external.testng
+}
+
+test.useTestNG()

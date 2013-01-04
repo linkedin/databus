@@ -1,0 +1,8 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile spec.external.avro
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+}

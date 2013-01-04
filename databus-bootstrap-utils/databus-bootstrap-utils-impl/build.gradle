@@ -1,0 +1,21 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-bootstrap-common:databus-bootstrap-common-api')
+  compile project(':databus-bootstrap-common:databus-bootstrap-common-impl')
+  compile project(':databus-client:databus-client-http')
+  compile project(':databus-client:databus-client-common')
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-core:databus-core-container')
+  compile project(':databus2-relay:databus2-relay-impl')
+
+  compile spec.external.log4j
+  compile spec.external.mysqlConnectorJava
+  compile spec.external.ojdbc6
+  compile spec.external.spring
+  compile spec.external.avro
+  compile spec.external.commonsCli
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+}

@@ -1,0 +1,17 @@
+apply plugin: 'li-java'
+
+dependencies {
+  compile project(':databus-bootstrap-common:databus-bootstrap-common-impl')
+  compile project(':databus-client:databus-client-api')
+  compile project(':databus-client:databus-client-http')
+  compile project(':databus-client:databus-client-common')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-container')
+
+  compile spec.external.avro
+  compile spec.external.jacksonCoreAsl
+  compile spec.external.jacksonMapperAsl
+  compile spec.external.log4j
+  compile spec.external.netty
+}
