@@ -8,6 +8,7 @@ def base_modules = [
 'databus-client',
 'databus-core',
 'databus-events',
+'databus-cluster',
 'databus-group-leader',
 'databus-profile-client',
 'databus2-linkedin-relay',
@@ -26,7 +27,7 @@ def non_os_modules = [
 'databus3-scripts',
 //'databus2-linkedin',
 'databus3-linkedin-relay',
-'perf',
+//'perf',
 'integration-test'
 ]
 

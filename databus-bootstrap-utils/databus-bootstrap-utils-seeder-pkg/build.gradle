@@ -8,7 +8,7 @@ dependencies {
   compile externalDependency.ojdbc6
 }
 
-project.tasks.cmdline {
+task myTar(type: Tar) {
 
   into("conf") { from "${project.rootDir}/databus-client/databus2-client-util-pkg/config/" }
   into("conf") { from "config/" }
@@ -45,4 +45,11 @@ project.tasks.cmdline {
     include('**/*')
   }
 
+  into("lib") {
+     from configurations.runtime
+  }
 }
+
+myTar.dependsOn ':databus-bootstrap-utils:databus-bootstrap-utils-impl:assemble'
+myTar.dependsOn ':databus-client:databus2-client-util:assemble'
+assemble.dependsOn myTar

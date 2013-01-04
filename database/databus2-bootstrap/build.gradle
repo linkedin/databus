@@ -1,2 +1,6 @@
-apply plugin: 'li-db'
+task reinit {
+    exec {
+       commandLine('./bootstrap_db_reinit.sh')
+    }  
+}
 
