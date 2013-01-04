@@ -1,11 +1,11 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 test.useTestNG()
 
 dependencies {
   compile project(':databus-core:databus-core-schemas')
 
-  compile spec.external.log4j
+  compile externalDependency.log4j
 
-  testCompile spec.external.testng
+  testCompile externalDependency.testng
 }

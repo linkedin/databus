@@ -1,4 +1,4 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus2-relay:databus2-relay-impl')
@@ -8,11 +8,11 @@ dependencies {
   compile project(':databus-core:databus-core-impl')
   compile project(':databus-core:databus-core-container')
 
-  compile spec.external.log4j
-  compile spec.external.mysqlConnectorJava
-  compile spec.external.ojdbc6
-  compile spec.external.spring
-  compile spec.external.avro
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.mysqlConnectorJava
+  compile externalDependency.ojdbc6
+  compile externalDependency.spring
+  compile externalDependency.avro
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
 }

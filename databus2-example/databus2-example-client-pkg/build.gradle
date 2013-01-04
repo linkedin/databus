@@ -1,4 +1,4 @@
-apply plugin: 'li-cmdline'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus-client:databus-client-api')

@@ -1,11 +1,11 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus-group-leader:databus-group-leader-api')
   compile project(':databus-group-leader:databus-group-leader-impl')
 
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.log4j
-  compile spec.external.zkclientHelix
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.zkclientHelix
 }

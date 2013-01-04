@@ -1,4 +1,4 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus-core:databus-core-impl')
@@ -7,15 +7,15 @@ dependencies {
   compile project(':databus-group-leader:databus-group-leader-impl')
   compile project(':databus-cluster:databus-cluster-manager-impl')
   
-  compile spec.external.avro
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.log4j
-  compile spec.external.netty
-  compile spec.external.helixCore
+  compile externalDependency.avro
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.helixCore
   
   testCompile project(':databus-core:databus-core-fwk-test')  
-  testCompile spec.external.testng
+  testCompile externalDependency.testng
 }
 
 test.useTestNG()

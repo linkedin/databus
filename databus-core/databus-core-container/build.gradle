@@ -1,17 +1,17 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 dependencies {
   compile project(':databus-core:databus-core-impl')
 
-  compile spec.external.avro
-  compile spec.external.log4j
-  compile spec.external.netty
-  compile spec.external.commonsCli
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.jacksonCoreAsl
+  compile externalDependency.avro
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.commonsCli
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.jacksonCoreAsl
 
-  testCompile spec.external.testng
-  testCompile spec.external.easymock
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
   testCompile project(':databus-core:databus-core-fwk-test')
 }
 

@@ -1,24 +1,24 @@
-apply plugin: 'li-java'
+apply plugin: 'java'
 
 test.workingDir = "${project.rootDir}"
 
 dependencies {
-  compile spec.external.avro
-  compile spec.external.commonsBeanutils
-  compile spec.external.commonsCli
-  compile spec.external.commonsCodec
-  compile spec.external.commonsCollections
-  compile spec.external.commonsIo
-  compile spec.external.commonsLang
-  compile spec.external.commonsLogging
-  compile spec.external.jacksonCoreAsl
-  compile spec.external.jacksonMapperAsl
-  compile spec.external.json
-  compile spec.external.log4j
-  compile spec.external.netty
+  compile externalDependency.avro
+  compile externalDependency.commonsBeanutils
+  compile externalDependency.commonsCli
+  compile externalDependency.commonsCodec
+  compile externalDependency.commonsCollections
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLang
+  compile externalDependency.commonsLogging
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.json
+  compile externalDependency.log4j
+  compile externalDependency.netty
 
-  testCompile spec.external.testng
-  testCompile spec.external.easymock
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
   testCompile project(':databus-core:databus-core-fwk-test')
 }
 
