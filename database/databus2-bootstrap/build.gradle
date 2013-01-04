@@ -1,9 +1,0 @@
-task reinit {
-  doLast{
-    exec {
-       commandLine('./bootstrap_db_reinit.sh')
-    }  
-  }
-}
-
-
