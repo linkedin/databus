@@ -14,20 +14,20 @@ def base_modules = [
 'databus2-linkedin-relay',
 'databus-relay',
 'databus-util-cmdline',
-//'databus2-example',
+'databus2-example',
+'databus2-example-events',
 'databus2-relay',
-'database'
+'database',
+'perf',
+'script'
 ]
 
 def non_os_modules = [
 'databus3-core',
 'databus3-relay',
 'databus3-client',
-//'databus2-tools',
 'databus3-scripts',
-//'databus2-linkedin',
 'databus3-linkedin-relay',
-//'perf',
 'integration-test'
 ]
 
