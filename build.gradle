@@ -128,8 +128,8 @@ subprojects {
     //def runtimePath = configuration.resolve().join(":")
     //println "rt=" + runtimePath
 
-   def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class, dependsOn: 'jar')
-
+   def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class)
+   jar.dependsOn generateClasspath 
 
     if (isDefaultEnvironment) {
       task sourcesJar(type: Jar, dependsOn: classes) {
@@ -159,7 +159,7 @@ subprojects {
     test {
       	maxHeapSize = '4g'
         jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
-      useTestNG() 
+        useTestNG() 
     }
   }
 
