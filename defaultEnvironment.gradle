@@ -1,6 +1,6 @@
 subprojects {
   repositories {
-    mavenCentral()
+    //mavenCentral()
 
     add(new org.apache.ivy.plugins.resolver.URLResolver()) {
       name = 'release'

@@ -51,14 +51,13 @@ externalDependency = [
     'zkclient': 'zkclient:zkclient:0.2.0',
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
     'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
-    'espressoSchema': 'com.linkedin.espresso:espresso-schema-impl:0.5.155-debug3',
-    'espressoCommonImpl': 'com.linkedin.espresso:espresso-common-impl:0.5.155-debug',
-    'espressoStoreImpl': 'com.linkedin.espresso:espresso-store-impl:0.5.155-debug',
-    'helixCore': 'com.linkedin.helix:helix-core:0.5.24-debug2'
+    'espressoSchema': 'com.linkedin.espresso:espresso-schema-impl:0.5.264',
+    'espressoCommonImpl': 'com.linkedin.espresso:espresso-common-impl:0.5.264',
+    'espressoStoreImpl': 'com.linkedin.espresso:espresso-store-impl:0.5.264',
+    'helixCore': 'com.linkedin.helix:helix-core:0.5.31'
 ];
 
 sandboxDependency = [
-    'espressoSchema': 'com.linked.espresso:espresso-schema-impl:0.5.155'
 ];
 
 if (!isDefaultEnvironment)
