@@ -1,0 +1,10 @@
+log4j.rootLogger=ERROR, ConsoleAppender, FileAppender
+log4j.appender.ConsoleAppender=org.apache.log4j.ConsoleAppender
+log4j.appender.ConsoleAppender.layout=org.apache.log4j.TTCCLayout
+
+log4j.appender.FileAppender=org.apache.log4j.RollingFileAppender
+log4j.appender.FileAppender.maxBackupIndex=10
+log4j.appender.FileAppender.maxFileSize=10MB
+log4j.appender.FileAppender.file=databus2-relay.log
+log4j.appender.FileAppender.layout=org.apache.log4j.PatternLayout
+log4j.appender.FileAppender.layout.conversionPattern=%d{ISO8601} +%r [%t] (%p) {%c} %m%n

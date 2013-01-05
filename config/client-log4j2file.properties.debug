@@ -1,0 +1,7 @@
+log4j.rootLogger=DEBUG, ConsoleAppender
+log4j.appender.ConsoleAppender=org.apache.log4j.ConsoleAppender
+log4j.appender.ConsoleAppender.layout=org.apache.log4j.PatternLayout
+log4j.appender.ConsoleAppender.layout.conversionPattern=%d{ISO8601} +%r [%t] (%p) {%c{1}} %m%n
+
+#log4j.logger.com.linkedin.databus.client.netty.StreamHttpResponseProcessor=TRACE, ConsoleAppender
+
