@@ -27,7 +27,8 @@ def non_os_modules = [
 'databus3-scripts',
 'databus3-linkedin-relay',
 'perf',
-'integration-test'
+'integration-test',
+'sitetools'
 ]
 
 
