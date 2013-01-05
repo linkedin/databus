@@ -15,10 +15,8 @@ def base_modules = [
 'databus-relay',
 'databus-util-cmdline',
 'databus2-example',
-'databus2-example-events',
 'databus2-relay',
 'database',
-'perf',
 'script'
 ]
 
@@ -28,6 +26,7 @@ def non_os_modules = [
 'databus3-client',
 'databus3-scripts',
 'databus3-linkedin-relay',
+'perf',
 'integration-test'
 ]
 
