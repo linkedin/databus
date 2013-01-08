@@ -160,6 +160,13 @@ subprojects {
       	maxHeapSize = '4g'
         jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
         useTestNG() 
+        
+        doFirst { desc->
+          logger.lifecycle("Running task: " + desc);
+        }
+        beforeTest { desc->
+          logger.lifecycle("Running test: " + desc);
+        }
     }
   }
 
