@@ -41,13 +41,18 @@ public class KeyModFilter implements DbusFilter
 	    	key = e.key();
 	    } else {
 	      // key is string, so we need to convert it to a number
+	      String str = new String(e.keyBytes());
 	      try 
 	      {
-	    	  key = Long.parseLong(new String(e.keyBytes()));
+	    	  key = Long.parseLong(str);
 	      } 
 	      catch (NumberFormatException nfe) 
 	      {
-	        throw new RuntimeException(nfe);
+	    	 /**
+	    	  * Needed for load balancing client. 
+	    	  * For Mod partitioning, we use hash-code of string type keys containing non-numeric values to determine bktId.
+	    	  */
+	    	 key = str.hashCode();
 	      }
 	    }
 	    

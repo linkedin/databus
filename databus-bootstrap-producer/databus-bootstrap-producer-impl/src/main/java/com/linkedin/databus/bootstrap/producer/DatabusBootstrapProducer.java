@@ -1,15 +1,5 @@
 package com.linkedin.databus.bootstrap.producer;
 
-import java.io.IOException;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.bootstrap.api.BootstrapProducerStatus;
 import com.linkedin.databus.bootstrap.common.BootstrapConn;
 import com.linkedin.databus.bootstrap.common.BootstrapDBCleaner;
@@ -22,12 +12,24 @@ import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.container.request.BootstrapDBException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
+import org.apache.log4j.Logger;
+
+import java.io.IOException;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
 
 public class DatabusBootstrapProducer extends DatabusHttpClientImpl
    implements BootstrapProducerCallback.ErrorCaseHandler
@@ -35,6 +37,7 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
   public static final String MODULE = DatabusBootstrapProducer.class.getName();
   public static final Logger LOG    = Logger.getLogger(MODULE);
 
+  private final HashSet<SourceInfo> _registeredPhysicalSources;
   private final List<String> _registeredSources;
 
   private final BootstrapApplierThread _applierThread;
@@ -44,13 +47,13 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
   private final BootstrapDBMetaDataDAO _dbDao;
   private final Map<String, Integer> _srcNameIdMap;
 
-
-  private final BootstrapProducerStatsCollector _producerStatsCollector;
+  protected final StatsCollectors<BootstrapProducerStatsCollector> _bootstrapProducerStatsCollectors;
   private final BootstrapProducerStatsCollector _applierStatsCollector;
   private final BootstrapProducerStaticConfig _bootstrapProducerStaticConfig;
 
 
-  /**
+
+		/**
    * @param config
    * @throws SQLException
    * @throws ClassNotFoundException
@@ -75,15 +78,18 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
                 ClassNotFoundException, SQLException, DatabusClientException, DatabusException,
                 BootstrapDBException
   {
-    super(bootstrapProducerStaticConfig.getClient());
+     super(bootstrapProducerStaticConfig.getClient());
+      _registeredPhysicalSources = new HashSet<SourceInfo>();
+      decouplePhysicalSources();
     _bootstrapProducerStaticConfig = bootstrapProducerStaticConfig;
     _registeredSources = new ArrayList<String>();
-    _producerStatsCollector = new BootstrapProducerStatsCollector(getContainerStaticConfig().getId(), "bootstrapProducer", true, true, getMbeanServer());
-    _applierStatsCollector = new BootstrapProducerStatsCollector(getContainerStaticConfig().getId(), "bootstrapApplier", true, true, getMbeanServer());
+    _applierStatsCollector = new BootstrapProducerStatsCollector(getContainerStaticConfig().getId(), "bootstrapApplier", true, true, getMbeanServer(), null);
+    _bootstrapProducerStatsCollectors = new StatsCollectors<BootstrapProducerStatsCollector>();
+
     _applierThread = new BootstrapApplierThread(MODULE,
-                                                _registeredSources,
-                                                _bootstrapProducerStaticConfig,
-                                                _applierStatsCollector);
+                                               _registeredSources,
+                                               _bootstrapProducerStaticConfig,
+                                               _applierStatsCollector);
     BootstrapConn conn = new BootstrapConn();
     _dbDao = new BootstrapDBMetaDataDAO(conn,
     							bootstrapProducerStaticConfig.getBootstrapDBHostname(),
@@ -100,8 +106,15 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
     initBootstrapDBMetadata();
 
     // callback should only be registered after DBMetadata is initialized.
-    registerProducerCallback();
-
+			LOG.info("The Bootstrap Producer is configured for " + _registeredPhysicalSources.size() + " sources");
+    for(SourceInfo sourceInfo : _registeredPhysicalSources)
+    {
+				LOG.info("Creating BootstrapProducer callback for PhysicalSource: " + sourceInfo.getPhysicalSourceName());
+				BootstrapProducerStatsCollector producerStatsCollector = new BootstrapProducerStatsCollector(getContainerStaticConfig().getId(),
+                                                                                                   sourceInfo.getPhysicalSourceName(), true, true, getMbeanServer(), sourceInfo.getLogicalSources());
+      _bootstrapProducerStatsCollectors.addStatsCollector(sourceInfo.getPhysicalSourceName(), producerStatsCollector);
+      registerProducerCallback(sourceInfo.getLogicalSources(), producerStatsCollector);
+    }
     validateAndRepairBootstrapDBCheckpoint();
 
     BootstrapDBCleaner cleaner = new BootstrapDBCleaner("DBCleaner", _bootstrapProducerStaticConfig.getCleaner(), _bootstrapProducerStaticConfig, _applierThread, _registeredSources);
@@ -111,6 +124,33 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
 
 
   /**
+   * The method helps identify the Physical sources that are listed in the bootstrap producer config (Which is really the client config)
+   * The Physical sources are identified by comparing the list of subscriptions/logical sources.
+   * There are two acceptable cases:
+   * 1. Two relays provide different logical sources -> Two different physical sources
+   * 2. Two relays provide the same logical sources (for load balancing/fault tolerance) -> Only one physical source
+   * (The multitenant-client library underneath is aware that two relays provide the same logical sources)
+   * @return A set of Physical sources which each contains a list of logical sources.
+   *
+   */
+  private void decouplePhysicalSources()
+  {
+    DatabusHttpClientImpl.RuntimeConfig clientRtConfig = getClientConfigManager().getReadOnlyConfig();
+
+    for (ServerInfo relayInfo: clientRtConfig.getRelays())
+    {
+
+       if(relayInfo == null || relayInfo.getSources() == null)
+           LOG.error("No sources specified in the client config for the bootstrap producer");
+
+			 SourceInfo sourceInfo = new SourceInfo(relayInfo.getPhysicalSourceName(), relayInfo.getSources());
+			 _registeredPhysicalSources.add(sourceInfo);
+    }
+  }
+
+
+  /**
+   *
    *
    * Compares the Checkpoint  and bootstrap_producer_state's SCN to check against the possibility of gap in event consumption!!
    * If gap is found, makes best-effort to repair it.
@@ -125,7 +165,7 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
    *       In this case checkpoint SCN should not be greater than producer SCN.
    * @throws SQLException
    * @throws BootstrapDBException if there is a gap and cannot be repaired
-   * @throws IOException
+   * @throws IOException                                                                                                    `
    */
   private void validateAndRepairBootstrapDBCheckpoint() throws SQLException, BootstrapDBException, IOException
   {
@@ -233,12 +273,13 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
 	 LOG.info("Validating bootstrap DB checkpoints done successfully!!");
   }
 
-  private void registerProducerCallback() throws SQLException, DatabusClientException
+  private void registerProducerCallback(List<String> logicalSourceList, BootstrapProducerStatsCollector statsCollector) throws SQLException, DatabusClientException
   {
+
     // create callback for producer to populate data into log_* tables
     BootstrapProducerCallback bootstrapCallback =
-      new BootstrapProducerCallback(_bootstrapProducerStaticConfig,_producerStatsCollector, this);
-    registerDatabusStreamListener(bootstrapCallback, _registeredSources,null);
+      new BootstrapProducerCallback(_bootstrapProducerStaticConfig, statsCollector, this, logicalSourceList);
+    registerDatabusStreamListener(bootstrapCallback, logicalSourceList,null);
   }
 
   private void initBootstrapDBMetadata() throws SQLException, BootstrapDatabaseTooOldException
@@ -336,8 +377,8 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
     }
   }
 
-  public BootstrapProducerStatsCollector getProducerStatsCollector() {
-	  return _producerStatsCollector;
+  public StatsCollectors<BootstrapProducerStatsCollector> getProducerStatsCollectors() {
+	  return _bootstrapProducerStatsCollectors;
   }
 
   public BootstrapProducerStatsCollector getApplierStatsCollector() {
@@ -351,4 +392,46 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
 	 LOG.fatal("Error Retry Limit reached. Message :(" + message + "). Stopping Bootstrap Producer Service. Exception Received :", exception);
 	 doShutdown();
   }
+
+	/* This class holds information about the physical source and the list of logical sources that belong to them
+	 */
+	private class SourceInfo
+	{
+			private String PhysicalSourceName;
+			private List<String> logicalSources;
+
+
+			public List<String> getLogicalSources() {
+					return logicalSources;
+			}
+
+			public void setLogicalSources(List<String> logicalSources) {
+					this.logicalSources = logicalSources;
+			}
+
+			public String getPhysicalSourceName() {
+					return PhysicalSourceName;
+			}
+
+			public void setPhysicalSourceName(String physicalSourceName) {
+					PhysicalSourceName = physicalSourceName;
+			}
+
+
+			private SourceInfo(String physicalSourceName, List<String> logicalSources) {
+					PhysicalSourceName = physicalSourceName;
+					this.logicalSources = logicalSources;
+			}
+
+			@Override
+			public boolean equals(Object obj) {
+
+					if (null == obj)
+							return false;
+					if (!(obj instanceof SourceInfo))
+							return false;
+					SourceInfo other = (SourceInfo) obj;
+					return this.PhysicalSourceName.equals(other.getPhysicalSourceName());
+			}
+	}
 }

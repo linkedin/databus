@@ -2,6 +2,7 @@ package com.linkedin.databus.bootstrap.common;
 
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 
@@ -13,11 +14,12 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.bootstrap.monitoring.producer.mbean.DbusBootstrapProducerStats;
 import com.linkedin.databus.bootstrap.monitoring.producer.mbean.DbusBootstrapProducerStatsMBean;
 import com.linkedin.databus.core.monitoring.mbean.AbstractMonitoringMBean;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectorMergeable;
 import com.linkedin.databus.core.util.ReadWriteSyncedObject;
 
-public class BootstrapProducerStatsCollector 
+public class BootstrapProducerStatsCollector
 extends ReadWriteSyncedObject
-implements BootstrapProducerStatsCollectorMBean 
+implements BootstrapProducerStatsCollectorMBean,StatsCollectorMergeable<BootstrapProducerStatsCollector>
 {
 	private final static String NO_SOURCE = "NONE";
 
@@ -33,12 +35,13 @@ implements BootstrapProducerStatsCollectorMBean
 	private final String _perSourcePrefix;
 	private final String _curSource;
 	private final AtomicBoolean _enabled;
+	private final List<String> _logicalSources;
 
 
 	public BootstrapProducerStatsCollector(int id, String name, boolean enabled, boolean threadSafe,
-			MBeanServer mbeanServer)
+			MBeanServer mbeanServer, List<String> logicalSources)
 	{
-		this(id, name, enabled, threadSafe, NO_SOURCE, mbeanServer);
+		this(id, name, enabled, threadSafe, NO_SOURCE, mbeanServer, logicalSources);
 	}
 
 	public BootstrapProducerStatsCollector(
@@ -47,7 +50,8 @@ implements BootstrapProducerStatsCollectorMBean
 			boolean enabled,
 			boolean threadSafe,
 			String source,
-			MBeanServer mbeanServer)
+			MBeanServer mbeanServer,
+			List<String> logicalSources)
 	{
 		super(threadSafe);
 		_mbeanServer = mbeanServer;
@@ -56,6 +60,7 @@ implements BootstrapProducerStatsCollectorMBean
 		_id = id;
 		_name = name;
 		_perSourcePrefix = _name + ".source.";
+		_logicalSources = logicalSources;
 
 		_totalStats = new DbusBootstrapProducerStats(_id, _name + ".total", enabled, threadSafe, null);
 		_perClientStats = new HashMap<String, DbusBootstrapProducerStats>(1000);
@@ -140,7 +145,7 @@ implements BootstrapProducerStatsCollectorMBean
 
 	@Override
 	public void registerBatch(String source, long latency, long numEvents, long currentSCN,
-			long currentLogId, long currentRowId) 
+			long currentLogId, long currentRowId)
 	{
 		Lock writeLock = acquireWriteLock();
 		try
@@ -160,7 +165,7 @@ implements BootstrapProducerStatsCollectorMBean
 		_totalStats.registerBatch(latency, numEvents, currentSCN, 0, 0);
 	}
 
-	  
+
 	protected void registerAsMBeans()
 	{
 		if (null != _mbeanServer && null != _collectorObjName)
@@ -206,7 +211,8 @@ implements BootstrapProducerStatsCollectorMBean
 		}
 	}
 
-	public void merge(BootstrapProducerStatsCollector other)
+	@Override
+  public void merge(BootstrapProducerStatsCollector other)
 	{
 		_totalStats.mergeStats(other._totalStats);
 
@@ -259,4 +265,22 @@ implements BootstrapProducerStatsCollectorMBean
 			releaseLock(myWriteLock);
 		}
 	}
+
+  public List<String> getLogicalSources()
+  {
+    return _logicalSources;
+  }
+
+
+	public String getPhysicalSourceName()
+	{
+			return _name;
+	}
+
+@Override
+public void resetAndMerge(List<BootstrapProducerStatsCollector> objList) {
+	
+}
+
+
 }

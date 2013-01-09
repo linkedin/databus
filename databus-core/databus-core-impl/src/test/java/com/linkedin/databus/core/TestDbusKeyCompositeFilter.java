@@ -349,6 +349,159 @@ public class TestDbusKeyCompositeFilter
     }
 
     @Test
+    // Case when string keys have numeric values
+    public void testDbusKeyModFilterWithStringKeys1()
+      throws Exception
+    {
+      KeyFilterConfigHolder.Config partConf =  new KeyFilterConfigHolder.Config();
+      partConf.setType("MOD");
+      KeyModFilterConfig.Config modConf = new KeyModFilterConfig.Config();
+      modConf.setNumBuckets(100);
+      modConf.setBuckets("[0,3-4]");
+      partConf.setMod(modConf);
+      DbusKeyFilter filter = new DbusKeyFilter(new KeyFilterConfigHolder(partConf.build()));
+
+      // String Keys with numeric values
+      List<DbusEvent> dbusEvents = new ArrayList<DbusEvent>();
+      List<String> keys = new ArrayList<String>();
+      for (long i = 0 ; i < 1000 ;i++)
+      {
+          keys.add(new Long(i).toString());
+      }
+
+      generateStringEvents(1000, (short)1, keys, dbusEvents );
+
+      List<DbusEvent> expPassedEvents = new ArrayList<DbusEvent>();
+      List<DbusEvent> expFailedEvents = new ArrayList<DbusEvent>();
+
+      for (DbusEvent event :  dbusEvents)
+      {
+        long bkt = new Long(new String(event.keyBytes()))%100;
+        if ( (bkt == 0) || ( (bkt >= 3) && ( bkt < 5)))
+          expPassedEvents.add(event);
+        else
+          expFailedEvents.add(event);
+      }
+
+      List<DbusEvent> passedEvents = new ArrayList<DbusEvent>();
+      List<DbusEvent> failedEvents = new ArrayList<DbusEvent>();
+
+      for (DbusEvent event :  dbusEvents)
+      {
+         if ( filter.allow(event))
+         {
+           passedEvents.add(event);
+         } else {
+           failedEvents.add(event);
+         }
+      }
+
+      System.out.println("Passed Event Size :" + passedEvents.size());
+      System.out.println("Failed Event Size :" + failedEvents.size());
+
+      assertEquals("Passed Size", expPassedEvents.size(), passedEvents.size());
+      assertEquals("Failed Size", expFailedEvents.size(), failedEvents.size());
+
+      for ( int i = 0; i < passedEvents.size(); i++ )
+      {
+        assertEquals("Passed Element " + i, expPassedEvents.get(i), passedEvents.get(i));
+      }
+
+      for ( int i = 0; i < passedEvents.size(); i++ )
+      {
+        assertEquals("Failed Element " + i, expFailedEvents.get(i), failedEvents.get(i));
+      }
+
+      ObjectMapper objMapper = new ObjectMapper();
+      String objStr = objMapper.writeValueAsString(filter);
+
+      System.out.println("KeyModFilter :" + objStr);
+
+      DbusKeyFilter filter2 = KeyFilterConfigJSONFactory.parseDbusKeyFilter(objStr);
+      String objStr2 = objMapper.writeValueAsString(filter2);
+
+      System.out.println("KeyModFilter2 :" + objStr2);
+      assertEquals("KeyModFilter JSON Serialization Test", objStr, objStr2);
+    }
+    
+    
+    @Test
+    // Case when string keys have non-numeric values
+    public void testDbusKeyModFilterWithStringKeys2()
+      throws Exception
+    {
+      KeyFilterConfigHolder.Config partConf =  new KeyFilterConfigHolder.Config();
+      partConf.setType("MOD");
+      KeyModFilterConfig.Config modConf = new KeyModFilterConfig.Config();
+      modConf.setNumBuckets(100);
+      modConf.setBuckets("[0,3-4]");
+      partConf.setMod(modConf);
+      DbusKeyFilter filter = new DbusKeyFilter(new KeyFilterConfigHolder(partConf.build()));
+
+      // String Keys with numeric values
+      List<DbusEvent> dbusEvents = new ArrayList<DbusEvent>();
+      List<String> keys = new ArrayList<String>();
+      for (long i = 0 ; i < 1000 ;i++)
+      {
+    	  keys.add(i + "_1000"); //contains non-numeric char
+      }
+      
+      generateStringEvents(1000, (short)1, keys, dbusEvents );
+
+      List<DbusEvent> expPassedEvents = new ArrayList<DbusEvent>();
+      List<DbusEvent> expFailedEvents = new ArrayList<DbusEvent>();
+
+      for (DbusEvent event :  dbusEvents)
+      {
+        long bkt = new Long(Math.abs(new String(event.keyBytes()).hashCode()))%100;
+        if ( (bkt == 0) || ( (bkt >= 3) && ( bkt < 5)))
+          expPassedEvents.add(event);
+        else
+          expFailedEvents.add(event);
+      }
+
+      List<DbusEvent> passedEvents = new ArrayList<DbusEvent>();
+      List<DbusEvent> failedEvents = new ArrayList<DbusEvent>();
+
+      for (DbusEvent event :  dbusEvents)
+      {
+         if ( filter.allow(event))
+         {
+           passedEvents.add(event);
+         } else {
+           failedEvents.add(event);
+         }
+      }
+
+      System.out.println("Passed Event Size :" + passedEvents.size());
+      System.out.println("Failed Event Size :" + failedEvents.size());
+
+      assertEquals("Passed Size", expPassedEvents.size(), passedEvents.size());
+      assertEquals("Failed Size", expFailedEvents.size(), failedEvents.size());
+
+      for ( int i = 0; i < passedEvents.size(); i++ )
+      {
+        assertEquals("Passed Element " + i, expPassedEvents.get(i), passedEvents.get(i));
+      }
+
+      for ( int i = 0; i < passedEvents.size(); i++ )
+      {
+        assertEquals("Failed Element " + i, expFailedEvents.get(i), failedEvents.get(i));
+      }
+
+      ObjectMapper objMapper = new ObjectMapper();
+      String objStr = objMapper.writeValueAsString(filter);
+
+      System.out.println("KeyModFilter :" + objStr);
+
+      DbusKeyFilter filter2 = KeyFilterConfigJSONFactory.parseDbusKeyFilter(objStr);
+      String objStr2 = objMapper.writeValueAsString(filter2);
+
+      System.out.println("KeyModFilter2 :" + objStr2);
+      assertEquals("KeyModFilter JSON Serialization Test", objStr, objStr2);
+    }
+    
+    @Test
     public void testDbusKeyRangeFilterErrors()
       throws Exception
     {
@@ -514,5 +667,41 @@ public class TestDbusKeyCompositeFilter
 		}
 		return;
 	}
+	
+	private void generateStringEvents(int numEvents,
+			short srcId,
+			List<String> keys,
+			List<DbusEvent> eventVector)
+	{
+		int maxEventSize = 1024;
+		int payloadSize = 100;
+		long windowScn = 100;
+		int index = 0;
+		int size = keys.size();
+		try {
 
+			for (int i=0 ; i < numEvents; ++i)
+			{
+				//assumption: serialized event fits in maxEventSize
+				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEvent.byteOrder);
+				DbusEvent.serializeEvent(new DbusEventKey(keys.get((index++)%size)),
+				        (short)0,
+						RngUtils.randomPositiveShort(),
+						System.currentTimeMillis(),
+						srcId,
+						RngUtils.schemaMd5,
+						RngUtils.randomString(payloadSize).getBytes(),
+						false,
+						buf);
+				DbusEvent dbe = new DbusEvent(buf,0);
+				dbe.setSequence(windowScn);
+				dbe.applyCrc();
+				eventVector.add(dbe);
+			}
+		} catch (KeyTypeNotImplementedException e) {
+			e.printStackTrace();
+		}
+		return;
+	}
+	
 }

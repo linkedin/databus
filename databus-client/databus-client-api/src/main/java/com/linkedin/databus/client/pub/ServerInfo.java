@@ -46,6 +46,9 @@ public class ServerInfo implements Comparable<ServerInfo>
 
   protected String                  _jsonString;
 
+    /* The name of the physical source */
+  private String _PhysicalSourceName = "DefaultPhysicalSource";
+
   /**
    * Constructor
    * @param name        a human-readable name for he server
@@ -119,9 +122,23 @@ public class ServerInfo implements Comparable<ServerInfo>
     this(name, state, address, Arrays.asList(sources));
   }
 
+
+	/**
+	* The name of the physical source that is hosted by the relay
+	*/
+	public String getPhysicalSourceName() {
+		return _PhysicalSourceName;
+	}
+
+	public void setPhysicalSourceName(String PhysicalSourceName) {
+		_PhysicalSourceName = PhysicalSourceName;
+	}
+
+
   /**
    * A name that identifies the server (relay, bootstrap-server)
    */
+
   public String getName()
   {
     return _serverCoordinates.getName();
@@ -193,18 +210,18 @@ public class ServerInfo implements Comparable<ServerInfo>
    */
   public static boolean checkSubsequence(List<String> sources, List<String> serverSources)
   {
-	  int maxPos = 0;
-	  for (String source : sources)
-	  {
-		  for (; maxPos < serverSources.size() && !serverSources.get(maxPos).equals(source); ++maxPos)
-			  ;
-		  if (maxPos == serverSources.size())
-		  {
-			  return false;
-		  }
-	  }
+      int maxPos = 0;
+      for (String source : sources)
+      {
+          for (; maxPos < serverSources.size() && !serverSources.get(maxPos).equals(source); ++maxPos)
+              ;
+          if (maxPos == serverSources.size())
+          {
+              return false;
+          }
+      }
 
-	  return true;
+      return true;
   }
 
   /**
@@ -244,19 +261,19 @@ public class ServerInfo implements Comparable<ServerInfo>
       ServerInfo serverInfo  = null;
       try
       {
-      	if ( null != serverHostPort)
-      	{
-      		String[] hostInfo = serverHostPort.split(hostPortDelim);
+        if ( null != serverHostPort)
+        {
+            String[] hostInfo = serverHostPort.split(hostPortDelim);
 
-      		if (hostInfo.length == 2)
-      		{
-      			InetSocketAddress address = new InetSocketAddress(InetAddress.getByName(hostInfo[0]), Integer.parseInt(hostInfo[1]));
-      			serverInfo = new ServerInfo(serverHostPort, DatabusServerCoordinates.StateId.ONLINE.toString(), address);
-      		}
-      	}
+            if (hostInfo.length == 2)
+            {
+                InetSocketAddress address = new InetSocketAddress(InetAddress.getByName(hostInfo[0]), Integer.parseInt(hostInfo[1]));
+                serverInfo = new ServerInfo(serverHostPort, DatabusServerCoordinates.StateId.ONLINE.toString(), address);
+            }
+        }
       } catch(Exception ex) {
-      	LOG.error("Unable to extract Boostrap Server info from StartSCN response. ServerInfo was :" + serverHostPort, ex);
-      	throw ex;
+        LOG.error("Unable to extract Boostrap Server info from StartSCN response. ServerInfo was :" + serverHostPort, ex);
+        throw ex;
       }
       return serverInfo;
   }
@@ -278,6 +295,7 @@ public class ServerInfo implements Comparable<ServerInfo>
     private String _sources = "";
     private String _name    = null;
     private String _address = null;
+    private String _PhysicalSourceName = "DefaultPhysicalSource";
     private SubscriptionUriCodec _uriCodec = LegacySubscriptionUriCodec.getInstance();
     private final List<DatabusSubscription.Builder> _subs =
         new ArrayList<DatabusSubscription.Builder>();
@@ -295,7 +313,19 @@ public class ServerInfo implements Comparable<ServerInfo>
       return resBuilder.toString();
     }
 
-    /** Host name or IP address of the server */
+
+    /**
+    * The name of the physical source that is hosted by the relay
+    */
+    public String getPhysicalSourceName() {
+      return _PhysicalSourceName;
+    }
+
+    public void setPhysicalSourceName(String PhysicalSourceName) {
+      _PhysicalSourceName = PhysicalSourceName;
+    }
+
+      /** Host name or IP address of the server */
     public String getHost()
     {
       return _host;
@@ -388,7 +418,9 @@ public class ServerInfo implements Comparable<ServerInfo>
         _name = serverName.toString();
       }
       LOG.info("res name: " + _name);
-      return new ServerInfo(_name, StateId.ONLINE.toString(), inetAddress, sources);
+      ServerInfo  serverInfo = new ServerInfo(_name, StateId.ONLINE.toString(), inetAddress, sources);
+      serverInfo.setPhysicalSourceName(getPhysicalSourceName());
+      return serverInfo;
     }
 
     public static String generateAddress(String name, String host, int port, String... sources)
@@ -508,7 +540,7 @@ public class ServerInfo implements Comparable<ServerInfo>
 @Override
 public int compareTo(ServerInfo o)
 {
-	return _serverCoordinates.compareTo(o._serverCoordinates);
+    return _serverCoordinates.compareTo(o._serverCoordinates);
 }
 
 }

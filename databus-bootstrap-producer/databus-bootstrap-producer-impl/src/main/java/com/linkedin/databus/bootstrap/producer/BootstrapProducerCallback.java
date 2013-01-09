@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -25,7 +26,6 @@ import com.linkedin.databus.client.consumer.AbstractDatabusStreamConsumer;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
-import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.ScnNotFoundException;
 import com.linkedin.databus.core.util.RateMonitor;
@@ -53,6 +53,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   private BootstrapReadOnlyConfig _config              = null;
   private String                  _currentSource       = null;
   private BackoffTimer            _retryTimer          = null;
+  private List<String>            _logicalSources      = null;
 
   /* Stats Specific */
   private BootstrapProducerStatsCollector _statsCollector = null;
@@ -66,17 +67,19 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
 
   private ErrorCaseHandler _errorHandler               = null;
 
-  public BootstrapProducerCallback(BootstrapReadOnlyConfig config)
+  public BootstrapProducerCallback(BootstrapReadOnlyConfig config, List<String> logicalSources)
   	throws Exception
   {
-	  this(config,null,null);
+	  this(config,null,null,logicalSources);
   }
 
   public BootstrapProducerCallback(BootstrapReadOnlyConfig config,
                                    BootstrapProducerStatsCollector statsCollector,
-                                   ErrorCaseHandler errorHandler) throws SQLException
+                                   ErrorCaseHandler errorHandler,
+                                   List<String> logicalSources) throws SQLException
   {
     _config = config;
+    _logicalSources = logicalSources;
     _statsCollector = statsCollector;
     _maxRowsInLog = _config.getBootstrapLogSize();
     _retryTimer = new BackoffTimer("BootstrapProducer", config.getRetryConfig());
@@ -89,16 +92,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   public void init()
     throws SQLException
   {
-	  Map<String, ServerInfoBuilder> allServerInfo = _config.getClient().getRuntime().getRelays();
-	  Set<String> configedSources = new HashSet<String>(allServerInfo.size());
-	  for (ServerInfoBuilder serverInfo : allServerInfo.values())
-	  {
-		  String[] sources = serverInfo.getSources().split("[,]");
-		  for (String source : sources)
-		  {
-			  configedSources.add(source);
-		  }
-	  }
+	  Set<String> configedSources = new HashSet<String>(_logicalSources);
 	  _trackedSources = _bootstrapDao.getDBTrackedSources(configedSources);
 
 
@@ -133,7 +127,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
 	  }
 
 	  _state = lastState;
-	  
+
 	  initWindowScn();
   }
 
@@ -196,13 +190,13 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     		  LOG.info("Bootstrap DB for sources (" + _trackedSources.values()
     				       + ") has started getting events since last fell-off relay !! Marking them active !!");
     		  markActive = true;
-    	  } 
+    	  }
       }
-      
+
       if ( markActive)
 	      _bootstrapDao.updateSourcesStatus(_trackedSources.keySet(), BootstrapProducerStatus.ACTIVE);
-      
-      
+
+
       getConnection().commit();
 
       if ( markActive)
@@ -213,9 +207,9 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
 	    	  info.setStatus(BootstrapProducerStatus.ACTIVE);
 	      }
       }
-      
+
       LOG.info("bootstrap producer upto scn " + _newWindowScn);
-      
+
     }
     catch (SQLException e)
     {
@@ -349,7 +343,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     	//TODO (DDSDBUS-776) : remove erstwhile windowscn column
     	_stmt.setLong(1, _newWindowScn);
     	_stmt.setLong(2, _newWindowScn);
-    	
+
     	String keyStr = null;
     	if ( e.isKeyNumber())
     	{
