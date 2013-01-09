@@ -80,16 +80,16 @@ task wrapper(type: Wrapper) {
   gradleVersion = '1.0'
 }
 
-class GenerateClasspath extends DefaultTask {
+class GitLIGenerateClasspath extends DefaultTask {
 
-  public static final String TASK_NAME = "generateClasspath"
+  public static final String TASK_NAME = "gitLIGenerateClasspath"
 
   @OutputFile
   File classpathFile = project.file("${project.buildDir}/${project.name}.classpath")
 
   @Input String configurationName = "default"
           
-  public GenerateClasspath() {
+  public GitLIGenerateClasspath() {
       this.outputs.upToDateWhen { false }
   }      
         
@@ -128,8 +128,8 @@ subprojects {
     //def runtimePath = configuration.resolve().join(":")
     //println "rt=" + runtimePath
 
-   def generateClasspath = project.tasks.add(name: GenerateClasspath.TASK_NAME, type: GenerateClasspath.class)
-   jar.dependsOn generateClasspath 
+   def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
+   jar.dependsOn gitLIGenerateClasspath 
 
     if (isDefaultEnvironment) {
       task sourcesJar(type: Jar, dependsOn: classes) {
