@@ -170,68 +170,6 @@ subprojects {
     }
   }
 
- 
-
-
-
-/*
-  // Configure the IDEA plugin to (1) add the codegen as source dirs and (2) work around
-  // an apparent bug in the plugin which doesn't set the outputDir/testOutputDir as documented
-  idea.module {
-    // Gradle docs claim the two settings below are the default, but
-    // the actual defaults appear to be "out/production/$MODULE_NAME"
-    // and "out/test/$MODULE_NAME". Changing it so IDEA and gradle share
-    // the class output directory.
-
-    outputDir = sourceSets.main.output.classesDir
-    testOutputDir = sourceSets.test.output.classesDir
-  }
-*/
-
-/*
-  task integrationTests(type: Test) {
-    useTestNG() {
-      includeGroups 'integration'
-      excludeGroups 'integration_external_product_dependent'
-    }
-  }
-  //all functional tests which are expected to pass assuming proper environment setup
-  task allTests(type: Test) {
-	  maxHeapSize = '1g'
-
-    useTestNG() {
-      excludeGroups 'known_issue'
-      excludeGroups 'not_implemented'
-    }
-  }
-
-
-  task integrationExternalProductDependentTests(type: Test) {
-    useTestNG() {
-      includeGroups 'integration_external_product_dependent'
-    }
-  }
-
-  task notImplementedFeaturesTests(type: Test) {
-    useTestNG() {
-      includeGroups 'not_implemented'
-    }
-  }
-
-  task knownIssuesTests(type: Test) {
-	  useTestNG() {
-      includeGroups 'known_issue'
-	  }
-  }
-
-  task allFailingTests(type: Test) {
-    useTestNG() {
-      includeGroups 'known_issue'
-      includeGroups 'not_implemented'
-    }
-  }
-
-*/
   task cleanBuildDir(type: Exec){
     delete(rootDir.toString()+'build')
     commandLine = ['rm', '-rf', rootDir.toString() + '/build']
