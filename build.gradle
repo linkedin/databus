@@ -107,11 +107,9 @@ subprojects {
 
   plugins.withType(JavaPlugin) {
     plugins.apply('eclipse')
-    //plugins.apply('idea')
 
     sourceCompatibility = JavaVersion.VERSION_1_6
     configurations {
-
 
       all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
       all*.exclude group: 'com.sun.jmx', module: 'jmxri'
@@ -124,9 +122,6 @@ subprojects {
     dependencies {
         runtime externalDependency.log4j
     }
-    //def configuration = project.configurations.getByName("default")
-    //def runtimePath = configuration.resolve().join(":")
-    //println "rt=" + runtimePath
 
    def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
    jar.dependsOn gitLIGenerateClasspath 
