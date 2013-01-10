@@ -122,9 +122,7 @@ subprojects {
       all*.exclude group: 'javax.jms', module: 'jms'
 
       /* Uncomment for Cobertura integration */
-      /*
-      testRuntime.exclude group: 'net.sourceforge.cobertura', module: 'cobertura'
-      */
+      // testRuntime.exclude group: 'net.sourceforge.cobertura', module: 'cobertura'
 
       testArtifacts
     }
@@ -168,15 +166,12 @@ subprojects {
         useTestNG() 
         
         /* Uncomment for Cobertura integration */
-        /*  
+        /*
         project.task("cleanTest", type: Delete) {
             description = "Cleans the results of the 'test' task and makes it out-of-date"
             delete outputs.files
         }
-        project.tasks.getByName('coberturaXml').onlyIf { testTask.enabled }
-        project.tasks.getByName('cobertura').onlyIf { testTask.enabled }
-        */
-
+        */  
         doFirst { desc->
           logger.lifecycle("Running task: " + desc);
         }
