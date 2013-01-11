@@ -9,6 +9,9 @@ dependencies {
 }
 
 task myTar(type: Tar) {
+  extension = 'tar.gz'
+  baseName = project.name
+  compression = Compression.GZIP
 
   into("conf") { from "${project.rootDir}/databus-client/databus2-client-util-pkg/config/" }
   into("conf") { from "config/" }

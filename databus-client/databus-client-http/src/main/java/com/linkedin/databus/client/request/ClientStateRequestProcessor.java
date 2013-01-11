@@ -98,7 +98,10 @@ public class ClientStateRequestProcessor extends AbstractStatsRequestProcessor
 	    	   processRegistrations(request);
 	       else
 	    	   processV3Registrations(request);
-	       
+	    } else if (category.startsWith(PAUSE_REGISTRATION)) {
+	    	pauseRegistration(request);
+	    } else if (category.startsWith(RESUME_REGISTRATION)) {
+	    	resumeRegistration(request);
 	    } else if (category.startsWith(REGISTRATION_KEY_PREFIX)) {
 		    if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )	
 		    	processRegistrationInfo(request);
@@ -116,10 +119,6 @@ public class ClientStateRequestProcessor extends AbstractStatsRequestProcessor
 	    	pauseAllRegistrations(request);
 	    } else if (category.equals(RESUME_ALL_REGISTRATIONS)) {
 	    	resumeAllRegistrations(request);
-	    } else if (category.startsWith(PAUSE_REGISTRATION)) {
-	    	pauseRegistration(request);
-	    } else if (category.startsWith(RESUME_REGISTRATION)) {
-	    	resumeRegistration(request);
 	    } else {
 	    	success = false;
 	    }
@@ -312,7 +311,7 @@ public class ClientStateRequestProcessor extends AbstractStatsRequestProcessor
 
 		if ( r.getState().isRunning())
 		{
-			if ( (r.getState() == RegistrationState.RESUMED) || 
+			if ( (r.getState() == RegistrationState.PAUSED) || 
 					(r.getState() == RegistrationState.SUSPENDED_ON_ERROR))
 				r.resume();
 		}
@@ -343,7 +342,7 @@ public class ClientStateRequestProcessor extends AbstractStatsRequestProcessor
 		{
 			if ( r.getState().isRunning())
 			{
-				if ( (r.getState() == RegistrationState.RESUMED) || 
+				if ( (r.getState() == RegistrationState.PAUSED) || 
 						(r.getState() == RegistrationState.SUSPENDED_ON_ERROR))
 					r.resume();
 			}

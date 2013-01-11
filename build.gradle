@@ -101,21 +101,28 @@ class GitLIGenerateClasspath extends DefaultTask {
     classpathFile.write(runtimePath + ":" + configuration.allArtifacts.files.getAsPath())
   } 
 }
+/* Uncomment for Cobertura integration */
+/*
+buildscript {
+
+    apply from: 'https://github.com/valkolovos/gradle_cobertura/raw/master/repo/gradle_cobertura/gradle_cobertura/1.0/coberturainit.gradle'
+}
+*/
 
 subprojects { 
 
-
   plugins.withType(JavaPlugin) {
     plugins.apply('eclipse')
-    //plugins.apply('idea')
 
     sourceCompatibility = JavaVersion.VERSION_1_6
     configurations {
 
-
       all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
       all*.exclude group: 'com.sun.jmx', module: 'jmxri'
       all*.exclude group: 'javax.jms', module: 'jms'
+
+      /* Uncomment for Cobertura integration */
+      // testRuntime.exclude group: 'net.sourceforge.cobertura', module: 'cobertura'
 
       testArtifacts
     }
@@ -124,9 +131,6 @@ subprojects {
     dependencies {
         runtime externalDependency.log4j
     }
-    //def configuration = project.configurations.getByName("default")
-    //def runtimePath = configuration.resolve().join(":")
-    //println "rt=" + runtimePath
 
    def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
    jar.dependsOn gitLIGenerateClasspath 
@@ -161,6 +165,13 @@ subprojects {
         jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
         useTestNG() 
         
+        /* Uncomment for Cobertura integration */
+        /*
+        project.task("cleanTest", type: Delete) {
+            description = "Cleans the results of the 'test' task and makes it out-of-date"
+            delete outputs.files
+        }
+        */  
         doFirst { desc->
           logger.lifecycle("Running task: " + desc);
         }
@@ -170,68 +181,6 @@ subprojects {
     }
   }
 
- 
-
-
-
-/*
-  // Configure the IDEA plugin to (1) add the codegen as source dirs and (2) work around
-  // an apparent bug in the plugin which doesn't set the outputDir/testOutputDir as documented
-  idea.module {
-    // Gradle docs claim the two settings below are the default, but
-    // the actual defaults appear to be "out/production/$MODULE_NAME"
-    // and "out/test/$MODULE_NAME". Changing it so IDEA and gradle share
-    // the class output directory.
-
-    outputDir = sourceSets.main.output.classesDir
-    testOutputDir = sourceSets.test.output.classesDir
-  }
-*/
-
-/*
-  task integrationTests(type: Test) {
-    useTestNG() {
-      includeGroups 'integration'
-      excludeGroups 'integration_external_product_dependent'
-    }
-  }
-  //all functional tests which are expected to pass assuming proper environment setup
-  task allTests(type: Test) {
-	  maxHeapSize = '1g'
-
-    useTestNG() {
-      excludeGroups 'known_issue'
-      excludeGroups 'not_implemented'
-    }
-  }
-
-
-  task integrationExternalProductDependentTests(type: Test) {
-    useTestNG() {
-      includeGroups 'integration_external_product_dependent'
-    }
-  }
-
-  task notImplementedFeaturesTests(type: Test) {
-    useTestNG() {
-      includeGroups 'not_implemented'
-    }
-  }
-
-  task knownIssuesTests(type: Test) {
-	  useTestNG() {
-      includeGroups 'known_issue'
-	  }
-  }
-
-  task allFailingTests(type: Test) {
-    useTestNG() {
-      includeGroups 'known_issue'
-      includeGroups 'not_implemented'
-    }
-  }
-
-*/
   task cleanBuildDir(type: Exec){
     delete(rootDir.toString()+'build')
     commandLine = ['rm', '-rf', rootDir.toString() + '/build']
