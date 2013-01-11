@@ -19,6 +19,7 @@ import com.linkedin.databus.core.util.RngUtils;
 import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.AssertLevel;
 import com.linkedin.databus2.core.filter.AllowAllDbusFilter;
+import com.linkedin.databus2.test.TestUtil;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -47,7 +48,6 @@ import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertTrue;
 import static org.testng.AssertJUnit.fail;
-import com.linkedin.databus2.test.TestUtil;
 
 public class TestDbusEventBuffer {
 
@@ -2826,7 +2826,7 @@ public static class DummyDbusEvent extends DbusEvent
 
         System.out.printf("minScn=%d,maxScn=%d,prevScn=%d,range=%d\n",minScn,maxScn,prevScn,emitterStats.getTotalStats().getTimeSpan());
         assertEquals(numEvents - 1, emitterStats.getTotalStats().getTimeSpan()/MILLISECONDS);
-        assertEquals(prodEventBuffer.getFirstEventTimestamp(), emitterStats.getTotalStats().getTimestampMinScnEvent());
+        assertEquals(prodEventBuffer.getTimestampOfFirstEvent(), emitterStats.getTotalStats().getTimestampMinScnEvent());
 
 
         //stream with scn < max; expect last window; not last 2

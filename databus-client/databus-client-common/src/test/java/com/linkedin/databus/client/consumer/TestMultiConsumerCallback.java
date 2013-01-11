@@ -1033,6 +1033,7 @@ public class TestMultiConsumerCallback
     _generic100KBufferConfig.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
     _generic100KBufferConfig.setMaxSize(100000);
     _generic100KBufferConfig.setQueuePolicy(QueuePolicy.BLOCK_ON_WRITE.toString());
+    _generic100KBufferConfig.setEnableScnIndex(false);
 
     _generic100KBufferStaticConfig = _generic100KBufferConfig.build();
   }

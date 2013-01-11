@@ -345,7 +345,7 @@ public class DatabusV2RegistrationImpl
 		DbusEventBuffer eventBuffer = new DbusEventBuffer(cfg.getMaxSize(), cfg.getMaxIndividualBufferSize(), cfg.getScnIndexSize(),
 				cfg.getReadBufferSize(), cfg.getAllocationPolicy(), new File(cfg.getMmapDirectory().getAbsolutePath() + "_stream_" + _id ),
 				cfg.getQueuePolicy(), cfg.getTrace(), null, cfg.getAssertLevel(),
-				cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents());
+				cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents(), cfg.isEnableScnIndex());
 
 		eventBuffer.setDropOldEvents(true);
 		eventBuffer.start(0);
@@ -357,7 +357,7 @@ public class DatabusV2RegistrationImpl
 			bootstrapBuffer = new DbusEventBuffer(cfg.getMaxSize(), cfg.getMaxIndividualBufferSize(), cfg.getScnIndexSize(),
 					cfg.getReadBufferSize(), cfg.getAllocationPolicy(), new File(cfg.getMmapDirectory().getAbsolutePath() + "_bootstrap_" + _id ),
 					cfg.getQueuePolicy(), cfg.getTrace(), null, cfg.getAssertLevel(),
-					cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents());
+					cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents(), cfg.isEnableScnIndex());
 			bootstrapBuffer.setDropOldEvents(false);
 			bootstrapBuffer.start(0);
 		}

@@ -92,22 +92,23 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   private final AssertLevel _assertLevel;
   private final File _mmapSessionDirectory;
 
+  public boolean isEnabled()
+  {
+    return _enabled;
+  }
+
+  private final boolean _enabled;
+
   private boolean updatedOnCurrentWindow = false; // see assertLastWrittenPosition
 
   /**
    * Public constructor : takes in the number of index entries that will be kept
    */
   public ScnIndex(int maxIndexSize, long totalAddressedSpace, int individualBufferSize,
-                  BufferPositionParser parser) {
-    this(maxIndexSize, totalAddressedSpace, individualBufferSize, parser, AllocationPolicy.DIRECT_MEMORY, false, null, AssertLevel.NONE);
-  }
-
-  /**
-   * Public constructor : takes in the number of index entries that will be kept
-   */
-  public ScnIndex(int maxIndexSize, long totalAddressedSpace, int individualBufferSize,
                   BufferPositionParser parser, AllocationPolicy allocationPolicy,
-                  boolean restoreBuffer, File mmapSessionDirectory, AssertLevel assertLevel) {
+                  boolean restoreBuffer, File mmapSessionDirectory, AssertLevel assertLevel,
+                  boolean enabled) {
+    _enabled = enabled;
     _assertLevel = null != assertLevel ? assertLevel : AssertLevel.NONE;
     rwLock = new ReentrantReadWriteLock();
     maxElements = maxIndexSize/SIZE_OF_SCN_OFFSET_RECORD;
@@ -123,9 +124,16 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     int bufSize = maxElements * SIZE_OF_SCN_OFFSET_RECORD;
 
 
-    buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEvent.byteOrder, allocationPolicy,
+    if (isEnabled())
+    {
+      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEvent.byteOrder, allocationPolicy,
                                            restoreBuffer, mmapSessionDirectory,
                                            new File(mmapSessionDirectory, "scnIndex"));
+    }
+    else
+    {
+      buffer = null;
+    }
 
     _mmapSessionDirectory = mmapSessionDirectory;
 
@@ -133,6 +141,11 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
     this.lastScnWritten = -1L;
     updateOnNext = false;
+    if (!isEnabled())
+    {
+      LOG.info("ScnIndex not enblaed");
+      return;
+    }
 
     // See if we have metaInfoFile to set from
     if(allocationPolicy == AllocationPolicy.MMAPPED_MEMORY && restoreBuffer) {
@@ -222,6 +235,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
   public void saveBufferMetaInfo() throws IOException {
 
+    if (!isEnabled())
+    {
+      return;
+    }
     DbusEventBufferMetaInfo mi = new DbusEventBufferMetaInfo(new File(_mmapSessionDirectory, SCNINDEX_METAINFO_FILE_NAME));
     LOG.info("about to save scnindex state into " + mi.toString());
 
@@ -254,38 +271,48 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    */
   @Override
   public void close() {
-    flushMMappedBuffers();
+    if (isEnabled())
+    {
+      flushMMappedBuffers();
+    }
   }
 
   @Override
   public String toString()
   {
     StringBuilder sb = new StringBuilder(100);
-    sb.append("{\"head\": ");
-    sb.append(head);
-    sb.append(", \"headIdx\":");
-    sb.append(head / SIZE_OF_SCN_OFFSET_RECORD);
-    sb.append(", \"tail\":");
-    sb.append(tail);
-    sb.append(", \"tailIdx\":");
-    sb.append(tail / SIZE_OF_SCN_OFFSET_RECORD);
-    sb.append(", \"lastWrittenPosition\":");
-    sb.append(lastWrittenPosition);
-    sb.append(", \"lastScnWritten\":");
-    sb.append(lastScnWritten);
-    sb.append(", \"size\":");
-    sb.append(size());
-    sb.append(", \"maxSize\":");
-    sb.append(maxElements);
-    sb.append(", \"minScn\":");
-    sb.append(getMinScn());
-    sb.append(", \"blockSize\":");
-    sb.append(blockSize);
-    sb.append(" \"updateOnNext\":");
-    sb.append(updateOnNext);
-    sb.append(" \"assertLevel\":");
-    sb.append(_assertLevel);
-    sb.append("}\n");
+    if (isEnabled())
+    {
+      sb.append("{\"head\": ");
+      sb.append(head);
+      sb.append(", \"headIdx\":");
+      sb.append(head / SIZE_OF_SCN_OFFSET_RECORD);
+      sb.append(", \"tail\":");
+      sb.append(tail);
+      sb.append(", \"tailIdx\":");
+      sb.append(tail / SIZE_OF_SCN_OFFSET_RECORD);
+      sb.append(", \"lastWrittenPosition\":");
+      sb.append(lastWrittenPosition);
+      sb.append(", \"lastScnWritten\":");
+      sb.append(lastScnWritten);
+      sb.append(", \"size\":");
+      sb.append(size());
+      sb.append(", \"maxSize\":");
+      sb.append(maxElements);
+      sb.append(", \"minScn\":");
+      sb.append(getMinScn());
+      sb.append(", \"blockSize\":");
+      sb.append(blockSize);
+      sb.append(" \"updateOnNext\":");
+      sb.append(updateOnNext);
+      sb.append(" \"assertLevel\":");
+      sb.append(_assertLevel);
+      sb.append("}\n");
+    }
+    else
+    {
+      sb.append("{\"enabled\" : false}");
+    }
     return sb.toString();
   }
 
@@ -306,6 +333,11 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     newLog.setLevel(Level.ALL);
 
     log.log(l, toString());
+    if (!isEnabled())
+    {
+      log.log(l, "ScnIndex is disabled");
+      return;
+    }
 
     // consolidated printing:
     //     beginBlock-endBlock:SCN=>Offset
@@ -351,6 +383,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    * Returns the minimum scn currently stored by the index
    */
   public long getMinScn() {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
     try
     {
       acquireReadLock();
@@ -505,6 +541,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
   int getBlockNumber(long offset)
   {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
     long bufferIndex = positionParser.bufferIndex(offset);
     long buf_offset = positionParser.bufferOffset(offset);
     long blockNumber = (bufferIndex * this.individualBufferSize + buf_offset) / blockSize;
@@ -513,6 +553,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
   void flushMMappedBuffers()
   {
+    if (!isEnabled())
+    {
+      return;
+    }
     if (buffer instanceof MappedByteBuffer) ((MappedByteBuffer)buffer).force();
   }
 
@@ -555,6 +599,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    */
   public ScnIndexEntry getClosestOffset(long searchScn) throws OffsetNotFoundException {
 
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
     if (empty()) {
       LOG.info("ScnIndex is empty");
       throw new OffsetNotFoundException();
@@ -569,7 +617,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     boolean found = false;
     while (!found)
     {
-      if (closestScn(currScn, searchScn, index)) {
+      if (isClosestScn(currScn, searchScn, index)) {
         int lessIndex = decrement(index, buffer.limit());
         long lessScn = getScn(lessIndex);
         while ((index!=head) && (currScn == lessScn))
@@ -665,7 +713,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    * @param entryIndex      the index of the entry relative to the head
    * @return the scn or -1 if not found
    */
-  public long getEntryScn(int entryIndex)
+  private long getEntryScn(int entryIndex)
   {
     if (-1 == head) return -1;
     return getScn(entryIndexOfs(entryIndex));
@@ -676,13 +724,13 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    * @param entryIndex      the index of the entry relative to the head
    * @return the scn or -1 if not found
    */
-  public long getEntryOffset(int entryIndex)
+  private long getEntryOffset(int entryIndex)
   {
     if (-1 == head) return -1;
     return getOffset(entryIndexOfs(entryIndex));
   }
 
-  private boolean closestScn(long indexScn, long searchScn, int index) {
+  private boolean isClosestScn(long indexScn, long searchScn, int index) {
     try
     {
       acquireReadLock();
@@ -706,7 +754,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     }
   }
 
-  public int size()
+  private int size()
   {
     return ScnIndex.numElements(head, tail, maxElements * SIZE_OF_SCN_OFFSET_RECORD);
   }
@@ -745,6 +793,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
 
   public void clear() {
+    if(!isEnabled())
+    {
+      return;
+    }
     buffer.rewind();
     head = -1;
     tail = 0;
@@ -757,6 +809,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   @Override
   public void onEvent(DataChangeEvent event, long offset, int size)
   {
+    if(!isEnabled())
+    {
+      return;
+    }
     boolean shouldUpdate = shouldUpdate(event);
     if (LOG.isDebugEnabled())
       LOG.debug("ScnIndex:onEvent:offset" + offset + " Event:"+event.sequence()+";shouldUpdate="+shouldUpdate+";eop="+event.isEndOfPeriodMarker());
@@ -782,16 +838,28 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
   public boolean isEmpty()
   {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
       return head==-1;
   }
 
   protected void setUpdateOnNext(boolean val)
   {
+    if (!isEnabled())
+    {
+      return;
+    }
     updateOnNext = val;
   }
 
   protected boolean getUpdateOnNext()
   {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
     return updateOnNext;
   }
 
@@ -801,6 +869,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    * @param offset
    */
   public long getLargerOffset(long offset) {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
 	/*
 	 * TODO: Longer-Term fix : DDSDBUS-386 : Implement logic to enable setting up the head to a window whose block number
 	 * is same as the current Head position's block number
@@ -847,6 +919,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
   void moveHead(long offset)
   {
+    if (!isEnabled())
+    {
+      return;
+    }
     moveHead(offset, -1);
   }
 
@@ -865,6 +941,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    */
   void moveHead(long newHeadOffset, long newHeadScn)
   {
+    if (!isEnabled())
+    {
+      return;
+    }
     boolean debugEnabled = LOG.isDebugEnabled();
 
     int proposedHead;
@@ -986,6 +1066,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   */
   public void assertHeadPosition(long evbHead)
   {
+    if (!isEnabled())
+    {
+      return;
+    }
     long expHead = -1;
     if ( evbHead > 0 )
     {
@@ -1015,6 +1099,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    */
    public void assertLastWrittenPos(BufferPosition evbStartPos)
    {
+     if (!isEnabled())
+     {
+       return;
+     }
      long expTail = -1;
      long evbStartLoc = evbStartPos.getRealPosition();
 
@@ -1044,7 +1132,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
      }
    }
 
-   public void assertTail()
+   private void assertTail()
    {
      if (empty())
      {
@@ -1060,7 +1148,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
      }
    }
 
-   public void assertHead()
+   private void assertHead()
    {
      if (empty())
      {
@@ -1080,7 +1168,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
      }
    }
 
-   public void assertOrder()
+   private void assertOrder()
    {
      int sz = size();
      if (0 == sz) return;
@@ -1118,7 +1206,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
      }
    }
 
-   public void assertOffsets()
+   private void assertOffsets()
    {
      int sz = size();
      if (0 == sz) return;
@@ -1187,6 +1275,10 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     * package private to allow helper classes to inspect internal details
     */
    int getHead() {
+     if (!isEnabled())
+     {
+       throw new RuntimeException("ScnIndex not enabled");
+     }
 	   return head;
    }
 
@@ -1194,21 +1286,20 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     * package private to allow helper classes to inspect internal details
     */
    int getTail() {
-	   return tail;
-   }
-
-   /**
-    * package private to allow helper classes to inspect internal details
-    */
-   int getLastWrittenPosition() {
-	   return lastWrittenPosition;
+     if (!isEnabled())
+     {
+       throw new RuntimeException("ScnIndex not enabled");
+     }
+     return tail;
    }
 
   /** The position parser used byt the index (for testing purposes) */
   BufferPositionParser getPositionParser()
   {
+    if (!isEnabled())
+    {
+      throw new RuntimeException("ScnIndex not enabled");
+    }
     return positionParser;
   }
-
-
 }

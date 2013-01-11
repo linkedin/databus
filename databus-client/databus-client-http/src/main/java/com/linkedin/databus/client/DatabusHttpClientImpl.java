@@ -1,25 +1,6 @@
 package com.linkedin.databus.client;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfig.ProviderType;
-import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
 import com.linkedin.databus.client.consumer.LoggingConsumer;
 import com.linkedin.databus.client.consumer.SelectingDatabusCombinedConsumer;
@@ -72,6 +53,22 @@ import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdm
 import com.linkedin.databus2.core.container.monitoring.mbean.HttpStatisticsCollector;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import org.apache.log4j.Logger;
 
 
 /**
@@ -1132,6 +1129,13 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 				  connConfig = getClientStaticConfig().getConnectionDefaults();
 			  }
 
+			  // Disabling SCN index works only with the BLOCK_ON_WRITE policy. If Scn index is disabled,
+			  // make sure we have the right policy.
+			  if (!connConfig.getEventBuffer().isEnableScnIndex() &&
+				  connConfig.getEventBuffer().getQueuePolicy() != DbusEventBuffer.QueuePolicy.BLOCK_ON_WRITE)
+			  {
+				  throw new InvalidConfigException("If SCN index is disabled, queue policy must be BLOCK_ON_WRITE");
+			  }
 			  CheckpointPersistenceProvider cpPersistenceProvder = getCheckpointPersistenceProvider();
 			  if (null != cpPersistenceProvder && getClientStaticConfig().getCheckpointPersistence().isClearBeforeUse())
 			  {

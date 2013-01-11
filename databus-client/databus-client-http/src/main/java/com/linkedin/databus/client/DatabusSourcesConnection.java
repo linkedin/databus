@@ -811,6 +811,7 @@ public class DatabusSourcesConnection {
 		public Config() {
 			_eventBuffer = new DbusEventBuffer.Config();
 			_eventBuffer.setQueuePolicy(QueuePolicy.BLOCK_ON_WRITE.toString());
+			_eventBuffer.setEnableScnIndex(false);
 			_eventBuffer.setDefaultMemUsage(0.1);
 			if (_eventBuffer.getMaxSize() > DEFAULT_MAX_BUFFER_SIZE) {
 				_eventBuffer.setMaxSize(DEFAULT_MAX_BUFFER_SIZE);

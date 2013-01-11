@@ -681,6 +681,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private final BufferPositionParser _bufferPositionParser;
   /** timestamp of first data event in buffer; at head **/
   private volatile long _timestampOfFirstEvent;
+  /** SCN of first event */
+  private volatile long _minScn;
 
   /** timestamp of latest data event of buffer **/
   private volatile long _timestampOfLatestDataEvent = 0;
@@ -779,48 +781,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     //		notifyIterators(head, tail);
   }
 
-
-
-
-  /**
-   * Called when head moves; need to find the new event represented by new head of the buffer and get its timestamp
-   */
-  long getFirstEventTimestamp()
-  {
-
-    long startTimeTs = System.nanoTime();
-    ScnIndex.ScnIndexEntry entry=null;
-    long ts = 0;
-    try
-    {
-      entry = _scnIndex.getClosestOffset(getMinScn());
-    }
-    catch (OffsetNotFoundException e1)
-    {
-      LOG.info("First event not found: at scn = " + getMinScn());
-      return 0;
-    }
-    if (entry != null)
-    {
-      long offset = entry.getOffset();
-      DbusEventIterator eventIterator = acquireIterator(offset, _bufferPositionParser.sanitize(_tail.getPosition(), _buffers), "firstEventIterator");
-      if (eventIterator.hasNext()) {
-        DbusEvent e = eventIterator.next();
-       ts =  e.timestampInNanos()/(1000*1000);
-      }
-      releaseIterator(eventIterator);
-    }
-
-    long endTimeTs = System.nanoTime();
-    if (PERF_LOG.isDebugEnabled())
-    {
-    	PERF_LOG.debug("getFirstEventTimestamp took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec  + "ms");
-    }
-
-
-    return ts;
-  }
-
   public DbusEventBuffer(Config config) throws InvalidConfigException
   {
     this(config.build());
@@ -831,34 +791,17 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     this(config.getMaxSize(), config.getMaxIndividualBufferSize(), config.getScnIndexSize(),
          config.getReadBufferSize(), config.getAllocationPolicy(), config.getMmapDirectory(),
          config.getQueuePolicy(), config.getTrace(), pPartition, config.getAssertLevel(),
-         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents());
+         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents(),
+         config.isEnableScnIndex());
   }
 
-  public DbusEventBuffer(StaticConfig config)
+  public DbusEventBuffer(StaticConfig config) // Called by tests that test the client
   {
     this(config.getMaxSize(), config.getMaxIndividualBufferSize(), config.getScnIndexSize(),
          config.getReadBufferSize(), config.getAllocationPolicy(), config.getMmapDirectory(),
          config.getQueuePolicy(), config.getTrace(), null, config.getAssertLevel(),
-         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents());
-  }
-
-  public DbusEventBuffer(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
-                         int maxReadBufferSize, AllocationPolicy allocationPolicy,
-                         File mmapDirectory, QueuePolicy policy,
-                         AssertLevel assertLevel, boolean restoreBuffers) {
-    this(maxEventBufferSize, maxIndividualBufferSize, maxIndexSize, maxReadBufferSize,
-         allocationPolicy, mmapDirectory, policy,
-         new RelayEventTraceOption(RelayEventTraceOption.Option.none), null, assertLevel,
-         Config.BUFFER_REMOVE_WAIT_PERIOD, restoreBuffers, false);
-  }
-
-  public DbusEventBuffer(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
-                  int maxReadBufferSize, AllocationPolicy allocationPolicy, File mmapDirectory,
-                  QueuePolicy queuePolicy, RelayEventTraceOption traceOption,
-                  PhysicalPartition physicalPartition, boolean restoreBuffers) {
-    this(maxEventBufferSize, maxIndividualBufferSize, maxIndexSize, maxReadBufferSize,
-         allocationPolicy, mmapDirectory, queuePolicy, traceOption, physicalPartition,
-         AssertLevel.NONE, Config.BUFFER_REMOVE_WAIT_PERIOD, restoreBuffers, false);
+         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents(),
+         config.isEnableScnIndex());
   }
 
   /**
@@ -868,7 +811,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                          int maxReadBufferSize, AllocationPolicy allocationPolicy, File mmapDirectory, QueuePolicy queuePolicy,
                          RelayEventTraceOption traceOption, PhysicalPartition physicalPartition,
                          AssertLevel assertLevel, long bufRemovalWaitPeriod,
-                         boolean restoreBuffers, boolean validateEventesInRestoredBuffers) {
+                         boolean restoreBuffers, boolean validateEventesInRestoredBuffers,
+                         boolean enableScnIndex) {
     //TODO replace all occurrences of LOG with _log so we get partition info
     _log = (null == physicalPartition) ? LOG :
            Logger.getLogger(MODULE + "." + physicalPartition.toSimpleString());
@@ -981,7 +925,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _bufferPositionParser = new BufferPositionParser((int)(Math.min(_maxBufferSize, maxEventBufferSize)), buffers.size());
 
     _scnIndex = new ScnIndex(maxIndexSize, maxEventBufferSize, _maxBufferSize, _bufferPositionParser,
-        allocationPolicy, restoreBuffers, _mmapSessionDirectory, _assertLevel);
+        allocationPolicy, restoreBuffers, _mmapSessionDirectory, _assertLevel, enableScnIndex);
 
     _head = new BufferPosition(_bufferPositionParser, _buffers);
     _tail = new BufferPosition(_bufferPositionParser, _buffers);
@@ -1020,9 +964,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       else
         LOG.error("failed to move existing metaInfoFile " + metaInfo + " to " + renameTo + ". This may cause buffer to load this file if it gets restarted!");
     }
-    if (_scnIndex.isEmpty()) {
+    if (enableScnIndex && _scnIndex.isEmpty()) {
       _scnIndex.setUpdateOnNext(true);
     }
+    _queueLock.lock();
+    updateFirstEventMetadata();
+    _queueLock.unlock();
   }
 
   synchronized String generateSessionId() {
@@ -1039,7 +986,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   /**
    * go over all the ByteBuffers and validate them
-   * @param bufsInfo
    * @throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException
    */
   private void setAndValidateMMappedBuffers(DbusEventBufferMetaInfo mi) throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException {
@@ -1111,7 +1057,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   /**
    * compare and match data between the metaFile and passed in in the constructor
-   * @param maxEventBufferSize
    * @param mi
    * @throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException
    */
@@ -1262,22 +1207,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   @Override
   public long getMinScn() {
-    /**DbusEvent e = new DbusEvent(_buffers.get(0), 0);
-    LOG.info("MinEvent: getMinScn: " + e);
-     **/
-    /*
-     * Get the min scn in the index
-     */
-
-    long indexScn = _scnIndex.getMinScn();
-
-    /*
-     *  Since all searches happen through the index anyways, it is safer to return
-     *  the indexScn as opposed to the first event in the buffer
-     */
-
-    return indexScn;
-
+    return _minScn;
   }
 
   private void resetWindowState()
@@ -1449,7 +1379,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    *    - this also implies moving the head for the ScnIndex to keep it in lock-step with the buffer
    * b) moving the currentWritePosition to the correct location so that the entire event will fit into the selected ByteBuffer
    * @param key
-   * @param scn
    * @param value
    * @throws com.linkedin.databus.core.KeyTypeNotImplementedException
    */
@@ -1757,6 +1686,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           statsCollector.registerTimestampOfFirstEvent(_timestampOfFirstEvent);
         }
         _empty = false;
+        updateFirstEventMetadata();
         _notEmpty.signalAll();
       }
       finally
@@ -2848,7 +2778,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       boolean mightHaveMoreData = true;
       //ensuring index is updated correctly if a control event of preceding window doesn't appear
       //first (no start() called)
-      if (_scnIndex.isEmpty())
+      if (_scnIndex.isEnabled() && _scnIndex.isEmpty())
       {
         _scnIndex.setUpdateOnNext(true);
       }
@@ -3120,8 +3050,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Makes sure that we have enough space at the destination write buffer. Depending on the
    * queuing policy, we can either wait for space to free up or will overwrite it.
    *
-   * @param writePosStart       the gen-id starting write position
-   * @param writeEndStart       the gen-id ending write position (after the last byte written)
    * @param logDebugEnabled     a flag if debug logging messages are enabled
    * @return true if the wait for free space was interrupted prematurely
    */
@@ -3251,9 +3179,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
   }
 
-  /**
-   * @param newHeadPos
-   */
   private void adjustByteBufferLimit(long oldHeadPos)
   {
     final int newHeadIdx = _head.bufferIndex();
@@ -3299,7 +3224,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * ensure that the target write area determined by writePos is already free.
    * @param readPos         determines the region in the staging buffer to copy from
    * @param writePos        determines the region in the main buffer to write to
-   * @param writeBuffer     the destination buffer
    */
   private void copyReadEventToEventBuffer(ReadEventsReadPosition readPos,
                                           ReadEventsWritePosition writePos,
@@ -3380,6 +3304,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       {
         writePos.setNextFreePos(_currentWritePosition.getPosition());
         _empty = false;
+        updateFirstEventMetadata();
         _notEmpty.signalAll();
         assert assertBuffersLimits();
       } else {
@@ -3547,7 +3472,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
     if (null != _scnIndex) _scnIndex.moveHead(_head.getPosition(), newScn);
 
-    _timestampOfFirstEvent = newHeadTsNs > 0 ? newHeadTsNs / 1000000 : getFirstEventTimestamp();
+    //_timestampOfFirstEvent = newHeadTsNs > 0 ? newHeadTsNs / 1000000 : getFirstEventTimestamp();
+
+    updateFirstEventMetadata();
 
     //next we make sure we preserve the ByteBuffer limit() invariant -- see the comment
     //to _buffers
@@ -3556,6 +3483,34 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     if (logDebugEnabled)
         LOG.debug("moved head to " + _head.toString() + "; scn=" + newScn);
     _notFull.signalAll();
+  }
+
+  // We could probably optimize this to update minScn and timetampOfFirstEvent
+  // only if they are not set OR if we are moving head.
+  private void updateFirstEventMetadata() {
+    if (!_queueLock.isHeldByCurrentThread()) {
+      throw new RuntimeException("Queue lock not held when updating minScn");
+    }
+    boolean found = false;
+    DbusEventIterator it = null;
+    try {
+      it = this.acquireIterator("updateFirstEventMetadata");
+      while (it.hasNext()) {
+        DbusEvent e = it.next();
+        if (!e.isControlMessage()) {
+          _minScn = e.sequence();
+          _timestampOfFirstEvent = e.timestampInNanos()/1000000;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        _minScn = -1;
+      _timestampOfFirstEvent = 0;
+      }
+    } finally {
+      releaseIterator(it);
+    }
   }
 
   /** Asserts the ByteBuffers limit() invariant. {@see #_buffers} */
@@ -4045,6 +4000,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     private final boolean _restoreMMappedBuffers;
     private final boolean _restoreMMappedBuffersValidateEvents;
 
+    private final boolean _enableScnIndex;
+
     public StaticConfig(long maxSize,
                         int maxIndividualBufferSize,
                         int readBufferSize,
@@ -4058,7 +4015,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                         AssertLevel assertLevel,
                         long bufferRemoveWaitPeriod,
                         boolean restoreMMappedBuffers,
-                        boolean restoreMMappedBuffersValidateEvents)
+                        boolean restoreMMappedBuffersValidateEvents,
+                        boolean enableScnIndex)
     {
       super();
       _maxSize = maxSize;
@@ -4075,7 +4033,14 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _bufferRemoveWaitPeriod = bufferRemoveWaitPeriod;
       _restoreMMappedBuffers = restoreMMappedBuffers;
       _restoreMMappedBuffersValidateEvents = restoreMMappedBuffersValidateEvents;
+      _enableScnIndex = enableScnIndex;
     }
+
+    public boolean isEnableScnIndex()
+    {
+      return _enableScnIndex;
+    }
+
 
     public boolean getRestoreMMappedBuffersValidateEvents() {
       return _restoreMMappedBuffersValidateEvents;
@@ -4247,6 +4212,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     private boolean _restoreMMappedBuffers = false;
     private boolean _restoreMMappedBuffersValidateEvents = false;
 
+    private boolean _enableScnIndex = true;
+
     public Config()
     {
       super();
@@ -4259,6 +4226,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _trace = new RelayEventTraceOptionBuilder();
       _bufferRemoveWaitPeriodSec = BUFFER_REMOVE_WAIT_PERIOD;
       _restoreMMappedBuffers = false;
+      _enableScnIndex = true;
     }
 
     public Config(Config other)
@@ -4275,6 +4243,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _trace = new RelayEventTraceOptionBuilder(other._trace);
       _bufferRemoveWaitPeriodSec = other._bufferRemoveWaitPeriodSec;
       _restoreMMappedBuffers = other._restoreMMappedBuffers;
+      _enableScnIndex = other._enableScnIndex;
     }
 
     /** Computes the buffer sizes based on a the curent {@link #getDefaultMemUsage()} percentage*/
@@ -4287,6 +4256,16 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _readBufferSize = (int) (DEFAULT_EVENT_BUFFER_READ_BUFFER_QUOTA * memForEventBuffer);
       _scnIndexSize = (int) ( Math.abs(1.0 - DEFAULT_EVENT_BUFFER_MAX_SIZE_QUOTA -
                                        DEFAULT_EVENT_BUFFER_READ_BUFFER_QUOTA) * memForEventBuffer );
+    }
+
+    public boolean isEnableScnIndex()
+    {
+      return _enableScnIndex;
+    }
+
+    public void setEnableScnIndex(boolean enableScnIndex)
+    {
+      _enableScnIndex = enableScnIndex;
     }
 
     public void setRestoreMMappedBuffersValidateEvents(boolean restoreMMappedBuffersValidateEventsValidateEvents) {
@@ -4412,6 +4391,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       LOG.info("Event buffer scn index size: " + _scnIndexSize);
       LOG.info("Event buffer allocation policy: " + _allocationPolicy.toString());
       LOG.info("Using queue policy: " + _queuePolicy.toString());
+      LOG.info("ScnIndex enabled:" + _enableScnIndex);
 
       AllocationPolicy allocPolicy;
 
@@ -4461,7 +4441,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       return new StaticConfig(_maxSize, _maxIndividualBufferSize, _readBufferSize, _scnIndexSize, allocPolicy,
                               mmapDirectory, _defaultMemUsage, queuePolicy, _existingBuffer,
                               _trace.build(), assertLevel, _bufferRemoveWaitPeriodSec,
-                              _restoreMMappedBuffers, _restoreMMappedBuffersValidateEvents);
+                              _restoreMMappedBuffers, _restoreMMappedBuffersValidateEvents,
+                              _enableScnIndex);
     }
 
     public RelayEventTraceOptionBuilder getTrace()

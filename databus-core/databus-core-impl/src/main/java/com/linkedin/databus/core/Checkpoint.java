@@ -405,7 +405,7 @@ public class Checkpoint
     			  + ", PrevSCN :" + prevWindowScn);
   }
 
-  public void endEvents(long endWindowScn)
+  private void endEvents(long endWindowScn)
   {
     currentWindowOffset = -1;
     this.clearWindowOffset();

@@ -1,8 +1,8 @@
 package com.linkedin.databus.core;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.fail;
-
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.util.BufferPositionParser;
+import com.linkedin.databus2.core.AssertLevel;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -11,9 +11,8 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.util.BufferPositionParser;
-import com.linkedin.databus2.core.AssertLevel;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.fail;
 
 public class TestScnIndex
 {
@@ -56,7 +55,8 @@ public class TestScnIndex
 
 	BufferPositionParser parser = new BufferPositionParser(3000,3);
 	ScnIndex index = new ScnIndex(3 * ScnIndex.SIZE_OF_SCN_OFFSET_RECORD, 3000, 10000,
-	                              parser, AllocationPolicy.DIRECT_MEMORY, false, null, DEFAULT_ASSERT_LEVEL);
+	                              parser, AllocationPolicy.DIRECT_MEMORY, false, null, DEFAULT_ASSERT_LEVEL,
+                                true /* enabled */);
 	DataChangeEvent eopEvent = EasyMock.createNiceMock(DataChangeEvent.class);
 	EasyMock.expect(eopEvent.isEndOfPeriodMarker()).andReturn(true).anyTimes();
 	EasyMock.expect(eopEvent.isControlMessage()).andReturn(true).anyTimes();
