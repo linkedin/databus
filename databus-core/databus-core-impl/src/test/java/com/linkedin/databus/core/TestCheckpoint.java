@@ -1,6 +1,7 @@
 package com.linkedin.databus.core;
 
-import static org.testng.AssertJUnit.*;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.fail;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -16,11 +17,10 @@ public class TestCheckpoint
   @Test
   public void testCheckpoint()
   {
-
-
       try
       {
-        Checkpoint cp = new Checkpoint("{\"scn\":1234, \"scnMessageOffset\":34}");
+        @SuppressWarnings("unused")
+		Checkpoint cp = new Checkpoint("{\"scn\":1234, \"scnMessageOffset\":34}");
       }
       catch (JsonParseException e)
       {
@@ -67,18 +67,15 @@ public class TestCheckpoint
   @Test
   public void testInit() {
     Checkpoint cp = new Checkpoint();
-    cp.setInit();
     assertEquals(cp.getInit(), true);
     cp.setWindowScn(1234L);
     cp.setWindowOffset(123);
     cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
     assertEquals(cp.getInit(), false);
-    //System.out.println(cp);
-    cp.setInit();
+    cp.init();
     assertEquals(cp.getInit(), true);
-    //System.out.println(cp);
-
   }
+
   @Test
   public void testSerialize() throws JsonParseException, JsonMappingException, IOException
   {

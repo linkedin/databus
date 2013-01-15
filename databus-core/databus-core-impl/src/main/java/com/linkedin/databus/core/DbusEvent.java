@@ -959,8 +959,9 @@ implements DataChangeEvent, Cloneable
 	  int size = size();
 	  if (size > (this.buf.limit()-position)) {
 		  if (logErrors)
-			  LOG.error("size() = " + size + "buf_position=" + position +  " limit = " + buf.limit() +
-			  		" (this.buf.limit()-position) = "+ (this.buf.limit()-position));
+			  LOG.error("partial event: size() = " + size + " buf_position=" + position +
+			            " limit = " + buf.limit() +
+			            " (this.buf.limit()-position) = "+ (this.buf.limit()-position));
 		  return true;
 	  }
 	  return false;
@@ -1007,7 +1008,7 @@ implements DataChangeEvent, Cloneable
    * @return true if event is not partial and event is valid; Note that a partial event is deemed invalid;
    */
   protected boolean isValid(boolean logErrors) {
-	  return scanEvent(logErrors) == EventScanStatus.OK;
+	  return null != buf && scanEvent(logErrors) == EventScanStatus.OK;
   }
 
 

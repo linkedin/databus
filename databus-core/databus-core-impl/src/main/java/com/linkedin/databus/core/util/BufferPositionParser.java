@@ -227,14 +227,13 @@ public class BufferPositionParser
 
 
   /*
-   * increment the index stored in the position by 1
+   * Generates the gen-id position at the beginning of the next ByteBuffer.
    *
    * @param position position to be incremented
    * @param buffers the list of buffers in the eventBuffer which is the universe for the position
    * @return the incremented position
    */
-  public long incrementIndex(long currentPosition,
-                             ByteBuffer[] buffers)
+  public long incrementIndex(long currentPosition, ByteBuffer[] buffers)
   {
     int bufferIndex = bufferIndex(currentPosition);
     int nextIndex = (bufferIndex +1) % buffers.length;

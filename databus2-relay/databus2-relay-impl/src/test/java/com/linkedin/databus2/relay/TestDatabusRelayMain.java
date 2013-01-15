@@ -1347,8 +1347,9 @@ public class TestDatabusRelayMain
       final Logger log = Logger.getLogger("TestDatabusRelayMain.testRelayChainingSCNRegress");
 		RelayRunner r1=null,r2=null,r3 = null;
 		ClientRunner cr = null;
-		log.setLevel(Level.DEBUG);
+		//log.setLevel(Level.DEBUG);
 		log.info("start");
+		//DbusEventBuffer.LOG.setLevel(Level.DEBUG);
 		try
 		{
 			String[][] srcNames =
@@ -1448,7 +1449,7 @@ public class TestDatabusRelayMain
 				@Override
 				public boolean check() {
 					final DbusEventsTotalStats stats2 = relay2
-							.getInboundEventStatisticsCollector().getTotalStats();					
+							.getInboundEventStatisticsCollector().getTotalStats();
 					log.debug("chained relay max scn: "+ stats2.getMaxScn() +
 							  "; source relay max scn:" + stats.getMaxScn());
 					return stats2.getMaxScn() == stats.getMaxScn();
@@ -1485,8 +1486,8 @@ public class TestDatabusRelayMain
 				@Override
 				public boolean check() {
 					final DbusEventsTotalStats stats2 = relay2
-							.getInboundEventStatisticsCollector().getTotalStats();					
-					log.debug("chained relay max scn:" + stats2.getMaxScn() + 
+							.getInboundEventStatisticsCollector().getTotalStats();
+					log.debug("chained relay max scn:" + stats2.getMaxScn() +
 							"; master relay max scn:" + stats3.getMaxScn());
 					return stats2.getMaxScn() == stats3.getMaxScn();
 				}

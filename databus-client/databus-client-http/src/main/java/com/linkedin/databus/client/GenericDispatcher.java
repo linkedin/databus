@@ -126,12 +126,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case CLOSED: _internalState.switchToClosed(); shutdown(); break;
           case STOP_DISPATCH_EVENTS: _internalState.switchToStopDispatch();  break;
           case START_DISPATCH_EVENTS:
-              _internalState.switchToStartDispatchEvents(newState.getSources(),
-                                                         newState.getSchemaMap(),
-                                                         newState.getEventsIterator()); break;
+              _internalState.switchToStartDispatchEventsInternal(newState, getName() + ".iter");
+              doStartDispatchEvents(_internalState);
+              break;
           default:
           {
-            _log.error("Unkown state: " + _internalState.getStateId());
+            _log.error("Unknown dispatcher message: " + _internalState.getStateId());
             success = false;
             break;
           }
@@ -156,7 +156,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case EXPECT_STREAM_DATA_EVENTS: doDispatchEvents(_internalState); break;
           default:
           {
-            _log.error("Unkown state: " + _internalState.getStateId());
+            _log.error("Unkown internal: " + _internalState.getStateId());
             success = false;
             break;
           }
@@ -178,12 +178,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (null != curState.getEventsIterator())
     {
-      curState.getEventsIterator().getEventBuffer().releaseIterator(curState.getEventsIterator());
+      curState.getEventsIterator().close();
     }
     if (null != curState.getLastSuccessfulIterator())
     {
-      curState.getLastSuccessfulIterator().getEventBuffer().releaseIterator(
-          curState.getLastSuccessfulIterator());
+      curState.getLastSuccessfulIterator().close();
     }
 
     ConsumerCallbackResult stopSuccess = ConsumerCallbackResult.ERROR;
@@ -277,12 +276,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
       if ( regressItr)
       {
-    	  DbusEventBuffer.DbusEventIterator newIter = null;
     	  if (null != curState.getLastSuccessfulIterator())
     	  {
-    		  newIter = curState.getLastSuccessfulIterator().copy(newIter, getName() + ".iterator");
-    		  _log.info("rollback to last successful iterator!" + newIter);
-    		  curState.switchToReplayDataEvents(newIter);
+    		  _log.info("rollback to last successful iterator!" +
+    		            curState.getLastSuccessfulIterator());
+    		  curState.switchToReplayDataEvents();
     	  }
     	  else
     	  {
@@ -976,6 +974,8 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   @Override
   protected void doShutdown(LifecycleMessage lcMessage)
   {
+    if (DispatcherState.StateId.CLOSED != _internalState.getStateId())
+      _internalState.switchToClosed();
     super.doShutdown(lcMessage);
   }
 

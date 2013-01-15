@@ -23,6 +23,7 @@ public class DbusEventAppender implements Runnable {
 	public Logger LOG = Logger.getLogger(MODULE);
 	private final boolean _invokeStartOnBuffer;
 	private final int _numDataEventsBeforeSkip;
+	private final boolean _callInternalListeners;
 
 	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats) {
 		this(events, buffer, stats, 1.0, true,-1);
@@ -36,8 +37,16 @@ public class DbusEventAppender implements Runnable {
 		this(events, buffer, stats, fraction, true,-1);
 	}
 
+    public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,
+                             DbusEventsStatisticsCollector stats,
+                             double fraction, boolean invokeStartOnBuffer,
+                             int numDataEventsBeforeSkip) {
+      this(events, buffer, stats, fraction, invokeStartOnBuffer, numDataEventsBeforeSkip, true);
+    }
+
 	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats,
-			double fraction, boolean invokeStartOnBuffer,int numDataEventsBeforeSkip) {
+			double fraction, boolean invokeStartOnBuffer,int numDataEventsBeforeSkip,
+			boolean callInternalListeners) {
 		_events = events;
 		_buffer = buffer;
 		_count = 0;
@@ -45,6 +54,7 @@ public class DbusEventAppender implements Runnable {
 		_fraction = fraction;
 		_invokeStartOnBuffer = invokeStartOnBuffer;
 		_numDataEventsBeforeSkip = numDataEventsBeforeSkip;
+		_callInternalListeners = callInternalListeners;
 	}
 
 	public long eventsEmitted() {
@@ -74,7 +84,10 @@ public class DbusEventAppender implements Runnable {
 					_buffer.startEvents();
 				} else {
 				    ++_count;
-					_buffer.endEvents(lastScn,_stats);
+					if (_callInternalListeners)
+					  _buffer.endEvents(lastScn,_stats);
+					else
+					  _buffer.endEvents(true, lastScn, false, false, _stats);
 					_buffer.startEvents();
 				}
 				lastScn = evScn;
@@ -83,8 +96,8 @@ public class DbusEventAppender implements Runnable {
 			ev.value().get(payload);
 			if ((_numDataEventsBeforeSkip < 0) || (dataEventCount < _numDataEventsBeforeSkip))
 			{
-				_buffer.appendEvent(new DbusEventKey(ev.key()), ev.physicalPartitionId(), 
-			                    ev.logicalPartitionId(),ev.timestampInNanos(), ev.srcId() , 
+				_buffer.appendEvent(new DbusEventKey(ev.key()), ev.physicalPartitionId(),
+			                    ev.logicalPartitionId(),ev.timestampInNanos(), ev.srcId() ,
 			                    ev.schemaId(), payload, false,_stats);
 				++dataEventCount;
 			}
@@ -97,7 +110,8 @@ public class DbusEventAppender implements Runnable {
 	}
 
 	/**
-	 * Alter event fields by xoring against a known fixed value; each invocation toggles between 'good' state and the 'tarnished' state
+	 * Alter event fields by xoring against a known fixed value; each invocation toggles between
+	 * 'good' state and the 'tarnished' state
 	 *
 	 * @param type : event field that will be tarnished
 	 * @param positions : list of event positions in *sorted order* that will be tarnished;
@@ -105,10 +119,11 @@ public class DbusEventAppender implements Runnable {
 	 */
 	public int tarnishEventsInBuffer(int[] positions, EventCorruptionType type) {
 		int tarnishedEvents = 0;
-		int count=0;
+		int count = 0;
 		int posIndex = 0;
 		boolean onlyDataEvents = (type==EventCorruptionType.PAYLOAD) ;
-		for (Iterator<DbusEvent> di= _buffer.iterator() ; (posIndex < positions.length) && di.hasNext() ; ) {
+		for (Iterator<DbusEvent> di= _buffer.iterator() ;
+		     (posIndex < positions.length) && di.hasNext() ; ) {
 		  DbusEvent ev = di.next();
 		  if (!onlyDataEvents || !ev.isControlMessage()) {
 		    if (count == positions[posIndex]) {
@@ -127,6 +142,6 @@ public class DbusEventAppender implements Runnable {
     private final DbusEventBuffer _buffer;
     private long _count ;
     protected  DbusEventsStatisticsCollector _stats;
-    private double _fraction;
+    private final double _fraction;
 
 }

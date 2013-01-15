@@ -147,8 +147,9 @@ public class BufferPosition
   }
 
   /*
-   * Increment the index in the stored address by 1.
-   * If we reach the end of the bufferIndex, the genId will be incremented by 1 and index/offset reset.
+   * Moves the position to the beginning of the next ByteBuffer.
+   * If we reach the end of the bufferIndex, the genId will be incremented by 1 and index/offset 
+   * reset.
    *
    * @return the position with the incremented index
    */

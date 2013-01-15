@@ -14,13 +14,47 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
-public class Checkpoint 
-	extends InternalDatabusEventsListenerAbstract 
-	implements Serializable 
+/**
+ * This class represents the state of a consumer consuming events from a Databus server for
+ * a single timeline (physical partition). There are two main types of checkpoints:
+ *
+ * <ul>
+ *   <li>Online consumption - used for consuming events a relay
+ *   <li>Bootstrap - used for consuming events from a bootstrap server
+ * </ul>
+ *
+ * The type of a checkpoint is determined by the consumptionMode parameter
+ * {@link #getConsumptionMode()}.
+ *
+ * <b>Online-Consumption checkpoints<b>
+ *
+ * Online-consumption checkpoints ({@link DbusClientMode#ONLINE_CONSUMPTION} represent the state of
+ * a consumer of event stream from a relay. The main properties of the checkpoint are:
+ *
+ * <ul>
+ *  <li> {@code windowScn} - the sequence number (SCN) of the current window; -1 denotes
+ *  "flexible" checkpoint (see below).
+ *  <li> {@code prevScn} - the sequence number (SCN) of the window before current; -1 means
+ *  "unknown".
+ *  <li> {@code windowOffset} - the number of events processed from the current window;
+ *  -1 means the entire window has been processed including the end-of-window event.
+ * </ul>
+ *
+ * <i>Flexible online-consumption checkpoints<i>
+ *
+ * Used by consumers which do not care from where they start consuming. The relay will make the
+ * best effort to serve whatever data it has. Flexible checkpoints can be created using
+ * {@link #createFlexibleCheckpoint()} or invoking {@link #setFlexible()} on an existing Checkpoint.
+ *
+ * <b>Bootstrap checkpoints</b>
+ *
+ * @see CheckpointMult for multi-partition checkpoints
+ *
+ */
+public class Checkpoint
+	extends InternalDatabusEventsListenerAbstract
+	implements Serializable
 {
-  /**
-   *
-   */
   private static final long serialVersionUID = 1L;
   public static final String  MODULE               = Checkpoint.class.getName();
   public static final Logger  LOG                  = Logger.getLogger(MODULE);
@@ -35,8 +69,8 @@ public class Checkpoint
   // which window scn have we processed completely
   private static final String WINDOW_OFFSET        = "windowOffset";
   // when non-zero: within a window, how many messages have been processed
-  
-  
+
+
   /**
    * the last window we have completely processed
    */
@@ -116,6 +150,7 @@ public class Checkpoint
 	init();
   }
 
+  /** Clears the checkpoint. */
   public void init()
   {
 	  currentWindowScn = -1L;
@@ -171,12 +206,12 @@ public class Checkpoint
   {
      prevWindowScn = windowScn;
   }
-  
+
   public long getPrevScn()
   {
 	  return prevWindowScn;
   }
-  
+
   public void setWindowOffset(Integer windowOffset)
   {
     currentWindowOffset = windowOffset;
@@ -355,7 +390,7 @@ public class Checkpoint
   {
     if (e.isEndOfPeriodMarker())
     {
-      prevWindowScn = e.sequence();	      
+      prevWindowScn = e.sequence();
       endEvents(e.sequence());
     }
     else if (e.isCheckpointMessage())
@@ -398,14 +433,14 @@ public class Checkpoint
         currentWindowOffset = 1;
       }
     }
-    
+
     if (LOG.isDebugEnabled())
-    	LOG.info("CurrentWindowSCN : " + currentWindowScn 
-    			  + ", currentWindowOffset :" + currentWindowOffset 
+    	LOG.info("CurrentWindowSCN : " + currentWindowScn
+    			  + ", currentWindowOffset :" + currentWindowOffset
     			  + ", PrevSCN :" + prevWindowScn);
   }
 
-  private void endEvents(long endWindowScn)
+  public void endEvents(long endWindowScn)
   {
     currentWindowOffset = -1;
     this.clearWindowOffset();
@@ -489,16 +524,20 @@ public class Checkpoint
     }
   }
 
+  /** @deprecated Please use {@link Checkpoint#init()}*/
+  @Deprecated
   public void setInit()
   {
     setConsumptionMode(DbusClientMode.INIT);
   }
 
+  /** Checks if the checkpoint is in initialized state, i.e. empty. */
   public boolean getInit()
   {
     return (getConsumptionMode() == DbusClientMode.INIT);
   }
 
+  /** Converts a checkpoint to a flexible online-consumption checkpoint. */
   public void setFlexible()
   {
     setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
@@ -564,10 +603,37 @@ public class Checkpoint
 	  setBootstrapServerInfo(null);
   }
 
+  /** Remove IOException javac warnings */
+  @Override
+  public void close()
+  {
+  }
+
+  /* Helper factory methods */
+
+  /**
+   * Creates a flexible online-consumption checkpoint.
+   * @return the new checkpoint
+   */
   public static Checkpoint createFlexibleCheckpoint()
   {
     Checkpoint cp = new Checkpoint();
     cp.setFlexible();
+    return cp;
+  }
+
+  /**
+   * Creates a simple online-consumption checkpoint for a given SCN.
+   * @param lastConsumedScn    the sequence number of the last fully consumed window
+   * @return the new checkpoint
+   */
+  public static Checkpoint createOnlineConsumptionCheckpoint(long lastConsumedScn)
+  {
+    Checkpoint cp = new Checkpoint();
+    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+    cp.setWindowScn(lastConsumedScn);
+    cp.setWindowOffset(-1);
+
     return cp;
   }
 }

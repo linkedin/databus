@@ -81,6 +81,7 @@ import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus.core.util.RngUtils;
 import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
@@ -115,7 +116,7 @@ public class TestDatabusHttpClient
   public void setUpClass() throws InvalidConfigException
   {
     //setup logging
-    TestUtil.setupLogging(true, null, Level.INFO);
+    TestUtil.setupLogging(true, null, Level.ERROR);
     InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
 
     //initialize relays
@@ -463,7 +464,7 @@ public class TestDatabusHttpClient
 
 		rd.enqueueMessage(DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
 				schemaMap,
-				dsc.getDataEventsBuffer().acquireIterator(rd.getName() + ".DispatcherIterator")));
+				dsc.getDataEventsBuffer()));
 
 		try
 		{
@@ -507,9 +508,8 @@ public class TestDatabusHttpClient
 		int count = 0;
 		while (client.getRelayConnections().size() == 0 && count < 10)
 		{
-			Thread.currentThread();
-      Thread.sleep(500);
-			count++;
+		  Thread.sleep(500);
+		  count++;
 		}
 		if ( count >= 10)
 			throw new Exception("Client did not start up in 10 iterations");
@@ -561,14 +561,13 @@ public class TestDatabusHttpClient
         initBufferWithEvents(eventsBuf, 1 + source1EventsNum, source2EventsNum, (short)2, keyCounts, srcidCounts);
         eventsBuf.endEvents(100L,null);
 
-		rd.enqueueMessage(DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
+        rd.enqueueMessage(DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
 				schemaMap,
-				dsc.getDataEventsBuffer().acquireIterator(rd.getName() + ".DispatcherIterator")));
+				dsc.getDataEventsBuffer()));
 
 		try
 		{
-			Thread.currentThread();
-      Thread.sleep(1000);
+		  Thread.sleep(1000);
 		}
 		catch (InterruptedException e)
 		{
@@ -1199,10 +1198,12 @@ public class TestDatabusHttpClient
 		 */
 	  public void testRelayFailoverPartialWindow1() throws Exception
 	  {
+	    final boolean debugOn = false;
 	    final Logger log = Logger.getLogger("TestDatabusHttpClient.testRelayFailoverPartialWindow1");
-	    log.setLevel(Level.DEBUG);
+	    log.setLevel(Level.INFO);
 	    final int eventsNum = 200;
 	    DbusEventInfo[] events = createSampleSchema1Events(eventsNum);
+	    final long timeoutMult = debugOn ? 100000 : 1;
 
 	    //simulate relay buffers
 	    DbusEventBuffer[] relayBuffer = new DbusEventBuffer[RELAY_PORT.length];
@@ -1384,7 +1385,7 @@ public class TestDatabusHttpClient
             @Override
             public boolean check()
             {
-              log.error("events num=" + consumer.getEventNum());
+              log.debug("events num=" + consumer.getEventNum());
               return stats.getTotalStats().getNumDataEvents() == consumer.getEventNum();
             }
           }, "client processes /stream response", 110000, log);
@@ -1634,7 +1635,9 @@ public class TestDatabusHttpClient
           NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
           objCapture.clear();
 
-          //send back the /register response
+          log.info("SEND BACK THE /register RESPONSE");
+          clientConn.getRelayDispatcher().getLog().setLevel(Level.DEBUG);
+          RangeBasedReaderWriterLock.LOG.setLevel(Level.DEBUG);
           body = new DefaultHttpChunk(
               ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
@@ -1648,9 +1651,9 @@ public class TestDatabusHttpClient
               DispatcherState dispState = clientConn.getRelayDispatcher().getDispatcherState();
               return null != dispState.getSchemaMap() && 1 == dispState.getSchemaMap().size();
             }
-          }, "client processes /sources response", 100, log);
+          }, "client processes /register response", timeoutMult * 100, log);
 
-          //process /stream call and return a partial window
+          log.info("PROCESS the /stream CALL AND RETURN A PARTIAL WINDOW");
           streamMatcher =
               NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*checkPoint=([^&]*)&.*",
                                                 1000);
@@ -1683,7 +1686,8 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn() + ", NumEvents :" + stats.getTotalStats().getNumDataEvents() );
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 90;
             }
-          }, "client receieves /stream response, Sequences :" + consumer.getSequences(), 1100, log);
+          }, "client receieves /stream response, Sequences :" + consumer.getSequences(),
+             timeoutMult * 1100, log);
 
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
@@ -1693,7 +1697,7 @@ public class TestDatabusHttpClient
               log.debug("events num=" + consumer.getEventNum());
               return stats.getTotalStats().getNumDataEvents() == consumer.getEventNum();
             }
-          }, "client processes /stream response", 110000, log);
+          }, "client processes /stream response", timeoutMult * 1100, log);
 
           //one more onStartDataEventSequence because of the rolback
           assertEquals(30, consumer.getRollbackScn());
@@ -1716,44 +1720,6 @@ public class TestDatabusHttpClient
 	      client.shutdown();
 	    }
 	  }
-
-	/*
-	 *
-	 * Disabling this test as it is testing incorrectly (non-deterministic). The testing assumes
-	 * the ordering of RelayConnections list which is not true.
-	 * TODO: DDSDBUS-537
-	@Test
-	public void testDatabusSources2() throws Exception
-	{
-	  DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
-	  clientConfig.getContainer().getJmx().setRmiEnabled(false);
-      clientConfig.getContainer().setHttpPort(10101);
-	  DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
-
-      registerRelay(1, "relay1", new InetSocketAddress("localhost", 18888), "S1,S2", client);
-      registerRelay(2, "relay2", new InetSocketAddress("localhost", 17777), "S1,S3", client);
-      registerRelay(3, "relay1.1", new InetSocketAddress("localhost", 18887), "S1,S2", client);
-      ServerInfo s3 = registerRelay(4, "relay3", new InetSocketAddress("localhost", 16666), "S3,S4,S5", client);
-
-      DummyStreamConsumer listener1 = new DummyStreamConsumer("consumer1");
-      client.registerDatabusStreamListener(listener1 , null, "S2");
-
-      try
-      {
-    	  client.start();
-      } catch (Exception e){}
-      assertEquals("Num connections must be 3", 3, client.getRelayConnections().size());
-
-      DatabusSourcesConnection dsc = client.getRelayConnections().get(0);
-      Set<ServerInfo> relaysInClient = dsc.getRelays();
-      Set<ServerInfo> ssi = new HashSet<ServerInfo>();
-      ssi.add(s3);
-      if (!relaysInClient.equals(ssi))
-      {
-           throw new Exception("ServerInfo set is not what is expected !!" + " Expected Set :" + ssi + ", Got :" + relaysInClient);
-      }
-	}
-	*/
 
 	@Test
   public void testStartNoConsumers() throws Exception

@@ -1,14 +1,15 @@
 package com.linkedin.databus.core.util;
 
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
-import org.testng.annotations.BeforeMethod;
-import org.testng.Assert;
 import java.util.ArrayList;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
 
 import org.apache.log4j.Level;
+import org.testng.Assert;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
 import com.linkedin.databus.core.util.RangeBasedReaderWriterLock.LockToken;
 
 public class TestRangeBasedReaderWriterLockPerf {
@@ -30,22 +31,22 @@ public class TestRangeBasedReaderWriterLockPerf {
 	 * Once the number of read locks has exceeded N we will release a few K back to the provider
 	 * We will also check out a non-overlapping write lock after checking out the read lock
 	 */
-	public void testReaderInsertWithCooperatingWritesPerformance() {
-		
+	public void testReaderInsertWithCooperatingWritesPerformance() throws Exception {
+
 		ArrayList<Double> avgInsertsPerSecond = new ArrayList<Double>();
-		
+
 		for (int numTests = 0; numTests < 20; ++ numTests)
 		{
 		Queue<LockToken> checkedOutLockTokens = new ArrayBlockingQueue<LockToken>(100);
-		
+
 		RangeBasedReaderWriterLock lockProvider = new RangeBasedReaderWriterLock();
 		RangeBasedReaderWriterLock.LOG.setLevel(Level.FATAL);
 		long startTime = System.nanoTime();
 		int numOperations = 1000000;
 		for (int i=numOperations -1; i > 0; --i)
 		{
-			LockToken token = lockProvider.acquireReaderLock(i, numOperations,_parser);
-			long minStart = lockProvider.getReaderRanges().peek().start;
+			LockToken token = lockProvider.acquireReaderLock(i, numOperations,_parser, "lock" + i);
+			long minStart = lockProvider.getReaderRanges().peek()._id.start;
 			lockProvider.acquireWriterLock(0, minStart,_parser);
 			lockProvider.releaseWriterLock(_parser);
 			if (minStart != i)
@@ -61,11 +62,11 @@ public class TestRangeBasedReaderWriterLockPerf {
 					lockProvider.releaseReaderLock(releaseToken);
 				}
 			}
-			
+
 		}
-		
+
 		long endTime = System.nanoTime();
-		
+
 		if (numTests>0)
 		{
 			double insertsPerSecond = numOperations * 1000000000L / (endTime - startTime);
@@ -73,7 +74,7 @@ public class TestRangeBasedReaderWriterLockPerf {
 			System.out.println("Inserts per second = " + insertsPerSecond);
 		}
 		}
-		
+
 		double total = 0;
 		for (Double d: avgInsertsPerSecond)
 		{

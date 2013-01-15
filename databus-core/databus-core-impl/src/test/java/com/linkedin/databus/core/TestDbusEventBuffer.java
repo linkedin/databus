@@ -1,25 +1,10 @@
 package com.linkedin.databus.core;
 
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
-import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats;
-import com.linkedin.databus.core.util.BufferPositionParser;
-import com.linkedin.databus.core.util.DbusEventAppender;
-import com.linkedin.databus.core.util.DbusEventBufferConsumer;
-import com.linkedin.databus.core.util.DbusEventBufferReader;
-import com.linkedin.databus.core.util.DbusEventBufferWriter;
-import com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType;
-import com.linkedin.databus.core.util.DbusEventGenerator;
-import com.linkedin.databus.core.util.EventBufferConsumer;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.RngUtils;
-import com.linkedin.databus.core.util.Utils;
-import com.linkedin.databus2.core.AssertLevel;
-import com.linkedin.databus2.core.filter.AllowAllDbusFilter;
-import com.linkedin.databus2.test.TestUtil;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertFalse;
+import static org.testng.AssertJUnit.assertTrue;
+import static org.testng.AssertJUnit.fail;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -37,17 +22,37 @@ import java.util.Iterator;
 import java.util.Vector;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import junit.framework.Assert;
+
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertFalse;
-import static org.testng.AssertJUnit.assertTrue;
-import static org.testng.AssertJUnit.fail;
+import com.linkedin.databus.core.DbusEvent.EventScanStatus;
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
+import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats;
+import com.linkedin.databus.core.util.BufferPositionParser;
+import com.linkedin.databus.core.util.DbusEventAppender;
+import com.linkedin.databus.core.util.DbusEventBufferConsumer;
+import com.linkedin.databus.core.util.DbusEventBufferReader;
+import com.linkedin.databus.core.util.DbusEventBufferWriter;
+import com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType;
+import com.linkedin.databus.core.util.DbusEventGenerator;
+import com.linkedin.databus.core.util.EventBufferConsumer;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
+import com.linkedin.databus.core.util.RngUtils;
+import com.linkedin.databus.core.util.Utils;
+import com.linkedin.databus2.core.AssertLevel;
+import com.linkedin.databus2.core.filter.AllowAllDbusFilter;
+import com.linkedin.databus2.test.TestUtil;
 
 public class TestDbusEventBuffer {
 
@@ -57,9 +62,10 @@ public class TestDbusEventBuffer {
   public static final long NANOSECONDS = 1000*1000*1000;
   public static final long MILLISECONDS = 1000;
 
-  static
+  @BeforeClass
+  public void setupClass()
   {
-    TestUtil.setupLogging(true, null, Level.ERROR);
+    TestUtil.setupLogging(true, "TestDbusEventBuffer.log", Level.ERROR);
   }
 
 /*
@@ -158,6 +164,7 @@ public static class DummyDbusEvent extends DbusEvent
           .destIndividualBufferSize(1000000)
           .destStgBufferSize(100000)
           .destQueuePolicy(QueuePolicy.BLOCK_ON_WRITE)
+          //.logLevel(Level.DEBUG)
           //.debuggingMode(true)
           ;
 
@@ -325,6 +332,7 @@ public static class DummyDbusEvent extends DbusEvent
       .destQueuePolicy(QueuePolicy.OVERWRITE_ON_WRITE)
       .dataValidation(false) /* we can't validate the exact events because some of them have
                                 been overwritten; we'll just validate errors and counts */
+      //.debuggingMode(true)
        ;
 
       params.runReadEventsTests();
@@ -469,7 +477,6 @@ public static class DummyDbusEvent extends DbusEvent
             .destStgBufferSize(100000)
             .destQueuePolicy(QueuePolicy.BLOCK_ON_WRITE)
             .expectReadError(false)
-            .logLevel(Level.INFO)
  //           .debuggingMode(true)
             ;
       paramsRead2.setup();
@@ -600,7 +607,7 @@ public static class DummyDbusEvent extends DbusEvent
     {
     	// Multi byte-buffer EVB case
     	{
-    		Logger.getRootLogger().setLevel(Level.INFO);
+    		//Logger.getRootLogger().setLevel(Level.INFO);
         	final DbusEventBuffer dbusBuf =
                 new DbusEventBuffer(getConfig(1144,500,100,500,AllocationPolicy.HEAP_MEMORY,
                                               QueuePolicy.OVERWRITE_ON_WRITE,
@@ -696,7 +703,7 @@ public static class DummyDbusEvent extends DbusEvent
 
     	// Single byte-buffer EVB case
     	{
-    		Logger.getRootLogger().setLevel(Level.INFO);
+    		//Logger.getRootLogger().setLevel(Level.INFO);
         	final DbusEventBuffer dbusBuf =
                 new DbusEventBuffer(getConfig(2144,5000,200,500,AllocationPolicy.HEAP_MEMORY,
                                               QueuePolicy.OVERWRITE_ON_WRITE,
@@ -789,7 +796,6 @@ public static class DummyDbusEvent extends DbusEvent
     	}
     }
 
-    @Test
     /*
      * This test-case is to recreate the bug where appendEvents incorrectly writes event without
      *  moving head.
@@ -802,113 +808,112 @@ public static class DummyDbusEvent extends DbusEvent
      *  buffer (and scnIndex) as head is not moved ahead.
      *
      */
-    public void testAppendEventOverlap()
-        	throws Exception
-        	{
+    /**
+     * Recreate the head and tail position such that the eventBuffer is in the below state
+     *
+     *                       NETBW
+     *                      |-----|
+     * ------------------------------------------------------------
+     * ^      ^             ^                                     ^
+     * |      |             |                                     |
+     * 0      tail       CWP,head                                 capacity
+     *
+     * CWP : Current Write Position
+     * NETBW : Next Event to be written
+     *
+     * In this case, all pointers except head will be at (n+1)th generation while head
+     * is at nth generation
+     *
+     * Two test cases are covered here
+     *
+     * 1. n = 0
+     * 2. n > 0
+     */
+    @Test
+    public void testAppendEventOverlapNeq0() throws Exception
+      // Case n = 0;
+    {
+
+      final DbusEventBuffer dbusBuf =
+          new DbusEventBuffer(getConfig(1145,5000,100,500,AllocationPolicy.HEAP_MEMORY,
+                                        QueuePolicy.OVERWRITE_ON_WRITE,
+                                        AssertLevel.ALL));
+      BufferPositionParser parser = dbusBuf.getBufferPositionParser();
+      DbusEventGenerator generator = new DbusEventGenerator();
+      Vector<DbusEvent> events = new Vector<DbusEvent>();
+      generator.generateEvents(9, 3, 120, 39, events);
+
+      // Add events to the EventBuffer. Now the buffer is full
+      DbusEventAppender appender = new DbusEventAppender(events,dbusBuf,null);
+      //Logger.getRootLogger().setLevel(Level.ALL);
+      appender.run(); // running in the same thread
+
+      LOG.info("Head:" + parser.toString(dbusBuf.getHead()) +
+               ",Tail:" + parser.toString(dbusBuf.getTail()));
+
+      long headPos = dbusBuf.getHead();
+      long tailPos = dbusBuf.getTail();
+      long scnIndexHead = dbusBuf.getScnIndex().getHead();
+      long scnIndexTail = dbusBuf.getScnIndex().getTail();
+      long headGenId = parser.bufferGenId(headPos);
+      long headIndexId = parser.bufferIndex(headPos);
+      long headOffset = parser.bufferOffset(headPos);
+      long tailGenId = parser.bufferGenId(tailPos);
+      long tailIndexId = parser.bufferIndex(tailPos);
+      long tailOffset = parser.bufferOffset(tailPos);
+
+      assertEquals("Head GenId", 0, headGenId);
+      assertEquals("Head Index", 0, headIndexId);
+      assertEquals("Head Offset", 0, headOffset);
+      assertEquals("Tail GenId", 0, tailGenId);
+      assertEquals("Tail Index", 0, tailIndexId);
+      assertEquals("Tail Offset", 1144, tailOffset);
+      assertEquals("SCNIndex Head",0,scnIndexHead);
+      assertEquals("SCNIndex Tail",80,scnIndexTail);
+
+      LOG.info("ScnIndex Head is :" + scnIndexHead + ", ScnIndex Tail is :" + scnIndexTail);
+
+
+      events = new Vector<DbusEvent>();
+      generator = new DbusEventGenerator(100);
       /*
-       * Recreate the head and tail position such that the eventBuffer is in the below state
-       *
-       *                       NETBW
-       *                      |-----|
-       * ------------------------------------------------------------
-       * ^      ^             ^                                     ^
-       * |      |             |                                     |
-       * 0      tail       CWP,head                                 capacity
-       *
-       * CWP : Current Write Position
-       * NETBW : Next Event to be written
-       *
-       * In this case, all pointers except head will be at (n+1)th generation while head
-       * is at nth generation
-       *
-       * Two test cases are covered here
-       *
-       * 1. n = 0
-       * 2. n > 0
-       *
+       * The event size is carefully created such that after adding 2nd
+       * event CWP and tail points to the same location. Now the 3rd event corrupts the EVB and index (in the presence of bug).
        */
 
-      // Case n = 0;
+      generator.generateEvents(3, 2, 150, 89, events);
 
-      {
+      appender = new DbusEventAppender(events,dbusBuf,null);
+      appender.run(); // running in the same thread
 
-        final DbusEventBuffer dbusBuf =
-            new DbusEventBuffer(getConfig(1144,5000,100,500,AllocationPolicy.HEAP_MEMORY,
-                                          QueuePolicy.OVERWRITE_ON_WRITE,
-                                          AssertLevel.ALL));
-        BufferPositionParser parser = dbusBuf.getBufferPositionParser();
-        DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
-        generator.generateEvents(9, 3, 120, 39, events);
+      LOG.info("Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
 
-        // Add events to the EventBuffer. Now the buffer is full
-        DbusEventAppender appender = new DbusEventAppender(events,dbusBuf,null);
-        //Logger.getRootLogger().setLevel(Level.ALL);
-        appender.run(); // running in the same thread
-
-        LOG.info("Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
-
-        long headPos = dbusBuf.getHead();
-        long tailPos = dbusBuf.getTail();
-        long scnIndexHead = dbusBuf.getScnIndex().getHead();
-        long scnIndexTail = dbusBuf.getScnIndex().getTail();
-        long headGenId = parser.bufferGenId(headPos);
-        long headIndexId = parser.bufferIndex(headPos);
-        long headOffset = parser.bufferOffset(headPos);
-        long tailGenId = parser.bufferGenId(tailPos);
-        long tailIndexId = parser.bufferIndex(tailPos);
-        long tailOffset = parser.bufferOffset(tailPos);
-
-        assertEquals("Head GenId", 0, headGenId);
-        assertEquals("Head Index", 0, headIndexId);
-        assertEquals("Head Offset", 0, headOffset);
-        assertEquals("Tail GenId", 1, tailGenId);
-        assertEquals("Tail Index", 0, tailIndexId);
-        assertEquals("Tail Offset", 0, tailOffset);
-        assertEquals("SCNIndex Head",0,scnIndexHead);
-        assertEquals("SCNIndex Tail",80,scnIndexTail);
-
-        LOG.info("ScnIndex Head is :" + scnIndexHead + ", ScnIndex Tail is :" + scnIndexTail);
-
-
-        events = new Vector<DbusEvent>();
-        generator = new DbusEventGenerator(100);
-        /*
-         * The event size is carefully created such that after adding 2nd
-         * event CWP and tail points to the same location. Now the 3rd event corrupts the EVB and index (in the presence of bug).
-         */
-
-        generator.generateEvents(3, 2, 150, 89, events);
-
-        appender = new DbusEventAppender(events,dbusBuf,null);
-        appender.run(); // running in the same thread
-
-        LOG.info("Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
-
-        headPos = dbusBuf.getHead();
-        tailPos = dbusBuf.getTail();
-        headGenId = parser.bufferGenId(headPos);
-        headIndexId = parser.bufferIndex(headPos);
-        headOffset = parser.bufferOffset(headPos);
-        tailGenId = parser.bufferGenId(tailPos);
-        tailIndexId = parser.bufferIndex(tailPos);
-        tailOffset = parser.bufferOffset(tailPos);
-        scnIndexHead = dbusBuf.getScnIndex().getHead();
-        scnIndexTail = dbusBuf.getScnIndex().getTail();
-        assertEquals("Head GenId", 0, headGenId);
-        assertEquals("Head Index", 0, headIndexId);
-        assertEquals("Head Offset", 783, headOffset);
-        assertEquals("Tail GenId", 1, tailGenId);
-        assertEquals("Tail Index", 0, tailIndexId);
-        assertEquals("Tail Offset", 633, tailOffset);
-        assertEquals("SCNIndex Head",64,scnIndexHead);
-        assertEquals("SCNIndex Tail",48,scnIndexTail);
-      }
+      headPos = dbusBuf.getHead();
+      tailPos = dbusBuf.getTail();
+      headGenId = parser.bufferGenId(headPos);
+      headIndexId = parser.bufferIndex(headPos);
+      headOffset = parser.bufferOffset(headPos);
+      tailGenId = parser.bufferGenId(tailPos);
+      tailIndexId = parser.bufferIndex(tailPos);
+      tailOffset = parser.bufferOffset(tailPos);
+      scnIndexHead = dbusBuf.getScnIndex().getHead();
+      scnIndexTail = dbusBuf.getScnIndex().getTail();
+      assertEquals("Head GenId", 0, headGenId);
+      assertEquals("Head Index", 0, headIndexId);
+      assertEquals("Head Offset", 783, headOffset);
+      assertEquals("Tail GenId", 1, tailGenId);
+      assertEquals("Tail Index", 0, tailIndexId);
+      assertEquals("Tail Offset", 633, tailOffset);
+      assertEquals("SCNIndex Head",64,scnIndexHead);
+      assertEquals("SCNIndex Tail",48,scnIndexTail);
+    }
 
       //Case when n> 0
+      @Test
+      public void testAppendEventOverlapNgt0() throws Exception
       {
         final DbusEventBuffer dbusBuf =
-            new DbusEventBuffer(getConfig(1144,5000,100,500,AllocationPolicy.HEAP_MEMORY,
+            new DbusEventBuffer(getConfig(1145,5000,100,500,AllocationPolicy.HEAP_MEMORY,
                                           QueuePolicy.OVERWRITE_ON_WRITE, AssertLevel.ALL));
         BufferPositionParser parser = dbusBuf.getBufferPositionParser();
         DbusEventGenerator generator = new DbusEventGenerator();
@@ -935,18 +940,15 @@ public static class DummyDbusEvent extends DbusEvent
         assertEquals("Head GenId", 0, headGenId);
         assertEquals("Head Index", 0, headIndexId);
         assertEquals("Head Offset", 0, headOffset);
-        assertEquals("Tail GenId", 1, tailGenId);
+        assertEquals("Tail GenId", 0, tailGenId);
         assertEquals("Tail Index", 0, tailIndexId);
-        assertEquals("Tail Offset", 0, tailOffset);
+        assertEquals("Tail Offset", 1144, tailOffset);
         assertEquals("SCNIndex Head",0,scnIndexHead);
         assertEquals("SCNIndex Tail",80,scnIndexTail);
 
 
-        for(int i = 0; i < 300; i++)
-        {
-          headPos = parser.incrementGenId(headPos);
-          tailPos = parser.incrementGenId(tailPos);
-        }
+        headPos = parser.setGenId(headPos, 300);
+        tailPos = parser.setGenId(tailPos, 300);
         dbusBuf.setHead(headPos);
         dbusBuf.setTail(tailPos);
         dbusBuf.recreateIndex();
@@ -989,9 +991,11 @@ public static class DummyDbusEvent extends DbusEvent
       }
 
       //Case where we dump lot of events while reaching the error case many times during this process.
+      @Test
+      public void testAppendEventOverlapMany() throws Exception
       {
         final DbusEventBuffer dbusBuf =
-            new DbusEventBuffer(getConfig(1144,5000,100,500,AllocationPolicy.HEAP_MEMORY,
+            new DbusEventBuffer(getConfig(1145,5000,100,500,AllocationPolicy.HEAP_MEMORY,
                                           QueuePolicy.OVERWRITE_ON_WRITE, AssertLevel.ALL));
         BufferPositionParser parser = dbusBuf.getBufferPositionParser();
         DbusEventGenerator generator = new DbusEventGenerator();
@@ -1019,9 +1023,9 @@ public static class DummyDbusEvent extends DbusEvent
         assertEquals("Head GenId", 0, headGenId);
         assertEquals("Head Index", 0, headIndexId);
         assertEquals("Head Offset", 0, headOffset);
-        assertEquals("Tail GenId", 1, tailGenId);
+        assertEquals("Tail GenId", 0, tailGenId);
         assertEquals("Tail Index", 0, tailIndexId);
-        assertEquals("Tail Offset", 0, tailOffset);
+        assertEquals("Tail Offset", 1144, tailOffset);
         assertEquals("SCNIndex Head",0,scnIndexHead);
         assertEquals("SCNIndex Tail",80,scnIndexTail);
 
@@ -1094,7 +1098,6 @@ public static class DummyDbusEvent extends DbusEvent
         assertEquals("SCNIndex Tail",32,scnIndexTail);
 
       }
-    }
 
     @Test
     /*
@@ -1403,7 +1406,6 @@ public static class DummyDbusEvent extends DbusEvent
 
     	dbusBuf.readEvents(rChannel);
 
-    	LOG.setLevel(Level.INFO);
     	LOG.info("Dbus Event Buffer is :" + dbusBuf);
     	LOG.info("SCNIndex is :" + dbusBuf.getScnIndex());
 
@@ -1419,10 +1421,12 @@ public static class DummyDbusEvent extends DbusEvent
      * TestCase to recreate the BufferOverFlowException issue tracked in DDS-793
      */
     @Test
-    public void testBufferOverFlow()
-    	throws Exception
+    public void testBufferOverFlow() throws Exception
     {
     	//DbusEventBuffer.LOG.setLevel(Level.DEBUG);
+      final Logger log = Logger.getLogger("TestDbusEventBuffer.testBufferOverflow");
+      log.setLevel(Level.INFO);
+      log.info("starting");
 
     	DbusEventBuffer dbusBuf = new DbusEventBuffer(
     							getConfig(1000,1000,100,500,AllocationPolicy.HEAP_MEMORY,
@@ -1439,57 +1443,67 @@ public static class DummyDbusEvent extends DbusEvent
     	Vector<DbusEvent> events = new Vector<DbusEvent>();
     	generator.generateEvents(12, 12, 100, 10, events);
 
-    	// Add events to the EventBuffer
+    	log.info("generate sample events to the EventBuffer");
     	DbusEventAppender appender = new DbusEventAppender(events, dbusBuf, null);
     	appender.run();
 
-    	LOG.info("dbusBuf : Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
+    	log.info("dbusBuf : Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
     	ByteBuffer[] buf = dbusBuf.getBuffer();
     	byte[] b = new byte[(int)dbusBuf.getTail()];
     	buf[0].position(0);
     	buf[0].get(b);
 
+    	log.info("copy data to the destination buffer: 1");
     	ReadableByteChannel rChannel = Channels.newChannel(new ByteArrayInputStream(b));
 
     	dbusBuf2.readEvents(rChannel);
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	rChannel.close();
 
+        log.info("copy data to the destination buffer: 2");
     	rChannel = Channels.newChannel(new ByteArrayInputStream(b));
     	dbusBuf2.readEvents(rChannel);
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
-    	LOG.info("Buffer Size is :" + dbusBuf2.getBuffer().length);
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("Buffer Size is :" + dbusBuf2.getBuffer().length);
+    	rChannel.close();
 
-    	DbusEventBuffer.DbusEventIterator itr = dbusBuf2.acquireIterator("dummy");
+    	log.info("process data in destination buffer: 1");
+    	DbusEventBuffer.DbusEventIterator itr = dbusBuf2.acquireIterator("dummy1");
 
     	for(int i = 0 ; i < 15; i++ )
     	{
     		itr.next();
     		itr.remove();
     	}
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	itr.close();
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
 
+        log.info("copy data to the destination buffer: 3");
     	rChannel = Channels.newChannel(new ByteArrayInputStream(b));
     	dbusBuf2.readEvents(rChannel);
     	ByteBuffer[] buf2 = dbusBuf2.getBuffer();
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
-    	LOG.info("dbusBuf2 : Buffer :" + buf2[0]);
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("dbusBuf2 : Buffer :" + buf2[0]);
+    	rChannel.close();
 
-    	itr = dbusBuf2.acquireIterator("dummy");
+        log.info("process data in destination buffer: 2");
+    	itr = dbusBuf2.acquireIterator("dummy2");
     	for(int i = 0 ; i < 15; i++ )
     	{
     		itr.next();
     		itr.remove();
     	}
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
-    	LOG.info("dbusBuf2 : Buffer :" + buf2[0]);
+    	itr.close();
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("dbusBuf2 : Buffer :" + buf2[0]);
 
-
+        log.info("generate more sample events to the EventBuffer");
     	dbusBuf = new DbusEventBuffer(
 				getConfig(2000,2000,100,500,AllocationPolicy.HEAP_MEMORY,
 				          QueuePolicy.BLOCK_ON_WRITE, AssertLevel.ALL));
     	events = new Vector<DbusEvent>();
     	generator.generateEvents(8, 9, 150, 52, events);
-    	LOG.info("Events Size is :" + events.get(0).size());
+    	log.info("Events Size is :" + events.get(0).size());
     	appender = new DbusEventAppender(events,dbusBuf,null);
     	appender.run();
 
@@ -1498,67 +1512,56 @@ public static class DummyDbusEvent extends DbusEvent
             public void run()
     				{
     					try { Thread.sleep(5*1000); } catch (InterruptedException ie) {}
-    					DbusEventBuffer.DbusEventIterator itr =  dbusBuf2.acquireIterator("dummy");
+    					DbusEventBuffer.DbusEventIterator itr =  dbusBuf2.acquireIterator("dummy3");
     			    	while (itr.hasNext())
     			    	{
     			    		itr.next();
     			    		itr.remove();
     			    	}
-    			    	LOG.info("Reader Thread: dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    			    	itr.close();
+    			    	LOG.info("Reader Thread: dbusBuf2 : Head:" +
+    			    	         parser2.toString(dbusBuf2.getHead()) +
+    			    	         ",Tail:" + parser2.toString(dbusBuf2.getTail()));
     			    	ByteBuffer[] buf = dbusBuf2.getBuffer();
     			    	LOG.info("Reader Tread : dbusBuf2 : Buffer :" + buf[0]);
     				}
     	};
 
+        log.info("generate sample events to the EventBuffer");
     	Thread t = new Thread(reader, "BufferOverflowReader");
 
     	b = new byte[(int)dbusBuf.getTail()];
     	buf = dbusBuf.getBuffer();
     	buf[0].position(0);
     	buf[0].get(b);
-    	LOG.info("Size is :" + b.length);
+
+        log.info("copy data to the destination buffer: 4");
+    	log.info("Size is :" + b.length);
     	rChannel = Channels.newChannel(new ByteArrayInputStream(b));
-    	LOG.info("I am here !!");
+    	log.info("I am here !!");
     	dbusBuf2.readEvents(rChannel);    // <=== Overflow happened at this point
+    	rChannel.close();
 
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
-    	LOG.info("dbusBuf2 : Buffer :" + buf2[0]);
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("dbusBuf2 : Buffer :" + buf2[0]);
 
-    	/*
-    	 * THis section is to test if the readEvents can allow reader to proceed while it is blocked
-    	 */
+    	log.info("test if the readEvents can allow reader to proceed while it is blocked");
     	rChannel = Channels.newChannel(new ByteArrayInputStream(b));
+        log.info("start reader thread");
     	t.start();
+        log.info("copy data to the destination buffer: 5");
     	dbusBuf2.readEvents(rChannel);
+    	rChannel.close();
 
+    	t.join(20000);
+    	Assert.assertTrue(!t.isAlive());
+    	Assert.assertTrue(dbusBuf2.empty());
 
-    	itr = dbusBuf2.acquireIterator("dummy");
-    	while (itr.hasNext())
-    	{
-    		itr.next();
-    		itr.remove();
-    	}
-    	LOG.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
-    	LOG.info("dbusBuf2 : Buffer :" + buf2[0]);
+    	log.info("dbusBuf2 : Head:" + parser2.toString(dbusBuf2.getHead()) + ",Tail:" + parser2.toString(dbusBuf2.getTail()));
+    	log.info("dbusBuf2 : Buffer :" + buf2[0]);
+        log.info("done");
     }
 
-/*	@BeforeMethod
-	public void setUp() throws Exception {
-	  if (dbuf == null)
-	  {
-		 dbuf  = new DbusEventBuffer(getConfig(10000000,
-		                                       DbusEventBuffer.Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE,
-		                                       100000, 1000000, AllocationPolicy.HEAP_MEMORY,
-		                                       QueuePolicy.OVERWRITE_ON_WRITE,
-		                                       AssertLevel.ALL));
-	  }
-	}
-
-	@AfterMethod
-	public void tearDown() throws Exception {
-		dbuf.clear();
-	}
-*/
 	@Test
 	public void testAppendEvent() throws Exception {
 		DbusEventBuffer dbuf  = new DbusEventBuffer(getConfig(10000000,
@@ -1973,7 +1976,8 @@ public static class DummyDbusEvent extends DbusEvent
     }
 
 	@Test
-    public void testGetStreamedEvents() throws IOException, InvalidEventException, InvalidConfigException, OffsetNotFoundException {
+    public void testGetStreamedEvents() throws Exception
+    {
 		DbusEventBuffer dbuf  = new DbusEventBuffer(getConfig(10000000,
                 DbusEventBuffer.Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE,
                 100000, 1000000, AllocationPolicy.HEAP_MEMORY,
@@ -1984,6 +1988,7 @@ public static class DummyDbusEvent extends DbusEvent
         int eventWindowSize = 20;
         HashMap<Long, KeyValue> testDataMap = new HashMap<Long, KeyValue>(20000);
         dbuf.start(0);
+
         for (long i=1; i < numEntries; ++i) {
             //LOG.info("Iteration:"+i);
             DbusEventKey key = new DbusEventKey(RngUtils.randomLong());
@@ -1992,7 +1997,8 @@ public static class DummyDbusEvent extends DbusEvent
             long baseTsForWindow = timeStamp + ((RngUtils.randomPositiveInt()%numEntries)+1)*1000*1000; //ms offset for nanosecond base
             for (int j=0; j < eventWindowSize; ++j) {
             	long ts = baseTsForWindow + ((RngUtils.randomPositiveInt()%eventWindowSize)+1)*1000* 1000; //ms offset for nanosecond base
-            	assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, ts, srcId, schemaId, value.getBytes(), false));
+            	assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, ts, srcId, schemaId,
+            	                            value.getBytes(), false));
             	testDataMap.put(i, new KeyValue(key, value));
                 ++i;
             }
@@ -2005,23 +2011,31 @@ public static class DummyDbusEvent extends DbusEvent
         int batchFetchSize = 5000;
         Checkpoint cp = new Checkpoint();
         cp.setFlexible();
-        WritableByteChannel writeChannel = null;
-        File directory = new File(".");
-        File writeFile = File.createTempFile("test", ".dbus", directory);
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+        WritableByteChannel writeChannel = Channels.newChannel(baos);
+        //File directory = new File(".");
+        //File writeFile = File.createTempFile("test", ".dbus", directory);
         AllowAllDbusFilter allowAllDbusFilter = new AllowAllDbusFilter();
         int streamedEvents = 0;
-        try {
-                writeChannel = Utils.openChannel(writeFile, true);
-                streamedEvents = dbuf.streamEvents(cp, false, batchFetchSize, writeChannel,Encoding.BINARY, allowAllDbusFilter);
-            }
-        catch (ScnNotFoundException e) {
-        	e.printStackTrace();
-        }
+
+        final DbusEventsStatisticsCollector streamStats =
+            new DbusEventsStatisticsCollector(1, "stream", true, false, null);
+        //writeChannel = Utils.openChannel(writeFile, true);
+        streamedEvents = dbuf.streamEvents(cp, false, batchFetchSize, writeChannel,Encoding.BINARY,
+                                           allowAllDbusFilter, streamStats);
 
         writeChannel.close();
-        LOG.debug(writeFile.canRead());
+        final byte[] eventBytes = baos.toByteArray();
+        Assert.assertTrue(eventBytes.length > 0);
+        Assert.assertTrue(streamedEvents > 0);
 
-        ReadableByteChannel readChannel = Utils.openChannel(writeFile, false);
+        final DbusEventsStatisticsCollector inputStats =
+            new DbusEventsStatisticsCollector(1, "input", true, false, null);
+
+        ByteArrayInputStream bais = new ByteArrayInputStream(eventBytes);
+        ReadableByteChannel readChannel = Channels.newChannel(bais);
         DbusEventBuffer checkDbusEventBuffer =
             new DbusEventBuffer(getConfig(5000000, DbusEventBuffer.
                                           Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE, 100000, 4000,
@@ -2032,7 +2046,7 @@ public static class DummyDbusEvent extends DbusEvent
         int messageSize = 0;
         int numEvents =0;
         checkDbusEventBuffer.clear();
-        numEvents = checkDbusEventBuffer.readEvents(readChannel);
+        numEvents = checkDbusEventBuffer.readEvents(readChannel, inputStats);
         long ts= 0;
         for (DbusEvent e : checkDbusEventBuffer) {
         	ts = Math.max(e.timestampInNanos(),ts);
@@ -2049,11 +2063,14 @@ public static class DummyDbusEvent extends DbusEvent
         		LOG.debug("DAT:"+ e.sequence() + " ts=" + e.timestampInNanos());
         	}
         }
-        assertEquals("Events Count Check", streamedEvents,numEvents );
+        assertEquals("Events Count Check", streamedEvents, numEvents );
         assertTrue(messageSize <= batchFetchSize);
+        assertEquals(streamStats.getTotalStats().getNumDataEvents(),
+                     inputStats.getTotalStats().getNumDataEvents());
+        assertEquals(streamStats.getTotalStats().getNumSysEvents(),
+                     inputStats.getTotalStats().getNumSysEvents());
 
         LOG.debug("BatchFetchSize = " + batchFetchSize + " messagesSize = " + messageSize + " numEvents = " + numEvents);
-        writeFile.delete();
         }
     }
 
@@ -2146,7 +2163,6 @@ public static class DummyDbusEvent extends DbusEvent
        LOG.error("mainDbus threw ScnNotFound exception");
 
      }
-     assertEquals(false, dbuf.getWriteStatus());
      LOG.debug("mainDbus Read status a = " + dbuf.getReadStatus());
      assertEquals(0, dbuf.getReadStatus());
 
@@ -2179,8 +2195,6 @@ public static class DummyDbusEvent extends DbusEvent
 
      LOG.debug("Reading events 7");
      checkDbusEventBuffer.releaseIterator(eventIterator);
-     LOG.debug("checkDbus Write status = " + checkDbusEventBuffer.getWriteStatus());
-     LOG.debug("mainDbus Write status = " + dbuf.getWriteStatus());
      LOG.debug("mainDbus Read status = " + dbuf.getReadStatus());
      writeFile.delete();
 
@@ -2507,7 +2521,8 @@ public static class DummyDbusEvent extends DbusEvent
 	@Test
     public void testEventReadBufferInvalidEvents()
            throws InvalidConfigException, IOException, InterruptedException  {
-	    System.out.printf("Started testing invalid events\n");
+	  final Logger log = Logger.getLogger("TestDbusEventBuffer.testEventReadBufferInvalidEvents");
+	    log.info("Started testing invalid events\n");
         //Src Event producer
         Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
         //Dest Event consumer
@@ -2515,13 +2530,18 @@ public static class DummyDbusEvent extends DbusEvent
         //num events
         int numEvents = 100;
 
-        DbusEventsStatisticsCollector emitterStats = new DbusEventsStatisticsCollector(1,"appenderStats",true,true,null);
-        DbusEventsStatisticsCollector streamStats = new DbusEventsStatisticsCollector(1,"streamStats",true,true,null);
-        DbusEventsStatisticsCollector clientStats = new DbusEventsStatisticsCollector(1,"clientStats",true,true,null);
+        DbusEventsStatisticsCollector emitterStats =
+            new DbusEventsStatisticsCollector(1,"appenderStats", true, true, null);
+        DbusEventsStatisticsCollector streamStats =
+            new DbusEventsStatisticsCollector(1, "streamStats", true, true, null);
+        DbusEventsStatisticsCollector clientStats =
+            new DbusEventsStatisticsCollector(1, "clientStats", true, true, null);
 
 
-        int[][]  listOfCorruptedIndices =  new int[][] { {81},{12}, {10,65},{0},{99}};
-        EventCorruptionType[] corruptionType = new EventCorruptionType[] {EventCorruptionType.LENGTH, EventCorruptionType.PAYLOADCRC, EventCorruptionType.HEADERCRC,EventCorruptionType.PAYLOAD};
+        int[][]  listOfCorruptedIndices =  new int[][] { {81},{12}, {10,65}, {0}, {99}};
+        EventCorruptionType[] corruptionType = new EventCorruptionType[] {
+            EventCorruptionType.LENGTH, EventCorruptionType.PAYLOADCRC,
+            EventCorruptionType.HEADERCRC,EventCorruptionType.PAYLOAD};
         int totalInvalid=0;
         for (int i=0; i < listOfCorruptedIndices.length;++i) {
           for (int j=0; j < corruptionType.length;++j) {
@@ -2542,7 +2562,9 @@ public static class DummyDbusEvent extends DbusEvent
             streamStats.reset();
             clientStats.reset();
 
-            boolean result = runConstEventsReaderWriter(srcTestEvents,dstTestEvents,invalidEventInput,emitterStats,streamStats,clientStats);
+            boolean result = runConstEventsReaderWriter(srcTestEvents, dstTestEvents,
+                                                        invalidEventInput, emitterStats,
+                                                        streamStats, clientStats);
 
             assertTrue(result);
             //check data!
@@ -2550,7 +2572,11 @@ public static class DummyDbusEvent extends DbusEvent
             assertEquals(srcTestEvents.size(), emitterStats.getTotalStats().getNumDataEvents());
             totalInvalid += clientStats.getTotalStats().getNumInvalidEvents();
             //expect no data to be received;
-            System.out.printf("Read %d events until an invalid event was discovered with %s corruption \n",dstTestEvents.size(),corruptionType[j]);
+            log.info(
+                String.format(
+                    "Read %d events until an invalid event was discovered with %s corruption \n",
+                    dstTestEvents.size(),
+                    corruptionType[j]));
             assertTrue(dstTestEvents.size() < numEvents);
           }
           assertTrue(totalInvalid > 0);
@@ -2826,7 +2852,7 @@ public static class DummyDbusEvent extends DbusEvent
 
         System.out.printf("minScn=%d,maxScn=%d,prevScn=%d,range=%d\n",minScn,maxScn,prevScn,emitterStats.getTotalStats().getTimeSpan());
         assertEquals(numEvents - 1, emitterStats.getTotalStats().getTimeSpan()/MILLISECONDS);
-        assertEquals(prodEventBuffer.getTimestampOfFirstEvent(), emitterStats.getTotalStats().getTimestampMinScnEvent());
+        assertEquals(prodEventBuffer.getFirstEventTimestamp(), emitterStats.getTotalStats().getTimestampMinScnEvent());
 
 
         //stream with scn < max; expect last window; not last 2
@@ -2988,24 +3014,31 @@ public static class DummyDbusEvent extends DbusEvent
 
 
 	/**
-	 * Produces a specified number of constant sized events ; sets up writer/reader eventBuffer over a Pipe ; and sends the events generated to the reader thread;
+	 * Produces a specified number of constant sized events ; sets up writer/reader eventBuffer over
+	 * a Pipe ; and sends the events generated to the reader thread;
+	 *
 	 * @param srcTestEvents: container to house Random events generated ;
 	 * @param dstTestEvents: container that receives the events generated in srcTestEvents
 	 * @param input : Input test parameters
-	 * @return output : dstTestEvents contain the events received from the src event buffer over the Pipe to the dst receiver buffer (reader)
-	 * @return true if the test runs without issues; false otherwise; note that tests are responsible for assertions involving srcTestEvents and dstTstEvents
-	 * @throws InvalidConfigException
-	 * @throws IOException
-	 * @throws InterruptedException
+	 * @return output : dstTestEvents contain the events received from the src event buffer over the
+	 *                  Pipe to the dst receiver buffer (reader)
+	 * @return true if the test runs without issues; false otherwise; note that tests are
+	 *              responsible for assertions involving srcTestEvents and dstTstEvents
 	 */
-    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents, Vector<DbusEvent> dstTestEvents, EventBufferTestInput input,
-                                                 DbusEventsStatisticsCollector emitterStats, DbusEventsStatisticsCollector streamStats,
+    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents,
+                                                 Vector<DbusEvent> dstTestEvents,
+                                                 EventBufferTestInput input,
+                                                 DbusEventsStatisticsCollector emitterStats,
+                                                 DbusEventsStatisticsCollector streamStats,
                                                  DbusEventsStatisticsCollector clientStats )
               throws InvalidConfigException, IOException, InterruptedException {
-      return runConstEventsReaderWriter(srcTestEvents, dstTestEvents, input, emitterStats, streamStats, clientStats, false);
+      return runConstEventsReaderWriter(srcTestEvents, dstTestEvents, input, emitterStats,
+                                        streamStats, clientStats, false);
     }
 
-    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents, Vector<DbusEvent> dstTestEvents, EventBufferTestInput input,
+    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents,
+          Vector<DbusEvent> dstTestEvents,
+          EventBufferTestInput input,
           DbusEventsStatisticsCollector emitterStats, DbusEventsStatisticsCollector streamStats,
           DbusEventsStatisticsCollector clientStats, boolean autoStartBuffer )
       throws InvalidConfigException, IOException, InterruptedException {
@@ -3013,7 +3046,9 @@ public static class DummyDbusEvent extends DbusEvent
           int maxWindowSize = input.getWindowSize();
 
           DbusEventGenerator evGen = new DbusEventGenerator();
-          if (evGen.generateEvents(numEvents,maxWindowSize,512,input.getPayloadSize(),srcTestEvents) <= 0) {
+          if (evGen.generateEvents(numEvents, maxWindowSize, 512,
+                                   input.getPayloadSize(),
+                                   srcTestEvents) <= 0) {
               return false;
           }
 
@@ -3021,9 +3056,9 @@ public static class DummyDbusEvent extends DbusEvent
 
           long producerBufferSize = input.getProducerBufferSize() * eventSize;
           long sharedBufferSize = input.getSharedBufferSize() * eventSize;
-          int stagingBufferSize = input.getStagingBufferSize()* eventSize;
-          int individualBufferSize  = input.getIndividualBufferSize()*eventSize;
-          int indexSize = input.getIndexSize()*eventSize;
+          int stagingBufferSize = input.getStagingBufferSize() * eventSize;
+          int individualBufferSize  = input.getIndividualBufferSize() * eventSize;
+          int indexSize = input.getIndexSize() * eventSize;
 
           QueuePolicy prodQueuePolicy = input.getProdQueuePolicy();
           QueuePolicy consQueuePolicy = input.getConsQueuePolicy();
@@ -3041,7 +3076,10 @@ public static class DummyDbusEvent extends DbusEvent
                                             input.getConsBufferAssertLevel()));
 
           //Producer of events;
-          DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, prodEventBuffer,emitterStats, autoStartBuffer) ;
+          DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents,
+                                                                  prodEventBuffer,
+                                                                  emitterStats,
+                                                                  autoStartBuffer) ;
 
           //commn channels between reader and writer
 
@@ -3052,15 +3090,19 @@ public static class DummyDbusEvent extends DbusEvent
           readerStream.configureBlocking(false);
 
           //Event writer - Relay in the real world
-          int batchSize = input.getBatchSize()*eventSize;
-          DbusEventBufferWriter writer = new DbusEventBufferWriter (prodEventBuffer,writerStream,batchSize,streamStats);
+          int batchSize = input.getBatchSize() * eventSize;
+          DbusEventBufferWriter writer = new DbusEventBufferWriter (prodEventBuffer, writerStream,
+                                                                    batchSize, streamStats);
 
           //Event readers - Clients in the real world
-          DbusEventBufferConsumer consumer = new DbusEventBufferConsumer(consEventBuffer,numEvents, input.getDeleteInterval(),dstTestEvents);
+          DbusEventBufferConsumer consumer = new DbusEventBufferConsumer(consEventBuffer, numEvents,
+                                                                         input.getDeleteInterval(),
+                                                                         dstTestEvents);
           Vector<EventBufferConsumer> consList = new Vector<EventBufferConsumer>();
           consList.add(consumer);
           //Event readers - Clients in the real world
-          DbusEventBufferReader reader = new DbusEventBufferReader (consEventBuffer,readerStream,consList,clientStats);
+          DbusEventBufferReader reader = new DbusEventBufferReader (consEventBuffer, readerStream,
+                                                                    consList, clientStats);
 
 
           Thread tEmitter = new Thread(eventProducer,"EventProducer");
