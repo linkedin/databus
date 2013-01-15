@@ -588,7 +588,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
             _currentPosition.copy(_head);
           }
 
-          if ( _currentPosition.getPosition() < _head.getPosition())
+          if (empty() || _currentPosition.getPosition() < _head.getPosition())
           {
         	  _currentPosition.copy(_head);
           }
