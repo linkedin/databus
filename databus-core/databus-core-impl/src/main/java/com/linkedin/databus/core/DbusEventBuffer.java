@@ -2357,7 +2357,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
               String msg = "Concurrent Overwritting of Event. Expected sequence :" + entry.getScn()
                   + ", Got event=" + e.toString();
               LOG.warn(msg);
-              throw new ScnNotFoundException(msg);
+              throw new OffsetNotFoundException(msg);
             }
           }
         }
@@ -2367,7 +2367,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           LOG.warn("RangeBasedLocking :" + _rwLockProvider.toString(_bufferPositionParser, true));
           if (null != statsCollector)
             statsCollector.registerEventError(EventScanStatus.ERR);
-          throw new ScnNotFoundException(e2);
+          throw new DatabusRuntimeException(e2);
         }
 
         isFirstEvent = false;
@@ -4376,8 +4376,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   /**
    * package private to allow helper classes to set the head of the buffer
-   * internally updates index state as well
-   * @param offset
+   * internally updates index state as well.
+   *
+   * <p><b>NOTE: This modifies the event buffer state directly. Use outside unit
+   * tests is extremely discouraged</b>
    */
   void setHead(long offset)
   {
@@ -4388,7 +4390,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   /**
    * package private to allow helper classes to set the tail of the buffer
    * this does not update the scnIndex
-   * @param offset
+   *
+   * <p><b>NOTE: This modifies the event buffer state directly. Use outside unit
+   * tests is extremely discouraged</b>
    */
   void setTail(long offset)
   {
