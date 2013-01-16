@@ -18,17 +18,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import junit.framework.Assert;
 
 import org.apache.avro.Schema;
-import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.log4j.SimpleLayout;
-import org.testng.annotations.AfterClass;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.AfterSuite;
-import org.testng.annotations.AfterTest;
 import org.testng.annotations.BeforeClass;
-import org.testng.annotations.BeforeSuite;
-import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
 import com.linkedin.databus.client.consumer.AbstractDatabusStreamConsumer;
@@ -50,15 +42,14 @@ import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
 import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.util.DbusEventAppender;
 import com.linkedin.databus.core.util.DbusEventGenerator;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
@@ -77,16 +68,6 @@ public class TestGenericDispatcher
     private static final String SOURCE1_SCHEMA_STR = "{\"name\":\"source1\",\"type\":\"record\",\"fields\":[{\"name\":\"s\",\"type\":\"string\"}]}";
     private static final String SOURCE2_SCHEMA_STR = "{\"name\":\"source2\",\"type\":\"record\",\"fields\":[{\"name\":\"s\",\"type\":\"string\"}]}";;
     private static final String SOURCE3_SCHEMA_STR = "{\"name\":\"source3\",\"type\":\"record\",\"fields\":[{\"name\":\"s\",\"type\":\"string\"}]}";;
-
-    static
-    {
-        Logger.getRootLogger().removeAllAppenders();
-        Logger.getRootLogger().addAppender(new ConsoleAppender(new SimpleLayout()));
-        Logger.getRootLogger().setLevel(Level.INFO);
-        //Logger.getRootLogger().setLevel(Level.INFO);
-        //RelayDispatcher.LOG.setLevel(Level.INFO);
-        AbstractActorMessageQueue.LOG.setLevel(Level.INFO);
-    }
 
     private void initBufferWithEvents(DbusEventBuffer eventsBuf,
             long keyBase,
@@ -110,19 +91,10 @@ public class TestGenericDispatcher
         }
     }
 
-    //@BeforeMethod
-    public void beforeMethod()
-    {
-    }
-
-    @AfterMethod
-    public void afterMethod()
-    {
-    }
-
     @BeforeClass
     public void beforeClass() throws Exception
     {
+      TestUtil.setupLogging(true, null, Level.ERROR);
         _generic100KBufferConfig = new DbusEventBuffer.Config();
         _generic100KBufferConfig.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
         _generic100KBufferConfig.setMaxSize(100000);
@@ -139,41 +111,21 @@ public class TestGenericDispatcher
         _genericRelayConnStaticConfig = _genericRelayConnConfig.build();
     }
 
-    @AfterClass
-    public void afterClass()
-    {
-    }
-
-    @BeforeTest
-    public void beforeTest()
-    {
-    }
-
-    @AfterTest
-    public void afterTest()
-    {
-    }
-
-    @BeforeSuite
-    public void beforeSuite()
-    {
-    }
-
-    @AfterSuite
-    public void afterSuite()
-    {
-    }
-
     @Test(groups = {"small", "functional"})
     public void testOneWindowHappyPath()
     {
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testOneWindowHappyPath");
+        //log.setLevel(Level.DEBUG);
+
+        log.info("starting");
         int source1EventsNum = 2;
         int source2EventsNum = 2;
 
         Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
         Hashtable<Short, AtomicInteger> srcidCounts = new Hashtable<Short, AtomicInteger>();
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, source1EventsNum, (short)1, keyCounts, srcidCounts);
@@ -216,7 +168,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -234,7 +185,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -250,8 +201,31 @@ public class TestGenericDispatcher
                     1, keyCounts.get(i).intValue());
         }
 
-        assertEquals("correct amount of callbacks for srcid 1", source1EventsNum, srcidCounts.get((short)1).intValue());
-        assertEquals("correct amount of callbacks for srcid 2", source2EventsNum, srcidCounts.get((short)2).intValue());
+        assertEquals("correct amount of callbacks for srcid 1", source1EventsNum,
+                     srcidCounts.get((short)1).intValue());
+        assertEquals("correct amount of callbacks for srcid 2", source2EventsNum,
+                     srcidCounts.get((short)2).intValue());
+        verifyNoLocks(log, eventsBuf);
+        log.info("done");
+    }
+
+    /**
+     * @param log
+     * @param eventsBuf
+     */
+    private void verifyNoLocks(final Logger log,
+                               final TestGenericDispatcherEventBuffer eventsBuf)
+    {
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+        @Override
+        public boolean check()
+        {
+          if (null != log)
+              log.debug("rwlocks: " + eventsBuf.getRangeLocksProvider());
+          return 0 == eventsBuf.getRangeLocksProvider().getNumReaders();
+        }
+      }, "no locks remaining on buffer", 5000, log);
     }
 
     @Test(groups = {"small", "functional"})
@@ -260,7 +234,8 @@ public class TestGenericDispatcher
      * a rollback. The dispatcher should shutdown. */
     public void testRollbackFailure() throws InvalidConfigException
     {
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, 100, (short)1, null, null);
@@ -311,7 +286,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -329,7 +303,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
         try
         {
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -348,6 +322,7 @@ public class TestGenericDispatcher
         {
           dispatcher.shutdown();
         }
+        verifyNoLocks(null, eventsBuf);
     }
 
     @Test(groups = {"small", "functional"})
@@ -362,7 +337,8 @@ public class TestGenericDispatcher
 
         int windowsNum = 3;
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
 
         int curEventNum = 1;
@@ -414,7 +390,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -432,7 +407,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -452,6 +427,7 @@ public class TestGenericDispatcher
                 srcidCounts.get((short)1).intValue());
         assertEquals("correct amount of callbacks for srcid 2", windowsNum * source2EventsNum,
                 srcidCounts.get((short)2).intValue());
+        verifyNoLocks(null, eventsBuf);
     }
 
     @Test(groups = {"small", "functional"})
@@ -463,7 +439,8 @@ public class TestGenericDispatcher
         Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
         Hashtable<Short, AtomicInteger> srcidCounts = new Hashtable<Short, AtomicInteger>();
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, source1EventsNum, (short)1, keyCounts, srcidCounts);
@@ -526,7 +503,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -544,7 +520,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -568,6 +544,7 @@ public class TestGenericDispatcher
                 srcidCounts2.get((short)1).intValue());
         assertEquals("correct amount of callbacks for srcid 2", source2EventsNum,
                 srcidCounts2.get((short)2).intValue());
+        verifyNoLocks(null, eventsBuf);
     }
 
     @Test(groups = {"small", "functional"})
@@ -579,7 +556,8 @@ public class TestGenericDispatcher
         Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
         Hashtable<Short, AtomicInteger> srcidCounts = new Hashtable<Short, AtomicInteger>();
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, source1EventsNum, (short)1, keyCounts, srcidCounts);
@@ -628,7 +606,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -646,7 +623,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -665,6 +642,7 @@ public class TestGenericDispatcher
                 srcidCounts.get((short)1).intValue());
         assertEquals("correct amount of callbacks for srcid 2", source2EventsNum,
                 srcidCounts.get((short)2).intValue());
+        verifyNoLocks(null, eventsBuf);
     }
 
     @Test(groups = {"small", "functional"})
@@ -676,7 +654,8 @@ public class TestGenericDispatcher
         Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
         Hashtable<Short, AtomicInteger> srcidCounts = new Hashtable<Short, AtomicInteger>();
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, source1EventsNum, (short)1, keyCounts, srcidCounts);
@@ -723,7 +702,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -741,7 +719,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -762,6 +740,7 @@ public class TestGenericDispatcher
             assert keyCounts.get(1L + source1EventsNum).intValue() > 1 :
                 "correct amount of callbacks for key " + i + ":" + keyCounts.get(i).intValue();
         }
+        verifyNoLocks(null, eventsBuf);
     }
 
     @Test(groups = {"small", "functional"})
@@ -773,7 +752,8 @@ public class TestGenericDispatcher
         Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
         Hashtable<Short, AtomicInteger> srcidCounts = new Hashtable<Short, AtomicInteger>();
 
-        DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+        final TestGenericDispatcherEventBuffer eventsBuf =
+            new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
         eventsBuf.startEvents();
         initBufferWithEvents(eventsBuf, 1, source1EventsNum, (short)1, keyCounts, srcidCounts);
@@ -839,7 +819,6 @@ public class TestGenericDispatcher
         //dispatcherThread.setDaemon(true);
         dispatcherThread.start();
 
-        DbusEventIterator eventIterator = eventsBuf.acquireIterator("dispatch iterator");
         HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                 new HashMap<Long, List<RegisterResponseEntry>>();
 
@@ -857,7 +836,7 @@ public class TestGenericDispatcher
 
         dispatcher.enqueueMessage(
                 DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                        schemaMap, eventIterator));
+                        schemaMap, eventsBuf));
 
         try
         {
@@ -880,6 +859,7 @@ public class TestGenericDispatcher
             assert keyCounts.get(1L + source1EventsNum).intValue() == 0 :
                 "correct amount of callbacks for key " + i + ":" + keyCounts.get(i).intValue();
         }
+        verifyNoLocks(null, eventsBuf);
     }
 
 
@@ -949,7 +929,10 @@ public class TestGenericDispatcher
             int stagingBufferSize = producerBufferSize;
 
             /*Event Buffer creation */
-            DbusEventBuffer dataEventsBuffer= new DbusEventBuffer(getConfig(producerBufferSize, individualBufferSize, indexSize , stagingBufferSize, AllocationPolicy.HEAP_MEMORY,QueuePolicy.BLOCK_ON_WRITE));
+            final TestGenericDispatcherEventBuffer dataEventsBuffer=
+                new TestGenericDispatcherEventBuffer(
+                    getConfig(producerBufferSize, individualBufferSize, indexSize ,
+                              stagingBufferSize, AllocationPolicy.HEAP_MEMORY,QueuePolicy.BLOCK_ON_WRITE));
 
             List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
             /* Generic Dispatcher creation */
@@ -971,16 +954,15 @@ public class TestGenericDispatcher
             tDispatcher.start();
 
             /* Now initialize this damn state machine */
-            DbusEventIterator eventIterator = dataEventsBuffer.acquireIterator("dispatch iterator");
             dispatcher.enqueueMessage(
                     DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                            schemaMap, eventIterator));
+                            schemaMap, dataEventsBuffer));
 
             tDispatcher.join(2000);
             System.out.println("Number of checkpoints = " + dispatcher.getNumCheckPoints());
             assert(dispatcher.getNumCheckPoints()==3);
             dispatcher.shutdown();
-
+            verifyNoLocks(null, dataEventsBuffer);
         }
         catch (InterruptedException e)
         {
@@ -990,8 +972,6 @@ public class TestGenericDispatcher
         {
             assert(false);
         }
-
-
     }
 
     @Test(groups = {"small", "functional"})
@@ -1056,7 +1036,11 @@ public class TestGenericDispatcher
             int stagingBufferSize = producerBufferSize;
 
             /*Event Buffer creation */
-            DbusEventBuffer dataEventsBuffer= new DbusEventBuffer(getConfig(producerBufferSize, individualBufferSize, indexSize , stagingBufferSize, AllocationPolicy.HEAP_MEMORY,QueuePolicy.BLOCK_ON_WRITE));
+            final TestGenericDispatcherEventBuffer dataEventsBuffer=
+                new TestGenericDispatcherEventBuffer(
+                    getConfig(producerBufferSize, individualBufferSize, indexSize ,
+                              stagingBufferSize, AllocationPolicy.HEAP_MEMORY,
+                              QueuePolicy.BLOCK_ON_WRITE));
 
             List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
             /* Generic Dispatcher creation */
@@ -1079,10 +1063,9 @@ public class TestGenericDispatcher
             tDispatcher.start();
 
             /* Now initialize this damn state machine */
-            DbusEventIterator eventIterator = dataEventsBuffer.acquireIterator("dispatch iterator");
             dispatcher.enqueueMessage(
                     DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                            schemaMap, eventIterator));
+                            schemaMap, dataEventsBuffer));
 
             tDispatcher.join(5000);
             System.out.println("Free Space After=" + dataEventsBuffer.getBufferFreeSpace() +
@@ -1093,7 +1076,7 @@ public class TestGenericDispatcher
             Assert.assertTrue(freeSpaceBefore < dataEventsBuffer.getBufferFreeSpace());
 
             dispatcher.shutdown();
-
+            verifyNoLocks(null, dataEventsBuffer);
         }
         catch (InterruptedException e)
         {
@@ -1103,8 +1086,6 @@ public class TestGenericDispatcher
         {
             assert(false);
         }
-
-
     }
 
     protected void runDispatcherRollback(int numEvents,int maxWindowSize,int numFailDataEvent,int numFailCheckpointEvent,int numFailEndWindow)
@@ -1189,7 +1170,11 @@ public class TestGenericDispatcher
             int stagingBufferSize = producerBufferSize;
 
             /*Event Buffer creation */
-            DbusEventBuffer dataEventsBuffer= new DbusEventBuffer(getConfig(producerBufferSize, individualBufferSize, indexSize , stagingBufferSize, AllocationPolicy.HEAP_MEMORY,QueuePolicy.BLOCK_ON_WRITE));
+            TestGenericDispatcherEventBuffer dataEventsBuffer=
+                new TestGenericDispatcherEventBuffer(
+                    getConfig(producerBufferSize, individualBufferSize, indexSize ,
+                              stagingBufferSize, AllocationPolicy.HEAP_MEMORY,
+                              QueuePolicy.BLOCK_ON_WRITE));
 
             List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
             /* Generic Dispatcher creation */
@@ -1211,10 +1196,9 @@ public class TestGenericDispatcher
             tDispatcher.start();
 
             /* Now initialize this  state machine */
-            DbusEventIterator eventIterator = dataEventsBuffer.acquireIterator("dispatch iterator");
             dispatcher.enqueueMessage(
                     DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-                            schemaMap, eventIterator));
+                            schemaMap, dataEventsBuffer));
 
             tDispatcher.join(2000);
             System.out.println("tConsumer: " + tConsumer);
@@ -1244,6 +1228,7 @@ public class TestGenericDispatcher
             }
 
             dispatcher.shutdown();
+            verifyNoLocks(null, dataEventsBuffer);
         }
         catch (InterruptedException e)
         {
@@ -1306,6 +1291,19 @@ public class TestGenericDispatcher
         return config.build();
             }
 
+    /** Expose some package-level testing info */
+    static class TestGenericDispatcherEventBuffer extends DbusEventBuffer
+    {
+      public TestGenericDispatcherEventBuffer(DbusEventBuffer.StaticConfig conf)
+      {
+        super(conf);
+      }
+
+      RangeBasedReaderWriterLock getRangeLocksProvider()
+      {
+        return _rwLockProvider;
+      }
+    }
 
 
 }
@@ -1774,7 +1772,6 @@ class TimeoutTestConsumer implements DatabusStreamConsumer {
                 + " Stored Checkpoint count = " + getStoredCheckpointCount()
                 + " Unique stored data count = " + getNumUniqStoredEvents();
     }
-
 }
 
 

@@ -190,6 +190,8 @@ public class RelayEventProducer implements EventProducer
 		confBuilder.setId(id);
 		// consume whatever is in relay
 		confBuilder.setConsumeCurrent(true);
+		//this is set to false as the behaviour is to read the latest SCN when SCN is not found, the buffer isn't cleared
+		//as such , so a possibility of gaps in events arises. What we want ideally is to clear existing buffer and then consume from latest SCN
 		confBuilder.setReadLatestScnOnError(false);
 		// set size of largest expected event
 		confBuilder.setFreeBufferThreshold(largestEventSize);
@@ -206,6 +208,7 @@ public class RelayEventProducer implements EventProducer
 		bufferConf.setMaxSize(internalBufferMaxSize);
 		int readBufferSize = Math.max((int)(0.2*internalBufferMaxSize), 2*largestEventSize);
 		bufferConf.setReadBufferSize(readBufferSize);
+		bufferConf.setAllocationPolicy("DIRECT_MEMORY");
 		//client buffer's scn index- not used
 		bufferConf.setScnIndexSize(64*1024);
 		String queuePolicy = blockingBuffer ? "BLOCK_ON_WRITE"

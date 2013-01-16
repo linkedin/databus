@@ -24,7 +24,6 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
 import com.linkedin.databus.core.DispatcherRetriesExhaustedException;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -126,12 +125,13 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case CLOSED: _internalState.switchToClosed(); shutdown(); break;
           case STOP_DISPATCH_EVENTS: _internalState.switchToStopDispatch();  break;
           case START_DISPATCH_EVENTS:
-              _internalState.switchToStartDispatchEvents(newState.getSources(),
-                                                         newState.getSchemaMap(),
-                                                         newState.getEventsIterator()); break;
+              _log.info("starting dispatch");
+              _internalState.switchToStartDispatchEventsInternal(newState, getName() + ".iter");
+              doStartDispatchEvents(_internalState);
+              break;
           default:
           {
-            _log.error("Unkown state: " + _internalState.getStateId());
+            _log.error("Unknown dispatcher message: " + _internalState.getStateId());
             success = false;
             break;
           }
@@ -156,7 +156,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case EXPECT_STREAM_DATA_EVENTS: doDispatchEvents(_internalState); break;
           default:
           {
-            _log.error("Unkown state: " + _internalState.getStateId());
+            _log.error("Unkown internal: " + _internalState.getStateId());
             success = false;
             break;
           }
@@ -178,12 +178,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (null != curState.getEventsIterator())
     {
-      curState.getEventsIterator().getEventBuffer().releaseIterator(curState.getEventsIterator());
+      curState.getEventsIterator().close();
     }
     if (null != curState.getLastSuccessfulIterator())
     {
-      curState.getLastSuccessfulIterator().getEventBuffer().releaseIterator(
-          curState.getLastSuccessfulIterator());
+      curState.getLastSuccessfulIterator().close();
     }
 
     ConsumerCallbackResult stopSuccess = ConsumerCallbackResult.ERROR;
@@ -277,12 +276,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
       if ( regressItr)
       {
-    	  DbusEventBuffer.DbusEventIterator newIter = null;
     	  if (null != curState.getLastSuccessfulIterator())
     	  {
-    		  newIter = curState.getLastSuccessfulIterator().copy(newIter, getName() + ".iterator");
-    		  _log.info("rollback to last successful iterator!" + newIter);
-    		  curState.switchToReplayDataEvents(newIter);
+    		  _log.info("rollback to last successful iterator!" +
+    		            curState.getLastSuccessfulIterator());
+    		  curState.switchToReplayDataEvents();
     	  }
     	  else
     	  {
@@ -602,21 +600,22 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     boolean debugEnabled = _log.isDebugEnabled();
     boolean traceEnabled = _log.isTraceEnabled();
 
-    DbusEventIterator eventIter = curState.getEventsIterator();
+    //DbusEventIterator eventIter = curState.getEventsIterator();
 
-    if (! _stopDispatch.get() && !eventIter.hasNext() && !checkForShutdownRequest())
+    if (! _stopDispatch.get() && !curState.getEventsIterator().hasNext() && !checkForShutdownRequest())
     {
       if (debugEnabled) _log.debug("waiting for events");
-      eventIter.await(50, TimeUnit.MILLISECONDS);
+      curState.getEventsIterator().await(50, TimeUnit.MILLISECONDS);
     }
 
     boolean success = true;
     boolean hasQueuedEvents = false;
-    while (success && !_stopDispatch.get() && eventIter.hasNext() && !checkForShutdownRequest())
+    while (success && !_stopDispatch.get() && curState.getEventsIterator().hasNext() &&
+        !checkForShutdownRequest())
     {
       //TODO MED: maybe add a counter limit the number of events processed in one pass
       //This will not delay the processing of other messages.
-      DbusEvent nextEvent = eventIter.next();
+      DbusEvent nextEvent = curState.getEventsIterator().next();
       //TODO: Add stats about last process time
       _currentWindowSizeInBytes += nextEvent.size();
       if (traceEnabled) _log.trace("got event:" + nextEvent);
@@ -976,6 +975,8 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   @Override
   protected void doShutdown(LifecycleMessage lcMessage)
   {
+    if (DispatcherState.StateId.CLOSED != _internalState.getStateId())
+      _internalState.switchToClosed();
     super.doShutdown(lcMessage);
   }
 

@@ -1,9 +1,19 @@
 package com.linkedin.databus.core.util;
 
+import org.apache.log4j.Level;
 import org.testng.AssertJUnit;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus2.test.TestUtil;
+
 public class TestRange {
+
+  @BeforeClass
+  public void setUpClass()
+  {
+    TestUtil.setupLogging(true, null, Level.ERROR);
+  }
 
 	@Test
 	public void testRange() {
@@ -15,60 +25,61 @@ public class TestRange {
 	}
 
 	@Test
-	public void testContains() {
-		{
-			Range r = new Range(1, 100);
-			AssertJUnit.assertFalse(r.contains(-1));
-			AssertJUnit.assertTrue(r.contains(1));
-			AssertJUnit.assertTrue(r.contains(5));
-			AssertJUnit.assertTrue(r.contains(99));
-			AssertJUnit.assertFalse(r.contains(100));
-			AssertJUnit.assertFalse(r.contains(101));
-			AssertJUnit.assertTrue(r.contains(1));
-		}
-
-		{
-			Range r = new Range(100, 1);
-			AssertJUnit.assertFalse(r.contains(-1));
-			AssertJUnit.assertTrue(r.contains(0));
-			AssertJUnit.assertFalse(r.contains(1));
-			AssertJUnit.assertFalse(r.contains(5));
-			AssertJUnit.assertTrue(r.contains(105));
-	        AssertJUnit.assertTrue(r.contains(100));
-		}
-
-		{
-	      BufferPositionParser parser = new BufferPositionParser(100240000 ,1);
-		  AssertJUnit.assertFalse(Range.containsReaderPosition(14551, 14551, 109, parser));
-		  AssertJUnit.assertTrue(Range.containsReaderPosition(parser.setGenId(100, 0), parser.setGenId(200,2), parser.setGenId(100,1), parser));
-		}
-
-
-		{
-		  // start and end differ only in GenId
-		  BufferPositionParser parser = new BufferPositionParser(100240000 ,1);
-
-		  long start = parser.setGenId(0, 1);
-		  start = parser.setIndex(start, 0);
-		  start = parser.setOffset(start, 0);
-		  long end = parser.setGenId(0, 2);
-		  end = parser.setIndex(end, 0);
-		  end = parser.setOffset(end, 0);
-
-		  // Case when offset != start
-		  long offset = parser.setGenId(0, 1);
-		  offset = parser.setIndex(offset, 2);
-		  offset = parser.setOffset(offset, 10);
-
-
-		  AssertJUnit.assertTrue(Range.containsReaderPosition(start, end, offset, parser));
-
-		  // Case when Offset == start
-		  AssertJUnit.assertFalse(Range.containsReaderPosition(start, end, start, parser));
-
-
-		}
+	public void testRangeContainsSimple()
+	{
+	  Range r = new Range(1, 100);
+	  AssertJUnit.assertFalse(r.contains(-1));
+	  AssertJUnit.assertTrue(r.contains(1));
+	  AssertJUnit.assertTrue(r.contains(5));
+	  AssertJUnit.assertTrue(r.contains(99));
+	  AssertJUnit.assertFalse(r.contains(100));
+	  AssertJUnit.assertFalse(r.contains(101));
+	  AssertJUnit.assertTrue(r.contains(1));
 	}
+
+    @Test
+    public void testRangeContainsReversed()
+    {
+      Range r = new Range(100, 1);
+      AssertJUnit.assertFalse(r.contains(-1));
+      AssertJUnit.assertTrue(r.contains(0));
+      AssertJUnit.assertFalse(r.contains(1));
+      AssertJUnit.assertFalse(r.contains(5));
+      AssertJUnit.assertTrue(r.contains(105));
+      AssertJUnit.assertTrue(r.contains(100));
+    }
+
+    @Test
+    public void testContainsReaderPosition()
+    {
+      BufferPositionParser parser = new BufferPositionParser(100240000 ,1);
+      AssertJUnit.assertFalse(Range.containsReaderPosition(14551, 14551, 109, parser));
+      AssertJUnit.assertTrue(Range.containsReaderPosition(parser.setGenId(100, 0), parser.setGenId(200,2), parser.setGenId(100,1), parser));
+    }
+
+
+    @Test
+    public void testContainsReaderPositionDiffGenId()
+    {
+      // start and end differ only in GenId
+      BufferPositionParser parser = new BufferPositionParser(100240000 ,1);
+
+      long start = parser.setGenId(0, 1);
+      start = parser.setIndex(start, 0);
+      start = parser.setOffset(start, 0);
+      long end = parser.setGenId(0, 2);
+      end = parser.setIndex(end, 0);
+      end = parser.setOffset(end, 0);
+
+      // Case when offset != start
+      long offset = parser.setGenId(0, 1);
+      offset = parser.setIndex(offset, 2);
+      offset = parser.setOffset(offset, 10);
+
+      AssertJUnit.assertTrue(Range.containsReaderPosition(start, end, offset, parser));
+      AssertJUnit.assertTrue(Range.containsReaderPosition(start, end, start, parser));
+      AssertJUnit.assertFalse(Range.containsReaderPosition(start, end, end, parser));
+    }
 
 	@Test
 	public void testIntersects() {
