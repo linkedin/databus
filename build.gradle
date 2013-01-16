@@ -57,8 +57,14 @@ externalDependency = [
     'helixCore': 'com.linkedin.helix:helix-core:0.5.31'
 ];
 
-sandboxDependency = [
-];
+if (System.getProperty('open_source') != null) {
+  externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
+
+  println "Open source repositories used:"
+  project(':databus-core:databus-core-container').repositories.each { repo->
+    println(repo.getName())
+  }
+}
 
 if (!isDefaultEnvironment)
 {
