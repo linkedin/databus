@@ -59,6 +59,9 @@ externalDependency = [
 
 if (System.getProperty('open_source') != null) {
   externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
+  externalDependency.remove('espressoSchema')
+  externalDependency.remove('espressoCommonImpl')
+  externalDependency.remove('espressoStoreImpl')
 
   println "Open source repositories used:"
   project(':databus-core:databus-core-container').repositories.each { repo->
