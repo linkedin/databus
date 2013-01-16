@@ -161,7 +161,7 @@ subprojects {
     }
 
     test {
-      	maxHeapSize = '4g'
+      	maxHeapSize = '6g'
         jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
         useTestNG() 
         
