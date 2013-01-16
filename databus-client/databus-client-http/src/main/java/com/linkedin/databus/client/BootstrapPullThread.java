@@ -225,7 +225,7 @@ public class BootstrapPullThread extends BasePullThread
                                DispatcherState.create().switchToStartDispatchEvents(
                                    _currentState.getSourceIdMap(),
                                    _currentState.getSourcesSchemas(),
-                                   _sourcesConn.getBootstrapEventsBuffer().acquireIterator(getName() + ".DispatcherIterator")));
+                                   _currentState.getDataEventsBuffer()));
   }
 
   private void doSetSourcesIds(SourcesMessage sourcesMessage)

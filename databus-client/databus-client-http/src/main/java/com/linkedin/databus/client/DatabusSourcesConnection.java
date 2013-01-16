@@ -112,31 +112,31 @@ public class DatabusSourcesConnection {
 			DatabusRelayConnectionFactory relayConnFactory,
 			DatabusBootstrapConnectionFactory bootstrapConnFactory,
 			HttpStatisticsCollector relayCallsStatsCollector,
-			RegistrationId registrationId, DatabusHttpClientImpl serverHandle) 
+			RegistrationId registrationId, DatabusHttpClientImpl serverHandle)
 	{
-		this(connConfig, 
-			subscriptions, 
-			relays, 
-			bootstrapServices, 
-			consumers, 
-			bootstrapConsumers, 
-			dataEventsBuffer, 
-			bootstrapEventsBuffer, 
-			ioThreadPool, 
-			containerStatsCollector, 
-			inboundEventsStatsCollector, 
-			bootstrapEventsStatsCollector, 
-			relayCallbackStats, 
-			bootstrapCallbackStats, 
-			checkpointPersistenceProvider, 
-			relayConnFactory, 
-			bootstrapConnFactory, 
-			relayCallsStatsCollector, 
-			registrationId, 
-			serverHandle, 
+		this(connConfig,
+			subscriptions,
+			relays,
+			bootstrapServices,
+			consumers,
+			bootstrapConsumers,
+			dataEventsBuffer,
+			bootstrapEventsBuffer,
+			ioThreadPool,
+			containerStatsCollector,
+			inboundEventsStatsCollector,
+			bootstrapEventsStatsCollector,
+			relayCallbackStats,
+			bootstrapCallbackStats,
+			checkpointPersistenceProvider,
+			relayConnFactory,
+			bootstrapConnFactory,
+			relayCallsStatsCollector,
+			registrationId,
+			serverHandle,
 			registrationId != null ? registrationId.toString() : null);
 	}
-	
+
 	public DatabusSourcesConnection(
 			DatabusSourcesConnection.StaticConfig connConfig,
 			List<DatabusSubscription> subscriptions, Set<ServerInfo> relays,
@@ -157,7 +157,7 @@ public class DatabusSourcesConnection {
 			HttpStatisticsCollector relayCallsStatsCollector,
 			RegistrationId registrationId, DatabusHttpClientImpl serverHandle,
 			String connRawId // Unique Name to be used for generating mbean and logger names.
-			) 
+			)
 	{
 		_connectionConfig = connConfig;
 		_dataEventsBuffer = dataEventsBuffer;
@@ -370,13 +370,28 @@ public class DatabusSourcesConnection {
 			_bootstrapConsumerStats.unregisterAsMbean();
 		_connectionStatus.shutdown();
 
-	    if (_relayPullerThread.isAlive()) _relayPuller.awaitShutdown();
-	    if (_relayDispatcherThread.isAlive()) _relayDispatcher.awaitShutdown();
+	    if (_relayPullerThread.isAlive())
+	    {
+	      _log.info("shutting down relay puller ...");
+	      _relayPuller.awaitShutdown();
+	    }
+	    if (_relayDispatcherThread.isAlive())
+	    {
+          _log.info("shutting down relay dispatcher ...");
+	      _relayDispatcher.awaitShutdown();
+	    }
 
-		_relayDispatcher.awaitShutdown();
 		if (_isBootstrapEnabled) {
-	    	if (_bootstrapDispatcherThread.isAlive()) _bootstrapDispatcher.awaitShutdown();
-	    	if (_bootstrapPullerThread.isAlive()) _bootstrapPuller.awaitShutdown();
+	    	if (_bootstrapDispatcherThread.isAlive())
+	    	{
+	          _log.info("shutting down bootstrap dispatcher ...");
+	    	  _bootstrapDispatcher.awaitShutdown();
+	    	}
+	    	if (_bootstrapPullerThread.isAlive())
+	    	{
+	          _log.info("shutting down bootstrap puller ...");
+	    	  _bootstrapPuller.awaitShutdown();
+	    	}
 		}
 
 		_consumerCallbackExecutor.shutdown();
