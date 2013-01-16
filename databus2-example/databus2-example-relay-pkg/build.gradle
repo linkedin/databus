@@ -25,6 +25,10 @@ task myTar(type: Tar) {
   from("${project.rootDir}/schemas_registry/com.linkedin.events.example.person.Person.1.avsc") {
     into("schemas_registry")    
   }
+
+  into("lib") {
+     from configurations.runtime
+  }
 }
 
 myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
