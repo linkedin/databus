@@ -151,6 +151,7 @@ public class DispatcherState
         _lastSuccessfulScn = null;
         resetSourceInfo();
         _eventsIterator = _buffer.acquireIterator(iteratorName);
+        LOG.info("start dispatch from: " + _eventsIterator);
         setLastSuccessfulIterator(_eventsIterator);
     }
 
@@ -206,6 +207,7 @@ public class DispatcherState
       String iteratorName = _eventsIterator.getIdentifier();
       _eventsIterator.close();
       _eventsIterator = eventBuffer.acquireIterator(iteratorName);
+      LOG.info("reset event iterator to: " + _eventsIterator);
       resetSourceInfo();
     }
   }
@@ -278,19 +280,23 @@ public class DispatcherState
 
   private void setEventsIterator(DbusEventBuffer.DbusEventIterator newValue)
   {
-    String iterName = "dispatcher iterator";
+    String iterName = null == newValue ? "dispatcher iterator" :
+        newValue.getIdentifier();
     if (null != _eventsIterator)
     {
       iterName = _eventsIterator.getIdentifier();
+      LOG.info("closing dispatcher iterator: " + _eventsIterator);
       _eventsIterator.close();
     }
     if (null == newValue)
     {
       _eventsIterator = null;
+      LOG.info("dispatcher iterator set to null ");
     }
     else
     {
       _eventsIterator = newValue.copy(_eventsIterator, iterName);
+      LOG.info("new dispatcher iterator: " + _eventsIterator);
     }
   }
 

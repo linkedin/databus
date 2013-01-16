@@ -24,7 +24,6 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
 import com.linkedin.databus.core.DispatcherRetriesExhaustedException;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -126,6 +125,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case CLOSED: _internalState.switchToClosed(); shutdown(); break;
           case STOP_DISPATCH_EVENTS: _internalState.switchToStopDispatch();  break;
           case START_DISPATCH_EVENTS:
+              _log.info("starting dispatch");
               _internalState.switchToStartDispatchEventsInternal(newState, getName() + ".iter");
               doStartDispatchEvents(_internalState);
               break;
@@ -600,21 +600,22 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     boolean debugEnabled = _log.isDebugEnabled();
     boolean traceEnabled = _log.isTraceEnabled();
 
-    DbusEventIterator eventIter = curState.getEventsIterator();
+    //DbusEventIterator eventIter = curState.getEventsIterator();
 
-    if (! _stopDispatch.get() && !eventIter.hasNext() && !checkForShutdownRequest())
+    if (! _stopDispatch.get() && !curState.getEventsIterator().hasNext() && !checkForShutdownRequest())
     {
       if (debugEnabled) _log.debug("waiting for events");
-      eventIter.await(50, TimeUnit.MILLISECONDS);
+      curState.getEventsIterator().await(50, TimeUnit.MILLISECONDS);
     }
 
     boolean success = true;
     boolean hasQueuedEvents = false;
-    while (success && !_stopDispatch.get() && eventIter.hasNext() && !checkForShutdownRequest())
+    while (success && !_stopDispatch.get() && curState.getEventsIterator().hasNext() &&
+        !checkForShutdownRequest())
     {
       //TODO MED: maybe add a counter limit the number of events processed in one pass
       //This will not delay the processing of other messages.
-      DbusEvent nextEvent = eventIter.next();
+      DbusEvent nextEvent = curState.getEventsIterator().next();
       //TODO: Add stats about last process time
       _currentWindowSizeInBytes += nextEvent.size();
       if (traceEnabled) _log.trace("got event:" + nextEvent);

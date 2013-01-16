@@ -254,6 +254,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
      */
     protected void reset(long head, long tail, String iteratorName)
     {
+      assert head >= 0 : "name:" + iteratorName;
+      assert head <= tail
+          : "head:" + head + "; tail: " + tail + "; name:" + iteratorName;
+
       _identifier = null != iteratorName ? iteratorName
           : getClass().getSimpleName() + ITERATORS_COUNTER.getAndIncrement();
 
@@ -332,7 +336,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
     protected void assertPointers()
     {
-      assert (_currentPosition.getPosition() >= _head.getPosition()) : printExtendedStateInfo();
+      assert (_currentPosition.getPosition() >= _head.getPosition())
+          : printExtendedStateInfo();
       assert (_iteratorTail.getPosition() <= _currentWritePosition.getPosition()):
           printExtendedStateInfo();
     }
@@ -572,8 +577,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
       final boolean debugEnabled = _log.isDebugEnabled();
       final int startReadLocks = _rwLockProvider.getNumReaders();
+      int endReadLocks = startReadLocks;
       final long oldPos = _currentPosition.getPosition();
       final long oldTail = _iteratorTail.getPosition();
+      final LockToken oldLock = _lockToken;
       _queueLock.lock();
       try
       {
@@ -601,6 +608,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
               _log.debug("refreshing iterator: " + this);
 
             reacquireReadLock();
+            endReadLocks = _rwLockProvider.getNumReaders();
 
             if (debugEnabled)
               _log.debug("done refreshing iterator: " + this);
@@ -611,8 +619,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       {
         _queueLock.unlock();
       }
-      final int endReadLocks = _rwLockProvider.getNumReaders();
-      assert startReadLocks == endReadLocks: "this:" + this + "; locks:" + _rwLockProvider;
+      assert startReadLocks == endReadLocks:
+          "this:" + this + "; oldLock:" + oldLock +
+          "; locks:" + _rwLockProvider ;
     }
 
     /**

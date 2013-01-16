@@ -25,26 +25,43 @@ public class RangeBasedReaderWriterLock {
   public class LockToken implements Comparable<LockToken> {
     protected Range _id;
     private final String _ownerName;
+    private final long _createTime;
+    private long _lastUpdateTime;
     protected LockToken(Range id, String ownerName) {
       _id = id;
       _ownerName = ownerName;
+      _createTime = System.currentTimeMillis();
+      _lastUpdateTime = _createTime;
     }
+
     public Range getRange() {
       return _id;
     }
+
     public String getOwnerName()
     {
       return _ownerName;
     }
+
+    public void setRangeStart(long newStart)
+    {
+      _id.start = newStart;
+      _lastUpdateTime = System.currentTimeMillis();
+    }
+
     @Override
     public String toString()
     {
-      return "{ownerName:" + _ownerName + ", range:" + _id + "}";
+      return "{ownerName:" + _ownerName + ", range:" + _id +
+             ", created:" + _createTime + ", lastUpdated:" + _lastUpdateTime +
+             "}";
     }
+
     public String toString(BufferPositionParser parser)
     {
       return "{ownerName:" + _ownerName + ", range:" + _id.toString(parser) + "}";
     }
+
     @Override
     public int compareTo(LockToken o)
     {
@@ -134,7 +151,7 @@ public class RangeBasedReaderWriterLock {
     {
       boolean lockFound = readerRanges.remove(lockId);
       assert lockFound : "lock:" + lockId + "; this:" + toString();
-      lockId._id.start = newStartOffset;
+      lockId.setRangeStart(newStartOffset);
       readerRanges.add(lockId);
       writesPossible.signal();
     }
@@ -157,7 +174,7 @@ public class RangeBasedReaderWriterLock {
       try
       {
         readerRanges.remove(lockId);
-        lockId._id.start = newStartOffset;
+        lockId.setRangeStart(newStartOffset);
         readerRanges.add(lockId);
         writesPossible.signal();
       }
@@ -220,10 +237,9 @@ public class RangeBasedReaderWriterLock {
             throw new TimeoutException();
           }
 
-          Iterator<LockToken> it = readerRanges.iterator();
-          while (it.hasNext())
+          for (LockToken token: readerRanges)
           {
-            LOG.info(it.next().toString(parser));
+            LOG.info(token.toString(parser));
           }
           writerWaiting = true;
           if (!writesPossible.await(MAX_LOCK_WAIT_MS, TimeUnit.MILLISECONDS))
