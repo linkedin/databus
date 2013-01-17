@@ -47,7 +47,6 @@ import com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType;
 import com.linkedin.databus.core.util.DbusEventGenerator;
 import com.linkedin.databus.core.util.EventBufferConsumer;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus.core.util.RngUtils;
 import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.AssertLevel;
@@ -2852,7 +2851,7 @@ public static class DummyDbusEvent extends DbusEvent
 
         System.out.printf("minScn=%d,maxScn=%d,prevScn=%d,range=%d\n",minScn,maxScn,prevScn,emitterStats.getTotalStats().getTimeSpan());
         assertEquals(numEvents - 1, emitterStats.getTotalStats().getTimeSpan()/MILLISECONDS);
-        assertEquals(prodEventBuffer.getFirstEventTimestamp(), emitterStats.getTotalStats().getTimestampMinScnEvent());
+        assertEquals(prodEventBuffer.getTimestampOfFirstEvent(), emitterStats.getTotalStats().getTimestampMinScnEvent());
 
 
         //stream with scn < max; expect last window; not last 2
