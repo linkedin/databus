@@ -3913,8 +3913,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       this.setPrevScn(getMinScn());
       _head.setPosition(proposedHead);
-      if (null != _scnIndex) _scnIndex.moveHead(proposedHead, newScn);
-
       if (_head.equals(_tail))
       {
         _empty = true;
