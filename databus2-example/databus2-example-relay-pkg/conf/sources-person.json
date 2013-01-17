@@ -7,7 +7,7 @@
 	[
 		{"id" : 101, 
 		 "name" : "com.linkedin.events.example.person.Person",
-		 "uri": "person.Person_1", 
+		 "uri": "person.person", 
 		 "partitionFunction" : "constant:1"
 		}
 	]
