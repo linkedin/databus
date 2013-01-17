@@ -1,12 +1,36 @@
 subprojects {
   repositories {
-    //mavenCentral()
+      if (System.getProperty('open_source') != null) {
+        // for open source we cannot user internal repo
+        // so we add few open source ones
+        mavenCentral()
+        maven {
+          url "http://repo.fusesource.com/maven2"
+        }
+        maven {
+          url "http://maven.restlet.org"
+        }
 
-    add(new org.apache.ivy.plugins.resolver.URLResolver()) {
-      name = 'release'
-      addIvyPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[module]-[revision].ivy'
-      addArtifactPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
-      m2compatible = true
+        // local repo for libs we have to ship with 
+        add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
+        name = 'SANDBOX_REPO'
+        ivypattern = "${project.rootProject.rootDir}/sandbox-repo/[organisation]/[module]/[revision]/[module]-[revision].ivy" 
+        artpattern = "${project.rootProject.rootDir}/sandbox-repo/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+        //println "ADDING $name repository. ivypatern=" + ivypattern
+        //println "ADDING $name repository. artifactorypatern=" + artpattern
+        addIvyPattern ivypattern
+        addArtifactPattern artpattern
+        m2compatible = true
+        checkmodified = true
+        changingPattern = '.*'
+       }
+     } else {
+       add(new org.apache.ivy.plugins.resolver.URLResolver()) {
+         name = 'release'
+         addIvyPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[module]-[revision].ivy'
+         addArtifactPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
+         m2compatible = true
+      }
     }
   }
   
