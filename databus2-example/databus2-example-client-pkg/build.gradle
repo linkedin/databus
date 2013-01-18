@@ -12,7 +12,7 @@ task myTar(type: Tar) {
   baseName = project.name
   compression = Compression.GZIP
 
-  into("config") { from "conf/" }
+  into("conf") { from "conf/" }
 
   from("script") {
     into ("bin")
