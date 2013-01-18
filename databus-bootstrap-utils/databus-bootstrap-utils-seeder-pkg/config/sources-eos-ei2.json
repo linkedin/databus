@@ -1,0 +1,13 @@
+{
+    "name" : "eos",
+    "uri" : "jdbc:oracle:thin:eos/eos8uat@//eat1-dc1-eidb-eos.stg.linkedin.com:1521/EI_EIDB_EOS",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {"id" : 2201, 
+         "name": "com.linkedin.events.eos.MemberEmails", 
+         "uri" : "eos.MEMBER_EMAILS",
+         "partitionFunction" : "constant:1"
+        }
+    ]
+}
