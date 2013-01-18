@@ -12,7 +12,7 @@ task myTar(type: Tar) {
   baseName = project.name
   compression = Compression.GZIP
 
-  into("conf") { from "conf/" }
+  into("config") { from "conf/" }
 
   from("script") {
     into ("bin")
@@ -23,8 +23,11 @@ task myTar(type: Tar) {
     from("${project.rootDir}/script")
     include('setup.inc')
   }
+
+  into("lib") {
+     from configurations.runtime
+  }
 }
 
 myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
-//myTar.dependsOn ':databus3-relay:databus3-relay-espresso-impl:assemble'
 assemble.dependsOn myTar
