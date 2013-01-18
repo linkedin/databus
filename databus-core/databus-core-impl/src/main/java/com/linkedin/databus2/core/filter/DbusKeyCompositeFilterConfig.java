@@ -120,7 +120,7 @@ public class DbusKeyCompositeFilterConfig
 	public static void main(String[] args)
 		throws Exception
 	{
-		String configFile = "/Users/bvaradar/Documents/workspace/BR_DDS_SERVER_SIDE_FILTERING/config/server-filter-test.properties";
+		String configFile = "/Users/bvaradar/Documents/workspace/BR_DDS_SERVER_SIDE_FILTERING/integration-test/config/server-filter-test.properties";
 
 		Properties startupProps = new Properties();
 		startupProps.load(new FileInputStream(configFile));

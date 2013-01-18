@@ -56,7 +56,7 @@ public class DatabusRelayMain extends HttpRelay {
 			.getName());
 	public static final String DB_RELAY_CONFIG_FILE_OPT_NAME = "db_relay_config";
 
-	protected static String[] _dbRelayConfigFiles = new String[] { "config/sources-member2.json" };
+	protected static String[] _dbRelayConfigFiles = new String[] { "integration-test/config/sources-member2.json" };
 
 	MultiServerSequenceNumberHandler _maxScnReaderWriters;
 	protected Map<PhysicalPartition, EventProducer> _producers;
