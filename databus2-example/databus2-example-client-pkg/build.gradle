@@ -26,5 +26,5 @@ task myTar(type: Tar) {
 }
 
 myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
-myTar.dependsOn ':databus3-relay:databus3-relay-espresso-impl:assemble'
+//myTar.dependsOn ':databus3-relay:databus3-relay-espresso-impl:assemble'
 assemble.dependsOn myTar

@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -22,8 +23,9 @@ import com.linkedin.databus.core.util.RangeBasedReaderWriterLock.LockToken;
  * A continuous journal writer of the events as they flow into the DbusEventBuffer
  * This journal can be used for refilling the buffer on startup using the EventLogReader class.
  * @author sdas
- *
+ * @deprecated
  */
+@Deprecated
 public class EventLogWriter extends InternalDatabusEventsListenerAbstract implements Runnable
 {
   public static final String MODULE = EventLogWriter.class.getName();
@@ -257,7 +259,23 @@ public class EventLogWriter extends InternalDatabusEventsListenerAbstract implem
   {
     // non-contiguous write
     // signal write ready
-    LockToken readRangeLockToken = _lockProvider.acquireReaderLock(_batchStartOffset, _batchNextOffset, _eventBuffer.getBufferPositionParser());
+    LockToken readRangeLockToken = null;
+    try
+    {
+      readRangeLockToken = _lockProvider.acquireReaderLock(_batchStartOffset, _batchNextOffset,
+                                      _eventBuffer.getBufferPositionParser(),
+                                      "EventLogWriter.queueWriteRequest");
+    }
+    catch (InterruptedException e1)
+    {
+      LOG.warn("queueWriteRequest read lock wait interrupted", e1);
+      _stopRunning.set(true);
+    }
+    catch (TimeoutException e1)
+    {
+      LOG.error("queueWriteRequest read lock wait timed out", e1);
+      _stopRunning.set(true);
+    }
 
     if (_blockOnWrite)
     {
@@ -349,10 +367,23 @@ public class EventLogWriter extends InternalDatabusEventsListenerAbstract implem
     }
     if (_batchState == BatchState.STARTED)
     {
-      LockToken readRangeLockToken = _lockProvider.acquireReaderLock(_batchStartOffset, _batchNextOffset, _eventBuffer.getBufferPositionParser());
+      LockToken readRangeLockToken = null;
       try
       {
+        readRangeLockToken = _lockProvider.acquireReaderLock(_batchStartOffset, _batchNextOffset,
+                                                             _eventBuffer.getBufferPositionParser(),
+                                                             "EventLogWriter.flush");
         performWrite(readRangeLockToken);
+      }
+      catch (InterruptedException e)
+      {
+        LOG.error("flush read lock wait interrupted", e);
+        _stopRunning.set(true);
+      }
+      catch (TimeoutException e)
+      {
+        LOG.error("flush read lock wait timed out", e);
+        _stopRunning.set(true);
       }
       catch (IOException e)
       {
@@ -361,7 +392,7 @@ public class EventLogWriter extends InternalDatabusEventsListenerAbstract implem
       }
       finally
       {
-        _lockProvider.releaseReaderLock(readRangeLockToken);
+        if (null != readRangeLockToken) _lockProvider.releaseReaderLock(readRangeLockToken);
       }
     }
 
@@ -374,8 +405,7 @@ public class EventLogWriter extends InternalDatabusEventsListenerAbstract implem
       }
       catch (IOException e)
       {
-        // TODO Auto-generated catch block
-        e.printStackTrace();
+        LOG.error("flush error:" + e.getMessage(), e);
       }
     }
   }

@@ -1,0 +1,33 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+}
+
+task myTar(type: Tar) {
+  extension = 'tar.gz'
+  baseName = project.name
+  compression = Compression.GZIP
+
+  into("conf") { from "conf/" }
+
+  from("script") {
+    into ("bin")
+    fileMode = 0755
+  }
+  
+  into("bin") {
+    from("${project.rootDir}/script")
+    include('setup.inc')
+    fileMode = 0755
+  }
+
+  into("lib") {
+     from configurations.runtime
+  }
+
+}
+
+myTar.dependsOn ':databus-util-cmdline:databus-util-cmdline-impl:assemble'
+assemble.dependsOn myTar
+

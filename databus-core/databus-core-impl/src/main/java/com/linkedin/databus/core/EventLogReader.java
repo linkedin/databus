@@ -20,6 +20,7 @@ import com.linkedin.databus.core.util.InvalidConfigException;
  * @author sdas
  *
  */
+@Deprecated
 public class EventLogReader
 extends InternalDatabusEventsListenerAbstract
 {
@@ -174,7 +175,7 @@ extends InternalDatabusEventsListenerAbstract
 
         if (_eventSeen)
         {
-          DbusEventIterator iter = _eventBuffer.acquireIterator(_eventBuffer.getHead(), _eventBuffer.getTail(), "EventLogReader:firstEvent");
+          DbusEventIterator iter = _eventBuffer.acquireIterator("EventLogReader:firstEvent");
 
           try
           {
@@ -197,7 +198,8 @@ extends InternalDatabusEventsListenerAbstract
 
           if (_lastEopOffset >=0)
           {
-            iter = _eventBuffer.acquireIterator(this._lastEopOffset, _eventBuffer.getTail(), "EventLogReader:lastEOP");
+            iter = _eventBuffer.new DbusEventIterator(this._lastEopOffset, _eventBuffer.getTail(),
+                                                      "EventLogReader:lastEOP");
             try
             {
               DbusEvent event = iter.next();
