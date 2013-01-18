@@ -1,6 +1,17 @@
+2.1.152
+-------
+
+* Bumping version to get a clean release
+
+2.1.151
+-------
+
+* SKIPPED DUE TO A PROBLEM WITH THE RELEASE JOB
+
 2.1.150
 -------
 
+* DO NOT USE AS THE RELEASE JOB DID NOT FINISH CLEANLY
 * DDSDBUS-1400 Changed test and type of relay buffer to again trigger SCN regression
 * DDSDBUS-1383 _bufferOffset not found fixes
 * upgrade wrapper version to 1.3

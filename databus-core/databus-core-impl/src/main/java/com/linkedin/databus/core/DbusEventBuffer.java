@@ -1066,54 +1066,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
 
-
-
-  /**
-   * Called when head moves; need to find the new event represented by new head of the buffer and get its timestamp
-   */
-  long getFirstEventTimestamp()
-  {
-
-    long startTimeTs = System.nanoTime();
-    ScnIndex.ScnIndexEntry entry=null;
-    long ts = 0;
-    try
-    {
-      entry = _scnIndex.getClosestOffset(getMinScn());
-    }
-    catch (OffsetNotFoundException e1)
-    {
-      LOG.info("First event not found: at scn = " + getMinScn());
-      return 0;
-    }
-    if (entry != null)
-    {
-      long offset = entry.getOffset();
-      InternalEventIterator eventIterator =
-          acquireInternalIterator(offset, _bufferPositionParser.sanitize(_tail.getPosition(), _buffers), "firstEventIterator");
-      try
-      {
-        if (eventIterator.hasNext()) {
-          DbusEvent e = eventIterator.next();
-          ts =  e.timestampInNanos()/(1000*1000);
-        }
-      }
-      finally
-      {
-        releaseIterator(eventIterator);
-      }
-    }
-
-    long endTimeTs = System.nanoTime();
-    if (PERF_LOG.isDebugEnabled())
-    {
-    	PERF_LOG.debug("getFirstEventTimestamp took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec  + "ms");
-    }
-
-
-    return ts;
-  }
-
   public DbusEventBuffer(Config config) throws InvalidConfigException
   {
     this(config.build());
@@ -3913,8 +3865,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       this.setPrevScn(getMinScn());
       _head.setPosition(proposedHead);
-      if (null != _scnIndex) _scnIndex.moveHead(proposedHead, newScn);
-
       if (_head.equals(_tail))
       {
         _empty = true;
