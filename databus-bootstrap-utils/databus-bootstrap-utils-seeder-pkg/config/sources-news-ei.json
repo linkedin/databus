@@ -11,7 +11,7 @@
         },
         {"id" : 802, 
          "name": "com.linkedin.events.news.Articles", 
-         "uri" : "news.ARTICLES_7",
+         "uri" : "news.ARTICLES_8",
          "partitionFunction" : "constant:1"
         }
     ]
