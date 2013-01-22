@@ -545,7 +545,7 @@ public class RelayPullThread extends BasePullThread
           DispatcherState.create().switchToStartDispatchEvents(
               curState.getSourceIdMap(),
               curState.getSourcesSchemas(),
-              _sourcesConn.getDataEventsBuffer().acquireIterator(getName() + ".DispatcherIterator")));
+              curState.getDataEventsBuffer()));
 
       // Determine the checkpoint for read events in the following order
       // 1. Existing checkpoint in the current state

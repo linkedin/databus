@@ -46,6 +46,7 @@ public class DispatcherState
   private DbusEventBuffer.DbusEventIterator _eventsIterator;
   private DbusEventBuffer.DbusEventIterator _lastSuccessfulIterator;
   private Map<Long, List<RegisterResponseEntry>> _schemaMap;
+  private DbusEventBuffer _buffer;
 
   //EXPECT_EVENT_WINDOW extends START_DISPATCH_EVENTS
 
@@ -90,68 +91,112 @@ public class DispatcherState
     return new DispatcherState();
   }
 
+  private void setLastSuccessfulIterator(DbusEventBuffer.DbusEventIterator newValue)
+  {
+    final boolean debugEnabled = LOG.isDebugEnabled();
+    if (debugEnabled)
+      LOG.debug("changing _lastSuccessfulIterator from: " + _lastSuccessfulIterator);
+    if (null != _lastSuccessfulIterator)
+    {
+      _lastSuccessfulIterator.close();
+    }
+    if (null == newValue)
+    {
+      _lastSuccessfulIterator = null;
+    }
+    else
+    {
+      _lastSuccessfulIterator = newValue.copy(_lastSuccessfulIterator,
+                                              newValue.getIdentifier() + ".save");
+    }
+    if (debugEnabled)
+      LOG.debug("changing _lastSuccessfulIterator to: " + _lastSuccessfulIterator);
+  }
 
   public DispatcherState switchToStartDispatchEvents(Map<Long, IdNamePair> sourcesIdMap,
                                                      Map<Long, List<RegisterResponseEntry>> schemaMap,
-                                                     DbusEventBuffer.DbusEventIterator eventIterator)
+                                                     DbusEventBuffer buffer)
   {
-	/*
-	 * Except during the startup case, the event iterator is purely owned by the dispatcher
-	 * and its current state determined by the dispatcher and consumer callback behavior.
-	 * Puller should not dictate this state.
-	 * But, Puller used to set this iterator whenever it goes to Register_Response_Success state
-	 * which can happen many times during the single run. The below condition is to protect against this.
-	 */
-	if (null == _eventsIterator)
-	{
-		_stateId = StateId.START_DISPATCH_EVENTS;
-		_lastSuccessfulCheckpoint = null;
-		_lastSuccessfulScn = null;
-		resetSourceInfo();
-		_eventsIterator = eventIterator;
-		_lastSuccessfulIterator = (null != _eventsIterator) ? _eventsIterator.copy(_lastSuccessfulIterator, _eventsIterator.getIdentifier() + ".save") : null;
-	}
-
-	_sources = sourcesIdMap;
-	_schemaMap = schemaMap;
-	boolean debugEnabled = LOG.isDebugEnabled();
-	try
-	{
-		for (Map.Entry<Long, List<RegisterResponseEntry>> e: schemaMap.entrySet())
-		{
-			for (RegisterResponseEntry r : e.getValue())
-			{
-				String schema = r.getSchema();
-				Schema s = Schema.parse(schema);
-				String schemaName = sourcesIdMap.get(r.getId()).getName();
-				if (_schemaSet.add(schemaName, r.getVersion(), schema))
-				{
-	              SchemaId schemaHash = SchemaId.forSchema(schema);
-				  LOG.info("Registering schema with id " + e.getKey().toString() +
-				           " version " + r.getVersion() + "[" + schemaHash.toString()+
-				           "]: " + r.getId()  + " " + s);
-				}
-				else
-				{
-				  if (debugEnabled) LOG.debug("schema already known: " + schemaName + " version " + r.getId());
-				}
-			}
-		}
-		_eventDecoder = new DbusEventAvroDecoder(_schemaSet);
-	}
-	catch (Exception e)
-	{
-		LOG.error("Error adding schema", e);
-	}
+    _stateId = StateId.START_DISPATCH_EVENTS;
+    _buffer = buffer;
+    _sources = sourcesIdMap;
+    _schemaMap = schemaMap;
     return this;
+  }
+
+  public DispatcherState switchToStartDispatchEventsInternal(DispatcherState msg,
+                                                             String iteratorName)
+  {
+    assert null != msg;
+    assert null != msg._buffer;
+    assert null != msg.getSources();
+    assert null != msg.getSchemaMap();
+
+    _buffer = msg._buffer;
+    _sources = msg.getSources();
+    _schemaMap = msg.getSchemaMap();
+    refreshSchemas();
+
+    /*
+     * Except during the startup case, the event iterator is purely owned by the dispatcher
+     * and its current state determined by the dispatcher and consumer callback behavior.
+     * Puller should not dictate this state.
+     * But, Puller used to set this iterator whenever it goes to Register_Response_Success state
+     * which can happen many times during the single run. The below condition is to protect against this.
+     */
+    if (null == _eventsIterator)
+    {
+        _stateId = StateId.START_DISPATCH_EVENTS;
+        _lastSuccessfulCheckpoint = null;
+        _lastSuccessfulScn = null;
+        resetSourceInfo();
+        _eventsIterator = _buffer.acquireIterator(iteratorName);
+        LOG.info("start dispatch from: " + _eventsIterator);
+        setLastSuccessfulIterator(_eventsIterator);
+    }
+
+    return this;
+  }
+
+  private void refreshSchemas()
+  {
+    boolean debugEnabled = LOG.isDebugEnabled();
+    try
+    {
+    	for (Map.Entry<Long, List<RegisterResponseEntry>> e: _schemaMap.entrySet())
+    	{
+    		for (RegisterResponseEntry r : e.getValue())
+    		{
+    			String schema = r.getSchema();
+    			Schema s = Schema.parse(schema);
+    			String schemaName = _sources.get(r.getId()).getName();
+    			if (_schemaSet.add(schemaName, r.getVersion(), schema))
+    			{
+                  SchemaId schemaHash = SchemaId.forSchema(schema);
+    			  LOG.info("Registering schema with id " + e.getKey().toString() +
+    			           " version " + r.getVersion() + "[" + schemaHash.toString()+
+    			           "]: " + r.getId()  + " " + s);
+    			}
+    			else
+    			{
+    			  if (debugEnabled)
+    			    LOG.debug("schema already known: " + schemaName + " version " +  r.getId());
+    			}
+    		}
+    	}
+    	_eventDecoder = new DbusEventAvroDecoder(_schemaSet);
+    }
+    catch (Exception e)
+    {
+    	LOG.error("Error adding schema", e);
+    }
   }
 
   public void resetIterators()
   {
     if (null != _lastSuccessfulIterator)
     {
-      _lastSuccessfulIterator.getEventBuffer().releaseIterator(_lastSuccessfulIterator);
-      _lastSuccessfulIterator = null;
+      setLastSuccessfulIterator(null);
       _lastSuccessfulScn = null;
       _lastSuccessfulCheckpoint = null;
     }
@@ -160,8 +205,9 @@ public class DispatcherState
     {
       DbusEventBuffer eventBuffer = _eventsIterator.getEventBuffer();
       String iteratorName = _eventsIterator.getIdentifier();
-      eventBuffer.releaseIterator(_eventsIterator);
+      _eventsIterator.close();
       _eventsIterator = eventBuffer.acquireIterator(iteratorName);
+      LOG.info("reset event iterator to: " + _eventsIterator);
       resetSourceInfo();
     }
   }
@@ -174,13 +220,15 @@ public class DispatcherState
   public DispatcherState switchToStopDispatch()
   {
     _stateId = StateId.STOP_DISPATCH_EVENTS;
-    _eventsIterator = null;
+    setEventsIterator(null);
     return this;
   }
 
   public DispatcherState switchToClosed()
   {
     _stateId = StateId.CLOSED;
+    setLastSuccessfulIterator(null);
+    setEventsIterator(null);
     return this;
   }
 
@@ -221,9 +269,7 @@ public class DispatcherState
     _stateId = StateId.CHECKPOINT;
     _lastSuccessfulCheckpoint = cp;
     _lastSuccessfulScn = scn;
-    _lastSuccessfulIterator = null != _eventsIterator ?
-        _eventsIterator.copy(_lastSuccessfulIterator, _eventsIterator.getIdentifier() + ".save") :
-        null;
+    setLastSuccessfulIterator(_eventsIterator);
   }
 
   public void switchToRollback()
@@ -232,15 +278,33 @@ public class DispatcherState
     _eventsSeen = false;
   }
 
-  public void switchToReplayDataEvents(DbusEventBuffer.DbusEventIterator eventsIter)
+  private void setEventsIterator(DbusEventBuffer.DbusEventIterator newValue)
+  {
+    String iterName = null == newValue ? "dispatcher iterator" :
+        newValue.getIdentifier();
+    if (null != _eventsIterator)
+    {
+      iterName = _eventsIterator.getIdentifier();
+      LOG.info("closing dispatcher iterator: " + _eventsIterator);
+      _eventsIterator.close();
+    }
+    if (null == newValue)
+    {
+      _eventsIterator = null;
+      LOG.info("dispatcher iterator set to null ");
+    }
+    else
+    {
+      _eventsIterator = newValue.copy(_eventsIterator, iterName);
+      LOG.info("new dispatcher iterator: " + _eventsIterator);
+    }
+  }
+
+  public void switchToReplayDataEvents()
   {
     _stateId = StateId.REPLAY_DATA_EVENTS;
     resetSourceInfo();
-    if (null != _eventsIterator)
-    {
-      _eventsIterator.getEventBuffer().releaseIterator(_eventsIterator);
-    }
-    _eventsIterator = eventsIter;
+    setEventsIterator(_lastSuccessfulIterator);
   }
 
   public void resetSourceInfo()
@@ -323,7 +387,6 @@ public class DispatcherState
   public void removeEvents()
   {
       DbusEventBuffer.DbusEventIterator iter = getEventsIterator();
-      iter.remove();
       if (!iter.equivalent(_lastSuccessfulIterator))
       {
     	  if (_lastSuccessfulIterator == null)
@@ -332,12 +395,12 @@ public class DispatcherState
     	  }
     	  else
     	  {
-    		  LOG.warn("Invalidating last successful iterator! " + "last = " + _lastSuccessfulIterator +  " this iterator= " + iter);
-   	         _lastSuccessfulIterator = null;
-
+    		  LOG.warn("Invalidating last successful iterator! " + "last = " +
+    		           _lastSuccessfulIterator +  " this iterator= " + iter);
+    		  setLastSuccessfulIterator(null);
     	  }
       }
-
+      iter.remove();
   }
 
   public boolean isSCNRegress()

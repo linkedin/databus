@@ -2,9 +2,9 @@ package com.linkedin.databus.core.util;
 
 /**
  * A class representing a range of offsets from startOffset to endOffset
- * All elements from startOffset until endOffset-1 are included in the range. 
- * Two ranges are comparable based on their startOffsets only. 
- * 
+ * All elements from startOffset until endOffset-1 are included in the range.
+ * Two ranges are comparable based on their startOffsets only.
+ *
  * @author sdas
  *
  */
@@ -19,73 +19,60 @@ public class Range implements Comparable<Range> {
 	public Range()
 	{
 	}
-	
+
 	public boolean contains(long someOffset)
 	{
 		return contains(start, end, someOffset);
 	}
-		
-	
+
+
 	/*
 	 * Method to check if the writer is going to overwrite the readerPosition
-	 * 
+	 *
 	 * Writer is expected to be ahead of the reader.
 	 * Assumes the input contains the GenId (Look at the edge-case below)
-	 * 
+	 *
 	 */
 	public static boolean containsReaderPosition(long writerStart,
 												long writerEnd,
 												long readerPosition,
 												BufferPositionParser parser)
 	{
-		long startAddress = parser.address(writerStart);
-		long endAddress = parser.address(writerEnd);
-		long startGenId = parser.bufferGenId(writerStart);
-		long endGenId = parser.bufferGenId(writerEnd);
-		long offsetAddress = parser.address(readerPosition);
-		
-		if ( offsetAddress < 0 )
-			return false;
-		
-		// if start and offset matches, then readerPosition is not overwritten by writer (since reader is up to date)
-		if ( writerStart == readerPosition )
-			return false;
-		/*
-		 *  If index+offsets are same for both start and end, and GenIds are different, then it basically spans the whole buffer.
-		 */
-		if ( (startAddress == endAddress) && ( startGenId != endGenId))
-		{ 
-			return true;
-		}
-		
-		return contains(startAddress,
-						endAddress,
-						offsetAddress);
-		
+	  if (readerPosition < 0 ) return false; //empty
+	  //just make the reader look the same generation as the writer
+	  if (parser.bufferGenId(readerPosition) < parser.bufferGenId(writerStart))
+	  {
+	    long fakeReaderPos = parser.setGenId(readerPosition, parser.bufferGenId(writerStart));
+	    return writerStart <= fakeReaderPos && fakeReaderPos < writerEnd;
+	  }
+	  else
+	  {
+	    return writerStart <= readerPosition && readerPosition < writerEnd;
+	  }
 	}
-	
-	
 
-	public static boolean containsIgnoreGenId(long start, 
-			                                  long end, 
+
+
+	public static boolean containsIgnoreGenId(long start,
+			                                  long end,
 			                                  long offset,
 			                                  BufferPositionParser parser)
 	{
-		
+
 		return contains(parser.address(start),
 						parser.address(end),
 						parser.address(offset));
 	}
-	
-	
+
+
 	public static boolean contains(long start, long end, long someOffset)
-	{	    
-		// Range is [start, end) , so the end position is not going to be written to. 
+	{
+		// Range is [start, end) , so the end position is not going to be written to.
 		if (someOffset < 0)
 		{
 			return false;
 		}
-					
+
 		if (start < end)  // |------ start xxxxxxxxxxx end -------|
 		{
 			if ((start< someOffset) && (end <= someOffset))
@@ -98,28 +85,28 @@ public class Range implements Comparable<Range> {
 			}
 			return true;
 		}
-		
+
 		if (start > end) // |-------end---------start----------|
 		{
-			if ((start > someOffset) && (end <= someOffset)) 
+			if ((start > someOffset) && (end <= someOffset))
 			{
 				return false;
 			}
 			return true;
 		}
-		
+
 		return false;
 	}
 
-	
+
 	public boolean intersects(Range intersectedRange) {
-		
-		
+
+
 		if (contains(intersectedRange.start) || intersectedRange.contains(start))
 		{
 			return true;
 		}
-		
+
 		return false;
 	}
 
@@ -138,12 +125,12 @@ public class Range implements Comparable<Range> {
             // when comparing entries differing in indexes/genIds
 			//return (int) (end - comparedRange.end);
 			return end  > comparedRange.end ? 1 : ((end == comparedRange.end) ? 0 : -1);
-			
+
 		}
-		
+
 	}
-	
-	
+
+
 	public String toString(BufferPositionParser parser) {
 		StringBuilder sb = new StringBuilder();
 		sb.append("{start:");
@@ -154,7 +141,7 @@ public class Range implements Comparable<Range> {
 		return sb.toString();
 	}
 
-	
+
 	@Override
 	public String toString() {
 		return "Range [start=" + start + ", end=" + end + "]";
@@ -175,21 +162,21 @@ public class Range implements Comparable<Range> {
 	public void setEnd(long end) {
 		this.end = end;
 	}
-	
+
 	@Override
 	public boolean equals(Object obj)
 	{
 		if ( ! (obj instanceof Range))
 			return false;
-		
+
 		Range r = (Range)obj;
-		
+
 		if ((r.getStart() == start) && (r.getEnd() == end))
 			return true;
-		
+
 		return false;
 	}
-	
+
 	@Override
 	public int hashCode()
 	{

@@ -12,7 +12,7 @@ public interface DbusEventBufferStreamAppendable
 {
 
   /*
-   * Stream events to buffer
+   * Read events from a channel and append them to a buffer.
    * @param readChannel : ByteChannel to read events from
    * @param eventListeners : List of listeners interested in the events in the channel
    * @param statsCollector : Stats Collector for this event

@@ -4,8 +4,7 @@
 package com.linkedin.databus2.core;
 
 /**
- * @author Jemiah Westerman<jwesterman@linkedin.com>
- * @version $Revision: 168967 $
+ * Generic Databus exception
  */
 public class DatabusException
     extends Exception

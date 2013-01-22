@@ -128,7 +128,7 @@ public class BootstrapSeederMain
 		parseArgs(args);
 
 	    // Load the source configuration JSON file
-	    //File sourcesJson = new File("config/sources-member2.json");
+	    //File sourcesJson = new File("integration-test/config/sources-member2.json");
 	    File sourcesJson = new File(_sSourcesConfigFile);
 
 	    ObjectMapper mapper = new ObjectMapper();

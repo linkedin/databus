@@ -3,6 +3,8 @@ package com.linkedin.databus.core.util;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.PriorityQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -18,18 +20,56 @@ public class RangeBasedReaderWriterLock {
   public static final String MODULE = RangeBasedReaderWriterLock.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
+  private static final long MAX_LOCK_WAIT_MS = 60000;
 
-  public class LockToken {
+  public class LockToken implements Comparable<LockToken> {
+    protected Range _id;
+    private final String _ownerName;
+    private final long _createTime;
+    private long _lastUpdateTime;
+    protected LockToken(Range id, String ownerName) {
+      _id = id;
+      _ownerName = ownerName;
+      _createTime = System.currentTimeMillis();
+      _lastUpdateTime = _createTime;
+    }
+
     public Range getRange() {
       return _id;
     }
-    protected Range _id;
-    protected LockToken(Range id) {
-      _id = id;
+
+    public String getOwnerName()
+    {
+      return _ownerName;
+    }
+
+    public void setRangeStart(long newStart)
+    {
+      _id.start = newStart;
+      _lastUpdateTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public String toString()
+    {
+      return "{ownerName:" + _ownerName + ", range:" + _id +
+             ", created:" + _createTime + ", lastUpdated:" + _lastUpdateTime +
+             "}";
+    }
+
+    public String toString(BufferPositionParser parser)
+    {
+      return "{ownerName:" + _ownerName + ", range:" + _id.toString(parser) + "}";
+    }
+
+    @Override
+    public int compareTo(LockToken o)
+    {
+      return _id.compareTo(o._id);
     }
   }
 
-  private final PriorityQueue<Range> readerRanges;
+  private final PriorityQueue<LockToken> readerRanges;
   private final ReentrantLock mutex;
   private final Condition writesPossible;
   private final Condition readsPossible;
@@ -40,7 +80,7 @@ public class RangeBasedReaderWriterLock {
 
 
   public RangeBasedReaderWriterLock() {
-    readerRanges = new PriorityQueue<Range>(100);
+    readerRanges = new PriorityQueue<LockToken>(100);
     writerRange = new Range(-1, 0);
     writerIn = false;
     mutex = new ReentrantLock();
@@ -49,12 +89,15 @@ public class RangeBasedReaderWriterLock {
 
   }
 
-  public LockToken acquireReaderLock(long startOffset, long endOffset, BufferPositionParser parser)
+  public LockToken acquireReaderLock(long startOffset, long endOffset, BufferPositionParser parser,
+                                     String ownerName)
+      throws InterruptedException, TimeoutException
   {
 	boolean debug = LOG.isDebugEnabled();
     if (debug)
     {
-      LOG.debug("Asked to acquire reader lock from " + parser.toString(startOffset) + " to " + parser.toString(endOffset));
+      LOG.debug("Asked to acquire reader lock from " + parser.toString(startOffset) +
+                " to " + parser.toString(endOffset) + " for " + ownerName);
     }
 
     //LOG.info(Thread.currentThread().getName() + "-Asked to acquire reader lock from " + parser.toString(startOffset) + " to " + parser.toString(endOffset));
@@ -63,50 +106,53 @@ public class RangeBasedReaderWriterLock {
     mutex.lock();
     try
     {
+      boolean timeout = false;
       while (writerIn && writerRange.intersects(readerRange))
       {
-        try {
-          if ( debug )
-          {
-        	  LOG.debug("Waiting for reads to be possible since writer is In. Reader Range is :" + readerRange.toString(parser)
-        		  + ". Writer Range is :" + writerRange.toString(parser));
-          }
-          readsPossible.await();
-        } catch (InterruptedException e) {
-          LOG.info("interrupted");
-          return null;
+        if ( debug )
+        {
+      	  LOG.debug("Waiting for reads to be possible since writer is In. Reader Range is :" + readerRange.toString(parser)
+      		  + ". Writer Range is :" + writerRange.toString(parser));
         }
+        if (timeout)
+          throw new TimeoutException();
+
+        if (!readsPossible.await(MAX_LOCK_WAIT_MS, TimeUnit.MILLISECONDS))
+          timeout = true;
         if ( debug )
         {
         	LOG.info("Waiting for reads to be possible: coming out of wait");
         }
       }
-      readerRanges.add(readerRange);
+      LockToken returnVal = new LockToken(readerRange, ownerName);
+      readerRanges.add(returnVal);
+      if (debug)
+      {
+        LOG.debug("Returning with reader lock from " + parser.toString(startOffset) + " to " + parser.toString(endOffset));
+      }
+
+      return returnVal;
     }
     finally
     {
       mutex.unlock();
     }
-    LockToken returnVal = new LockToken(readerRange);
-    if (debug)
-    {
-      LOG.debug("Returning with reader lock from " + parser.toString(startOffset) + " to " + parser.toString(endOffset));
-    }
-    return returnVal;
 
   }
 
   public void shiftReaderLockStart(LockToken lockId, long newStartOffset, BufferPositionParser parser) {
     if (LOG.isDebugEnabled())
     {
-      LOG.debug("Being asked to shift reader lock start to "  + parser.toString(newStartOffset));
+      LOG.debug("Being asked to shift reader lock start to "  + parser.toString(newStartOffset) +
+                " for " + lockId);
     }
     mutex.lock();
     try
     {
-      readerRanges.remove(lockId._id);
-      lockId._id.start = newStartOffset;
-      readerRanges.add(lockId._id);
+      boolean lockFound = readerRanges.remove(lockId);
+      assert lockFound : "lock:" + lockId + "; this:" + toString();
+      lockId.setRangeStart(newStartOffset);
+      readerRanges.add(lockId);
       writesPossible.signal();
     }
     finally
@@ -127,9 +173,9 @@ public class RangeBasedReaderWriterLock {
       mutex.lock();
       try
       {
-        readerRanges.remove(lockId._id);
-        lockId._id.start = newStartOffset;
-        readerRanges.add(lockId._id);
+        readerRanges.remove(lockId);
+        lockId.setRangeStart(newStartOffset);
+        readerRanges.add(lockId);
         writesPossible.signal();
       }
       finally
@@ -142,14 +188,14 @@ public class RangeBasedReaderWriterLock {
   public void releaseReaderLock(LockToken lockId) {
     if (LOG.isDebugEnabled())
     {
-      LOG.debug("Being asked to release reader lock "  + lockId._id);
+      LOG.debug("Being asked to release reader lock "  + lockId);
     }
 
     mutex.lock();
     try
     {
-      boolean readerLockRemoved = readerRanges.remove(lockId._id);
-      assert readerLockRemoved;
+      boolean readerLockRemoved = readerRanges.remove(lockId);
+      assert readerLockRemoved : "lock:" + lockId + "; this:" + toString();
       writesPossible.signal();
     }
     finally
@@ -159,6 +205,7 @@ public class RangeBasedReaderWriterLock {
   }
 
   public void acquireWriterLock(long start, long end, BufferPositionParser parser)
+         throws InterruptedException, TimeoutException
   {
     long startOffset = parser.address(start);
     long endOffset = parser.address(end);
@@ -172,33 +219,34 @@ public class RangeBasedReaderWriterLock {
 
     try
     {
-        while (!readerRanges.isEmpty() && Range.contains(startOffset, endOffset, parser.address(readerRanges.peek().start)))
+        boolean timeout = false;
+        while (!readerRanges.isEmpty() &&
+                Range.contains(startOffset, endOffset, parser.address(readerRanges.peek()._id.start)))
         {
           if ( debug )
           {
         	  LOG.debug("Entering wait because reader(s) exist: Writer Range: ["
         			  + parser.toString(start) + "(Address:" +  parser.toString(startOffset) + ")-"
-        			  + parser.toString(end) + "(Address:" + parser.toString(endOffset) + ")]. Nearest Reader Range :"
-        			  + readerRanges.peek().toString(parser));
+        			  + parser.toString(end) + "(Address:" + parser.toString(endOffset) +
+        			  ")]. Nearest Reader Range :" + readerRanges.peek().toString(parser));
+          }
+          if (timeout)
+          {
+            LOG.error("timed out waiting for a write lock for [" + parser.toString(start) +
+                      "," + parser.toString(end) + "); this: " + this );
+            throw new TimeoutException();
           }
 
-          Iterator<Range> it = readerRanges.iterator();
-          while (it.hasNext())
+          for (LockToken token: readerRanges)
           {
-            LOG.info(it.next().toString(parser));
+            LOG.info(token.toString(parser));
           }
-          try
-          {
-            writerWaiting = true;
-            writesPossible.await();
+          writerWaiting = true;
+          if (!writesPossible.await(MAX_LOCK_WAIT_MS, TimeUnit.MILLISECONDS))
+            timeout = true;
 
-            if ( debug )
-            	LOG.debug("Writer coming out of wait");
-          }
-          catch (InterruptedException e)
-          {
-            e.printStackTrace();
-          }
+          if ( debug )
+            LOG.debug("Writer coming out of wait");
         }
       writerWaiting = false;
       writerIn = true;
@@ -240,13 +288,13 @@ public class RangeBasedReaderWriterLock {
 
     if ( !doSort)
     {
-      Iterator<Range> it = readerRanges.iterator();
+      Iterator<LockToken> it = readerRanges.iterator();
       while (it.hasNext())
       {
         strBuilder.append(it.next().toString(parser)).append("\n");
       }
     } else {
-      Range[] ranges = new Range[readerRanges.size()];
+      LockToken[] ranges = new LockToken[readerRanges.size()];
       readerRanges.toArray(ranges);
       Arrays.sort(ranges);
       for (int i = 0 ; i < ranges.length; i++)
@@ -260,7 +308,7 @@ public class RangeBasedReaderWriterLock {
 
 
   // package private getters for unit-tests
-  PriorityQueue<Range> getReaderRanges()
+  PriorityQueue<LockToken> getReaderRanges()
   {
     return readerRanges;
   }
@@ -278,5 +326,17 @@ public class RangeBasedReaderWriterLock {
   public Range getWriterRange()
   {
     return writerRange;
+  }
+
+  public int getNumReaders()
+  {
+    return readerRanges.size();
+  }
+
+  @Override
+  public String toString()
+  {
+    return "{readerRanges:" + readerRanges +", writerRange:" + writerRange +
+           ", writerIn:" + writerIn + ", writerWaiting:" + writerWaiting + "}";
   }
 }

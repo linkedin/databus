@@ -57,8 +57,17 @@ externalDependency = [
     'helixCore': 'com.linkedin.helix:helix-core:0.5.31'
 ];
 
-sandboxDependency = [
-];
+if (System.getProperty('open_source') != null) {
+  externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
+  externalDependency.remove('espressoSchema')
+  externalDependency.remove('espressoCommonImpl')
+  externalDependency.remove('espressoStoreImpl')
+
+  println "Open source repositories used:"
+  project(':databus-core:databus-core-container').repositories.each { repo->
+    println(repo.getName())
+  }
+}
 
 if (!isDefaultEnvironment)
 {
@@ -74,10 +83,14 @@ allprojects {
   tasks.withType(Compile).all { Compile compile ->
     compile.options.compilerArgs = ['-Xlint', '-Xlint:-path']
   }
+  /* workaround for GRADLE-2243 (http://issues.gradle.org/browse/GRADLE-2243) */
+  tasks.withType(FindBugs) {
+	ignoreFailures=true
+  }
 }
 
 task wrapper(type: Wrapper) {
-  gradleVersion = '1.0'
+  gradleVersion = '1.3'
 }
 
 class GitLIGenerateClasspath extends DefaultTask {
@@ -113,6 +126,16 @@ subprojects {
 
   plugins.withType(JavaPlugin) {
     plugins.apply('eclipse')
+    plugins.apply('findbugs')
+
+    findbugs {
+	toolVersion = "1.3.9"
+	sourceSets = [sourceSets.main]
+	reportsDir = file("$project.buildDir/findbugsReports")
+	effort="max"
+	reportLevel="low"
+	ignoreFailures=true
+    }
 
     sourceCompatibility = JavaVersion.VERSION_1_6
     configurations {
@@ -161,7 +184,7 @@ subprojects {
     }
 
     test {
-      	maxHeapSize = '4g'
+      	maxHeapSize = '6g'
         jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
         useTestNG() 
         
