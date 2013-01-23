@@ -240,7 +240,7 @@ public abstract class ServerContainer
     _componentAdmin.registerAsMBean();
 
     _globalStatsMerger = new GlobalStatsCalc(GLOBAL_STATS_MERGE_INTERVAL_MS);
-    _globalStatsThread = new Thread(_globalStatsMerger, "GlogalStatsThread");
+    _globalStatsThread = new Thread(_globalStatsMerger, "GlobalStatsThread");
     _globalStatsThread.setDaemon(true);
 
     initializeContainerNetworking();

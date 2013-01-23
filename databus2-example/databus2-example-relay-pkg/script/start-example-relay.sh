@@ -19,10 +19,8 @@ cli_overrides=
 
 # DEFAULT VALUES
 relay_type=default
-jvm_gc_log=${logs_dir}/gc.log
+jvm_gc_log=${logs_dir}/relay-gc.log
 db_relay_config=
-#overwriting conf_dir for this package, because PersonalRelayServer uses config
-conf_dir="${root_dir}/config"
 
 # JVM ARGUMENTS
 jvm_direct_memory_size=40g

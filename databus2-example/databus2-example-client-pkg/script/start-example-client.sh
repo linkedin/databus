@@ -19,7 +19,7 @@ cli_overrides=
 
 # DEFAULT VALUES
 client_type=default
-jvm_gc_log=${logs_dir}/gc.log
+jvm_gc_log=${logs_dir}/client-gc.log
 
 # JVM ARGUMENTS
 jvm_direct_memory_size=40g
