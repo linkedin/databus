@@ -441,9 +441,7 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
 
       @Override
       public int hashCode() {
-          int result = PhysicalSourceName != null ? PhysicalSourceName.hashCode() : 0;
-          result = 31 * result + (logicalSources != null ? logicalSources.hashCode() : 0);
-          return result;
+          return PhysicalSourceName != null ? PhysicalSourceName.hashCode() : 0;
       }
   }
 }
