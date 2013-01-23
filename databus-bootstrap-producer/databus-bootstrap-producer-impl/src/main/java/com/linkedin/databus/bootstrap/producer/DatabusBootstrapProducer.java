@@ -143,6 +143,11 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
        if(relayInfo == null || relayInfo.getSources() == null)
            LOG.error("No sources specified in the client config for the bootstrap producer");
 
+       if(relayInfo.getPhysicalSourceName() == null)
+       {
+           LOG.error("PhysicalSource name not specified");
+       }
+
 			 SourceInfo sourceInfo = new SourceInfo(relayInfo.getPhysicalSourceName(), relayInfo.getSources());
 			 _registeredPhysicalSources.add(sourceInfo);
     }
@@ -433,5 +438,12 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl
 					SourceInfo other = (SourceInfo) obj;
 					return this.PhysicalSourceName.equals(other.getPhysicalSourceName());
 			}
-	}
+
+      @Override
+      public int hashCode() {
+          int result = PhysicalSourceName != null ? PhysicalSourceName.hashCode() : 0;
+          result = 31 * result + (logicalSources != null ? logicalSources.hashCode() : 0);
+          return result;
+      }
+  }
 }
