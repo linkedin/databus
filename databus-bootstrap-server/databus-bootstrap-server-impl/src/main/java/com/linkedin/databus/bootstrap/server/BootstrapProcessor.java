@@ -245,7 +245,7 @@ public class BootstrapProcessor
     String catchupTab = "log_" + srcId + "_" + logId;
     PreparedStatement stmt = null;
     String catchUpString = getCatchupSQLString(catchupTab);
-    int offset = -1;
+    long offset = -1;
     try
     {
     	stmt = conn.prepareStatement(catchUpString);
@@ -302,7 +302,7 @@ public class BootstrapProcessor
       String snapshotSQL = getSnapshotSQLString(_dbDao.getBootstrapConn().getSrcTableName(srcIdStatusPair.getSrcId()));
       stmt =
           conn.prepareStatement(snapshotSQL);
-      int offset = currState.getSnapshotOffset();
+      long offset = currState.getSnapshotOffset();
       int i = 1;
       stmt.setLong(i++, offset);
       // stmt.setLong(i++, offset + numRows);
@@ -316,6 +316,7 @@ public class BootstrapProcessor
                + ", " + currState.getBootstrapStartScn()
                + ", " + currState.getBootstrapSinceScn()
                + ", "  + _maxRowsPerFetch);
+      
       rs = stmt.executeQuery();
       phaseCompleted = streamOutRows(currState, rs, callBack);
     }
@@ -348,7 +349,7 @@ public class BootstrapProcessor
 
     while (rs.next())
     {
-      int rid = rs.getInt(1);
+      long rid = rs.getLong(1);
 
       result = callback.onEvent(rs, _curStatsCollector);
       if (result.isClientBufferLimitExceeded())

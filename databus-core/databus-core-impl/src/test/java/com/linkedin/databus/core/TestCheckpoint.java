@@ -6,6 +6,8 @@ import static org.testng.AssertJUnit.fail;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+import junit.framework.Assert;
+
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.testng.annotations.Test;
@@ -82,7 +84,7 @@ public class TestCheckpoint
     Checkpoint cp = new Checkpoint();
     cp.setWindowScn(1234L);
     cp.setWindowOffset(5677);
-    cp.setSnapshotOffset(23342);
+    cp.setSnapshotOffset(23342L);
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     cp.serialize(baos);
@@ -93,4 +95,19 @@ public class TestCheckpoint
     assertEquals(cp.getSnapshotOffset(), newCp.getSnapshotOffset());
   }
 
+  @Test
+  public void testLargeOffsets()
+  {
+	    Checkpoint cp = new Checkpoint();
+	    cp.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
+	    cp.setWindowScn(1234L);
+	    cp.setWindowOffset(Long.MAX_VALUE-1);
+	    cp.onSnapshotEvent(Long.MAX_VALUE-2);
+	    cp.bootstrapCheckPoint();
+	    String expected = 
+	    		"{\"windowOffset\":9223372036854775806,\"prevScn\":-1,\"snapshot_offset\":9223372036854775805,\"windowScn\":1234,\"consumption_mode\":\"BOOTSTRAP_SNAPSHOT\"}";
+	    
+	    Assert.assertEquals("Checkpoint with large bootstrap offsets",expected, cp.toString());
+	    System.out.println(cp);
+  }
 }

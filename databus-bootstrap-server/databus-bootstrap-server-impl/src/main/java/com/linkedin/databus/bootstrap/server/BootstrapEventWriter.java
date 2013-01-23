@@ -54,7 +54,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
   @Override
   public BootstrapEventProcessResult onEvent(ResultSet rs, DbusEventsStatisticsCollector statsCollector) throws BootstrapProcessingException
   {
-    int rid = -1;
+    long rid = -1;
     boolean exceededBufferLimit = false;
     boolean dropped = true;
     try
@@ -78,7 +78,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
         LOG.error("got an error event :" + _event.toString());
       }
 
-      rid = rs.getInt(1);
+      rid = rs.getLong(1);
 //      long windowScn = rs.getLong(3);
 //      _event.setWindowScn(windowScn);
 //      _event.setScn(scn);

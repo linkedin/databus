@@ -55,12 +55,12 @@ public class TestCheckpointMult
     Checkpoint cp = new Checkpoint();
     cp.setWindowOffset(10);
     cp.setWindowScn(100L);
-    assertEquals((int)cp.getWindowOffset(), 10, "window offset mismatch");
+    assertEquals((long)cp.getWindowOffset(), 10, "window offset mismatch");
     assertEquals(cp.getWindowScn(), 100L, "window scn mismatch");
     cp.serialize(baos);
     //System.out.println("TC: in: " + baos.toString());
     Checkpoint cp1 = new Checkpoint(baos.toString());
-    assertEquals((int)cp1.getWindowOffset(), 10, "after deser window offset mismatch");
+    assertEquals((long)cp1.getWindowOffset(), 10, "after deser window offset mismatch");
     assertEquals(cp1.getWindowScn(), 100L, "after deser window scn mismatch");
   }
 
@@ -69,7 +69,7 @@ public class TestCheckpointMult
       PhysicalPartition pPart = new PhysicalPartition(id, "name");
       Checkpoint cp = _cpMult.getCheckpoint(pPart);
       List<Integer> l = pSrcIds.get(id);
-      assertEquals(cp.getWindowOffset(), l.get(0),
+      assertEquals(cp.getWindowOffset().longValue(), l.get(0).longValue(),
                  "window offset in Checkpoint1 doesn't match");
 
       assertEquals(cp.getWindowScn(), (long)l.get(1),

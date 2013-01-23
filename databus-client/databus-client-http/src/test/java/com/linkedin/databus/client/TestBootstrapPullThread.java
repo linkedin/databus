@@ -825,7 +825,7 @@ public class TestBootstrapPullThread
 			   testTransitionCase(bsPuller, StateId.STREAM_RESPONSE_DONE, StateId.REQUEST_STREAM, null);
 			   Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
 			   Assert.assertEquals(cp.getSnapshotSource(), "source1", "Catchup Source check");
-			   Assert.assertEquals(cp.getSnapshotOffset(), new Integer(0), "Offset Check");
+			   Assert.assertEquals(cp.getSnapshotOffset(), new Long(0), "Offset Check");
 		   }
 
 		   // Stream_Response_Done - Bootstrap Done
