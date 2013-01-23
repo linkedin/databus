@@ -6,8 +6,6 @@ import static org.testng.AssertJUnit.fail;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
-import junit.framework.Assert;
-
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.testng.annotations.Test;
@@ -107,7 +105,6 @@ public class TestCheckpoint
 	    String expected = 
 	    		"{\"windowOffset\":9223372036854775806,\"prevScn\":-1,\"snapshot_offset\":9223372036854775805,\"windowScn\":1234,\"consumption_mode\":\"BOOTSTRAP_SNAPSHOT\"}";
 	    
-	    Assert.assertEquals("Checkpoint with large bootstrap offsets",expected, cp.toString());
-	    System.out.println(cp);
+	    assertEquals("Checkpoint with large bootstrap offsets",expected, cp.toString());
   }
 }

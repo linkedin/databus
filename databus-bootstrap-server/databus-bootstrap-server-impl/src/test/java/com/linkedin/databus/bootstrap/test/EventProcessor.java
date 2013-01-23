@@ -36,7 +36,7 @@ public class EventProcessor implements BootstrapEventCallback
 		  srcKeys.add(rs.getString(3));
 		  values.add(rs.getBytes(4));
 	  } catch (Exception ex) {
-		  System.out.println("Exception " + ex);
+		  throw new BootstrapProcessingException(ex);
 	  }
 	  
 	  return new BootstrapEventProcessResultImpl(1, false, false);
