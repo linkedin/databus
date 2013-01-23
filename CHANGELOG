@@ -1,5 +1,6 @@
 2.1.153
 -------
+Snapshot Index (rowId to snapshot table) should be treated as long in checkpoint and Bootrap streaming
 Adding hashcode override method to address bootstrap-producer dead lockd
 rename databus-client-common (in databus-linkedin-client-unit-tests) project to avoid collision with the same name in other directory
 Moving databus2-linkedin-relay to non-O/S modules
