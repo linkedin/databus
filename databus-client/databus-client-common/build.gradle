@@ -12,7 +12,6 @@ dependencies {
   compile externalDependency.jacksonMapperAsl
   compile externalDependency.log4j
 
-  testCompile project(':databus-events:databus-events-bizfollow')
   testCompile project(':databus-core:databus-core-fwk-test')
   testCompile project(':databus-group-leader:databus-group-leader-impl')
   

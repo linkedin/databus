@@ -1,3 +1,23 @@
+2.1.153
+-------
+Adding hashcode override method to address bootstrap-producer dead lockd
+rename databus-client-common (in databus-linkedin-client-unit-tests) project to avoid collision with the same name in other directory
+Moving databus2-linkedin-relay to non-O/S modules
+moved TestBatchingDatabusCombinedConsumer.java to linkedin only test, and perf, databus-events to non-open source build
+Updating tothe latest articles view(8)
+Adding schema and java files for new cappr table called prospect_update (see DDSDBUS-1385)
+Bootstrap Seeding configs for seeding Sas Campaigns
+Decouple dependencies between bootstrap-common and relayimpl
+Adding findbugs support (open-source only)
+added bootstrap seeder config for eos ei2
+remove dtail.properties
+add avro generator schema gen tool
+moving config files from ./config folder to integration-test/config folder
+DDSDBUS-1383 addressing RB comments: removing duplicate call to the ScnIndex; removing DbusEventBuffer.getFirstEventTimestamp()
+fixed PersonRelayServer example
+create lib in databus2-example-relay
+
+
 2.1.152
 -------
 

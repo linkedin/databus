@@ -8,6 +8,11 @@
          "name": "com.linkedin.events.sas.Creatives", 
          "uri" : "sas.sy$creatives_4",
          "partitionFunction" : "constant:1"
+        },
+        {"id" : 2102,
+         "name": "com.linkedin.events.sas.Campaigns",
+         "uri" : "sas.sy$campaigns_7",
+         "partitionFunction" : "constant:1"
         }
     ]
 }
