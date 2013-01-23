@@ -79,11 +79,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
       }
 
       rid = rs.getLong(1);
-//      long windowScn = rs.getLong(3);
-//      _event.setWindowScn(windowScn);
-//      _event.setScn(scn);
-//      _event.setRowId(rid);
-//      _event.applyCrc();
+
 
       if ( _debug)
       {
