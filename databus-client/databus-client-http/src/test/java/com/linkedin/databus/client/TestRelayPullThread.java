@@ -544,7 +544,7 @@ public class TestRelayPullThread
 			   relayPuller.getMessageQueue().clear();
 			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
 			   Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowScn(), 80L, "WindowSCN check");
-			   Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowOffset(), new Integer(-1), "WindowOffset check");
+			   Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowOffset(), new Long(-1), "WindowOffset check");
 			   Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), true, "SCN Regress check");
 		   }
 

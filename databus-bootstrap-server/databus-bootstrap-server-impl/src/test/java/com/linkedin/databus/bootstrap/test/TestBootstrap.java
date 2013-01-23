@@ -1,6 +1,9 @@
 package com.linkedin.databus.bootstrap.test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -58,19 +61,30 @@ public class TestBootstrap
 		  }
 		  
 		  dao.addNewSourceInDB(sourceName,BootstrapProducerStatus.ACTIVE);
+		  srcStatusInfo = dao.getSrcIdStatusFromDB(sourceName, false);
+		  
 		  setBootstrapLoginfoTable(_bootstrapConn);    
 		  _bootstrapConn.getDBConn().commit();
 
+		  //insert one row
+		  insertOneSnapshotEvent(dao,srcStatusInfo.getSrcId(),Long.MAX_VALUE-10,Long.MAX_VALUE-100,"check", "test_payload_data");
+		  
 		  Checkpoint c = new Checkpoint();
 
 		  c.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
 		  c.setSnapshotSource(sourceName);
-		  c.setSnapshotOffset(9999985);
-		  c.setBootstrapStartScn((long) 9999999);
+		  c.setSnapshotOffset(Long.MAX_VALUE-1000);
+		  c.setBootstrapStartScn((long) Long.MAX_VALUE-1);
 		  c.setBootstrapSinceScn(Long.valueOf(12345));
 		  // System.out.println("Snapshot");
 		  processor.streamSnapShotRows(c, processorCallback);
-
+		  Assert.assertEquals(1, processorCallback.getrIds().size());
+		  Assert.assertEquals(Long.MAX_VALUE-10, processorCallback.getrIds().get(0).longValue());
+		  Assert.assertEquals(Long.MAX_VALUE-100, processorCallback.getSequences().get(0).longValue());
+		  Assert.assertEquals("check", processorCallback.getSrcKeys().get(0));
+		  Assert.assertEquals("test_payload_data", new String(processorCallback.getValues().get(0)));
+		  
+		  processorCallback.reset();
 
 		  c.setConsumptionMode(DbusClientMode.BOOTSTRAP_CATCHUP);
 		  c.setCatchupSource(sourceName);
@@ -82,8 +96,31 @@ public class TestBootstrap
 		  // System.out.println("Catchup");
 		  boolean phaseCompleted = processor.streamCatchupRows(c, processorCallback);
 		  Assert.assertEquals( true, phaseCompleted);
+		  
 	    }
 		
+	  private void insertOneSnapshotEvent(BootstrapDBMetaDataDAO dao, int srcId, long rId, long scn, String srcKey, String data)
+	  {
+		  PreparedStatement stmt = null;
+		  try
+		  {
+			  Connection conn = dao.getBootstrapConn().getDBConn();
+			  String st = "insert into tab_" + srcId + "(id, scn, srckey, val) values(?, ?, ?, ?)";
+			  System.out.println("SQL :" + st);
+			  stmt = conn.prepareStatement(st);
+			  stmt.setLong(1,rId);
+			  stmt.setLong(2,scn);
+			  stmt.setString(3, srcKey);
+			  stmt.setBlob(4, new ByteArrayInputStream(data.getBytes()));
+			  stmt.executeUpdate();
+			  conn.commit();
+		  } catch ( Exception ex) {
+			  System.err.println("Exception :" + ex);
+			  throw new RuntimeException(ex);
+		  } finally {
+			  DBHelper.close(stmt);
+		  }
+	  }
 	  @Test
 	  public void testBootstrapService() 
 	              throws InstantiationException, IllegalAccessException, ClassNotFoundException, 
