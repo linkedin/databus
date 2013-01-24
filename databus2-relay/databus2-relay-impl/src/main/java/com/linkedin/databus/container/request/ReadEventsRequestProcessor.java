@@ -161,7 +161,6 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       }
 
       //process explicit subscriptions and generate respective logical partition filters
-      DbusFilter ppartFilters = null;
       Set<PhysicalPartitionKey> ppartKeys = null;
       if (null != subsStr)
       {
@@ -214,6 +213,7 @@ public class ReadEventsRequestProcessor implements RequestProcessor
         subs.add(newSub);
       }
 
+      DbusFilter ppartFilters = null;
       if (subs.size() > 0)
       {
         try
@@ -253,8 +253,9 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       // 2. checkpointStringMult null, checkpointString not null - create empty CheckpointMult
       // and add create Checkpoint(checkpointString) and add it to cpMult;
       // 3 both are null - create empty CheckpointMult and add empty Checkpoint to it for each ppartition
+      // cpMult may have been set before event if client did not send it but the client sent a subscription list
+      // and a checkpoint.
       PhysicalPartition pPartition;
-
 
       Checkpoint cp = null;
       if(cpMult == null) {
@@ -281,6 +282,17 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       	}
       }
       if (isDebug) LOG.debug("checkpointStringMult = " + checkpointStringMult +  ";singlecheckpointString="+ checkpointString + ";CPM="+cpMult);
+
+      // If the client has not sent a cursor partition, then use the one we may have retained as a part
+      // of the server context.
+      if (cpMult.getCursorPartition() == null) {
+        cpMult.setCursorPartition(request.getCursorPartition());
+      }
+      if (isDebug) {
+        if (cpMult.getCursorPartition() != null) {
+          LOG.debug("Using physical paritition cursor " + cpMult.getCursorPartition());
+        }
+      }
 
       // for registerStreamRequest we need a single Checkpoint (TODO - fix it) (DDSDBUS-81)
       if(cp==null) {

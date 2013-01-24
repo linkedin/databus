@@ -1,18 +1,16 @@
 package com.linkedin.databus2.core.container.netty;
 
-import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.core.container.request.DatabusRequest;
+import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.log4j.Logger;
 import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelStateEvent;
 import org.jboss.netty.channel.MessageEvent;
 import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
 import org.jboss.netty.handler.codec.http.Cookie;
@@ -22,10 +20,12 @@ import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
-import com.linkedin.databus2.core.container.netty.ChunkedBodyWritableByteChannel;
-import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
-import com.linkedin.databus2.core.container.request.DatabusRequest;
-import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
+import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 /**
  * Expects DatabusRequest objects and runs them
@@ -50,6 +50,13 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
   }
 
   @Override
+  public void channelClosed(
+      ChannelHandlerContext ctx, ChannelStateEvent e) throws Exception {
+    super.channelClosed(ctx, e);
+    ctx.setAttachment(null);
+  }
+
+  @Override
   public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception
   {
     if (e.getMessage() instanceof HttpRequest)
@@ -60,6 +67,11 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
     if (e.getMessage() instanceof DatabusRequest)
     {
       _dbusRequest = (DatabusRequest)e.getMessage();
+      // If there is a physical partition stashed away, then restore it into the request now.
+      if (ctx.getAttachment() != null &&  ctx.getAttachment() instanceof PhysicalPartition)
+      {
+        _dbusRequest.setCursorPartition((PhysicalPartition)(ctx.getAttachment()));
+      }
 
       //FIXME   DDS-305: Rework the netty stats collector to use event-based stats aggregation
       /*NettyStats nettyStats = _configManager.getNettyStats();
@@ -116,6 +128,7 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
             {
               responseFuture.get(timeoutMs, TimeUnit.MILLISECONDS);
               done = true;
+              ctx.setAttachment(_dbusRequest.getCursorPartition());
             }
             catch (InterruptedException ie)
             {
@@ -125,6 +138,8 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
             {
               done = true;
               _dbusRequest.setError(ex);
+              // On any error, clear any context saved. We will start afresh in a new request.
+              ctx.setAttachment(null);
               //FIXME   DDS-305: Rework the netty stats collector to use event-based stats aggregation
               /*if (null != processRequestCompletion)
               {
@@ -226,5 +241,4 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
 
     return response;
   }
-
 }
