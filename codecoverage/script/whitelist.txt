@@ -2,4 +2,4 @@
 # Make sure there is a comment next to each line with a reason why this class / path should not be covered
 # In case you are responsible for the decision, provide an @reference. 
 
-com.linkedin.events.efeed     #  put reason here
+com.linkedin.events   #  put reason here
