@@ -1155,7 +1155,7 @@ public class TestDatabusHttpClient
           // Expect none of the keys streamed to be missed.
           expKeys.clear();
           cp = clientConn.getRelayPullThread().getConnectionState().getCheckpoint();
-          int offset = (cp.getWindowOffset() < 0) ? 0 : cp.getWindowOffset();
+          int offset = (int)((cp.getWindowOffset() < 0) ? 0 : cp.getWindowOffset());
           LOG.info("Client ckpt is :" + cp);
           expKeys.addAll(eventKeys.get(2).subList(0, 80 + offset));
           for(int i = 0; i < expKeys.size(); i++)
