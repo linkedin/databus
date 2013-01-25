@@ -18,7 +18,6 @@ dependencies {
   compile externalDependency.jacksonMapperAsl
   compile externalDependency.log4j
   compile externalDependency.netty
-  compile externalDependency.ojdbc6
   compile externalDependency.json
   
   testCompile project(':databus-core:databus-core-fwk-test')

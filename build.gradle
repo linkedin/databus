@@ -62,6 +62,7 @@ if (System.getProperty('open_source') != null) {
   externalDependency.remove('espressoSchema')
   externalDependency.remove('espressoCommonImpl')
   externalDependency.remove('espressoStoreImpl')
+  externalDependency.remove('ojdbc6')
 
   println "Open source repositories used:"
   project(':databus-core:databus-core-container').repositories.each { repo->
