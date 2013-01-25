@@ -126,6 +126,7 @@ subprojects {
 
   plugins.withType(JavaPlugin) {
     plugins.apply('eclipse')
+    plugins.apply('idea')
 
     if (System.getProperty('open_source') != null) {
     plugins.apply('findbugs')
