@@ -53,7 +53,7 @@ public class PersonRelayServer extends DatabusRelayMain {
    */
   public static void main(String[] args) throws Exception {
 	  
-		_dbRelayConfigFiles = new String[] { "config/sources-person.json" };
+		_dbRelayConfigFiles = new String[] { "conf/sources-person.json" };
 
 		 String [] leftOverArgs = processLocalArgs(args);
 

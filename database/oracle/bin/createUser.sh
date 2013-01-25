@@ -20,19 +20,19 @@ DBDIR=$5
 # Default Log Dir
 DEFAULT_LOG_DIR=logs
 
-if [ "x$USER" = "x" ] || [ "x$PASSWD" = "x" ] || [ "x$DBNAME" = "x" ] || [ "x$TBS" = "x" ] || [ "x$DBDIR" = "x" ] 
+if [ "x$USER" = "x" ] || [ "x$PASSWD" = "x" ] || [ "x$DBNAME" = "x" ] || [ "x$TBS" = "x" ] || [ "x$DBDIR" = "x" ]
 then
   usage
   exit 1
 fi
 
-TBS_UC=`echo $TBS | tr '[A-Z]' '[a-z]'`
-TBS_LC=`echo $TBS | tr '[a-z]' '[A-Z]'`
+TBS_LC=`echo $TBS | tr '[A-Z]' '[a-z]'`
+TBS_UC=`echo $TBS | tr '[a-z]' '[A-Z]'`
 
 echo "INFO: creating user and tablespace"
-sqlplus system/manager\@${DBNAME} as sysdba << __EOF__ 
-drop tablespace ${TBS_UC};
-drop tablespace ${TBS_UC}_IDX;
+sqlplus system/manager\@${DBNAME} as sysdba << __EOF__
+drop tablespace ${TBS_UC} including contents;
+drop tablespace ${TBS_UC}_IDX including contents;
 create tablespace ${TBS_UC} datafile '${DBDIR}/${TBS_LC}_01.dbf' size 50M reuse autoextend on next 50M maxsize unlimited extent management local uniform size 2M;
 create tablespace ${TBS_UC}_IDX datafile '${DBDIR}/${TBS_LC}_idx_01.dbf' size 50M reuse autoextend on next 50M maxsize unlimited extent management local uniform size 2M;
 drop user ${USER} cascade;

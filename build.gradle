@@ -126,8 +126,10 @@ subprojects {
 
   plugins.withType(JavaPlugin) {
     plugins.apply('eclipse')
-    plugins.apply('findbugs')
+    plugins.apply('idea')
 
+    if (System.getProperty('open_source') != null) {
+    plugins.apply('findbugs')
     findbugs {
 	toolVersion = "1.3.9"
 	sourceSets = [sourceSets.main]
@@ -135,6 +137,7 @@ subprojects {
 	effort="max"
 	reportLevel="low"
 	ignoreFailures=true
+    	}
     }
 
     sourceCompatibility = JavaVersion.VERSION_1_6

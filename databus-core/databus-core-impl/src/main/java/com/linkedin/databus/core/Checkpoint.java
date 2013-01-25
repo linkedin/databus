@@ -108,8 +108,8 @@ public class Checkpoint
 
   private long                currentWindowScn;
   private long                prevWindowScn;
-  private int                 currentWindowOffset;
-  private int                 snapShotOffset;
+  private long                currentWindowOffset;
+  private long                snapShotOffset;
 
 
   private DbusClientMode      mode;
@@ -132,8 +132,8 @@ public class Checkpoint
   {
     currentWindowScn =  (internalData.get(WINDOW_SCN) != null) ? ((Number) internalData.get(WINDOW_SCN)).longValue() : -1;
     prevWindowScn = (internalData.get(PREV_SCN) != null) ? ((Number) internalData.get(PREV_SCN)).longValue() : -1;
-    currentWindowOffset =  (internalData.get(WINDOW_OFFSET) != null) ? ((Number) internalData.get(WINDOW_OFFSET)).intValue() : -1;
-    snapShotOffset =  (internalData.get(SNAPSHOT_OFFSET) != null) ? ((Number) internalData.get(SNAPSHOT_OFFSET)).intValue() : -1;
+    currentWindowOffset =  (internalData.get(WINDOW_OFFSET) != null) ? ((Number) internalData.get(WINDOW_OFFSET)).longValue() : -1;
+    snapShotOffset =  (internalData.get(SNAPSHOT_OFFSET) != null) ? ((Number) internalData.get(SNAPSHOT_OFFSET)).longValue() : -1;
   }
 
   private void internalStateToMap( )
@@ -212,7 +212,7 @@ public class Checkpoint
 	  return prevWindowScn;
   }
 
-  public void setWindowOffset(Integer windowOffset)
+  public void setWindowOffset(long windowOffset)
   {
     currentWindowOffset = windowOffset;
   }
@@ -232,9 +232,9 @@ public class Checkpoint
     internalData.put(SNAPSHOT_SOURCE, snapshotSource);
   }
 
-  public void setSnapshotOffset(Integer snapshotOffset)
+  public void setSnapshotOffset(long snapshotOffset)
   {
-    internalData.put(SNAPSHOT_OFFSET, snapshotOffset);
+    internalData.put(SNAPSHOT_OFFSET, Long.valueOf(snapshotOffset));
   }
 
   public void setCatchupSource(String catchupSource)
@@ -263,7 +263,7 @@ public class Checkpoint
 
   }
 
-  public Integer getWindowOffset()
+  public Long getWindowOffset()
   {
     return currentWindowOffset;
 
@@ -289,9 +289,9 @@ public class Checkpoint
     return (String) internalData.get(SNAPSHOT_SOURCE);
   }
 
-  public Integer getSnapshotOffset()
+  public Long getSnapshotOffset()
   {
-    return (Integer) internalData.get(SNAPSHOT_OFFSET);
+    return ((Number)internalData.get(SNAPSHOT_OFFSET)).longValue();
   }
 
   public String getCatchupSource()
@@ -447,12 +447,12 @@ public class Checkpoint
     this.setWindowScn(endWindowScn);
   }
 
-  public void onSnapshotEvent(int snapshotOffset)
+  public void onSnapshotEvent(long snapshotOffset)
   {
     snapShotOffset = snapshotOffset;
   }
 
-  public void onCatchupEvent(long eventWindowScn, int catchupOffset)
+  public void onCatchupEvent(long eventWindowScn, long catchupOffset)
   {
     currentWindowScn = eventWindowScn;
     currentWindowOffset = catchupOffset;
