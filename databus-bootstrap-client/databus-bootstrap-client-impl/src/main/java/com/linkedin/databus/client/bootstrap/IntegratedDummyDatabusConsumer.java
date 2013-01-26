@@ -3,13 +3,6 @@
  */
 package com.linkedin.databus.client.bootstrap;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.avro.Schema;
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.client.DatabusHttpClientImpl;
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfig.ProviderType;
 import com.linkedin.databus.client.DatabusSourcesConnection;
@@ -29,6 +22,11 @@ import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.ProcessorRegistrationConflictException;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import org.apache.avro.Schema;
+import org.apache.log4j.Logger;
 
 /**
  * @author lgao

@@ -1,7 +1,6 @@
 package com.linkedin.databus.client;
 
 import com.linkedin.databus.client.pub.DbusEventDecoder;
-import com.linkedin.databus.core.DataChangeEvent;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 
@@ -22,12 +21,11 @@ public class ClientFileBasedEventTrackingCallback extends FileBasedEventTracking
     super(filename, append, numEventsPerBatch);
   }
 
-  public void dumpEventValue(DataChangeEvent event, DbusEventDecoder eventDecoder)
+  public void dumpEventValue(DbusEvent event, DbusEventDecoder eventDecoder)
   {
     if (!event.isEndOfPeriodMarker())
     {
-      DbusEvent dBusEvent = (DbusEvent)event;
-      eventDecoder.dumpEventValueInJSON(dBusEvent, _writeChannel);
+      eventDecoder.dumpEventValueInJSON(event, _writeChannel);
     }
   }
 

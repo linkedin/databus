@@ -234,7 +234,7 @@ extends InternalDatabusEventsListenerAbstract
   }
 
   @Override
-  public void onEvent(DataChangeEvent event, long offset, int size)
+  public void onEvent(DbusEvent event, long offset, int size)
   {
     if (!_eventSeen)
     {

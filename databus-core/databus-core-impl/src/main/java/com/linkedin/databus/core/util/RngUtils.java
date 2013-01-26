@@ -3,6 +3,7 @@ package com.linkedin.databus.core.util;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventKey;
 import com.linkedin.databus.core.KeyTypeNotImplementedException;
@@ -72,10 +73,10 @@ public class RngUtils {
   }
 
   public static DbusEvent randomEvent(short srcId) {
-    ByteBuffer serBuf = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
+    ByteBuffer serBuf = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
     try
     {
-      DbusEvent.serializeEvent(new DbusEventKey(randomLong()), (short) 0, // physical Partition
+      DbusEventV1.serializeEvent(new DbusEventKey(randomLong()), (short) 0, // physical Partition
                                randomPositiveShort(), System.currentTimeMillis(), srcId, schemaMd5,
                                randomString(20).getBytes(), (randomPositiveShort()%100 <=1), serBuf);
     }
@@ -84,7 +85,7 @@ public class RngUtils {
       throw new RuntimeException(e1);
     }
     serBuf.rewind();
-    DbusEvent e = new DbusEvent();
+    DbusEventV1 e = new DbusEventV1();
     e.reset(serBuf, serBuf.position());
     return e;
   }

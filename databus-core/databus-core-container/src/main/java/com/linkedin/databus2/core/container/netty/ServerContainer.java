@@ -1,5 +1,27 @@
 package com.linkedin.databus2.core.container.netty;
 
+import com.linkedin.databus.core.DatabusComponentStatus;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectorMergeable;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
+import com.linkedin.databus.core.util.ConfigApplier;
+import com.linkedin.databus.core.util.ConfigBuilder;
+import com.linkedin.databus.core.util.ConfigManager;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.JsonUtils;
+import com.linkedin.databus.core.util.NamedThreadFactory;
+import com.linkedin.databus2.core.DatabusException;
+import com.linkedin.databus2.core.container.JmxStaticConfig;
+import com.linkedin.databus2.core.container.JmxStaticConfigBuilder;
+import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdmin;
+import com.linkedin.databus2.core.container.request.CommandsRegistry;
+import com.linkedin.databus2.core.container.request.ContainerAdminRequestProcessor;
+import com.linkedin.databus2.core.container.request.ContainerStatsRequestProcessor;
+import com.linkedin.databus2.core.container.request.JavaStatsRequestProcessor;
+import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -16,13 +38,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
-
 import javax.management.MBeanServer;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.naming.NameAlreadyBoundException;
-
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -51,32 +71,8 @@ import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.ThreadRenamingRunnable;
 import org.jboss.netty.util.Timer;
 
-import com.linkedin.databus.core.DatabusComponentStatus;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.StatsCollectorMergeable;
-import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
-import com.linkedin.databus.core.util.ConfigApplier;
-import com.linkedin.databus.core.util.ConfigBuilder;
-import com.linkedin.databus.core.util.ConfigManager;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.JsonUtils;
-import com.linkedin.databus.core.util.NamedThreadFactory;
-import com.linkedin.databus2.core.DatabusException;
-import com.linkedin.databus2.core.container.JmxStaticConfig;
-import com.linkedin.databus2.core.container.JmxStaticConfigBuilder;
-import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
-import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdmin;
-import com.linkedin.databus2.core.container.request.CommandsRegistry;
-import com.linkedin.databus2.core.container.request.ContainerAdminRequestProcessor;
-import com.linkedin.databus2.core.container.request.ContainerStatsRequestProcessor;
-import com.linkedin.databus2.core.container.request.JavaStatsRequestProcessor;
-import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
-
 /**
  * A serving container
- * @param C     the business-logic-specific config class
  */
 public abstract class ServerContainer
 {
@@ -286,16 +282,16 @@ public abstract class ServerContainer
     _httpBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(_bossExecutorService,
                                                                        _ioExecutorService));
     _httpBootstrap.setPipelineFactory(new HttpServerPipelineFactory(this));
-    _httpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEvent.byteOrder));
-    _httpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEvent.byteOrder));
+    _httpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
+    _httpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
 
     if (_containerStaticConfig.getTcp().isEnabled())
     {
       _tcpBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(_bossExecutorService,
                                                                             _ioExecutorService));
       _tcpBootstrap.setPipelineFactory(new TcpServerPipelineFactory(this));
-      _tcpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEvent.byteOrder));
-      _tcpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEvent.byteOrder));
+      _tcpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
+      _tcpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
 
       //LOG.debug("endianness:" + ((ChannelBufferFactory)_tcpBootstrap.getOption("bufferFactory")).getDefaultOrder());
     }

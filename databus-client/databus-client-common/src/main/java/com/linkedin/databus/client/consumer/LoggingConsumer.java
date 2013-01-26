@@ -1,17 +1,5 @@
 package com.linkedin.databus.client.consumer;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringWriter;
-import java.util.Formatter;
-
-import org.apache.avro.Schema;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.codehaus.jackson.JsonGenerationException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -23,6 +11,16 @@ import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 import com.linkedin.databus.core.util.ConfigApplier;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.util.Formatter;
+import org.apache.avro.Schema;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * A databus stream consumer that can be used for logging/debugging purposes. The class is thread-

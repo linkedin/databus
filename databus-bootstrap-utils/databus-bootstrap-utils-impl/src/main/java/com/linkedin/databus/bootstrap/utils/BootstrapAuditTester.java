@@ -13,12 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Struct;
 import java.sql.Timestamp;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
@@ -27,13 +22,13 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus.bootstrap.utils.BootstrapAuditTableReader.ResultSetEntry;
 import com.linkedin.databus.client.DbusEventAvroDecoder;
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
-import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.relay.OracleJarUtils;
 
 public class BootstrapAuditTester
     
@@ -44,7 +39,7 @@ public class BootstrapAuditTester
 
   private Schema _schema;
   private final ByteBuffer   _buffer;
-  private final DbusEvent    _event;
+  private final DbusEventInternalReadable _event;
 
 
   public BootstrapAuditTester(Schema schema)
@@ -52,7 +47,7 @@ public class BootstrapAuditTester
     _schema = schema;
     byte[] b = new byte[1024 * 1024];
     _buffer = ByteBuffer.wrap(b);
-    _event = new DbusEvent(_buffer,0);
+    _event = new DbusEventV1(_buffer,0);
   }
   
   private boolean compareField(Field f, Object databaseFieldValue, Object avroField)

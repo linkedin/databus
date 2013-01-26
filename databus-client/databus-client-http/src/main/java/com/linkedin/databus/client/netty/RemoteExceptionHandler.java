@@ -1,5 +1,6 @@
 package com.linkedin.databus.client.netty;
 
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -10,6 +11,7 @@ import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
@@ -102,13 +104,13 @@ public class RemoteExceptionHandler
 
     // send an error event to dispatcher through dbusEventBuffer
 
-    DbusEvent errorEvent = null;
+    DbusEventInternalWritable errorEvent = null;
     if (exception instanceof BootstrapDatabaseTooOldException)
     {
-    	errorEvent =  DbusEvent.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID));
+    	errorEvent =  DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID));
     }
     else if (exception instanceof PullerRetriesExhaustedException)
-    	errorEvent = DbusEvent.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.PULLER_RETRIES_EXPIRED));
+    	errorEvent = DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.PULLER_RETRIES_EXPIRED));
     else
     	throw new InvalidEventException("Got an unrecognizable exception ");
     byte[] errorEventBytes = new byte[errorEvent.getRawBytes().limit()];

@@ -126,7 +126,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
     if (isEnabled())
     {
-      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEvent.byteOrder, allocationPolicy,
+      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEventV1.byteOrder, allocationPolicy,
                                            restoreBuffer, mmapSessionDirectory,
                                            new File(mmapSessionDirectory, "scnIndex"));
     }
@@ -807,7 +807,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   }
 
   @Override
-  public void onEvent(DataChangeEvent event, long offset, int size)
+  public void onEvent(DbusEvent event, long offset, int size)
   {
     if(!isEnabled())
     {
@@ -830,7 +830,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     }
   }
 
-  private boolean shouldUpdate(DataChangeEvent event) {
+  private boolean shouldUpdate(DbusEvent event) {
     boolean returnVal =  (updateOnNext && !event.isControlMessage());
     updateOnNext = (event.isEndOfPeriodMarker());
     return returnVal;

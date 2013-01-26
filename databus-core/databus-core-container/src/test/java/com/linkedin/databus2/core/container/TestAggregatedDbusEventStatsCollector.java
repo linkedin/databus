@@ -1,14 +1,6 @@
 package com.linkedin.databus2.core.container;
 
-import java.util.Vector;
-
-import junit.framework.Assert;
-
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.testng.annotations.Test;
-
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
 import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsTotalStats;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
@@ -18,6 +10,11 @@ import com.linkedin.databus.core.util.DbusEventGenerator;
 import com.linkedin.databus.core.util.RngUtils;
 import com.linkedin.databus2.core.container.netty.ServerContainer.GlobalStatsCalc;
 import com.linkedin.databus2.test.TestUtil;
+import java.util.Vector;
+import junit.framework.Assert;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.testng.annotations.Test;
 
 public class TestAggregatedDbusEventStatsCollector
 {
@@ -183,7 +180,7 @@ public class TestAggregatedDbusEventStatsCollector
 		public void run()
 		{
 			int numEvents = _maxWindowSize*10; 
-			Vector<DbusEvent> events = new Vector<DbusEvent>(numEvents);
+			Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>(numEvents);
 			long startScn = RngUtils.randomPositiveLong()%10000;
 			long prevScn = startScn-1;
 			while (!_shutdown)
@@ -193,8 +190,8 @@ public class TestAggregatedDbusEventStatsCollector
 				events.clear();
 				DbusEventGenerator eventGen = new DbusEventGenerator(startScn+1);
 				long newScn = eventGen.generateEvents(numEvents, _maxWindowSize, maxEventSize, payloadSize,true, events);
-				DbusEvent p = null;
-				for (DbusEvent e: events)
+				DbusEventInternalWritable p = null;
+				for (DbusEventInternalWritable e: events)
 				{
 					if (p != null && (p.sequence() != e.sequence()))
 					{

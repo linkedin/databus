@@ -12,7 +12,7 @@ import org.jboss.netty.handler.timeout.WriteTimeoutException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
 import com.linkedin.databus2.test.container.ExceptionListenerTestHandler;
@@ -27,12 +27,12 @@ public class TestExtendedWriteTimeoutHandler
   @Test
   public void testClientSimpleRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEvent.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(101, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    final SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEvent.byteOrder);
+    final SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
     clientConn.setPipelineFactory(new SimpleClientPipelineFactoryWithSleep(200));
     boolean clientConnected = clientConn.startSynchronously(101, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");

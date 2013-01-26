@@ -1,28 +1,5 @@
 package com.linkedin.databus.client;
 
-import static org.testng.AssertJUnit.assertEquals;
-
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.Vector;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import junit.framework.Assert;
-
-import org.apache.avro.Schema;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
 import com.linkedin.databus.client.consumer.AbstractDatabusStreamConsumer;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
 import com.linkedin.databus.client.consumer.DelegatingDatabusCombinedConsumer;
@@ -43,6 +20,7 @@ import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import com.linkedin.databus.core.DbusEventKey;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.util.DbusEventAppender;
@@ -53,6 +31,26 @@ import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import junit.framework.Assert;
+import org.apache.avro.Schema;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+
+import static org.testng.AssertJUnit.assertEquals;
 
 public class TestGenericDispatcher
 {
@@ -902,7 +900,7 @@ public class TestGenericDispatcher
             DatabusSourcesConnection.StaticConfig connConfig = conf.build();
 
             /* Generate events **/
-            Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+            Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
             Vector<Short> srcIdList = new Vector<Short> ();
             srcIdList.add(srcId);
             int numEvents = 100;
@@ -1014,7 +1012,7 @@ public class TestGenericDispatcher
             DatabusSourcesConnection.StaticConfig connConfig = conf.build();
 
             /* Generate events **/
-            Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+            Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
             Vector<Short> srcIdList = new Vector<Short> ();
             srcIdList.add(srcId);
             int numEvents = 100;
@@ -1145,7 +1143,7 @@ public class TestGenericDispatcher
             DatabusSourcesConnection.StaticConfig connConfig = conf.build();
 
             /* Generate events **/
-            Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+            Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
             Vector<Short> srcIdList = new Vector<Short> ();
             srcIdList.add(srcId);
 

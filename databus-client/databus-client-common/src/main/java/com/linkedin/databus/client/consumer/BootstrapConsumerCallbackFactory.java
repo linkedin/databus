@@ -1,5 +1,6 @@
 package com.linkedin.databus.client.consumer;
 
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import org.apache.avro.Schema;
 
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
@@ -192,7 +193,10 @@ class BootstrapDataEventCallable extends ConsumerCallable<ConsumerCallbackResult
                                     DatabusCombinedConsumer consumer,ConsumerCallbackStats consumerStats)
   {
     super(currentNanos);
-    _event = e.clone(null);
+    if (!(e instanceof DbusEventInternalWritable)) {
+      throw new UnsupportedClassVersionError("Cannot support cloning on non-Dbusevent");
+    }
+    _event = ((DbusEventInternalWritable)e).clone(null);
     _eventDecoder = eventDecoder;
     _consumer = consumer;
     _consumerStats = consumerStats;

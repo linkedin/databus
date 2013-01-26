@@ -1,8 +1,40 @@
 package com.linkedin.databus.client;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertTrue;
-
+import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
+import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
+import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnection;
+import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnectionInspector;
+import com.linkedin.databus.client.netty.NettyTestUtils;
+import com.linkedin.databus.client.pub.ConsumerCallbackResult;
+import com.linkedin.databus.client.pub.DatabusClientException;
+import com.linkedin.databus.client.pub.DatabusStreamConsumer;
+import com.linkedin.databus.client.pub.DbusEventDecoder;
+import com.linkedin.databus.client.pub.SCN;
+import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
+import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventInfo;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.DbusOpcode;
+import com.linkedin.databus.core.InternalDatabusEventsListener;
+import com.linkedin.databus.core.data_model.DatabusSubscription;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.util.IdNamePair;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
+import com.linkedin.databus.core.util.RngUtils;
+import com.linkedin.databus.core.util.Utils;
+import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.test.ConditionCheck;
+import com.linkedin.databus2.test.TestUtil;
+import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
+import com.linkedin.databus2.test.container.SimpleTestServerConnection;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -22,7 +54,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -56,40 +87,8 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
-import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
-import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnection;
-import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnectionInspector;
-import com.linkedin.databus.client.netty.NettyTestUtils;
-import com.linkedin.databus.client.pub.ConsumerCallbackResult;
-import com.linkedin.databus.client.pub.DatabusClientException;
-import com.linkedin.databus.client.pub.DatabusStreamConsumer;
-import com.linkedin.databus.client.pub.DbusEventDecoder;
-import com.linkedin.databus.client.pub.SCN;
-import com.linkedin.databus.client.pub.ServerInfo;
-import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
-import com.linkedin.databus.core.Checkpoint;
-import com.linkedin.databus.core.DataChangeEvent;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventInfo;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.DbusOpcode;
-import com.linkedin.databus.core.InternalDatabusEventsListener;
-import com.linkedin.databus.core.data_model.DatabusSubscription;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.util.IdNamePair;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
-import com.linkedin.databus.core.util.RngUtils;
-import com.linkedin.databus.core.util.Utils;
-import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
-import com.linkedin.databus2.schemas.utils.SchemaHelper;
-import com.linkedin.databus2.test.ConditionCheck;
-import com.linkedin.databus2.test.TestUtil;
-import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
-import com.linkedin.databus2.test.container.SimpleTestServerConnection;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertTrue;
 
 public class TestDatabusHttpClient
 {
@@ -122,7 +121,7 @@ public class TestDatabusHttpClient
     //initialize relays
     for (int relayN = 0; relayN < RELAY_PORT.length; ++relayN)
     {
-      _dummyServer[relayN] = new SimpleTestServerConnection(DbusEvent.byteOrder,
+      _dummyServer[relayN] = new SimpleTestServerConnection(DbusEventV1.byteOrder,
                                                     SimpleTestServerConnection.ServerType.NIO);
       _dummyServer[relayN].setPipelineFactory(new ChannelPipelineFactory() {
           @Override
@@ -2137,9 +2136,9 @@ public class TestDatabusHttpClient
       public void close() throws IOException {}
 
       @Override
-      public void onEvent(DataChangeEvent event, long offset, int size)
+      public void onEvent(DbusEvent event, long offset, int size)
       {
-        DbusEvent e = (DbusEvent)event;
+        DbusEventInternalWritable e = (DbusEventInternalWritable)event;
         eventOfs.add(e.getRawBytes().position() - e.size());
       }
     };

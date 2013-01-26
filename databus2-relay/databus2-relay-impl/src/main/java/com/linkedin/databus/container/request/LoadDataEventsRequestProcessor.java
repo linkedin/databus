@@ -1,17 +1,9 @@
 package com.linkedin.databus.container.request;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
-
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.container.netty.HttpRelay;
-import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBufferMult;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
@@ -19,6 +11,12 @@ import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
 import com.linkedin.databus2.core.container.request.RequestProcessor;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutorService;
+import org.apache.log4j.Logger;
 
 public class LoadDataEventsRequestProcessor implements RequestProcessor
 {
@@ -81,7 +79,7 @@ public class LoadDataEventsRequestProcessor implements RequestProcessor
         DbusEventsStatisticsCollector statsCollector = _relay.getInBoundStatsCollectors().getStatsCollector(pPartition.toSimpleString());
 
         int eventsAppended = 0;
-        if (!((eventsAppended = DbusEvent.appendToEventBuffer(in, buf, statsCollector,
+        if (!((eventsAppended = DbusEventV1.appendToEventBuffer(in, buf, statsCollector,
                                                               startWin))>0))
         {
           throw new RequestProcessingException("event loading failed");

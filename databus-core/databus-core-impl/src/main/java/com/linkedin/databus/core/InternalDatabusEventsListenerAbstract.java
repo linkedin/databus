@@ -5,9 +5,8 @@ import java.io.IOException;
 public abstract class InternalDatabusEventsListenerAbstract implements
     InternalDatabusEventsListener, java.io.Closeable
 {
-
   @Override
-  public void onEvent(DataChangeEvent event, long offset, int size)
+  public void onEvent(DbusEvent event, long offset, int size)
   {
   }
 
@@ -15,5 +14,4 @@ public abstract class InternalDatabusEventsListenerAbstract implements
   public void close() throws IOException
   {
   }
-
 }

@@ -1,19 +1,22 @@
 package com.linkedin.databus.core.util;
 
-import java.util.HashSet;
-import java.util.Vector;
-
-import org.apache.log4j.Logger;
-
-import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import java.util.HashSet;
+import java.util.Vector;
+import org.apache.log4j.Logger;
 
+
+/**
+ * Consumes Dbus events form the buffer using a DbusEventInterator, and drops them into the vector.
+ */
 public class DbusEventBufferConsumer implements Runnable , EventBufferConsumer
 {
   public static final Logger LOG = Logger.getLogger(DbusEventBufferConsumer.class.getName());
 
-  public DbusEventBufferConsumer(DbusEventBuffer buffer,int  maxEvents, int deletionInterval, Vector<DbusEvent> out) {
+  public DbusEventBufferConsumer(DbusEventBuffer buffer,int  maxEvents, int deletionInterval, Vector<DbusEventInternalWritable> out) {
     _buffer = buffer;
     _out = out;
     _seenKeys = new HashSet<Long>();
@@ -60,7 +63,7 @@ public class DbusEventBufferConsumer implements Runnable , EventBufferConsumer
         }
 
         while (iDbusEvent.hasNext()) {
-          DbusEvent e = iDbusEvent.next();
+          DbusEventInternalReadable e = iDbusEvent.next();
           ++allTotalEvents;
           if (!e.isCheckpointMessage() && !e.isControlMessage() && !e.isEndOfPeriodMarker()) {
             //needs to be idempotent; so - ensure that duplicates are dropped;
@@ -142,7 +145,7 @@ public class DbusEventBufferConsumer implements Runnable , EventBufferConsumer
   }
 
   private final DbusEventBuffer _buffer;
-  private final Vector<DbusEvent> _out;
+  private final Vector<DbusEventInternalWritable> _out;
   private final HashSet<Long> _seenKeys;
   private final int _maxEvents;
   private boolean _stop;

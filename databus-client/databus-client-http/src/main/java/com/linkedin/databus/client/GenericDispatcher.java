@@ -3,6 +3,7 @@
  */
 package com.linkedin.databus.client;
 
+import com.linkedin.databus.core.DbusEventInternalReadable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,7 @@ import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DispatcherRetriesExhaustedException;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
@@ -615,7 +617,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     {
       //TODO MED: maybe add a counter limit the number of events processed in one pass
       //This will not delay the processing of other messages.
-      DbusEvent nextEvent = curState.getEventsIterator().next();
+      DbusEventInternalReadable nextEvent = curState.getEventsIterator().next();
       //TODO: Add stats about last process time
       _currentWindowSizeInBytes += nextEvent.size();
       if (traceEnabled) _log.trace("got event:" + nextEvent);
@@ -862,14 +864,14 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
   }
 
-  private boolean processErrorEvent(DispatcherState curState, DbusEvent nextEvent)
+  private boolean processErrorEvent(DispatcherState curState, DbusEventInternalReadable nextEvent)
   {
     boolean success = false;
     DbusErrorEvent errorEvent = null;
 
     if (nextEvent.isErrorEvent())
     {
-      errorEvent = DbusEvent.getErrorEventFromDbusEvent(nextEvent);
+      errorEvent = DbusEventV1.getErrorEventFromDbusEvent(nextEvent);
 
       if (null == errorEvent)
       {

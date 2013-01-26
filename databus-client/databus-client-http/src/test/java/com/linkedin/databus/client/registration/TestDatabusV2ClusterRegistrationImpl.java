@@ -1,38 +1,8 @@
 package com.linkedin.databus.client.registration;
 
-import static org.testng.AssertJUnit.assertEquals;
-import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-
-import org.apache.avro.Schema;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.channel.group.DefaultChannelGroup;
-import org.jboss.netty.handler.codec.http.HttpServerCodec;
-import org.jboss.netty.handler.logging.LoggingHandler;
-import org.jboss.netty.logging.InternalLogLevel;
-import org.jboss.netty.logging.InternalLoggerFactory;
-import org.jboss.netty.logging.Log4JLoggerFactory;
-import org.jboss.netty.util.HashedWheelTimer;
-import org.jboss.netty.util.Timer;
-import org.testng.annotations.BeforeClass;
-import org.testng.annotations.Test;
-
 import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
+import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
 import com.linkedin.databus.client.pub.ClusterCheckpointPersistenceProvider.StaticConfig;
@@ -52,18 +22,48 @@ import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
 import com.linkedin.databus.cluster.DatabusCluster;
-import com.linkedin.databus.cluster.DatabusClusterNotifier;
 import com.linkedin.databus.cluster.DatabusCluster.DatabusClusterMember;
+import com.linkedin.databus.cluster.DatabusClusterNotifier;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventKey;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 import com.linkedin.databus2.test.TestUtil;
 import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
 import com.linkedin.databus2.test.container.SimpleTestServerConnection;
+import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.apache.avro.Schema;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.Channels;
+import org.jboss.netty.channel.group.ChannelGroup;
+import org.jboss.netty.channel.group.DefaultChannelGroup;
+import org.jboss.netty.handler.codec.http.HttpServerCodec;
+import org.jboss.netty.handler.logging.LoggingHandler;
+import org.jboss.netty.logging.InternalLogLevel;
+import org.jboss.netty.logging.InternalLoggerFactory;
+import org.jboss.netty.logging.Log4JLoggerFactory;
+import org.jboss.netty.util.HashedWheelTimer;
+import org.jboss.netty.util.Timer;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.Test;
+
+import static org.testng.AssertJUnit.assertEquals;
 
 public class TestDatabusV2ClusterRegistrationImpl 
 {
@@ -95,7 +95,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 		//initialize relays
 		for (int relayN = 0; relayN < RELAY_PORT.length; ++relayN)
 		{
-			_dummyServer[relayN] = new SimpleTestServerConnection(DbusEvent.byteOrder,
+			_dummyServer[relayN] = new SimpleTestServerConnection(DbusEventV1.byteOrder,
 					SimpleTestServerConnection.ServerType.NIO);
 			_dummyServer[relayN].setPipelineFactory(new ChannelPipelineFactory() {
 				@Override

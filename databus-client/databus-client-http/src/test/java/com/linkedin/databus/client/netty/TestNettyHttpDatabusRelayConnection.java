@@ -1,5 +1,24 @@
 package com.linkedin.databus.client.netty;
 
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.CheckpointMult;
+import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.InvalidEventException;
+import com.linkedin.databus.core.OffsetNotFoundException;
+import com.linkedin.databus.core.ScnNotFoundException;
+import com.linkedin.databus.core.async.AbstractActorMessageQueue;
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.test.ConditionCheck;
+import com.linkedin.databus2.test.TestUtil;
+import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
+import com.linkedin.databus2.test.container.SimpleTestServerConnection;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -9,9 +28,7 @@ import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
 import junit.framework.Assert;
-
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonGenerationException;
@@ -44,26 +61,6 @@ import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.pub.ServerInfo;
-import com.linkedin.databus.core.Checkpoint;
-import com.linkedin.databus.core.CheckpointMult;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.InvalidEventException;
-import com.linkedin.databus.core.OffsetNotFoundException;
-import com.linkedin.databus.core.ScnNotFoundException;
-import com.linkedin.databus.core.async.AbstractActorMessageQueue;
-import com.linkedin.databus.core.data_model.PhysicalPartition;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
-import com.linkedin.databus2.test.ConditionCheck;
-import com.linkedin.databus2.test.TestUtil;
-import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
-import com.linkedin.databus2.test.container.SimpleTestServerConnection;
-
 public class TestNettyHttpDatabusRelayConnection
 {
   static final String SOURCE1_SCHEMA_STR =
@@ -89,7 +86,7 @@ public class TestNettyHttpDatabusRelayConnection
     TestUtil.setupLogging(true, null, Level.INFO);
     InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
 
-    _dummyServer = new SimpleTestServerConnection(DbusEvent.byteOrder,
+    _dummyServer = new SimpleTestServerConnection(DbusEventV1.byteOrder,
                                                   SimpleTestServerConnection.ServerType.NIO);
     _dummyServer.setPipelineFactory(new ChannelPipelineFactory() {
         @Override

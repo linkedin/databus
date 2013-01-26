@@ -49,7 +49,8 @@ import com.linkedin.databus2.core.AssertLevel;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.filter.DbusFilter;
 
-public class DbusEventBuffer implements Iterable<DbusEvent>,
+// TODO Decide if we really want to provide a writable iterator to classes outside of DbusEventBuffer.
+public class DbusEventBuffer implements Iterable<DbusEventInternalWritable>,
 DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 {
   public static final String MODULE = DbusEventBuffer.class.getName();
@@ -116,11 +117,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Iterator over a fixed range of events in the buffer and with no locking. The remove() method
    * is not supproted.
    */
-  protected class BaseEventIterator implements Iterator<DbusEvent>
+  protected class BaseEventIterator implements Iterator<DbusEventInternalWritable>
   {
     protected final BufferPosition _currentPosition;
     protected final BufferPosition _iteratorTail;
-    protected DbusEvent _iteratingEvent;
+    protected DbusEventInternalWritable _iteratingEvent;
     protected String _identifier;
 
     public BaseEventIterator(long head, long tail, String iteratorName)
@@ -130,7 +131,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       _iteratorTail = new BufferPosition(_bufferPositionParser,_buffers);
       _iteratorTail.setPosition(tail);
-      _iteratingEvent = new DbusEvent();
+      _iteratingEvent = new DbusEventV1();
       reset(head, tail, iteratorName);
       trackIterator(this);
     }
@@ -176,7 +177,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
      * by next() to have a validity lifetime longer than the next next() call
      */
     @Override
-    public DbusEvent next()
+    public DbusEventInternalWritable next()
     {
       try
       {
@@ -268,17 +269,17 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       if (_iteratingEvent == null)
       {
-        _iteratingEvent = new DbusEvent();
+        _iteratingEvent = new DbusEventV1();
       }
     }
 
-    protected DbusEvent next(boolean validateEvent) throws InvalidEventException
+    protected DbusEventInternalWritable next(boolean validateEvent) throws InvalidEventException
     {
       if (!hasNext())
       {
         throw new NoSuchElementException();
       }
-      DbusEvent nextEvent = currentEvent();
+      DbusEventInternalWritable nextEvent = currentEvent();
       if (validateEvent)
       {
         if (!nextEvent.isValid())
@@ -294,12 +295,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     /**
      * Get the current event pointed to by the iterator
      */
-    protected DbusEvent currentEvent()
+    protected DbusEventInternalWritable currentEvent()
     {
       _currentPosition.sanitize();
       if (null==_iteratingEvent)
       {
-        _iteratingEvent = new DbusEvent();
+        _iteratingEvent = new DbusEventV1();
       }
       _iteratingEvent.reset(_buffers[_currentPosition.bufferIndex()], _currentPosition.bufferOffset());
       return _iteratingEvent;
@@ -942,7 +943,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private String _sessionId;
 
   // Cached objects to prevent frequent 'new'-s
-  DbusEvent _writingEvent; // use this event while writing to the buffer
+  DbusEventInternalWritable _writingEvent; // use this event while writing to the buffer
 
   // Pool of iterators
   protected final Set<WeakReference<BaseEventIterator>> _busyIteratorPool =
@@ -1117,7 +1118,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _allocationPolicy = allocationPolicy;
     List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();
     _maxBufferSize = maxIndividualBufferSize;
-    _writingEvent = new DbusEvent();
+    _writingEvent = new DbusEventV1();
     _empty = true;
     _lastWrittenSequence = -1;
     _prevScn=-1L;
@@ -1175,7 +1176,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         _mmapSessionDirectory.deleteOnExit();
     }
     // when allocating readBuffer we don't need the content - hence 'false' for restore buffers
-    _readBuffer = allocateByteBuffer(maxReadBufferSize, DbusEvent.byteOrder, allocationPolicy,
+    // TODO support event type of V2
+    _readBuffer = allocateByteBuffer(maxReadBufferSize, DbusEventV1.byteOrder, allocationPolicy,
                                      false, _mmapSessionDirectory,
                                      new File(_mmapSessionDirectory, "readBuffer"));
 
@@ -1188,7 +1190,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       int nextSize = (int) Math.min(_maxBufferSize, (maxEventBufferSize-allocatedSize));
       if (LOG.isDebugEnabled())
         LOG.debug("Will allocate a buffer of size " + nextSize + " bytes with allocationPolicy = " + allocationPolicy.toString());
-      ByteBuffer buffer = allocateByteBuffer(nextSize, DbusEvent.byteOrder, allocationPolicy,
+      // TODO Support V2 event
+      ByteBuffer buffer = allocateByteBuffer(nextSize, DbusEventV1.byteOrder, allocationPolicy,
                                              restoreBuffers, _mmapSessionDirectory,
                                              new File(_mmapSessionDirectory, "writeBuffer_"+ buffers.size()));
       buffers.add(buffer);
@@ -1610,11 +1613,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       eventInfo.setSequenceId(0L);
       eventInfo.setpPartitionId(_physicalPartition.getId().shortValue());
       eventInfo.setAutocommit(false);
-      int bytesWritten = DbusEvent.serializeEvent(key,
+      // TODO support event type of V2
+      int bytesWritten = DbusEventV1.serializeEvent(key,
                                                   _buffers[_currentWritePosition.bufferIndex()],
                                                   eventInfo);
 
-      long expNumBytesWritten = DbusEvent.length(key, eventInfo.getValue());
+      long expNumBytesWritten = DbusEventV1.length(key, eventInfo.getValue());
 
       //prepareForAppend makes decision to move Head depending upon expNumBytesWritten
       if ( bytesWritten != expNumBytesWritten)
@@ -1638,7 +1642,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       if (_writingEvent == null)
       {
-        _writingEvent = new DbusEvent();
+        _writingEvent = new DbusEventV1();
       }
 
       preWritePosition = _bufferPositionParser.sanitize(preWritePosition, _buffers);
@@ -1676,7 +1680,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 		  throws KeyTypeNotImplementedException
   {
 	boolean isDebugEnabled = LOG.isDebugEnabled();
-    int dbusEventSize = DbusEvent.length(key, value);
+    int dbusEventSize = DbusEventV1.length(key, value);
 
     _queueLock.lock();
     try
@@ -1875,8 +1879,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     assert assertBuffersLimits();
   }
 
-  /**
-   * @see com.linkedin.databus.core.DbusEventBufferAppendable#endEvents(boolean, long, boolean, boolean)
+  /*
+   * @see com.linkedin.databus.core.DbusEventBufferAppendable#endEvents()
    */
   @Override
   public void endEvents(boolean updateWindowScn, long windowScn,
@@ -1912,21 +1916,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
     try
     {
-      prepareForAppend(DbusEvent.EOPMarkerKey, DbusEvent.EOPMarkerValue);
+      prepareForAppend(DbusEventV1.EOPMarkerKey, DbusEventV1.EOPMarkerValue);
       long preWritePosition = _currentWritePosition.getPosition();
       DbusEventInfo eventInfo = new DbusEventInfo(null,
                                                   windowScn,
                                                   _physicalPartition.getId().shortValue(),
                                                   (short)0,
                                                   _timestampOfLatestDataEvent,
-                                                  DbusEvent.EOPMarkerSrcId,
-                                                  DbusEvent.emptymd5,
-                                                  DbusEvent.EOPMarkerValue,
+                                                  DbusEventV1.EOPMarkerSrcId,
+                                                  DbusEventV1.emptymd5,
+                                                  DbusEventV1.EOPMarkerValue,
                                                   false, //enable tracing
                                                   false // autocommit
                                                   );
       final int bytesWritten =
-        DbusEvent.serializeEndOfPeriodMarker(_buffers[_currentWritePosition.bufferIndex()],
+        DbusEventV1.serializeEndOfPeriodMarker(_buffers[_currentWritePosition.bufferIndex()],
                                              eventInfo);
 
 
@@ -1957,7 +1961,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
         try {
           LOG.debug("acquired iterator");
-          DbusEvent e = null;
+          DbusEventInternalWritable e = null;
           while (eventIterator.hasNext()) {
             long eventPosition = eventIterator.getCurrentPosition();
             e = eventIterator.next();
@@ -2287,7 +2291,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         if (isDebugEnabled)
         {
           LOG.debug("Stream:offset:" + _bufferPositionParser.toString(offset));
-          DbusEvent e = new DbusEvent();
+          DbusEventInternalWritable e = new DbusEventV1();
           e.reset(_buffers[_bufferPositionParser.bufferIndex(offset)],
                   _bufferPositionParser.bufferOffset(offset));
           LOG.debug("Stream:Event@Offset:sequence:"+e.sequence());
@@ -2306,7 +2310,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       while (!done && eventIterator.hasNext()) {
         // for the first event, we need to validate that we got a "clean" read lock
         // since we intentionally split the getOffset from the getIterator call
-        DbusEvent e;
+        DbusEventInternalWritable e;
 
         try
         {
@@ -2584,7 +2588,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
     case BINARY :
     {
-      ByteBuffer writeBuf = buf.duplicate().order(DbusEvent.byteOrder);
+      ByteBuffer writeBuf = buf.duplicate().order(DbusEventV1.byteOrder);
       writeBuf.position(startBufferOffset);
       writeBuf.limit(endBufferOffset);
       try
@@ -2600,7 +2604,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
     case JSON: case JSON_PLAIN_VALUE:
     {
-      DbusEvent e = new DbusEvent(buf, startBufferOffset);
+      DbusEventInternalWritable e = new DbusEventV1(buf, startBufferOffset);
       int currentBufferOffset = startBufferOffset;
       while (currentBufferOffset != endBufferOffset)
       {
@@ -2669,7 +2673,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       BufferedReader in = new BufferedReader(Channels.newReader(readChannel, "UTF-8"));
       try
       {
-        return DbusEvent.appendToEventBuffer(in , this, null, false);
+        return DbusEventV1.appendToEventBuffer(in , this, null, false);
       }
       catch (JsonParseException e)
       {
@@ -2763,7 +2767,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     /** the verification status of the current event in the staging buffer */
     ReadEventsScanStatus _scanStatus;
     /** The event currently being processed */
-    DbusEvent _curEvent;
+    DbusEventInternalWritable _curEvent;
     /** The scn of the last successfully processed window */
     long _lastSeenStgWin;
     /** A flag if _scnRegress flag has to be reset after the current event is processed */
@@ -2782,7 +2786,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _skippedEvents = 0;
       _end = _readBuffer.position();
       _lastProcessedSeq = _lastWrittenSequence;
-      if (null == _curEvent) _curEvent = new DbusEvent(_readBuffer, _pos);
+      if (null == _curEvent) _curEvent = new DbusEventV1(_readBuffer, _pos);
       else _curEvent.reset(_readBuffer, _pos);
     }
 
@@ -3008,7 +3012,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
      * write lock */
     BaseEventIterator _writeIter;
     /** The last read event */
-    DbusEvent _lastEvent;
+    DbusEventInternalWritable _lastEvent;
     /** The current byte buffer being written to */
     ByteBuffer _curBuf;
 
@@ -3019,7 +3023,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                                    "ReadEventsWritePosition");
     }
 
-    public  DbusEvent next()
+    public  DbusEventInternalWritable next()
     {
       if (null != _lastEvent)
       {
@@ -3424,8 +3428,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Makes sure that we have enough space at the destination write buffer. Depending on the
    * queuing policy, we can either wait for space to free up or will overwrite it.
    *
-   * @param writePosStart       the gen-id starting write position
-   * @param writeEndStart       the gen-id ending write position (after the last byte written)
+   * @param writeStartPos       the gen-id starting write position
+   * @param writeEndPos       the gen-id ending write position (after the last byte written)
    * @param logDebugEnabled     a flag if debug logging messages are enabled
    * @return true if the wait for free space was interrupted prematurely
    */
@@ -3733,7 +3737,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   {
     int eventsWritten = 0;
     long currentPosition = writePos.getCurPos();
-    DbusEvent e = writePos.next();
+    DbusEventInternalWritable e = writePos.next();
 
     try
     {
@@ -3775,7 +3779,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     return eventsWritten;
   }
 
-  private void callListeners(DbusEvent event, long currentPosition,
+  private void callListeners(DbusEventInternalWritable event, long currentPosition,
                              Iterable<InternalDatabusEventsListener> eventListeners) {
     if (eventListeners != null)
     {
@@ -3802,7 +3806,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   {
     final int proposedHeadIdx = _bufferPositionParser.bufferIndex(pos);
     final int proposedHeadOfs = _bufferPositionParser.bufferOffset(pos);
-    DbusEvent e = new DbusEvent(_buffers[proposedHeadIdx], proposedHeadOfs);
+    DbusEvent e = new DbusEventV1(_buffers[proposedHeadIdx], proposedHeadOfs);
     assert e.isValid();
     return e;
   }
@@ -4195,7 +4199,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   /**
    * Creates a long-lived iterator over events. It has the ability to wait if there are no
    * immediately-available events. It is responsibility of the caller to free the iterator
-   * using {@link #releaseIterator(InternalEventIterator)}.
+   * using {@link #releaseIterator(BaseEventIterator)}.
    */
   public DbusEventIterator acquireIterator(String iteratorName) {
     _queueLock.lock();
@@ -4215,7 +4219,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   /**
    * Acquires an iterator over a fixed range of events. This iterator cannot block waiting for more
    * events. It is responsibility of the caller to free the iterator
-   * using {@link #releaseIterator(InternalEventIterator)}.
+   * using {@link #releaseIterator(BaseEventIterator)}.
    */
   protected InternalEventIterator acquireInternalIterator(long head, long tail, String iteratorName)
   {
@@ -4228,7 +4232,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * of the caller to ensure this is safe, e.g. by holding another range lock over the desired
    * iterator range). This iterator cannot block waiting for more
    * events. It is responsibility of the caller to free the iterator
-   * using {@link #releaseIterator(InternalEventIterator)}.
+   * using {@link #releaseIterator(BaseEventIterator)}.
    */
   protected BaseEventIterator acquireLockFreeInternalIterator(long head, long tail,
                                                               String iteratorName)
@@ -4262,7 +4266,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * The iterator is meant to be used mostly in for-each loops.
    */
   @Override
-  public Iterator<DbusEvent> iterator() {
+  public Iterator<DbusEventInternalWritable> iterator() {
     _queueLock.lock();
     try
     {
@@ -4374,7 +4378,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * this does not update the scnIndex
    * @param writingEvent DbusEvent
    */
-  void setWritingEvent(DbusEvent writingEvent)
+  void setWritingEvent(DbusEventInternalWritable writingEvent)
   {
 	this._writingEvent = writingEvent;
   }

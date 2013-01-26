@@ -18,6 +18,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapCleanerStaticConfig.Bootst
 import com.linkedin.databus.bootstrap.common.BootstrapCleanerStaticConfig.RetentionStaticConfig;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO.SourceStatusInfo;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.util.DBHelper;
 
@@ -644,7 +645,7 @@ public class BootstrapDBCleaner
 				scn = rs.getLong(i++);
 				ByteBuffer tmpBuffer = ByteBuffer.wrap(rs.getBytes(i));
 				LOG.info("BUFFER SIZE:" + tmpBuffer.limit());
-				event = new DbusEvent(tmpBuffer,tmpBuffer.position());
+				event = new DbusEventV1(tmpBuffer,tmpBuffer.position());
 				LOG.info("Last Row for log (" + logInfo + ") - ID :" + id + ", srcKey :" + srcKey + ", SCN :" + scn + ", Event :" + event.toString());
 			} else {
 				LOG.error("No ResultSet for query :" + sql.toString());				

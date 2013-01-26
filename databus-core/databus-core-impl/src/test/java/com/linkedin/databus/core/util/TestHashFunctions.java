@@ -1,12 +1,10 @@
 package com.linkedin.databus.core.util;
 
+import com.linkedin.databus.core.DbusEventV1;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.zip.CRC32;
-
 import org.testng.annotations.Test;
-
-import com.linkedin.databus.core.DbusEvent;
 
 public class TestHashFunctions
 {
@@ -39,7 +37,7 @@ public class TestHashFunctions
     public void testHashPerf(int capacity)
     {
 		byte[] b = new byte[capacity];
-		ByteBuffer buf = ByteBuffer.allocateDirect(capacity).order(DbusEvent.byteOrder);
+		ByteBuffer buf = ByteBuffer.allocateDirect(capacity).order(DbusEventV1.byteOrder);
 		Random r = new Random();
 		r.nextBytes(b);
 		buf.put(b);

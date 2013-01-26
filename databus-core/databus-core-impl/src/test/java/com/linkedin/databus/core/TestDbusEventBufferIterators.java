@@ -56,7 +56,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEvent> events = new Vector<DbusEvent>();
+    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     generator.generateEvents(5, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -78,7 +78,7 @@ public class TestDbusEventBufferIterators
     readAndCompareIteratorEvents(iter1, events, false);
 
     log.info("add more windows");
-    final Vector<DbusEvent> events2 = new Vector<DbusEvent>();
+    final Vector<DbusEventInternalWritable> events2 = new Vector<DbusEventInternalWritable>();
     final DbusEventGenerator generator2 = new DbusEventGenerator(1000);
     generator2.generateEvents(50, 4, 180, 100, events2);
     injectEventsInBuffer(dbusBuf, events2, false);
@@ -130,7 +130,7 @@ public class TestDbusEventBufferIterators
     {
       log.info("add first window iteration " + i);
       final DbusEventGenerator generator = new DbusEventGenerator(40 * i);
-      final Vector<DbusEvent> events1 = new Vector<DbusEvent>();
+      final Vector<DbusEventInternalWritable> events1 = new Vector<DbusEventInternalWritable>();
       generator.generateEvents(6, 1, 120, 41, events1);
       injectEventsInBuffer(dbusBuf, events1, true);
 
@@ -177,7 +177,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEvent> events = new Vector<DbusEvent>();
+    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     generator.generateEvents(5, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -199,7 +199,7 @@ public class TestDbusEventBufferIterators
     readAndCompareIteratorEvents(iter1, events, false);
 
     log.info("add more windows");
-    final Vector<DbusEvent> events2 = new Vector<DbusEvent>();
+    final Vector<DbusEventInternalWritable> events2 = new Vector<DbusEventInternalWritable>();
     final DbusEventGenerator generator2 = new DbusEventGenerator(1000);
     generator2.generateEvents(50, 4, 180, 100, events2);
     injectEventsInBuffer(dbusBuf, events2, false);
@@ -252,7 +252,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEvent> events = new Vector<DbusEvent>();
+    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     generator.generateEvents(15, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -306,7 +306,7 @@ public class TestDbusEventBufferIterators
 
   /** Write the events directly to the ByteBuffer because we want to avoid invoking internal
    * listeners which in turn will try to use iterators. A bit of a Catch-22. */
-  private static void injectEventsInBuffer(DbusEventBuffer buf, Vector<DbusEvent> events,
+  private static void injectEventsInBuffer(DbusEventBuffer buf, Vector<DbusEventInternalWritable> events,
                                            boolean updateScnIndex)
   {
     DbusEventAppender appender = new DbusEventAppender(events, buf, null, 1.0, false, -1,
@@ -315,14 +315,14 @@ public class TestDbusEventBufferIterators
   }
 
   protected void readAndCompareIteratorEvents(InternalEventIterator iter,
-                                              List<DbusEvent> expectedEvents,
+                                              List<DbusEventInternalWritable> expectedEvents,
                                               boolean prefixMatch)
   {
     readAndCompareIteratorEvents(iter, expectedEvents, 0, expectedEvents.size(), prefixMatch);
   }
 
   protected void readAndCompareIteratorEvents(InternalEventIterator iter,
-                                              List<DbusEvent> expectedEvents,
+                                              List<DbusEventInternalWritable> expectedEvents,
                                               final int startIdx, final int endIdx,
                                               boolean prefixMatch)
   {

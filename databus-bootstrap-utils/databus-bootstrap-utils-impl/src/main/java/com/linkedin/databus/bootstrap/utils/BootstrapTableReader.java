@@ -1,5 +1,18 @@
 package com.linkedin.databus.bootstrap.utils;
 
+import com.linkedin.databus.bootstrap.common.BootstrapConn;
+import com.linkedin.databus.client.DbusEventAvroDecoder;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.util.ConfigBuilder;
+import com.linkedin.databus.core.util.ConfigLoader;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
+import com.linkedin.databus2.schemas.SchemaRegistryService;
+import com.linkedin.databus2.schemas.VersionedSchema;
+import com.linkedin.databus2.schemas.VersionedSchemaSet;
+import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.util.DBHelper;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -11,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
@@ -28,21 +40,6 @@ import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.PropertyConfigurator;
-
-import com.linkedin.databus.bootstrap.common.BootstrapConn;
-import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
-
-import com.linkedin.databus.client.DbusEventAvroDecoder;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.util.ConfigBuilder;
-import com.linkedin.databus.core.util.ConfigLoader;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
-import com.linkedin.databus2.schemas.SchemaRegistryService;
-import com.linkedin.databus2.schemas.VersionedSchema;
-import com.linkedin.databus2.schemas.VersionedSchemaSet;
-import com.linkedin.databus2.schemas.utils.SchemaHelper;
-import com.linkedin.databus2.util.DBHelper;
 
 public class BootstrapTableReader 
 {
@@ -108,7 +105,7 @@ public class BootstrapTableReader
         
         byte[] b1 = new byte[1024 * 1024];
         ByteBuffer buffer = ByteBuffer.wrap(b1);
-        DbusEvent  event = new DbusEvent(buffer,0);
+        DbusEventInternalReadable event = new DbusEventV1(buffer,0);
 
         int count = 0;
         _eventHandler.onStart(query);

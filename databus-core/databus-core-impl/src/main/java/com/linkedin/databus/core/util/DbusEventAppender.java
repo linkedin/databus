@@ -1,14 +1,15 @@
 package com.linkedin.databus.core.util;
 
-import java.util.Iterator;
-import java.util.Vector;
-import java.util.logging.Logger;
-
-import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import com.linkedin.databus.core.DbusEventKey;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType;
+import java.util.Iterator;
+import java.util.Vector;
+import java.util.logging.Logger;
 
 /**
  *
@@ -25,26 +26,26 @@ public class DbusEventAppender implements Runnable {
 	private final int _numDataEventsBeforeSkip;
 	private final boolean _callInternalListeners;
 
-	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats) {
+	public DbusEventAppender(Vector<DbusEventInternalWritable> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats) {
 		this(events, buffer, stats, 1.0, true,-1);
 	}
 
-	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats, boolean invokeStartOnBuffer) {
+	public DbusEventAppender(Vector<DbusEventInternalWritable> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats, boolean invokeStartOnBuffer) {
 		this(events, buffer, stats, 1.0, invokeStartOnBuffer,-1);
 	}
 
-	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats,double fraction) {
+	public DbusEventAppender(Vector<DbusEventInternalWritable> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats,double fraction) {
 		this(events, buffer, stats, fraction, true,-1);
 	}
 
-    public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,
+    public DbusEventAppender(Vector<DbusEventInternalWritable> events, DbusEventBuffer buffer,
                              DbusEventsStatisticsCollector stats,
                              double fraction, boolean invokeStartOnBuffer,
                              int numDataEventsBeforeSkip) {
       this(events, buffer, stats, fraction, invokeStartOnBuffer, numDataEventsBeforeSkip, true);
     }
 
-	public DbusEventAppender(Vector<DbusEvent> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats,
+	public DbusEventAppender(Vector<DbusEventInternalWritable> events, DbusEventBuffer buffer,DbusEventsStatisticsCollector stats,
 			double fraction, boolean invokeStartOnBuffer,int numDataEventsBeforeSkip,
 			boolean callInternalListeners) {
 		_events = events;
@@ -92,7 +93,10 @@ public class DbusEventAppender implements Runnable {
 				}
 				lastScn = evScn;
 			}
-			byte[] payload = new byte[ev.payloadLength()];
+      if (!(ev instanceof DbusEventInternalReadable)) {
+        throw new UnsupportedClassVersionError("Need to get payload length of DbusEvent");
+      }
+			byte[] payload = new byte[((DbusEventInternalReadable)ev).payloadLength()];
 			ev.value().get(payload);
 			if ((_numDataEventsBeforeSkip < 0) || (dataEventCount < _numDataEventsBeforeSkip))
 			{
@@ -122,9 +126,9 @@ public class DbusEventAppender implements Runnable {
 		int count = 0;
 		int posIndex = 0;
 		boolean onlyDataEvents = (type==EventCorruptionType.PAYLOAD) ;
-		for (Iterator<DbusEvent> di= _buffer.iterator() ;
+		for (Iterator<DbusEventInternalWritable> di= _buffer.iterator() ;
 		     (posIndex < positions.length) && di.hasNext() ; ) {
-		  DbusEvent ev = di.next();
+		  DbusEventInternalWritable ev = di.next();
 		  if (!onlyDataEvents || !ev.isControlMessage()) {
 		    if (count == positions[posIndex]) {
 		      DbusEventCorrupter.toggleEventCorruption(type,ev);
@@ -138,7 +142,7 @@ public class DbusEventAppender implements Runnable {
 	}
 
 
-	private final Vector<DbusEvent> _events;
+	private final Vector<DbusEventInternalWritable> _events;
     private final DbusEventBuffer _buffer;
     private long _count ;
     protected  DbusEventsStatisticsCollector _stats;

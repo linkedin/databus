@@ -380,13 +380,13 @@ public class Checkpoint
   }
 
   @Override
-  public void onEvent(DataChangeEvent e, long offset, int size)
+  public void onEvent(DbusEvent e, long offset, int size)
   {
     // Checkpoint doesn't use the offset in the buffer for anything (yet)
     onEvent(e);
   }
 
-  public void onEvent(DataChangeEvent e)
+  public void onEvent(DbusEvent e)
   {
     if (e.isEndOfPeriodMarker())
     {

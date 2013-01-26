@@ -1,5 +1,6 @@
 package com.linkedin.databus.core.monitoring.mbean;
 
+import com.linkedin.databus.core.DbusEventInternalReadable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashSet;
@@ -289,7 +290,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     }
   }
 
-  public void registerDataEvent(DbusEvent e)
+  public void registerDataEvent(DbusEventInternalReadable e)
   {
     if (! _enabled.get()) return;
     Lock writeLock = acquireWriteLock();
@@ -320,7 +321,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     }
   }
 
-  public void registerDataEventFiltered(DbusEvent e)
+  public void registerDataEventFiltered(DbusEventInternalReadable e)
   {
     if (! _enabled.get()) return;
     Lock writeLock = acquireWriteLock();

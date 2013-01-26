@@ -72,7 +72,7 @@ public class FnvHashFunction implements HashFunction
 	public static void main(String[] args)
 	{
 		byte[] b = new byte[1024*1024*100];
-		ByteBuffer buf = ByteBuffer.allocateDirect(1024*1024*100).order(DbusEvent.byteOrder);
+		ByteBuffer buf = ByteBuffer.allocateDirect(1024*1024*100).order(DbusEventV1.byteOrder);
 		Random r = new Random();
 		r.nextBytes(b);
 		buf.put(b);

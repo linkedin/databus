@@ -12,6 +12,7 @@ import com.linkedin.databus.client.pub.RegistrationId;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.SCNRegressMessage;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -58,7 +59,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
       Checkpoint ckpt = null;
       try
       {
-        ckpt = DbusEvent.getCheckpointFromEvent(event);
+        ckpt = DbusEventUtils.getCheckpointFromEvent(event);
         DbusClientMode bootstrapMode = ckpt.getConsumptionMode();
 
         if (bootstrapMode != DbusClientMode.ONLINE_CONSUMPTION)
@@ -95,7 +96,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
     }
     else if (event.isSCNRegressMessage())
     {
-    	SCNRegressMessage message = DbusEvent.getSCNRegressFromEvent(event);
+    	SCNRegressMessage message = DbusEventUtils.getSCNRegressFromEvent(event);
     	LOG.warn("RelayDispatcher acting on SCNRegress : " + message);
     	curState.setSCNRegress(true);
         curState.switchToExpectEventWindow();

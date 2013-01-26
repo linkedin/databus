@@ -53,7 +53,7 @@ public class TestDbusEventBufferAppendEvents
     BufferPositionParser parser = dbusBuf.getBufferPositionParser();
     log.info("append initial events");
     DbusEventGenerator generator = new DbusEventGenerator();
-    Vector<DbusEvent> events = new Vector<DbusEvent>();
+    Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     generator.generateEvents(7, 1, 120, 39, events);
 
     // Add events to the EventBuffer. Now the buffer is full
@@ -82,7 +82,7 @@ public class TestDbusEventBufferAppendEvents
 
     log.info("append windows with a small and big event");
     generator = new DbusEventGenerator(100);
-    events = new Vector<DbusEvent>();
+    events = new Vector<DbusEventInternalWritable>();
     generator.generateEvents(1, 1, 280, 139, events);
     generator.generateEvents(1, 1, 480, 339, events);
 

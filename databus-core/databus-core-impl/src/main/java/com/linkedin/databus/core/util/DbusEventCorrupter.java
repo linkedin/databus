@@ -1,7 +1,9 @@
 package com.linkedin.databus.core.util;
 
 
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+
+
 /**
  *
  * @author snagaraj
@@ -15,7 +17,7 @@ public class DbusEventCorrupter
    * @param type :  part of event to inject corrupt
    * @param ev :  DbusEvent that will be modified
    */
-  static public void toggleEventCorruption(EventCorruptionType type, DbusEvent ev) {
+  static public void toggleEventCorruption(EventCorruptionType type, DbusEventInternalWritable ev) {
       switch (type) {
           case LENGTH:
               int newSize = ev.size() ^ _corruptionPattern;
