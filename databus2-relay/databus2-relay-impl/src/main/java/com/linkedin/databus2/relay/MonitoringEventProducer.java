@@ -1,5 +1,8 @@
 package com.linkedin.databus2.relay;
 
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,13 +14,12 @@ import java.util.Properties;
 import javax.management.MBeanServer;
 import javax.sql.DataSource;
 
-import oracle.jdbc.pool.OracleDataSource;
-
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.monitoring.mbean.DBStatistics;
 import com.linkedin.databus.monitoring.mbean.DBStatisticsMBean;
 import com.linkedin.databus.monitoring.mbean.SourceDBStatistics;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventProducer;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
@@ -132,19 +134,10 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	protected boolean createDataSource() {
 		try {
 		  if (_dataSource==null) {
-		    OracleDataSource ds = new OracleDataSource();
-		    ds.setURL(_uri);
-		    Properties prop = ds.getConnectionProperties();
-		    if (prop == null)
-		    {
-		      prop = new Properties();
-		    }
-		    //prop.put("oracle.jdbc.V8Compatible","true");
-		    ds.setConnectionProperties(prop);
-		    _dataSource = ds;
+			_dataSource = createOracleDataSource(_uri);
 		  }
-		} catch (SQLException e) {
-			e.printStackTrace();
+		} catch (DatabusException e) {
+			_log.error("Error creating data source", e);
 			_dataSource = null;
 			return false;
 		}
@@ -293,4 +286,41 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
     // TODO Auto-generated method stub
 
   }
+  
+  private DataSource createOracleDataSource(String uri)
+  throws DatabusException
+  {
+	  // Create the OracleDataSource used to get DB connection(s)
+	  DataSource ds = null;
+	  try
+	  {
+		  URL ojdbcJarFile = new URL("ojdbc6.jar");
+		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+		  Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
+		  Object ods = oracleDataSourceClass.newInstance(); 	  
+		  ds = (DataSource) ods;
+
+		  Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
+		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
+		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
+		  setURLMethod.invoke(ods, uri);
+		  // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
+		  //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.
+
+		  Properties prop = (Properties) getConnectionPropertiesMethod.invoke(ods);
+		  if (prop == null)
+		  {
+			  prop = new Properties();
+		  }
+		  //prop.put("oracle.jdbc.V8Compatible","true");
+		  setConnectionPropertiesMethod.invoke(ods, prop);
+	  } catch (Exception e)
+	  {
+		  String errMsg = "Error trying to create an Oracle DataSource"; 
+		  _log.error(errMsg, e);
+		  throw new DatabusException(errMsg);
+	  }
+	  return ds;
+  }
+
 }

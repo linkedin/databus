@@ -4,14 +4,16 @@
 package com.linkedin.databus2.relay;
 
 import java.lang.management.ManagementFactory;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 
 import javax.management.MBeanServer;
-
-import oracle.jdbc.pool.OracleDataSource;
+import javax.sql.DataSource;
 
 import org.apache.log4j.Logger;
 
@@ -67,18 +69,7 @@ public class OracleEventProducerFactory
       sources.add(source);
     }
 
-    // Create the OracleDataSource used to get DB connection(s)
-    OracleDataSource ds = new OracleDataSource();
-    ds.setURL(uri);
-    // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
-    //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.
-    Properties prop = ds.getConnectionProperties();
-    if (prop == null)
-    {
-      prop = new Properties();
-    }
-    //prop.put("oracle.jdbc.V8Compatible","true");
-    ds.setConnectionProperties(prop);
+    DataSource ds = createOracleDataSource(uri);
 
     // Create the event producer
     EventProducer eventProducer = new OracleEventProducer(sources,
@@ -186,4 +177,41 @@ public class OracleEventProducerFactory
       throw new InvalidConfigException("Invalid partition configuration (" + partitionFunction + ").");
     }
   }
+  
+  private DataSource createOracleDataSource(String uri)
+  throws DatabusException
+  {
+	  // Create the OracleDataSource used to get DB connection(s)
+	  DataSource ds = null;
+	  try
+	  {
+		  URL ojdbcJarFile = new URL("ojdbc6.jar");
+		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+		  Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
+		  Object ods = oracleDataSourceClass.newInstance(); 	  
+		  ds = (DataSource) ods;
+
+		  Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
+		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
+		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
+		  setURLMethod.invoke(ods, uri);
+		  // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
+		  //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.
+
+		  Properties prop = (Properties) getConnectionPropertiesMethod.invoke(ods);
+		  if (prop == null)
+		  {
+			  prop = new Properties();
+		  }
+		  //prop.put("oracle.jdbc.V8Compatible","true");
+		  setConnectionPropertiesMethod.invoke(ods, prop);
+	  } catch (Exception e)
+	  {
+		  String errMsg = "Error trying to create an Oracle DataSource"; 
+		  _log.error(errMsg, e);
+		  throw new DatabusException(errMsg);
+	  }
+	  return ds;
+  }
+
 }
