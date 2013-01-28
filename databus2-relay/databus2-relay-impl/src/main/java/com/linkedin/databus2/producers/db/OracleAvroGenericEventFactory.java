@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
@@ -491,13 +492,14 @@ implements EventFactory
       else
       {
     	  Class timestampClass = null, dateClass = null;
+    	  Method dateValueMethod = null;
     	  try
     	  {
     		  URL ojdbcJarFile = new URL("ojdbc6.jar");
     		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-    		  timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");
-    		 
+    		  timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
     		  dateClass = cl.loadClass("oracle.sql.DATE");
+			  dateValueMethod = timestampClass.getMethod("dateValue");
     	  } catch (Exception e)
     	  {
     		  String errMsg = "Cannot convert " + databaseFieldValue.getClass()
@@ -509,10 +511,12 @@ implements EventFactory
     	  {
     		  try
     		  {
-    			  long time = ((oracle.sql.TIMESTAMP) databaseFieldValue).dateValue().getTime();
+    			  Object tsc = timestampClass.cast(databaseFieldValue);
+    			  Date dateValue = (Date) dateValueMethod.invoke(tsc);
+    			  long time = dateValue.getTime();
     			  record.put(schemaFieldName, time);
     		  }
-    		  catch(SQLException ex)
+    		  catch(Exception ex)
     		  {
     			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
     					  + schemaFieldName, ex);
@@ -520,8 +524,18 @@ implements EventFactory
     	  }
     	  else if(dateClass.isInstance(databaseFieldValue))
     	  {
-    		  long time = ((oracle.sql.DATE) databaseFieldValue).dateValue().getTime();
-    		  record.put(schemaFieldName, time);
+    		  try
+    		  {
+    			  Object dsc = dateClass.cast(databaseFieldValue);
+    			  Date dateValue = (Date) dateValueMethod.invoke(dsc);
+    			  long time = dateValue.getTime();
+    			  record.put(schemaFieldName, time);
+    		  }
+    		  catch(Exception ex)
+    		  {
+    			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
+    					  + schemaFieldName, ex);
+    		  }			  
     	  }
     	  else
     	  {

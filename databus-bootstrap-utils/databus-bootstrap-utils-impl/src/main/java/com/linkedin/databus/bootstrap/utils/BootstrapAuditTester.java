@@ -1,5 +1,8 @@
 package com.linkedin.databus.bootstrap.utils;
 
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
@@ -116,32 +119,63 @@ public class BootstrapAuditTester
               long time = ((Timestamp) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.TIMESTAMP)
-            {
-              try
-              {
-                long time = ((oracle.sql.TIMESTAMP) databaseFieldValue).dateValue().getTime();
-                assertEquals(f.name(),time,((Long)avroField).longValue());
-              }
-              catch(SQLException ex)
-              {
-                throw new RuntimeException("SQLException reading oracle.sql.TIMESTAMP value for field " + f.name(), ex);
-              }
-            }
             else if(databaseFieldValue instanceof Date)
             {
               long time = ((Date) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.DATE)
-            {
-              long time = ((oracle.sql.DATE) databaseFieldValue).dateValue().getTime();
-              assertEquals(f.name(),time,((Long)avroField).longValue());
-            }
             else
             {
-              throw new RuntimeException("Cannot convert " + databaseFieldValue.getClass()
-                                         + " to long for field " + f.name());
+            	Class timestampClass = null, dateClass = null;
+            	Method dateValueMethod = null;
+            	try
+            	{
+            		URL ojdbcJarFile = new URL("ojdbc6.jar");
+            		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+            		timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
+            		dateClass = cl.loadClass("oracle.sql.DATE");
+            		dateValueMethod = timestampClass.getMethod("dateValue");
+            	} catch (Exception e)
+            	{
+            		String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+            				+ " to long. Unable to get oracle datatypes " + e.getMessage();
+            		throw new EventCreationException(errMsg);
+            	}
+
+
+                if(timestampClass.isInstance(databaseFieldValue))
+                {
+                  try
+                  {
+                	  Object tsc = timestampClass.cast(databaseFieldValue);
+                	  Date dateValue = (Date) dateValueMethod.invoke(tsc);
+                	  long time = dateValue.getTime();
+                	  assertEquals(f.name(),time,((Long)avroField).longValue());
+                  }
+                  catch(Exception ex)
+                  {
+                    throw new RuntimeException("SQLException reading oracle.sql.TIMESTAMP value for field " + f.name(), ex);
+                  }
+                }
+                else if(dateClass.isInstance(databaseFieldValue))
+                {
+                	try
+                	{
+                		Object dsc = dateClass.cast(databaseFieldValue);
+                		Date dateValue = (Date) dateValueMethod.invoke(dsc);
+                		long time = dateValue.getTime();
+                		assertEquals(f.name(),time,((Long)avroField).longValue());
+                	}
+                	catch(Exception ex)
+                	{
+                        throw new RuntimeException("SQLException reading oracle.sql.DATE value for field " + f.name(), ex);                		
+                	}
+                }
+                else
+                {
+                  throw new RuntimeException("Cannot convert " + databaseFieldValue.getClass()
+                                             + " to long for field " + f.name());
+                }            	
             }
             break;
         case STRING:

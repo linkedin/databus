@@ -4,6 +4,9 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -12,9 +15,10 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
-import oracle.jdbc.OraclePreparedStatement;
+import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
@@ -819,8 +823,8 @@ public class BootstrapAuditMain
 		   private final String        _pkIndex;
 		   private final String        _queryHint;
 		   PreparedStatement _stmt = null;
-
-
+           Method _setLobPrefetchSizeMethod = null;
+           Class _oraclePreparedStatementClass = null;
 		   public OracleTableReader(
 				   Connection conn,
 				   String tableName,
@@ -849,6 +853,17 @@ public class BootstrapAuditMain
 			   LOG.info("Tablename=" + tableName);
 			   LOG.info("Point Oracle Query =" + sql);
 
+			   try
+			   {
+				   URL ojdbcJarFile = new URL("ojdbc6.jar");
+				   URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+				   _oraclePreparedStatementClass = cl.loadClass("oracle.jdbc.OraclePreparedStatement");
+				   _setLobPrefetchSizeMethod = _oraclePreparedStatementClass.getMethod("setLobPrefetchSize", int.class);
+			   } catch (Exception e)
+			   {
+				   LOG.error("Exception raised while trying to get oracle methods", e);
+				   throw new SQLException(e.getMessage());
+			   }
 				   }
 
 		   public String generatePointQuery(String table, String keyName, String pkIndex, String queryHint)
@@ -895,7 +910,16 @@ public class BootstrapAuditMain
 			   PreparedStatement stmt = _conn.prepareStatement(sql);
 			   stmt.setLong(1,fromId);
 			   stmt.setLong(2, _interval);
-			   ((OraclePreparedStatement)stmt).setLobPrefetchSize(1000);
+			   DataSource ods = (DataSource) _oraclePreparedStatementClass.cast(stmt);
+			   try
+			   {
+			   _setLobPrefetchSizeMethod.invoke(ods, 1000);
+			   } catch (Exception e)
+			   {
+				   LOG.error("Error in setLobPrefetchSizeMethod" + e.getMessage());
+				   throw new SQLException(e.getMessage());
+			   }
+			   
 			   return stmt;
 		  }
 
@@ -911,7 +935,14 @@ public class BootstrapAuditMain
 			   PreparedStatement stmt = _conn.prepareStatement(sql);
 			   stmt.setString(1,from);
 			   stmt.setLong(2, _interval);
-			   ((OraclePreparedStatement)stmt).setLobPrefetchSize(1000);
+			   DataSource ods = (DataSource) _oraclePreparedStatementClass.cast(stmt);
+			   try
+			   {
+				   _setLobPrefetchSizeMethod.invoke(ods, 1000);
+			   } catch (Exception e)
+			   {
+				   throw new SQLException("Unable to set Lob prefetch size", e);
+			   }
 			   return stmt;
 			}
 

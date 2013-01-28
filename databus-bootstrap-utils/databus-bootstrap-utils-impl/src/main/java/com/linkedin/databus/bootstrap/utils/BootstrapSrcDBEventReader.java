@@ -20,9 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import javax.sql.DataSource;
+import java.lang.reflect.Method;
 
-import oracle.jdbc.OraclePreparedStatement;
+import java.net.URL;
+import java.net.URLClassLoader;
+
+import javax.sql.DataSource;
 
 import org.apache.log4j.Logger;
 
@@ -69,8 +72,9 @@ public class BootstrapSrcDBEventReader
 	private final Map<String,String> _eventQueryMap;
 	private final Map<String,String> _beginSrcKeyMap;
 	private final Map<String,String> _endSrcKeyMap;
-
-
+    private final Method _setLobPrefetchSizeMethod;
+    private final Class _oraclePreparedStatementClass;
+    
 	public Map<String, File> getKeyTxnFilesMap() {
 		return _keyTxnFilesMap;
 	}
@@ -135,6 +139,12 @@ public class BootstrapSrcDBEventReader
 		_eventQueryMap = config.getEventQueryMap();
 		_beginSrcKeyMap = config.getBeginSrcKeyMap();
 		_endSrcKeyMap = config.getEndSrcKeyMap();
+		
+		URL ojdbcJarFile = new URL("ojdbc6.jar");
+		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+		_oraclePreparedStatementClass = cl.loadClass("oracle.jdbc.OraclePreparedStatement");
+		_setLobPrefetchSizeMethod = _oraclePreparedStatementClass.getMethod("setLobPrefetchSize", int.class);
+
 		validate();
 	}
 
@@ -410,10 +420,16 @@ public class BootstrapSrcDBEventReader
 
 					pstmt.setLong(2, _numRowsPerQuery);
 					pstmt.setFetchSize(_numRowsPrefetch);
-
-					if ( pstmt instanceof OraclePreparedStatement)
+					
+					if ( _oraclePreparedStatementClass.isInstance(pstmt))
 					{
-						((OraclePreparedStatement)pstmt).setLobPrefetchSize(_LOBPrefetchSize);
+						try
+						{
+							_setLobPrefetchSizeMethod.invoke(pstmt, _LOBPrefetchSize);							
+						} catch (Exception e)
+						{
+							throw new EventCreationException("Unable to set Lob Prefetch size" + e.getMessage());
+						}
 					}
 
 					LOG.info("Executing Oracle Query :" + sql + ". Key: " + pKey + ",NumRows: " +  _numRowsPerQuery);

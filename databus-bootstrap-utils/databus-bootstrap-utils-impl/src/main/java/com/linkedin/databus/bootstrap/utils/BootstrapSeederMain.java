@@ -3,14 +3,17 @@ package com.linkedin.databus.bootstrap.utils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.sql.DataSource;
 
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -59,7 +62,7 @@ public class BootstrapSeederMain
 
 	private static Properties  _sBootstrapConfigProps = null;
 	private static String      _sSourcesConfigFile    = null;
-	private static OracleDataSource  _sDataStore      = null;
+	private static DataSource  _sDataStore      = null;
 	private static StaticConfig _sStaticConfig        = null;
 	private static List<MonitoredSourceInfo> _sources = null;
 	private static BootstrapDBSeeder _sSeeder         = null;
@@ -94,7 +97,7 @@ public class BootstrapSeederMain
       return _sSourcesConfigFile;
     }
 
-    public static OracleDataSource getDataStore()
+    public static DataSource getDataStore()
     {
       return _sDataStore;
     }
@@ -150,8 +153,14 @@ public class BootstrapSeederMain
 	    }
 
 	    // Create the OracleDataSource used to get DB connection(s)
-	    _sDataStore = new OracleDataSource();
-	    _sDataStore.setURL(uri);
+	    URL ojdbcJarFile = new URL("ojdbc6.jar");
+	    URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+	    Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
+	    Object ods = oracleDataSourceClass.newInstance(); 	  
+	    _sDataStore = (DataSource) ods;
+
+	    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
+	    setURLMethod.invoke(_sDataStore, uri);
 
 	    //TODO: Need a better way than relaying on RelayFactory for generating MonitoredSourceInfo
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());
