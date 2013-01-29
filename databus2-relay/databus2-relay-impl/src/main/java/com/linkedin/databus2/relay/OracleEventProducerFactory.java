@@ -68,7 +68,7 @@ public class OracleEventProducerFactory
     DataSource ds = null;
     try
     {
-        OracleJarUtils.createOracleDataSource(uri);    	
+        ds = OracleJarUtils.createOracleDataSource(uri);    	
     } catch (Exception e)
     {
     	String errMsg = "Oracle URI likely not supported. Trouble creating OracleDataSource";
