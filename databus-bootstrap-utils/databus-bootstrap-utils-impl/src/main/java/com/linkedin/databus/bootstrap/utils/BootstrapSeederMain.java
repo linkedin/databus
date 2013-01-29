@@ -37,6 +37,7 @@ import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
 import com.linkedin.databus2.relay.OracleEventProducerFactory;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
@@ -155,11 +156,7 @@ public class BootstrapSeederMain
 	    // Create the OracleDataSource used to get DB connection(s)
 	    try
 	    {
-	    	File file = new File("ojdbc6-11.2.0.2.0.jar");
-	    	URL ojdbcJarFile = file.toURL();
-
-	    	URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-	    	Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
+	    	Class oracleDataSourceClass = OracleJarUtils.loadClass("oracle.jdbc.pool.OracleDataSource");
 	    	Object ods = oracleDataSourceClass.newInstance(); 	  
 	    	_sDataStore = (DataSource) ods;
 		    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);

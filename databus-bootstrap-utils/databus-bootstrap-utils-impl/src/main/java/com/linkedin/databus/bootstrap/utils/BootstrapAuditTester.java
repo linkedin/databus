@@ -32,6 +32,7 @@ import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 public class BootstrapAuditTester
@@ -128,15 +129,10 @@ public class BootstrapAuditTester
             else
             {
             	Class timestampClass = null, dateClass = null;
-            	Method dateValueMethod = null;
             	try
             	{
-            		File file = new File("ojdbc6-11.2.0.2.0.jar");
-            		URL ojdbcJarFile = file.toURL();
-            		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-            		timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
-            		dateClass = cl.loadClass("oracle.sql.DATE");
-            		dateValueMethod = timestampClass.getMethod("dateValue");
+            		timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");    		 
+            		dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
             	} catch (Exception e)
             	{
             		String errMsg = "Cannot convert " + databaseFieldValue.getClass()
@@ -151,6 +147,7 @@ public class BootstrapAuditTester
                   try
                   {
                 	  Object tsc = timestampClass.cast(databaseFieldValue);
+              		  Method dateValueMethod = timestampClass.getMethod("dateValue");
                 	  Date dateValue = (Date) dateValueMethod.invoke(tsc);
                 	  long time = dateValue.getTime();
                 	  assertEquals(f.name(),time,((Long)avroField).longValue());
@@ -167,6 +164,7 @@ public class BootstrapAuditTester
                 	try
                 	{
                 		Object dsc = dateClass.cast(databaseFieldValue);
+                		Method dateValueMethod = dateClass.getMethod("dateValue");
                 		Date dateValue = (Date) dateValueMethod.invoke(dsc);
                 		long time = dateValue.getTime();
                 		assertEquals(f.name(),time,((Long)avroField).longValue());

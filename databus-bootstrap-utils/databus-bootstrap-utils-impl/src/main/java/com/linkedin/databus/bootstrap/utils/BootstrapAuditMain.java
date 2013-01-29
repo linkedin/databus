@@ -33,6 +33,7 @@ import com.linkedin.databus.bootstrap.utils.BootstrapSrcDBEventReader.PrimaryKey
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.core.DbusEventKey;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.VersionedSchema;
@@ -855,17 +856,14 @@ public class BootstrapAuditMain
 
 			   try
 			   {
-				   File file = new File("ojdbc6-11.2.0.2.0.jar");
-				   URL ojdbcJarFile = file.toURL();
-				   URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-				   _oraclePreparedStatementClass = cl.loadClass("oracle.jdbc.OraclePreparedStatement");
+				   _oraclePreparedStatementClass = OracleJarUtils.loadClass("oracle.jdbc.OraclePreparedStatement");
 				   _setLobPrefetchSizeMethod = _oraclePreparedStatementClass.getMethod("setLobPrefetchSize", int.class);
 			   } catch (Exception e)
 			   {
 				   LOG.error("Exception raised while trying to get oracle methods", e);
 				   throw new SQLException(e.getMessage());
 			   }
-				   }
+		  }
 
 		   public String generatePointQuery(String table, String keyName, String pkIndex, String queryHint)
 		   {
@@ -914,7 +912,7 @@ public class BootstrapAuditMain
 			   Object ds = _oraclePreparedStatementClass.cast(stmt);
 			   try
 			   {
-			   _setLobPrefetchSizeMethod.invoke(ds, 1000);
+			       _setLobPrefetchSizeMethod.invoke(ds, 1000);
 			   } catch (Exception e)
 			   {
 				   LOG.error("Error in setLobPrefetchSizeMethod" + e.getMessage());

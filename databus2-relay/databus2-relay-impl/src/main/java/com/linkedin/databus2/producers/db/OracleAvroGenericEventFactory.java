@@ -42,6 +42,7 @@ import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.PartitionFunction;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 /**
@@ -496,11 +497,8 @@ implements EventFactory
     	  Method dateValueMethod = null;
     	  try
     	  {
-    		  File file = new File("ojdbc6-11.2.0.2.0.jar");
-    		  URL ojdbcJarFile = file.toURL();
-    		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-    		  timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
-    		  dateClass = cl.loadClass("oracle.sql.DATE");
+    		  timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");
+    		  dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
 			  dateValueMethod = timestampClass.getMethod("dateValue");
     	  } catch (Exception e)
     	  {
