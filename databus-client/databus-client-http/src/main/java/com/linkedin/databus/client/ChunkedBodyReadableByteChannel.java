@@ -5,6 +5,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -39,6 +41,8 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   //TODO MED make these configurable
   private static final int MAX_BUFFERED_CHUNKS = 1000;
   private static final int MAX_BUFFERED_BYTES = 4096000;
+
+  private static final int MAX_CHUNK_SPACE_WAIT_MS = 15000;
 
   /** A flag if the channel is open */
   private AtomicBoolean _open = new AtomicBoolean(true);
@@ -174,8 +178,9 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
    * This method must be called while holding {@link #_chunkQueueLock}.
    *
    * @param buffer          the channel buffer with the bytes
+   * @throws TimeoutException if the new bytes cannot be processed in MAX_CHUNK_SPACE_WAIT_MS time
    */
-  private void addBytes(ChannelBuffer buffer)
+  private void addBytes(ChannelBuffer buffer) throws TimeoutException
   {
     if (_open.get())
     {
@@ -191,7 +196,10 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
         {
           try
           {
-            _hasChunkSpaceCondition.await();
+            if (!_hasChunkSpaceCondition.await(MAX_CHUNK_SPACE_WAIT_MS, TimeUnit.MILLISECONDS))
+            {
+              throw new TimeoutException("waiting for chunk space");
+            }
           }
           catch (InterruptedException ie)
           {
@@ -217,7 +225,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   }
 
   @Override
-  public void addChunk(HttpChunk chunk)
+  public void addChunk(HttpChunk chunk) throws TimeoutException
   {
     if (null == chunk)
     {
@@ -271,7 +279,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   }
 
   @Override
-  public void addTrailer(HttpChunkTrailer trailer)
+  public void addTrailer(HttpChunkTrailer trailer) throws TimeoutException
   {
     _trailer = trailer;
 
@@ -296,7 +304,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   }
 
   @Override
-  public void startResponse(HttpResponse response)
+  public void startResponse(HttpResponse response) throws TimeoutException
   {
     boolean debugEnabled = LOG.isDebugEnabled();
 
@@ -394,7 +402,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
       _chunkQueueLock.unlock();
     }
   }
-  
+
   public boolean hasNoMoreChunks()
   {
 	  return _noMoreChunks;

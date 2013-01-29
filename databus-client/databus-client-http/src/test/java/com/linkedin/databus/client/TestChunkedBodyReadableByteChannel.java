@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
@@ -312,6 +313,7 @@ class SimpleStringChannelReader implements Runnable
 
 class HttpResponseReplayer implements Runnable
 {
+  public static final Logger LOG = Logger.getLogger(HttpResponseReplayer.class);
 
   private final ChunkedBodyReadableByteChannel _channel;
   private final HttpResponse _response;
@@ -354,17 +356,24 @@ class HttpResponseReplayer implements Runnable
   @Override
   public void run()
   {
-    _channel.startResponse(_response);
-
-    if (null != _chunks)
+    try
     {
-      for (HttpChunk chunk: _chunks)
-      {
-        _channel.addChunk(chunk);
-      }
-    }
+      _channel.startResponse(_response);
 
-    _channel.addTrailer(HttpChunk.LAST_CHUNK);
+      if (null != _chunks)
+      {
+        for (HttpChunk chunk: _chunks)
+        {
+          _channel.addChunk(chunk);
+        }
+      }
+
+      _channel.addTrailer(HttpChunk.LAST_CHUNK);
+    }
+    catch (TimeoutException e)
+    {
+      LOG.error("timeout sending chunks", e);
+    }
   }
 
 }
