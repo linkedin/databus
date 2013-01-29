@@ -303,8 +303,8 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 		  ds = (DataSource) ods;
 
 		  Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
-		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
-		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
+		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
+		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
 		  setURLMethod.invoke(ods, uri);
 		  // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
 		  //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.

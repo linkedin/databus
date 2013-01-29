@@ -141,6 +141,7 @@ public class BootstrapAuditTester
             	{
             		String errMsg = "Cannot convert " + databaseFieldValue.getClass()
             				+ " to long. Unable to get oracle datatypes " + e.getMessage();
+            		LOG.error(errMsg);
             		throw new EventCreationException(errMsg);
             	}
 
@@ -156,7 +157,9 @@ public class BootstrapAuditTester
                   }
                   catch(Exception ex)
                   {
-                    throw new RuntimeException("SQLException reading oracle.sql.TIMESTAMP value for field " + f.name(), ex);
+                	String errMsg = "SQLException reading oracle.sql.TIMESTAMP value for field " + f.name();  
+                	LOG.error(errMsg);
+                    throw new RuntimeException(errMsg, ex);
                   }
                 }
                 else if(dateClass.isInstance(databaseFieldValue))
@@ -170,13 +173,17 @@ public class BootstrapAuditTester
                 	}
                 	catch(Exception ex)
                 	{
-                        throw new RuntimeException("SQLException reading oracle.sql.DATE value for field " + f.name(), ex);                		
+                		String errMsg = "SQLException reading oracle.sql.DATE value for field " + f.name();
+                		LOG.error(errMsg);
+                        throw new RuntimeException(errMsg, ex);                		
                 	}
                 }
                 else
                 {
-                  throw new RuntimeException("Cannot convert " + databaseFieldValue.getClass()
-                                             + " to long for field " + f.name());
+                     String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+                             + " to long for field " + f.name();
+                     LOG.error(errMsg);
+                     throw new RuntimeException();
                 }            	
             }
             break;

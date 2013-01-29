@@ -911,10 +911,10 @@ public class BootstrapAuditMain
 			   PreparedStatement stmt = _conn.prepareStatement(sql);
 			   stmt.setLong(1,fromId);
 			   stmt.setLong(2, _interval);
-			   DataSource ods = (DataSource) _oraclePreparedStatementClass.cast(stmt);
+			   Object ds = _oraclePreparedStatementClass.cast(stmt);
 			   try
 			   {
-			   _setLobPrefetchSizeMethod.invoke(ods, 1000);
+			   _setLobPrefetchSizeMethod.invoke(ds, 1000);
 			   } catch (Exception e)
 			   {
 				   LOG.error("Error in setLobPrefetchSizeMethod" + e.getMessage());
@@ -936,10 +936,10 @@ public class BootstrapAuditMain
 			   PreparedStatement stmt = _conn.prepareStatement(sql);
 			   stmt.setString(1,from);
 			   stmt.setLong(2, _interval);
-			   DataSource ods = (DataSource) _oraclePreparedStatementClass.cast(stmt);
+			   Object ds = _oraclePreparedStatementClass.cast(stmt);
 			   try
 			   {
-				   _setLobPrefetchSizeMethod.invoke(ods, 1000);
+				   _setLobPrefetchSizeMethod.invoke(ds, 1000);
 			   } catch (Exception e)
 			   {
 				   throw new SQLException("Unable to set Lob prefetch size", e);

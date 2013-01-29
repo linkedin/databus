@@ -153,16 +153,23 @@ public class BootstrapSeederMain
 	    }
 
 	    // Create the OracleDataSource used to get DB connection(s)
-	    File file = new File("ojdbc6-11.2.0.2.0.jar");
-        URL ojdbcJarFile = file.toURL();
+	    try
+	    {
+	    	File file = new File("ojdbc6-11.2.0.2.0.jar");
+	    	URL ojdbcJarFile = file.toURL();
 
-	    URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-	    Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
-	    Object ods = oracleDataSourceClass.newInstance(); 	  
-	    _sDataStore = (DataSource) ods;
-
-	    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
-	    setURLMethod.invoke(_sDataStore, uri);
+	    	URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+	    	Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
+	    	Object ods = oracleDataSourceClass.newInstance(); 	  
+	    	_sDataStore = (DataSource) ods;
+		    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
+		    setURLMethod.invoke(_sDataStore, uri);
+	    } catch (Exception e)
+	    {
+	    	String errMsg = "Error creating a data source object ";
+	    	LOG.error(errMsg, e);
+	    	throw e;
+	    }
 
 	    //TODO: Need a better way than relaying on RelayFactory for generating MonitoredSourceInfo
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());
