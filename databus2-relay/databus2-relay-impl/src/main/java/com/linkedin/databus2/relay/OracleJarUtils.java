@@ -29,14 +29,6 @@ public class OracleJarUtils {
 		DataSource ds = null;
 		try
 		{
-			/*
-			File file = new File("ojdbc6-11.2.0.2.0.jar");
-			URL ojdbcJarFile = file.toURL();
-			URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-			LOG.error("Created URLClassLoader ");
-			
-			Class oracleDataSourceClass = OracleJarUtils.class.getClassLoader().loadClass("oracle.jdbc.pool.OracleDataSource");
-						*/
 			Class oracleDataSourceClass = loadClass("oracle.jdbc.pool.OracleDataSource");
 			Object ods = oracleDataSourceClass.newInstance(); 	  
 			ds = (DataSource) ods;
@@ -75,12 +67,6 @@ public class OracleJarUtils {
     {
     	try
     	{
- /*   		
-  		  File file = new File("ojdbc6-11.2.0.2.0.jar");
-  		  URL ojdbcJarFile = file.toURL();
-  		  URLClassLoader cl =  URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
-  		  Class cName = cl.loadClass(className);
-*/
     	  Class cName = OracleJarUtils.class.getClassLoader().loadClass(className);
   		  return cName;    		
     	} catch (Exception e)
