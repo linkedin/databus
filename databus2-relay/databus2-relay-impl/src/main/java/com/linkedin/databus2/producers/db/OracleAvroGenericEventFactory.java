@@ -4,6 +4,7 @@
 package com.linkedin.databus2.producers.db;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
@@ -495,7 +496,8 @@ implements EventFactory
     	  Method dateValueMethod = null;
     	  try
     	  {
-    		  URL ojdbcJarFile = new URL("ojdbc6.jar");
+    		  File file = new File("ojdbc6-11.2.0.2.0.jar");
+    		  URL ojdbcJarFile = file.toURL();
     		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
     		  timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
     		  dateClass = cl.loadClass("oracle.sql.DATE");

@@ -3,6 +3,7 @@
  */
 package com.linkedin.databus2.relay;
 
+import java.io.File;
 import java.lang.management.ManagementFactory;
 import java.lang.reflect.Method;
 import java.net.URL;
@@ -185,15 +186,17 @@ public class OracleEventProducerFactory
 	  DataSource ds = null;
 	  try
 	  {
-		  URL ojdbcJarFile = new URL("ojdbc6.jar");
+		  File file = new File("ojdbc6-11.2.0.2.0.jar");
+		  URL ojdbcJarFile = file.toURL();
 		  URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
+		  _log.error("Created URLClassLoader ");
 		  Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
 		  Object ods = oracleDataSourceClass.newInstance(); 	  
 		  ds = (DataSource) ods;
 
 		  Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
-		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
-		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
+		  Method getConnectionPropertiesMethod = oracleDataSourceClass.getMethod("getConnectionProperties");
+		  Method setConnectionPropertiesMethod = oracleDataSourceClass.getMethod("setConnectionProperties", Properties.class);
 		  setURLMethod.invoke(ods, uri);
 		  // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
 		  //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.

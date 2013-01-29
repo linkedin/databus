@@ -140,7 +140,8 @@ public class BootstrapSrcDBEventReader
 		_beginSrcKeyMap = config.getBeginSrcKeyMap();
 		_endSrcKeyMap = config.getEndSrcKeyMap();
 		
-		URL ojdbcJarFile = new URL("ojdbc6.jar");
+        File file = new File("ojdbc6-11.2.0.2.0.jar");
+		URL ojdbcJarFile = file.toURL();
 		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
 		_oraclePreparedStatementClass = cl.loadClass("oracle.jdbc.OraclePreparedStatement");
 		_setLobPrefetchSizeMethod = _oraclePreparedStatementClass.getMethod("setLobPrefetchSize", int.class);

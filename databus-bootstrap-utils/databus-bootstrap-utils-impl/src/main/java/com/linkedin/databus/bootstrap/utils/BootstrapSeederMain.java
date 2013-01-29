@@ -153,7 +153,9 @@ public class BootstrapSeederMain
 	    }
 
 	    // Create the OracleDataSource used to get DB connection(s)
-	    URL ojdbcJarFile = new URL("ojdbc6.jar");
+	    File file = new File("ojdbc6-11.2.0.2.0.jar");
+        URL ojdbcJarFile = file.toURL();
+
 	    URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
 	    Class oracleDataSourceClass = cl.loadClass("oracle.jdbc.pool.OracleDataSource");
 	    Object ods = oracleDataSourceClass.newInstance(); 	  

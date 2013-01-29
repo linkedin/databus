@@ -17,4 +17,6 @@ dependencies {
   compile externalDependency.commonsCli
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
+
+  runtime externalDependency.ojdbc6
 }

@@ -19,7 +19,9 @@ dependencies {
   compile externalDependency.log4j
   compile externalDependency.netty
   compile externalDependency.json
-  
+
+  runtime externalDependency.ojdbc6
+
   testCompile project(':databus-core:databus-core-fwk-test')
   testCompile externalDependency.testng
   testCompile externalDependency.easymock

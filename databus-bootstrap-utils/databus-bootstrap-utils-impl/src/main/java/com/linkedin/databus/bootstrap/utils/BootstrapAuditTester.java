@@ -1,5 +1,6 @@
 package com.linkedin.databus.bootstrap.utils;
 
+import java.io.File;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -130,7 +131,8 @@ public class BootstrapAuditTester
             	Method dateValueMethod = null;
             	try
             	{
-            		URL ojdbcJarFile = new URL("ojdbc6.jar");
+            		File file = new File("ojdbc6-11.2.0.2.0.jar");
+            		URL ojdbcJarFile = file.toURL();
             		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
             		timestampClass = cl.loadClass("oracle.sql.TIMESTAMP");    		 
             		dateClass = cl.loadClass("oracle.sql.DATE");
