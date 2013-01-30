@@ -157,10 +157,10 @@ public class BootstrapSeederMain
 	    try
 	    {
 	    	Class oracleDataSourceClass = OracleJarUtils.loadClass("oracle.jdbc.pool.OracleDataSource");
-	    	Object ods = oracleDataSourceClass.newInstance(); 	  
-	    	_sDataStore = (DataSource) ods;
+	    	Object ods = oracleDataSourceClass.newInstance();
 		    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
-		    setURLMethod.invoke(_sDataStore, uri);
+		    setURLMethod.invoke(ods, uri);
+	    	_sDataStore = (DataSource) ods;
 	    } catch (Exception e)
 	    {
 	    	String errMsg = "Error creating a data source object ";
