@@ -3,14 +3,17 @@ package com.linkedin.databus.bootstrap.utils;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
+import javax.sql.DataSource;
 
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -34,6 +37,7 @@ import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
 import com.linkedin.databus2.relay.OracleEventProducerFactory;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
@@ -59,7 +63,7 @@ public class BootstrapSeederMain
 
 	private static Properties  _sBootstrapConfigProps = null;
 	private static String      _sSourcesConfigFile    = null;
-	private static OracleDataSource  _sDataStore      = null;
+	private static DataSource  _sDataStore      = null;
 	private static StaticConfig _sStaticConfig        = null;
 	private static List<MonitoredSourceInfo> _sources = null;
 	private static BootstrapDBSeeder _sSeeder         = null;
@@ -94,7 +98,7 @@ public class BootstrapSeederMain
       return _sSourcesConfigFile;
     }
 
-    public static OracleDataSource getDataStore()
+    public static DataSource getDataStore()
     {
       return _sDataStore;
     }
@@ -150,8 +154,19 @@ public class BootstrapSeederMain
 	    }
 
 	    // Create the OracleDataSource used to get DB connection(s)
-	    _sDataStore = new OracleDataSource();
-	    _sDataStore.setURL(uri);
+	    try
+	    {
+	    	Class oracleDataSourceClass = OracleJarUtils.loadClass("oracle.jdbc.pool.OracleDataSource");
+	    	Object ods = oracleDataSourceClass.newInstance();
+		    Method setURLMethod = oracleDataSourceClass.getMethod("setURL", String.class);
+		    setURLMethod.invoke(ods, uri);
+	    	_sDataStore = (DataSource) ods;
+	    } catch (Exception e)
+	    {
+	    	String errMsg = "Error creating a data source object ";
+	    	LOG.error(errMsg, e);
+	    	throw e;
+	    }
 
 	    //TODO: Need a better way than relaying on RelayFactory for generating MonitoredSourceInfo
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());

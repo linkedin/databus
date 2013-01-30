@@ -6,18 +6,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 
 import javax.management.MBeanServer;
 import javax.sql.DataSource;
-
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.monitoring.mbean.DBStatistics;
 import com.linkedin.databus.monitoring.mbean.DBStatisticsMBean;
 import com.linkedin.databus.monitoring.mbean.SourceDBStatistics;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventProducer;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
@@ -132,19 +130,10 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	protected boolean createDataSource() {
 		try {
 		  if (_dataSource==null) {
-		    OracleDataSource ds = new OracleDataSource();
-		    ds.setURL(_uri);
-		    Properties prop = ds.getConnectionProperties();
-		    if (prop == null)
-		    {
-		      prop = new Properties();
-		    }
-		    //prop.put("oracle.jdbc.V8Compatible","true");
-		    ds.setConnectionProperties(prop);
-		    _dataSource = ds;
+			_dataSource = OracleJarUtils.createOracleDataSource(_uri);
 		  }
-		} catch (SQLException e) {
-			e.printStackTrace();
+		} catch (Exception e) {
+			_log.error("Error creating data source", e);
 			_dataSource = null;
 			return false;
 		}

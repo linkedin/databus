@@ -43,7 +43,9 @@ Dependencies
 ------------
 
 It is assumed that the user has a license to work with an Oracle database, and therefore access to jar with ivy co-ordinates of com.oracle:ojdbc6:11.2.0.2.0. Due to licensing constraints, 
-we cannot provide that jar. All of the other jars are available for use in the opensource community :
+we cannot provide that jar. The name of the library is ojdbc6.jar, with version at 11.2.0.2.0 available at http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html 
+The licensing model is OTN - Oracle Technology Network License. Please accept that license at http://www.oracle.com/technetwork/licenses/distribution-license-152002.html, to obtain the jar.
+All of the other jars are available for use in the opensource community :
 
 Ivy co-ordinates of the other jars required to build Databus :
 

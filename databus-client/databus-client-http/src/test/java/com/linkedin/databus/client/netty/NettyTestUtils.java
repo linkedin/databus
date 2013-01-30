@@ -38,11 +38,20 @@ public class NettyTestUtils
   public static void sendServerResponses(SimpleTestServerConnection srv,
                                          SocketAddress clientAddr,
                                          HttpResponse sourcesResp,
+                                         HttpChunk body,
+                                         long timeout)
+  {
+    srv.sendServerResponse(clientAddr, sourcesResp, timeout);
+    srv.sendServerResponse(clientAddr, body, timeout);
+    srv.sendServerResponse(clientAddr, HttpChunk.LAST_CHUNK, timeout);
+  }
+
+  public static void sendServerResponses(SimpleTestServerConnection srv,
+                                         SocketAddress clientAddr,
+                                         HttpResponse sourcesResp,
                                          HttpChunk body)
   {
-    srv.sendServerResponse(clientAddr, sourcesResp, 1000);
-    srv.sendServerResponse(clientAddr, body, 1000);
-    srv.sendServerResponse(clientAddr, HttpChunk.LAST_CHUNK, 1000);
+    sendServerResponses(srv, clientAddr, sourcesResp, body, 1000);
   }
 
   public static String generateRegisterResponse(RegisterResponseEntry... entries)

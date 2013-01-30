@@ -1,5 +1,9 @@
 package com.linkedin.databus.bootstrap.utils;
 
+import java.io.File;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
@@ -28,6 +32,7 @@ import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 public class BootstrapAuditTester
@@ -116,32 +121,68 @@ public class BootstrapAuditTester
               long time = ((Timestamp) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.TIMESTAMP)
-            {
-              try
-              {
-                long time = ((oracle.sql.TIMESTAMP) databaseFieldValue).dateValue().getTime();
-                assertEquals(f.name(),time,((Long)avroField).longValue());
-              }
-              catch(SQLException ex)
-              {
-                throw new RuntimeException("SQLException reading oracle.sql.TIMESTAMP value for field " + f.name(), ex);
-              }
-            }
             else if(databaseFieldValue instanceof Date)
             {
               long time = ((Date) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.DATE)
-            {
-              long time = ((oracle.sql.DATE) databaseFieldValue).dateValue().getTime();
-              assertEquals(f.name(),time,((Long)avroField).longValue());
-            }
             else
             {
-              throw new RuntimeException("Cannot convert " + databaseFieldValue.getClass()
-                                         + " to long for field " + f.name());
+            	Class timestampClass = null, dateClass = null;
+            	try
+            	{
+            		timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");    		 
+            		dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
+            	} catch (Exception e)
+            	{
+            		String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+            				+ " to long. Unable to get oracle datatypes " + e.getMessage();
+            		LOG.error(errMsg);
+            		throw new EventCreationException(errMsg);
+            	}
+
+
+                if(timestampClass.isInstance(databaseFieldValue))
+                {
+                  try
+                  {
+                	  Object tsc = timestampClass.cast(databaseFieldValue);
+              		  Method dateValueMethod = timestampClass.getMethod("dateValue");
+                	  Date dateValue = (Date) dateValueMethod.invoke(tsc);
+                	  long time = dateValue.getTime();
+                	  assertEquals(f.name(),time,((Long)avroField).longValue());
+                  }
+                  catch(Exception ex)
+                  {
+                	String errMsg = "SQLException reading oracle.sql.TIMESTAMP value for field " + f.name();  
+                	LOG.error(errMsg);
+                    throw new RuntimeException(errMsg, ex);
+                  }
+                }
+                else if(dateClass.isInstance(databaseFieldValue))
+                {
+                	try
+                	{
+                		Object dsc = dateClass.cast(databaseFieldValue);
+                		Method dateValueMethod = dateClass.getMethod("dateValue");
+                		Date dateValue = (Date) dateValueMethod.invoke(dsc);
+                		long time = dateValue.getTime();
+                		assertEquals(f.name(),time,((Long)avroField).longValue());
+                	}
+                	catch(Exception ex)
+                	{
+                		String errMsg = "SQLException reading oracle.sql.DATE value for field " + f.name();
+                		LOG.error(errMsg);
+                        throw new RuntimeException(errMsg, ex);                		
+                	}
+                }
+                else
+                {
+                     String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+                             + " to long for field " + f.name();
+                     LOG.error(errMsg);
+                     throw new RuntimeException();
+                }            	
             }
             break;
         case STRING:
