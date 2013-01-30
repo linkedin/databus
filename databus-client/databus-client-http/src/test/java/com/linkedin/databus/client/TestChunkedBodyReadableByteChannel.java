@@ -229,11 +229,11 @@ public class TestChunkedBodyReadableByteChannel
 
     replayerThread.start();
 
-    TestUtil.sleep(10000);
+    TestUtil.sleep(ChunkedBodyReadableByteChannel.MAX_CHUNK_SPACE_WAIT_MS / 2);
     Assert.assertTrue(replayerThread.isAlive());
 
-    TestUtil.sleep(10000);
-    Assert.assertTrue(!replayerThread.isAlive());
+    Assert.assertTrue(joinThreadWithExpoBackoff(replayerThread,
+                                                ChunkedBodyReadableByteChannel.MAX_CHUNK_SPACE_WAIT_MS));
   }
 
   @Test
