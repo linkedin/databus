@@ -42,7 +42,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   private static final int MAX_BUFFERED_CHUNKS = 1000;
   private static final int MAX_BUFFERED_BYTES = 4096000;
 
-  private static final int MAX_CHUNK_SPACE_WAIT_MS = 15000;
+  static final int MAX_CHUNK_SPACE_WAIT_MS = 15000;
 
   /** A flag if the channel is open */
   private AtomicBoolean _open = new AtomicBoolean(true);
@@ -80,7 +80,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
     {
       //awake anyone blocked waiting for chunks
       //getChunk() checks the _open flag and it will exit immediately.
-      _hasChunksCondition.signalAll();
+      signalNoMoreChunks();
       _hasChunkSpaceCondition.signalAll();
     }
     finally
