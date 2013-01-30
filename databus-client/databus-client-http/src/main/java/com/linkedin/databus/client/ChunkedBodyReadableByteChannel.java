@@ -80,7 +80,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
     {
       //awake anyone blocked waiting for chunks
       //getChunk() checks the _open flag and it will exit immediately.
-      _hasChunksCondition.signalAll();
+      signalNoMoreChunks();
       _hasChunkSpaceCondition.signalAll();
     }
     finally
