@@ -105,7 +105,9 @@ public class TestDbusEventBufferMult {
 
       _physConfigs =  new PhysicalSourceStaticConfig [] {pStatConf1, pStatConf2};
 
-      DbusEventBuffer.StaticConfig config = new DbusEventBuffer.Config().build();
+      DbusEventBuffer.Config conf = new DbusEventBuffer.Config();
+      conf.setAllocationPolicy("MMAPPED_MEMORY");
+      DbusEventBuffer.StaticConfig config = conf.build();
       _eventBuffer = new DbusEventBufferMult(_physConfigs, config);
       for(DbusEventBuffer b : _eventBuffer.bufIterable()) {
         b.start(1);
@@ -300,6 +302,7 @@ public class TestDbusEventBufferMult {
         LOG.info("scnIndex size = " + cfgBuilder.getScnIndexSize());
         cfgBuilder.setMaxSize(10*1024*1024);
         cfgBuilder.setScnIndexSize(2*1024*1024);
+        cfgBuilder.setAllocationPolicy("MMAPPED_MEMORY");
         _config = cfgBuilder.build();
         //_config = new DbusEventBuffer.Config().build();
       }
