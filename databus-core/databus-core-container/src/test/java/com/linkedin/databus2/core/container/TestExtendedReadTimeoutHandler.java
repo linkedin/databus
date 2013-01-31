@@ -31,7 +31,7 @@ import org.jboss.netty.handler.timeout.ReadTimeoutException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.test.container.ExceptionListenerTestHandler;
 import com.linkedin.databus2.test.container.SimpleTestClientConnection;
 import com.linkedin.databus2.test.container.SimpleTestMessageReader;
@@ -61,12 +61,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEvent.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(1, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEvent.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(1, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -171,12 +171,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerComplexRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEvent.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(2, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEvent.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(2, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -281,12 +281,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleRequestTimeout()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEvent.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(3, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEvent.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(3, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -373,12 +373,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleResponseTimeout()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEvent.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(4, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEvent.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(4, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");

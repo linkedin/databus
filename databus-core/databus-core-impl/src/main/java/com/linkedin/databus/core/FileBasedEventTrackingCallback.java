@@ -85,16 +85,16 @@ public class FileBasedEventTrackingCallback  extends InternalDatabusEventsListen
   }
 
   @Override
-  public void onEvent(DataChangeEvent event, long offset, int size)
+  public void onEvent(DbusEvent event, long offset, int size)
   {
     onEvent(event);
   }
 
-  public void onEvent(DataChangeEvent event)
+  public void onEvent(DbusEvent event)
   {
     if (!event.isEndOfPeriodMarker())
     {
-      DbusEvent dBusEvent = (DbusEvent)event;
+      DbusEventInternalReadable dBusEvent = (DbusEventInternalReadable)event;
       dBusEvent.writeTo(_writeChannel, Encoding.JSON);
     }
   }

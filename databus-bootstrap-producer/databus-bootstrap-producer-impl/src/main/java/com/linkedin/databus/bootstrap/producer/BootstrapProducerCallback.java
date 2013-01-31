@@ -46,6 +46,7 @@ import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import com.linkedin.databus.core.ScnNotFoundException;
 import com.linkedin.databus.core.util.RateMonitor;
 import com.linkedin.databus2.core.BackoffTimer;
@@ -371,7 +372,10 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     		keyStr = new String(e.keyBytes());
     	}
     	_stmt.setString(3, keyStr);
-    	ByteBuffer bytebuff = e.getRawBytes();
+      if (!(e instanceof DbusEventInternalWritable)) {
+        throw new UnsupportedClassVersionError("Cannot get raw bytes out of DbusEvent");
+      }
+    	ByteBuffer bytebuff = ((DbusEventInternalWritable)e).getRawBytes();
 
     	byte val[] = new byte[bytebuff.remaining()];
     	bytebuff.get(val);

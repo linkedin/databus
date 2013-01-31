@@ -19,7 +19,15 @@ package com.linkedin.databus.core.monitoring.mbean;
 */
 
 
+import com.linkedin.databus.core.DbusEvent.EventScanStatus;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
+import com.linkedin.databus.core.util.ConfigApplier;
+import com.linkedin.databus.core.util.ConfigBuilder;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.JmxUtil;
+import com.linkedin.databus.core.util.ReadWriteSyncedObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -27,19 +35,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
-
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
-
 import org.apache.log4j.Logger;
-
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
-import com.linkedin.databus.core.util.ConfigApplier;
-import com.linkedin.databus.core.util.ConfigBuilder;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.JmxUtil;
-import com.linkedin.databus.core.util.ReadWriteSyncedObject;
 
 
 /**
@@ -277,12 +275,12 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
     }
   }
 
-  public void registerDataEvent(DbusEvent e)
+  public void registerDataEvent(DbusEventInternalReadable e)
   {
     if (!_enabled.get()) return;
 
     short srcId = e.srcId();
-    if (! DbusEvent.isControlSrcId(srcId))
+    if (! DbusEventUtils.isControlSrcId(srcId))
     {
       _totalStats.registerDataEvent(e);
       DbusEventsTotalStats data = getOrAddPerSourceCollector(srcId, null);
@@ -296,7 +294,7 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
     if (NO_PEER != _curPeer)
     {
       DbusEventsTotalStats clientStats = getOrAddPerPeerCollector(_curPeer, null);
-      if (!DbusEvent.isControlSrcId(srcId))
+      if (!DbusEventUtils.isControlSrcId(srcId))
       {
         clientStats.registerDataEvent(e);
       }
@@ -308,12 +306,12 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
     }
   }
 
-  public void registerDataEventFiltered(DbusEvent e)
+  public void registerDataEventFiltered(DbusEventInternalReadable e)
   {
     if (!_enabled.get()) return;
 
     short srcId = e.srcId();
-    if (!DbusEvent.isControlSrcId(srcId))
+    if (!DbusEventUtils.isControlSrcId(srcId))
     {
       _totalStats.registerDataEventFiltered(e);
       DbusEventsTotalStats data = getOrAddPerSourceCollector(srcId, null);

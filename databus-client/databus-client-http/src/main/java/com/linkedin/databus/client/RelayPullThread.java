@@ -19,22 +19,6 @@ package com.linkedin.databus.client;
 */
 
 
-import java.io.ByteArrayInputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Random;
-import java.util.Set;
-
-import javax.management.MBeanServer;
-
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.client.ConnectionState.StateId;
 import com.linkedin.databus.client.netty.RemoteExceptionHandler;
 import com.linkedin.databus.client.pub.ServerInfo;
@@ -44,6 +28,8 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
 import com.linkedin.databus.core.SCNRegressMessage;
@@ -64,6 +50,19 @@ import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilter;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
+import java.io.ByteArrayInputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+import javax.management.MBeanServer;
+import org.apache.log4j.Logger;
 
 public class RelayPullThread extends BasePullThread
 {
@@ -810,7 +809,7 @@ public class RelayPullThread extends BasePullThread
         {
                 LOG.info("SCN Regress requested !! Sending a SCN Regress Message to dispatcher. Curr Ckpt :" + curState.getCheckpoint());
 
-                DbusEvent regressEvent = DbusEvent
+                DbusEvent regressEvent = DbusEventV1
                             .createSCNRegressEvent(new SCNRegressMessage(curState.getCheckpoint()));
 
                 writeEventToRelayDispatcher(curState, regressEvent, "SCN Regress Event from ckpt :" + curState.getCheckpoint());
@@ -925,7 +924,7 @@ public class RelayPullThread extends BasePullThread
                         bootstrapCkpt.toString());
         cpForDispatcher
                         .setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
-        DbusEvent cpEvent = DbusEvent
+        DbusEvent cpEvent = DbusEventV1
                         .createCheckpointEvent(cpForDispatcher);
         writeEventToRelayDispatcher(curState, cpEvent, "Control Event to start bootstrap");
         curState.switchToBootstrapRequested();
@@ -1111,6 +1110,10 @@ public class RelayPullThread extends BasePullThread
   private void writeEventToRelayDispatcher(ConnectionState curState, DbusEvent event, String message)
           throws InterruptedException, InvalidEventException
   {
+    if (!(event instanceof DbusEventInternalWritable))
+    {
+      throw new UnsupportedClassVersionError("Dbusevent must be writable");
+    }
 	  boolean success = false;
 
 	  // Create a infinite backoff timer that waits for maximum of 1 sec
@@ -1121,12 +1124,12 @@ public class RelayPullThread extends BasePullThread
 			  timerConfig);
 	  timer.reset();
 
-	  byte[] eventBytes = new byte[event.getRawBytes().limit()];
+	  byte[] eventBytes = new byte[((DbusEventV1)event).getRawBytes().limit()];
 
 	  _log.info("Event size: " + eventBytes.length);
 	  _log.info("Event:" + event.toString());
 
-	  event.getRawBytes().get(eventBytes);
+	  ((DbusEventV1)event).getRawBytes().get(eventBytes);
 
 	  while ((!success) && (timer.getRemainingRetriesNum() > 0))
 	  {

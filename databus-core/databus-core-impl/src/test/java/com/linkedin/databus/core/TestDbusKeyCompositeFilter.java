@@ -19,16 +19,6 @@ package com.linkedin.databus.core;
 */
 
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.testng.AssertJUnit.*;
-import org.testng.annotations.Test;
-
-import org.codehaus.jackson.map.ObjectMapper;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus.core.util.RngUtils;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilter;
@@ -37,6 +27,15 @@ import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
 import com.linkedin.databus2.core.filter.KeyFilterConfigJSONFactory;
 import com.linkedin.databus2.core.filter.KeyModFilterConfig;
 import com.linkedin.databus2.core.filter.KeyRangeFilterConfig;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.testng.annotations.Test;
+
+import static org.testng.AssertJUnit.assertEquals;
 
 
 /**
@@ -664,8 +663,8 @@ public class TestDbusKeyCompositeFilter
 			for (int i=0 ; i < numEvents; ++i)
 			{
 				//assumption: serialized event fits in maxEventSize
-				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEvent.byteOrder);
-				DbusEvent.serializeEvent(new DbusEventKey(keys.get((index++)%size)),
+				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEventV1.byteOrder);
+				DbusEventV1.serializeEvent(new DbusEventKey(keys.get((index++)%size)),
 				        (short)0,
 						RngUtils.randomPositiveShort(),
 						System.currentTimeMillis(),
@@ -674,7 +673,7 @@ public class TestDbusKeyCompositeFilter
 						RngUtils.randomString(payloadSize).getBytes(),
 						false,
 						buf);
-				DbusEvent dbe = new DbusEvent(buf,0);
+				DbusEventInternalWritable dbe = new DbusEventV1(buf,0);
 				dbe.setSequence(windowScn);
 				dbe.applyCrc();
 				eventVector.add(dbe);
@@ -702,8 +701,8 @@ public class TestDbusKeyCompositeFilter
 			for (int i=0 ; i < numEvents; ++i)
 			{
 				//assumption: serialized event fits in maxEventSize
-				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEvent.byteOrder);
-				DbusEvent.serializeEvent(new DbusEventKey(keys.get((index++)%size)),
+				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEventV1.byteOrder);
+				DbusEventV1.serializeEvent(new DbusEventKey(keys.get((index++)%size)),
 				        (short)0,
 						RngUtils.randomPositiveShort(),
 						System.currentTimeMillis(),
@@ -712,7 +711,7 @@ public class TestDbusKeyCompositeFilter
 						RngUtils.randomString(payloadSize).getBytes(),
 						false,
 						buf);
-				DbusEvent dbe = new DbusEvent(buf,0);
+				DbusEventInternalWritable dbe = new DbusEventV1(buf,0);
 				dbe.setSequence(windowScn);
 				dbe.applyCrc();
 				eventVector.add(dbe);

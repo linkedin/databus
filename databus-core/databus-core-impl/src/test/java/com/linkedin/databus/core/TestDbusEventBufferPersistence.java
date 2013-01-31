@@ -422,7 +422,7 @@ public class TestDbusEventBufferPersistence
     dbusBuf.start(1);
     dbusBuf.startEvents();
     DbusEventGenerator generator = new DbusEventGenerator();
-    Vector<DbusEvent> events = new Vector<DbusEvent>();
+    Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
 
     generator.generateEvents(numEvents, 1, 100, 10, events);
 
@@ -432,7 +432,7 @@ public class TestDbusEventBufferPersistence
       long scn = events.get(i).sequence();
       i++;
 
-      DbusEvent e = events.get(i);
+      DbusEventInternalWritable e = events.get(i);
       e.setSrcId((short)-2);
       e.setSequence(scn);
       e.applyCrc();

@@ -19,11 +19,6 @@ package com.linkedin.databus.client.generic;
 */
 
 
-import java.io.IOException;
-
-import org.apache.avro.Schema;
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.client.ClientFileBasedEventTrackingCallback;
 import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
@@ -32,6 +27,9 @@ import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import java.io.IOException;
+import org.apache.avro.Schema;
+import org.apache.log4j.Logger;
 
 public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 	implements DatabusConsumerPauseInterface

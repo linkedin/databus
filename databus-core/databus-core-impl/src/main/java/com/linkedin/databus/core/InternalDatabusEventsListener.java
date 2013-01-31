@@ -32,5 +32,5 @@ public interface InternalDatabusEventsListener extends java.io.Closeable
    * @param event An event was added to the Buffer
    * @param offset At this offset
    */
-  public void onEvent(DataChangeEvent event, long offset, int size);
+  public void onEvent(DbusEvent event, long offset, int size);
 }

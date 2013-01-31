@@ -76,7 +76,7 @@ public class TestScnIndex
 	ScnIndex index = new ScnIndex(3 * ScnIndex.SIZE_OF_SCN_OFFSET_RECORD, 3000, 10000,
 	                              parser, AllocationPolicy.DIRECT_MEMORY, false, null, DEFAULT_ASSERT_LEVEL,
                                 true /* enabled */);
-	DataChangeEvent eopEvent = EasyMock.createNiceMock(DataChangeEvent.class);
+	DbusEvent eopEvent = EasyMock.createNiceMock(DbusEvent.class);
 	EasyMock.expect(eopEvent.isEndOfPeriodMarker()).andReturn(true).anyTimes();
 	EasyMock.expect(eopEvent.isControlMessage()).andReturn(true).anyTimes();
 	EasyMock.replay(eopEvent);
@@ -192,9 +192,9 @@ public class TestScnIndex
 	assertEquals("Tail Check", 32, index.getTail());
   }
 
-private DataChangeEvent createMockDataEvent(long windowScn)
+private DbusEvent createMockDataEvent(long windowScn)
   {
-  DataChangeEvent event = EasyMock.createNiceMock(DataChangeEvent.class);
+  DbusEvent event = EasyMock.createNiceMock(DbusEvent.class);
   EasyMock.expect(event.sequence()).andReturn(windowScn).anyTimes();
   EasyMock.expect(event.isEndOfPeriodMarker()).andReturn(false).anyTimes();
   EasyMock.expect(event.isControlMessage()).andReturn(false).anyTimes();

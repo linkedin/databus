@@ -86,7 +86,7 @@ public class TestDbusEvent {
     ByteBuffer buf = ByteBuffer.allocate(1000).order(ByteOrder.BIG_ENDIAN);
     fis.getChannel().read(buf);
     buf.flip();
-    DbusEvent e = new DbusEvent();
+    DbusEventInternalWritable e = new DbusEventV1();
     e.reset(buf, 0);
     Assert.assertTrue(e.isValid());
     // This is an UPSERT event with key = 12345L, timestamp at 3456L, partitionId at 30,
@@ -115,11 +115,11 @@ public class TestDbusEvent {
 	@Test
 	public void testIsValid() {
 		String randomValue = RngUtils.randomString(100);
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
 
         try
         {
-          DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
+          DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
         }
         catch (KeyTypeNotImplementedException e2)
         {
@@ -127,7 +127,7 @@ public class TestDbusEvent {
           e2.printStackTrace();
           assertTrue(false);
         }
-        DbusEvent e = new DbusEvent();
+        DbusEventInternalWritable e = new DbusEventV1();
         e.reset(serializationBuffer, 0);
         e.setSequence(200L);
           try {
@@ -221,10 +221,10 @@ public class TestDbusEvent {
 	@Test
 	public void testSerialize() throws KeyTypeNotImplementedException {
 		String randomValue = RngUtils.randomString(20);
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
 
-		DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
-		DbusEvent e = new DbusEvent();
+		DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
+		DbusEventInternalWritable e = new DbusEventV1();
 		e.reset(serializationBuffer, 0);
 		e.setSequence(200L);
 	      try {
@@ -240,7 +240,7 @@ public class TestDbusEvent {
 		assertFalse("Trace disabled", e.isTraceEnabled());
 		assertTrue(e.timestampInNanos() == timeStamp);
 		assertTrue(Utils.byteBufferToString(e.value()).equals(randomValue));
-		DbusEvent f = new DbusEvent();
+		DbusEventInternalWritable f = new DbusEventV1();
 		f.reset(serializationBuffer, serializationBuffer.position());
 		assertFalse(f.isValid());
 	}
@@ -253,10 +253,10 @@ public class TestDbusEvent {
     final byte[] keyBytes = {-127, 0, 0, 0};
     String value = "Some data";
     DbusEventKey bkey = new DbusEventKey(keyBytes);
-    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
-    DbusEvent.serializeEvent(bkey, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(), false, serializationBuffer);
+    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
+    DbusEventV1.serializeEvent(bkey, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(), false, serializationBuffer);
 
-    DbusEvent e = new DbusEvent();
+    DbusEventInternalWritable e = new DbusEventV1();
     e.reset(serializationBuffer, 0);
     e.setSequence(200L);
     try {
@@ -272,7 +272,7 @@ public class TestDbusEvent {
     assertFalse("Trace disabled", e.isTraceEnabled());
     assertTrue(e.timestampInNanos() == timeStamp);
     assertTrue(Utils.byteBufferToString(e.value()).equals(value));
-    DbusEvent f = new DbusEvent();
+    DbusEventInternalWritable f = new DbusEventV1();
     f.reset(serializationBuffer, serializationBuffer.position());
     assertFalse(f.isValid());
   }
@@ -280,9 +280,9 @@ public class TestDbusEvent {
 	@Test
 	public void testSerializeWithTraceFlag() throws KeyTypeNotImplementedException {
 	    String randomValue = RngUtils.randomString(20);
-	    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);	        
-	    DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), true, serializationBuffer);
-	    DbusEvent e = new DbusEvent();
+	    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
+	    DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), true, serializationBuffer);
+	    DbusEventInternalWritable e = new DbusEventV1();
 	    e.reset(serializationBuffer, 0);
 	    e.setSequence(200L);
 	    try {
@@ -299,7 +299,7 @@ public class TestDbusEvent {
 	    assertTrue("Trace enabled", e.isTraceEnabled());
 	    assertTrue(e.timestampInNanos() == timeStamp);
 	    assertTrue(Utils.byteBufferToString(e.value()).equals(randomValue));
-	    DbusEvent f = new DbusEvent();
+	    DbusEventInternalWritable f = new DbusEventV1();
 	    f.reset(serializationBuffer, serializationBuffer.position());
 	    assertFalse(f.isValid());
 	}
@@ -307,10 +307,10 @@ public class TestDbusEvent {
 	@Test
 	public void testSerializeStringKey() throws KeyTypeNotImplementedException {
 	    int length = RngUtils.randomPositiveInt() % 30;
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);	    
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
 	    String randomKey = RngUtils.randomString(length);
 	    String randomValue = RngUtils.randomString(20);
-	    DbusEvent.serializeEvent(new DbusEventKey(randomKey), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
+	    DbusEventV1.serializeEvent(new DbusEventKey(randomKey), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
 	     
 	    validateEvent(randomKey, randomValue, serializationBuffer);
 	     
@@ -319,12 +319,12 @@ public class TestDbusEvent {
 	    String emptyVal = "";
 	    serializationBuffer.clear();
 	     
-	    DbusEvent.serializeEvent(new DbusEventKey(emptyKey), (short)0, partitionId, timeStamp, srcId, schemaId, emptyVal.getBytes(), false, serializationBuffer);
+	    DbusEventV1.serializeEvent(new DbusEventKey(emptyKey), (short)0, partitionId, timeStamp, srcId, schemaId, emptyVal.getBytes(), false, serializationBuffer);
 	    validateEvent(emptyKey, emptyVal, serializationBuffer);
 	}
 
 	private void validateEvent( String randomKey, String randomValue, ByteBuffer serializationBuffer) {
-        DbusEvent e = new DbusEvent();
+        DbusEventInternalWritable e = new DbusEventV1();
         e.reset(serializationBuffer, 0);
         e.setSequence(200L);
         try {
@@ -343,7 +343,7 @@ public class TestDbusEvent {
 	    assertTrue(e.logicalPartitionId() == partitionId);
 	    assertTrue(e.timestampInNanos() == timeStamp);
 	    assertTrue(Utils.byteBufferToString(e.value()).equals(randomValue));
-	    DbusEvent f = new DbusEvent();
+	    DbusEventInternalWritable f = new DbusEventV1();
 	    f.reset(serializationBuffer, serializationBuffer.position());
 	    assertFalse(f.isValid());
 	}
@@ -351,9 +351,9 @@ public class TestDbusEvent {
 	@Test
 	public void testWriteToJSON() throws IOException, KeyTypeNotImplementedException {
 	    String randomValue = RngUtils.randomString(20);
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
-	    DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
-	    DbusEvent e = new DbusEvent();
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
+	    DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
+	    DbusEventInternalWritable e = new DbusEventV1();
 	    e.reset(serializationBuffer, 0);
 	    e.setSequence(200L);
 		try {
@@ -375,9 +375,9 @@ public class TestDbusEvent {
 	@Test
 	public void testHeaderCrcLongKeyWithDirectBuffer() throws KeyTypeNotImplementedException {
 	    String randomValue = RngUtils.randomString(20);   
-	    ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(DbusEvent.byteOrder);
-        DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, directBuffer);
-        DbusEvent e = new DbusEvent();
+	    ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(DbusEventV1.byteOrder);
+        DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, directBuffer);
+        DbusEventInternalWritable e = new DbusEventV1();
         e.reset(directBuffer, 0);
         e.setSequence(200L);
         try {
@@ -393,9 +393,9 @@ public class TestDbusEvent {
 	public void testHeaderCrcStringKeyWithDirectBuffer() throws KeyTypeNotImplementedException {
 	    String randomValue = RngUtils.randomString(20);
 	    String randomKey = RngUtils.randomString(10);
-	    ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(DbusEvent.byteOrder);
-	    DbusEvent.serializeEvent(new DbusEventKey(randomKey), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, directBuffer);
-	    DbusEvent e = new DbusEvent();
+	    ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(DbusEventV1.byteOrder);
+	    DbusEventV1.serializeEvent(new DbusEventKey(randomKey), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, directBuffer);
+	    DbusEventInternalWritable e = new DbusEventV1();
 	    e.reset(directBuffer, 0);
 	    e.setSequence(200L);
 	    try {
@@ -426,9 +426,9 @@ public class TestDbusEvent {
 	@Test
 	public void testTimestamp() throws KeyTypeNotImplementedException {
 	    String randomValue = RngUtils.randomString(20);
-  	    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
-	    DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
-	    DbusEvent e = new DbusEvent();
+  	    ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
+	    DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaId, randomValue.getBytes(), false, serializationBuffer);
+	    DbusEventInternalWritable e = new DbusEventV1();
 	    e.reset(serializationBuffer, 0);
 	    assertEquals("Timestamp matches", timeStamp,e.timestampInNanos());
 	}
@@ -437,7 +437,7 @@ public class TestDbusEvent {
 	public void testSchemaVersion() throws KeyTypeNotImplementedException {
 	    final short SCHEMA_VERSION = 152;
 	    String randomValue = RngUtils.randomString(20);
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);    
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
         // simulate having a schemaid and overwriting the first 2 bytes with schemaVersion
 	    ByteBuffer buffer = ByteBuffer.allocate(16);
 	    buffer.put(schemaId);
@@ -446,8 +446,8 @@ public class TestDbusEvent {
 	    buffer.putShort(SCHEMA_VERSION);
 	    buffer.flip();
 	    byte [] schemaVersion = buffer.array();
-	    DbusEvent.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaVersion, randomValue.getBytes(), false, serializationBuffer);
-	    DbusEvent e = new DbusEvent();
+	    DbusEventV1.serializeEvent(new DbusEventKey(key), (short)0, partitionId, timeStamp, srcId, schemaVersion, randomValue.getBytes(), false, serializationBuffer);
+	    DbusEventInternalWritable e = new DbusEventV1();
 	    e.reset(serializationBuffer, 0);
 	    assertEquals("SchemaVersion matches", SCHEMA_VERSION,e.schemaVersion());
 	    assertTrue("SchemaId doesn't match",  ! Arrays.equals(schemaId, e.schemaId()));
@@ -470,13 +470,13 @@ public class TestDbusEvent {
 	public void testAppendToEventBuffer_one() throws Exception
 	{
    	    String valueStr = "testvalue";
-		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
+		ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
 	  
 	    DbusEventInfo eventInfo = new DbusEventInfo(null, 2L, (short)0, (short)3, 4L,
 	                                              (short)5, schemaId, valueStr.getBytes(), false, 
 	                                              true);
-        DbusEvent.serializeFullEvent(new DbusEventKey(1L), serializationBuffer, eventInfo);
-        DbusEvent event1 = new DbusEvent(serializationBuffer, 0);
+        DbusEventV1.serializeFullEvent(new DbusEventKey(1L), serializationBuffer, eventInfo);
+        DbusEventInternalWritable event1 = new DbusEventV1(serializationBuffer, 0);
         assertTrue("event crc correct", event1.isValid());
         //test JSON_PLAIN_VALUE
         ByteArrayOutputStream jsonOut = new ByteArrayOutputStream();
@@ -501,7 +501,7 @@ public class TestDbusEvent {
 
         DbusEventBuffer eventBuffer1 = new DbusEventBuffer(getConfig(100000, DbusEventBuffer.Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE, 10000, 1000, AllocationPolicy.HEAP_MEMORY, QueuePolicy.OVERWRITE_ON_WRITE));
         eventBuffer1.startEvents();
-        assertEquals("json deserialization", 1, DbusEvent.appendToEventBuffer(jsonString, eventBuffer1, null, false));
+        assertEquals("json deserialization", 1, DbusEventV1.appendToEventBuffer(jsonString, eventBuffer1, null, false));
         eventBuffer1.endEvents(2);
 
         DbusEventIterator it1 = eventBuffer1.acquireIterator("it1");
@@ -540,7 +540,7 @@ public class TestDbusEvent {
 
         DbusEventBuffer eventBuffer2 = new DbusEventBuffer(getConfig(100000, DbusEventBuffer.Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE, 10000, 1000, AllocationPolicy.HEAP_MEMORY, QueuePolicy.OVERWRITE_ON_WRITE));
         eventBuffer2.startEvents();
-        assertTrue("json deserialization", (DbusEvent.appendToEventBuffer(jsonString, eventBuffer2, null, false) > 0));
+        assertTrue("json deserialization", (DbusEventV1.appendToEventBuffer(jsonString, eventBuffer2, null, false) > 0));
         eventBuffer2.endEvents(2);
 
         DbusEventIterator it2 = eventBuffer2.acquireIterator("it2");
@@ -563,15 +563,15 @@ public class TestDbusEvent {
     public void testAppendToEventBuffer_many() throws Exception
     {
         ByteArrayOutputStream jsonOut = new ByteArrayOutputStream();
-        ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEvent.byteOrder);
+        ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
         WritableByteChannel jsonOutChannel = Channels.newChannel(jsonOut);
         for (int i = 0; i < 10; ++i)
         {
             int savePosition = serializationBuffer.position();
             String valueStr = "eventValue" + i;
-            DbusEvent.serializeEvent(new DbusEventKey(1L + i), (short)0, (short)(i + 3), 4L + i, (short)(5 + i),
+            DbusEventV1.serializeEvent(new DbusEventKey(1L + i), (short)0, (short)(i + 3), 4L + i, (short)(5 + i),
                                  schemaId, valueStr.getBytes(), false, serializationBuffer);
-            DbusEvent event = new DbusEvent(serializationBuffer, savePosition);
+            DbusEventInternalWritable event = new DbusEventV1(serializationBuffer, savePosition);
             event.writeTo(jsonOutChannel, Encoding.JSON);
         }
 
@@ -581,7 +581,7 @@ public class TestDbusEvent {
         DbusEventBuffer eventBuffer1 = new DbusEventBuffer(getConfig(100000, DbusEventBuffer.Config.DEFAULT_INDIVIDUAL_BUFFER_SIZE, 10000, 1000, AllocationPolicy.HEAP_MEMORY, QueuePolicy.OVERWRITE_ON_WRITE));
 
         eventBuffer1.startEvents();
-        assertEquals("jsonDeserialization", 10, DbusEvent.appendToEventBuffer(jsonIn, eventBuffer1, null, false));
+        assertEquals("jsonDeserialization", 10, DbusEventV1.appendToEventBuffer(jsonIn, eventBuffer1, null, false));
         eventBuffer1.endEvents(2);
 
         DbusEventIterator eventIter = eventBuffer1.acquireIterator("it1");

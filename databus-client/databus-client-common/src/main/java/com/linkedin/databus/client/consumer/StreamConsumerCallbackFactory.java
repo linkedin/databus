@@ -27,6 +27,7 @@ import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 
 /**
  * A factory for stream consumer callbacks.
@@ -201,7 +202,10 @@ class OnDataEventCallable extends ConsumerCallable<ConsumerCallbackResult>
                              DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
   {
     super(currentNanos);
-    _event = e.clone(null);
+    if (!(e instanceof DbusEventInternalWritable)) {
+      throw new UnsupportedClassVersionError("Cannot support cloning on non-Dbusevent");
+    }
+    _event = ((DbusEventInternalWritable)e).clone(null);
     _eventDecoder = eventDecoder;
     _consumer = consumer;
     _consumerStats = stats;

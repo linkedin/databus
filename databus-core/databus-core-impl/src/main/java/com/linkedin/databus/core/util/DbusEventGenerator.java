@@ -19,12 +19,12 @@ package com.linkedin.databus.core.util;
 */
 
 
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.KeyTypeNotImplementedException;
 import java.nio.ByteBuffer;
 import java.util.Vector;
-
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.KeyTypeNotImplementedException;
 
 /**
  *
@@ -67,7 +67,7 @@ public class DbusEventGenerator {
 							   int maxEventSize,
 							   int payloadSize,
 							   boolean useLastEventasScn,
-							   Vector<DbusEvent> eventVector) {
+							   Vector<DbusEventInternalWritable> eventVector) {
 		long lastScn = 0;
 		try {
 		    long beginningOfTime = System.currentTimeMillis()/1000;
@@ -88,8 +88,8 @@ public class DbusEventGenerator {
 			    	srcId = 1;
 			    }
 				//assumption: serialized event fits in maxEventSize
-				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEvent.byteOrder);
-				DbusEvent.serializeEvent(new DbusEventKey(RngUtils.randomLong()),
+				ByteBuffer buf = ByteBuffer.allocate(maxEventSize).order(DbusEventV1.byteOrder);
+				DbusEventV1.serializeEvent(new DbusEventKey(RngUtils.randomLong()),
 				        (short)0, // physical Partition
 						RngUtils.randomPositiveShort(),
 						(beginningOfTime-((numEvents-i)*1000))*1000*1000, //nanoseconds ; first event is numEvents seconds ago
@@ -98,7 +98,7 @@ public class DbusEventGenerator {
 						RngUtils.randomString(payloadSize).getBytes(),
 						false,
 						buf);
-				DbusEvent dbe = new DbusEvent(buf,0);
+				DbusEventInternalWritable dbe = new DbusEventV1(buf,0);
 				lastScn = (useLastEventasScn) ? _startScn + ((i/windowSize) + 1) * (long)windowSize
 				                              : _startScn + (i/windowSize) + 1;
 				dbe.setSequence(lastScn);
@@ -121,7 +121,7 @@ public class DbusEventGenerator {
      * @return last window number generated
      */
 
-    public long generateEvents(int numEvents, int windowSize, int maxEventSize,int payloadSize,Vector<DbusEvent> eventVector) {
+    public long generateEvents(int numEvents, int windowSize, int maxEventSize,int payloadSize,Vector<DbusEventInternalWritable> eventVector) {
       return generateEvents(numEvents,windowSize,maxEventSize,payloadSize,false,eventVector);
     }
 

@@ -19,6 +19,7 @@ package com.linkedin.databus.client;
 */
 
 
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -43,6 +44,7 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -624,7 +626,7 @@ public class BootstrapPullThread extends BasePullThread
       if (debugEnabled) _log.debug("Sending bootstrap events to buffer");
 
       //eventBuffer.startEvents();
-      DbusEvent cpEvent =  DbusEvent.createCheckpointEvent(cp);
+      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
       byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
 
       if (debugEnabled)
@@ -843,7 +845,7 @@ public class BootstrapPullThread extends BasePullThread
     try
     {
       //eventBuffer.startEvents();
-      DbusEvent cpEvent =  DbusEvent.createCheckpointEvent(cp);
+      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
       byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
       cpEvent.getRawBytes().get(cpEventBytes);
       ByteArrayInputStream cpIs = new ByteArrayInputStream(cpEventBytes);

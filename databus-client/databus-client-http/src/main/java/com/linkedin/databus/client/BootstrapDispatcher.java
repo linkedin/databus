@@ -19,14 +19,6 @@ package com.linkedin.databus.client;
 */
 
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
-
-import javax.management.MBeanServer;
-
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus.client.DatabusSourcesConnection.StaticConfig;
 import com.linkedin.databus.client.consumer.MultiConsumerCallback;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
@@ -37,6 +29,11 @@ import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+import javax.management.MBeanServer;
+import org.apache.log4j.Logger;
 
 public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
 {
