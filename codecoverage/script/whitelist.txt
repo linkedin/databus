@@ -3,3 +3,10 @@
 # In case you are responsible for the decision, provide an @reference. 
 
 com.linkedin.events   #  put reason here
+com.linkedin.databus.client.pub.monitoring.events
+com.linkedin.databus.bootstrap.monitoring.server.events
+com.linkedin.databus.bootstrap.server.monitoring.events
+com.linkedin.databus2.core.container.monitoring.events
+com.linkedin.databus.bootstrap.monitoring.producer.events
+com.linkedin.databus.monitoring.events
+
