@@ -4737,7 +4737,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _defaultMemUsage = DEFAULT_DEFAULT_MEMUSAGE;
 
       deriveSizesFromMemPct();
-      _allocationPolicy = getMaxSize() > 10000 ? "MMAPPED_MEMORY":"HEAP_MEMORY";
+      _allocationPolicy = getMaxSize() > 10000 ? "DIRECT_MEMORY":"HEAP_MEMORY";
       _mmapDirectory = DEFAULT_MMAP_DIRECTORY;
       _queuePolicy = DEFAULT_QUEUE_POLICY.toString();
       _trace = new RelayEventTraceOptionBuilder();
