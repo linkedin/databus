@@ -1,3 +1,35 @@
+2.1.154
+-------
+
+* specified memory allocation as MMAP for bootstrapGroupOne tests
+* Fix ./bootstrap_bizfollow_generator_4.test to increase direct memory limit
+* Fixed test TestDbusEventBufferMult by specifying MMAP_MEMORY allocation policy
+* Make ChunkedBodyReadableByteChannel.MAX_CHUNK_SPACE_WAIT_MS visible to the unit tests
+* BUG=DDSDBUS-1493 set _noMoreChunks to true in close() to avoid a race condition between read() and close()
+* Edit license file
+* Update README to note OTN license, and add Apache 2.0 license
+* Seeder packages were not being built. fix it
+* Add unit tests for utils
+* Refactoring, fix bug in get / set method, add runtime dependencies for seeder and integration tests
+* BUG=DDSDBUS-1487 Adding a timeout for processing incoming chunks from the relay; new unit test to cover a potential cause for DDSDBUS-1487
+* fix jarname, and add runtime dependencies
+* Set default allocation policy to DIRECT_MEMORY
+* Removing unused "hack". Please review carefully.
+* Get code compiling with dynamically loading ojdbc6 jar and classes
+* Remove static dependence on ojdbc6 jar
+* Remove ojdbc6 compile time dependencies
+* Adding a way to keep track of the cursor when we stream multiple partitions from DbusEventBufferMult. The cursor is not used yet. This check-in does the plumbing to make sure that the cursor is available where needed.
+* Adding to ignore intellij files in git ignore
+* Adding idea support for the less fortunate ones
+* Fix createUser script for open-source example: correct 'drop tablespace' commands, upper/lowercase mixup
+* Moving linkedin specific pkgs to a separate folder
+* Adjusting whitelist to exclude all com.linkedin.events type packages
+* Adding code coverage whitelist file
+* Fix Utf8/String exception, reduce log noise, and support same-directory tarball extraction for open-source example client and relay
+* Fix example client and relay to use conf/ rather than config/ (compatible with setup.inc defaults)
+* Fix example client package to build tarball correctly (lib/ had been omitted; also changed conf/ to config/ to match example relay's layout and removed commented-out reference to Espresso)
+
+
 2.1.153
 -------
 Snapshot Index (rowId to snapshot table) should be treated as long in checkpoint and Bootrap streaming
