@@ -1,5 +1,28 @@
 package com.linkedin.databus.bootstrap.utils;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
+
+import java.io.File;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
@@ -9,12 +32,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Struct;
 import java.sql.Timestamp;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
@@ -23,12 +41,13 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.util.Utf8;
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus.bootstrap.utils.BootstrapAuditTableReader.ResultSetEntry;
 import com.linkedin.databus.client.DbusEventAvroDecoder;
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.relay.OracleJarUtils;
 
 public class BootstrapAuditTester
     
@@ -39,7 +58,7 @@ public class BootstrapAuditTester
 
   private Schema _schema;
   private final ByteBuffer   _buffer;
-  private final DbusEvent    _event;
+  private final DbusEventInternalReadable _event;
 
 
   public BootstrapAuditTester(Schema schema)
@@ -47,7 +66,7 @@ public class BootstrapAuditTester
     _schema = schema;
     byte[] b = new byte[1024 * 1024];
     _buffer = ByteBuffer.wrap(b);
-    _event = new DbusEvent(_buffer,0);
+    _event = new DbusEventV1(_buffer,0);
   }
   
   private boolean compareField(Field f, Object databaseFieldValue, Object avroField)
@@ -116,32 +135,68 @@ public class BootstrapAuditTester
               long time = ((Timestamp) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.TIMESTAMP)
-            {
-              try
-              {
-                long time = ((oracle.sql.TIMESTAMP) databaseFieldValue).dateValue().getTime();
-                assertEquals(f.name(),time,((Long)avroField).longValue());
-              }
-              catch(SQLException ex)
-              {
-                throw new RuntimeException("SQLException reading oracle.sql.TIMESTAMP value for field " + f.name(), ex);
-              }
-            }
             else if(databaseFieldValue instanceof Date)
             {
               long time = ((Date) databaseFieldValue).getTime();
               assertEquals(f.name(),time,((Long)avroField).longValue());
             }
-            else if(databaseFieldValue instanceof oracle.sql.DATE)
-            {
-              long time = ((oracle.sql.DATE) databaseFieldValue).dateValue().getTime();
-              assertEquals(f.name(),time,((Long)avroField).longValue());
-            }
             else
             {
-              throw new RuntimeException("Cannot convert " + databaseFieldValue.getClass()
-                                         + " to long for field " + f.name());
+            	Class timestampClass = null, dateClass = null;
+            	try
+            	{
+            		timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");    		 
+            		dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
+            	} catch (Exception e)
+            	{
+            		String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+            				+ " to long. Unable to get oracle datatypes " + e.getMessage();
+            		LOG.error(errMsg);
+            		throw new EventCreationException(errMsg);
+            	}
+
+
+                if(timestampClass.isInstance(databaseFieldValue))
+                {
+                  try
+                  {
+                	  Object tsc = timestampClass.cast(databaseFieldValue);
+              		  Method dateValueMethod = timestampClass.getMethod("dateValue");
+                	  Date dateValue = (Date) dateValueMethod.invoke(tsc);
+                	  long time = dateValue.getTime();
+                	  assertEquals(f.name(),time,((Long)avroField).longValue());
+                  }
+                  catch(Exception ex)
+                  {
+                	String errMsg = "SQLException reading oracle.sql.TIMESTAMP value for field " + f.name();  
+                	LOG.error(errMsg);
+                    throw new RuntimeException(errMsg, ex);
+                  }
+                }
+                else if(dateClass.isInstance(databaseFieldValue))
+                {
+                	try
+                	{
+                		Object dsc = dateClass.cast(databaseFieldValue);
+                		Method dateValueMethod = dateClass.getMethod("dateValue");
+                		Date dateValue = (Date) dateValueMethod.invoke(dsc);
+                		long time = dateValue.getTime();
+                		assertEquals(f.name(),time,((Long)avroField).longValue());
+                	}
+                	catch(Exception ex)
+                	{
+                		String errMsg = "SQLException reading oracle.sql.DATE value for field " + f.name();
+                		LOG.error(errMsg);
+                        throw new RuntimeException(errMsg, ex);                		
+                	}
+                }
+                else
+                {
+                     String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+                             + " to long for field " + f.name();
+                     LOG.error(errMsg);
+                     throw new RuntimeException();
+                }            	
             }
             break;
         case STRING:

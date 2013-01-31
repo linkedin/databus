@@ -1,22 +1,40 @@
 package com.linkedin.databus.bootstrap.server;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
 
-import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
-import org.apache.log4j.Logger;
 
 import com.linkedin.databus.bootstrap.api.BootstrapEventCallback;
 import com.linkedin.databus.bootstrap.api.BootstrapEventProcessResult;
 import com.linkedin.databus.bootstrap.api.BootstrapProcessingException;
 import com.linkedin.databus.bootstrap.common.BootstrapEventProcessResultImpl;
 import com.linkedin.databus.core.Checkpoint;
-import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.Encoding;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.core.filter.DbusFilter;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import org.apache.log4j.Logger;
 
 /**
  * @author lgao
@@ -32,7 +50,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
   private long _clientFreeBufferSize;
   private long _bytesSent;
   private long _rowCount;
-  private DbusEvent _event;
+  private DbusEventInternalReadable _event;
   private DbusFilter _filter;
   private Encoding _encoding;
 
@@ -63,7 +81,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
       {
         ByteBuffer tmpBuffer = ByteBuffer.wrap(rs.getBytes(4));
         if ( _debug) LOG.debug("BUFFER SIZE:" + tmpBuffer.limit());
-        _event = new DbusEvent(tmpBuffer, tmpBuffer.position());
+        _event = new DbusEventV1(tmpBuffer, tmpBuffer.position());
       }
       else
       {
@@ -150,7 +168,7 @@ public class BootstrapEventWriter implements BootstrapEventCallback
     currentCheckpoint.bootstrapCheckPoint();
 
     // write ckpt back to client
-    DbusEvent checkpointEvent = DbusEvent.createCheckpointEvent(currentCheckpoint);
+    DbusEventInternalReadable checkpointEvent = DbusEventV1.createCheckpointEvent(currentCheckpoint);
     checkpointEvent.writeTo(_writeChannel, _encoding);
     //LOG.info("Sending snapshot checkpoint to client: " + currentCheckpoint.toString());
   }

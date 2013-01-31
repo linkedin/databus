@@ -1,5 +1,27 @@
 package com.linkedin.databus2.core.container.request;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
+
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus2.core.container.ChunkedWritableByteChannel;
+import com.linkedin.databus2.core.container.netty.ServerContainer;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -13,15 +35,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
-
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-
-import com.linkedin.databus2.core.container.ChunkedWritableByteChannel;
-import com.linkedin.databus2.core.container.request.InvalidRequestParamValueException;
-import com.linkedin.databus2.core.container.netty.ServerContainer;
 
 /**
  * The main class to represent a RESTful request. The request can be associated with a
@@ -61,6 +78,22 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
 	private final ServerContainer.RuntimeConfig _config;
 	private final long _createTimestampMs;
 	private final SocketAddress _remoteAddress;
+
+  /**
+   * _cursorPartition has the last partition from which an event was sent (could be partial or full window)
+   * to the receiver over a channel. For now, this is a context maintained in the server when serving events
+   * from multiple partitions over a single channel (connection). Keeping this context allows the server to
+   * cycle through partitions across responses while not starving out some partitions. Eventually we will move
+   * this object to be sent by the client in the CheckpointMult object as a hint.
+   *
+   * The cursorPartition is only used as a hint, and its absense will not affect the correctness. Specifically,
+   * it is expected that the cursorPartition is ignored if any one of the checkpoints indicates that a partial
+   * window was sent.
+   *
+   * DatabusRequest is merely used as a holder of the server context information since the request processor does
+   * not have access to the netty ChannelContext.
+   */
+  private PhysicalPartition _cursorPartition = null;
 
   private ChunkedWritableByteChannel _responseContent = null;
 
@@ -237,6 +270,16 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
               LOG.error("Can't serialize exception " + ioe.toString());
           }
 		}
+	}
+
+	public PhysicalPartition getCursorPartition()
+	{
+		return _cursorPartition;
+	}
+
+	public void setCursorPartition(PhysicalPartition cursorPartition)
+	{
+		_cursorPartition = cursorPartition;
 	}
 
 	public HttpMethod getRequestType()

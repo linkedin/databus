@@ -1,4 +1,23 @@
 package com.linkedin.databus.core;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -28,9 +47,23 @@ public class CheckpointMult
 
   private Map<PhysicalPartition, Checkpoint> _pPart2Checkpoint = new HashMap<PhysicalPartition, Checkpoint>();
   private static ObjectMapper _mapper = new ObjectMapper();
+  private static String CURSOR_PARTITION_KEY = "cursorPartition";
+
+  /**
+   * _cursorPartition has the last partition from which an event was sent (could be partial or full window)
+   * to the receiver over a channel.
+   *
+   * To avoid upgrade problems, we do not serialize _cursorPartition in the map, but we deserialize it if
+   * we see it.
+   *
+   * The cursorPartition is only used as a hint, and its absense will not affect the correctness. Specifically,
+   * it is expected that the cursorPartition is ignored if any one of the checkpoints indicates that a partial
+   * window was sent.
+   */
+  private PhysicalPartition _cursorPartition;
 
   public CheckpointMult() {
-
+    _cursorPartition = null;
   }
   /**
    * reconstruct Mult checkpoint from a string representation
@@ -48,6 +81,16 @@ public class CheckpointMult
                             new ByteArrayInputStream(checkpointString.getBytes()), Map.class);
       boolean debugEnabled = LOG.isDebugEnabled();
       for(Entry<String, String> m : map.entrySet()) {
+        if (m.getKey().equals(CURSOR_PARTITION_KEY)) {
+          _cursorPartition = PhysicalPartition.createFromJsonString(m.getValue());
+          continue;
+        } else if (!m.getKey().startsWith("{")) {
+          // Ignore anything we don't understand.
+          if (debugEnabled) {
+            LOG.debug("Ignoring checkpoint mult key" + m.getKey());
+          }
+          continue;
+        }
         PhysicalPartition pPart = PhysicalPartition.createFromJsonString(m.getKey());
         String cpString = m.getValue();//serialized checkpoint
         Checkpoint cp = new Checkpoint(cpString);
@@ -115,4 +158,15 @@ public class CheckpointMult
   public int getNumCheckponts() {
     return _pPart2Checkpoint.size();
   }
+
+  public PhysicalPartition getCursorPartition()
+  {
+    return _cursorPartition;
+  }
+
+  public void setCursorPartition(PhysicalPartition cursorPartition)
+  {
+    _cursorPartition = cursorPartition;
+  }
+
 }

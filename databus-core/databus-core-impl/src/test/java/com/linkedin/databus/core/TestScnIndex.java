@@ -1,4 +1,23 @@
 package com.linkedin.databus.core;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
 import com.linkedin.databus.core.util.BufferPositionParser;
@@ -57,7 +76,7 @@ public class TestScnIndex
 	ScnIndex index = new ScnIndex(3 * ScnIndex.SIZE_OF_SCN_OFFSET_RECORD, 3000, 10000,
 	                              parser, AllocationPolicy.DIRECT_MEMORY, false, null, DEFAULT_ASSERT_LEVEL,
                                 true /* enabled */);
-	DataChangeEvent eopEvent = EasyMock.createNiceMock(DataChangeEvent.class);
+	DbusEvent eopEvent = EasyMock.createNiceMock(DbusEvent.class);
 	EasyMock.expect(eopEvent.isEndOfPeriodMarker()).andReturn(true).anyTimes();
 	EasyMock.expect(eopEvent.isControlMessage()).andReturn(true).anyTimes();
 	EasyMock.replay(eopEvent);
@@ -173,9 +192,9 @@ public class TestScnIndex
 	assertEquals("Tail Check", 32, index.getTail());
   }
 
-private DataChangeEvent createMockDataEvent(long windowScn)
+private DbusEvent createMockDataEvent(long windowScn)
   {
-  DataChangeEvent event = EasyMock.createNiceMock(DataChangeEvent.class);
+  DbusEvent event = EasyMock.createNiceMock(DbusEvent.class);
   EasyMock.expect(event.sequence()).andReturn(windowScn).anyTimes();
   EasyMock.expect(event.isEndOfPeriodMarker()).andReturn(false).anyTimes();
   EasyMock.expect(event.isControlMessage()).andReturn(false).anyTimes();

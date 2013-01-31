@@ -1,20 +1,42 @@
 package com.linkedin.databus.core;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
-import static org.testng.Assert.assertEquals;
 
+
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.core.data_model.PhysicalPartition;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
+
 
 public class TestCheckpointMult
 {
@@ -28,6 +50,10 @@ public class TestCheckpointMult
 
   @BeforeTest
   void setup() {
+    _cpMult = makeCpMult();
+  }
+
+  private CheckpointMult makeCpMult() {
      // init test data
     ArrayList<Integer> al = new ArrayList<Integer>();
     al.add(WIN_OFFSET1);
@@ -38,15 +64,16 @@ public class TestCheckpointMult
     al.add(WIN_SCN2);
     pSrcIds.put(pSrcId2, al);
 
-    _cpMult = new CheckpointMult();
+    CheckpointMult cpMult = new CheckpointMult();
 
     for(int id: pSrcIds.keySet()) {
       Checkpoint cp = new Checkpoint();
       cp.setWindowOffset(pSrcIds.get(id).get(0));
       cp.setWindowScn((long)pSrcIds.get(id).get(1));
       PhysicalPartition pPart = new PhysicalPartition(id, "name");
-      _cpMult.addCheckpoint(pPart, cp);
+      cpMult.addCheckpoint(pPart, cp);
     }
+    return cpMult;
   }
 
   @Test
@@ -136,5 +163,36 @@ public class TestCheckpointMult
       assertEquals(cp.getWindowOffset(), aCp.getWindowOffset(),
                    "window offset in int the new cpMult doesn't match");
     }
+  }
+
+  /**
+   * Test that the cursor position can be set/retrieved from the CheckpointMult object,
+   * but is never serialized.
+   * When we change the serialization function to include this in the map, this test will
+   * change.
+   */
+  @Test
+  public void testCursorPosition() throws Exception
+  {
+    final PhysicalPartition ppart = new PhysicalPartition(26, "January");
+    CheckpointMult cpMult = makeCpMult();
+    cpMult.setCursorPartition(ppart);
+    assertEquals(ppart, cpMult.getCursorPartition());
+    String serialCpMult = cpMult.toString();
+    CheckpointMult cpMultCopy = new CheckpointMult(serialCpMult);
+    assertNull(cpMultCopy.getCursorPartition());
+
+    // Make sure we are able to decode it, however.
+
+    ObjectMapper mapper = new ObjectMapper();
+    Map<String, String> map = mapper.readValue(
+        new ByteArrayInputStream(serialCpMult.getBytes()), Map.class);
+    map.put("NonJsonKey", "Some value");
+    map.put("cursorPartition", ppart.toJsonString());
+    ByteArrayOutputStream bs = new ByteArrayOutputStream();
+    mapper.writeValue(bs, map);
+    cpMultCopy = new CheckpointMult(bs.toString());
+
+    assertEquals(cpMultCopy.getCursorPartition(), ppart);
   }
 }

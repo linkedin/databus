@@ -1,4 +1,23 @@
 package com.linkedin.databus2.relay;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -6,18 +25,16 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 
 import javax.management.MBeanServer;
 import javax.sql.DataSource;
-
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.monitoring.mbean.DBStatistics;
 import com.linkedin.databus.monitoring.mbean.DBStatisticsMBean;
 import com.linkedin.databus.monitoring.mbean.SourceDBStatistics;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventProducer;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
 import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
@@ -132,19 +149,10 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	protected boolean createDataSource() {
 		try {
 		  if (_dataSource==null) {
-		    OracleDataSource ds = new OracleDataSource();
-		    ds.setURL(_uri);
-		    Properties prop = ds.getConnectionProperties();
-		    if (prop == null)
-		    {
-		      prop = new Properties();
-		    }
-		    //prop.put("oracle.jdbc.V8Compatible","true");
-		    ds.setConnectionProperties(prop);
-		    _dataSource = ds;
+			_dataSource = OracleJarUtils.createOracleDataSource(_uri);
 		  }
-		} catch (SQLException e) {
-			e.printStackTrace();
+		} catch (Exception e) {
+			_log.error("Error creating data source", e);
 			_dataSource = null;
 			return false;
 		}

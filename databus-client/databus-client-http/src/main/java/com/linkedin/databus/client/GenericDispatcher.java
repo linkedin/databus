@@ -2,7 +2,27 @@
  *
  */
 package com.linkedin.databus.client;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
+
+import com.linkedin.databus.core.DbusEventInternalReadable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +43,7 @@ import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DispatcherRetriesExhaustedException;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
@@ -615,7 +636,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     {
       //TODO MED: maybe add a counter limit the number of events processed in one pass
       //This will not delay the processing of other messages.
-      DbusEvent nextEvent = curState.getEventsIterator().next();
+      DbusEventInternalReadable nextEvent = curState.getEventsIterator().next();
       //TODO: Add stats about last process time
       _currentWindowSizeInBytes += nextEvent.size();
       if (traceEnabled) _log.trace("got event:" + nextEvent);
@@ -862,14 +883,14 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
   }
 
-  private boolean processErrorEvent(DispatcherState curState, DbusEvent nextEvent)
+  private boolean processErrorEvent(DispatcherState curState, DbusEventInternalReadable nextEvent)
   {
     boolean success = false;
     DbusErrorEvent errorEvent = null;
 
     if (nextEvent.isErrorEvent())
     {
-      errorEvent = DbusEvent.getErrorEventFromDbusEvent(nextEvent);
+      errorEvent = DbusEventV1.getErrorEventFromDbusEvent(nextEvent);
 
       if (null == errorEvent)
       {

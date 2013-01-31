@@ -2,16 +2,33 @@
  * $Id: RelayFactory.java 272015 2011-05-21 03:03:57Z cbotev $
  */
 package com.linkedin.databus2.relay;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Properties;
 
 import javax.management.MBeanServer;
-
-import oracle.jdbc.pool.OracleDataSource;
+import javax.sql.DataSource;
 
 import org.apache.log4j.Logger;
 
@@ -67,18 +84,16 @@ public class OracleEventProducerFactory
       sources.add(source);
     }
 
-    // Create the OracleDataSource used to get DB connection(s)
-    OracleDataSource ds = new OracleDataSource();
-    ds.setURL(uri);
-    // DDS-425. Set oracle.jdbc.V8Compatible so DATE column will be mapped to java.sql.TimeStamp
-    //          oracle jdbc 11g fixed this. So we can skip this after will upgrade jdbc to 11g.
-    Properties prop = ds.getConnectionProperties();
-    if (prop == null)
+    DataSource ds = null;
+    try
     {
-      prop = new Properties();
+        ds = OracleJarUtils.createOracleDataSource(uri);    	
+    } catch (Exception e)
+    {
+    	String errMsg = "Oracle URI likely not supported. Trouble creating OracleDataSource";
+    	_log.error(errMsg);
+    	throw new InvalidConfigException(errMsg + e.getMessage());
     }
-    //prop.put("oracle.jdbc.V8Compatible","true");
-    ds.setConnectionProperties(prop);
 
     // Create the event producer
     EventProducer eventProducer = new OracleEventProducer(sources,
@@ -186,4 +201,6 @@ public class OracleEventProducerFactory
       throw new InvalidConfigException("Invalid partition configuration (" + partitionFunction + ").");
     }
   }
+  
+
 }

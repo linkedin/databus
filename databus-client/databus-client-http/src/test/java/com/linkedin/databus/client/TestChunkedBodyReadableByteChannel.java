@@ -1,12 +1,33 @@
 package com.linkedin.databus.client;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -18,6 +39,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import com.linkedin.databus2.test.ConditionCheck;
@@ -29,6 +51,12 @@ public class TestChunkedBodyReadableByteChannel
   public static final Logger LOG = Logger.getLogger(MODULE);
 
   private static final long ONE_MINUTE_IN_MS = 60000;
+
+  @BeforeClass
+  public void setupClass()
+  {
+    TestUtil.setupLogging(true, null, Level.ERROR);
+  }
 
   @Test
   public void testSmallNonChunkedRead()
@@ -46,7 +74,7 @@ public class TestChunkedBodyReadableByteChannel
     replayerThread.start();
     readerThread.start();
 
-    boolean replayerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, ONE_MINUTE_IN_MS);
     Assert.assertTrue(replayerDone);
 
     boolean readerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
@@ -82,7 +110,7 @@ public class TestChunkedBodyReadableByteChannel
     replayerThread.start();
     readerThread.start();
 
-    boolean replayerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, ONE_MINUTE_IN_MS);
     Assert.assertTrue(replayerDone);
 
     boolean readerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
@@ -109,7 +137,7 @@ public class TestChunkedBodyReadableByteChannel
     replayerThread.start();
     readerThread.start();
 
-    boolean replayerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, ONE_MINUTE_IN_MS);
     Assert.assertTrue(replayerDone);
 
     boolean readerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
@@ -146,7 +174,7 @@ public class TestChunkedBodyReadableByteChannel
     replayerThread.start();
     readerThread.start();
 
-    boolean replayerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, ONE_MINUTE_IN_MS);
     Assert.assertTrue(replayerDone);
 
     boolean readerDone = joinThreadWithExpoBackoff(readerThread, ONE_MINUTE_IN_MS);
@@ -184,7 +212,7 @@ public class TestChunkedBodyReadableByteChannel
     replayerThread.start();
     readerThread.start();
 
-    boolean replayerDone = joinThreadWithExpoBackoff(readerThread, 10 * ONE_MINUTE_IN_MS);
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, 10 * ONE_MINUTE_IN_MS);
     Assert.assertTrue(replayerDone);
 
     boolean readerDone = joinThreadWithExpoBackoff(readerThread, 10 * ONE_MINUTE_IN_MS);
@@ -192,6 +220,97 @@ public class TestChunkedBodyReadableByteChannel
 
     String response = responseReader.getResponse();
     Assert.assertEquals(chunk2 + chunk, response);
+  }
+
+  @Test
+  /** Block the writer because of running out of buffer space and check it times out eventually */
+  public void testUnblockWriteOnClose()
+  {
+    ChunkedBodyReadableByteChannel channel = new ChunkedBodyReadableByteChannel();
+
+    StringBuilder megabyte = new StringBuilder(1000000);
+    while (megabyte.length() < 1000000)
+    {
+      megabyte.append("TeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeSt");
+    }
+
+    StringBuilder chunkBuilder = new StringBuilder(5200000);
+    for (int i = 0; i < 5; ++i)
+    {
+      chunkBuilder.append(megabyte);
+    }
+    String chunk = chunkBuilder.toString();
+    String chunk2 = "Hello there.";
+
+    HttpResponseReplayer responseReplayer = new HttpResponseReplayer(channel, null, new String[]{chunk2, chunk});
+
+    Thread replayerThread = new Thread(responseReplayer, "replayer");
+
+    replayerThread.start();
+
+    TestUtil.sleep(ChunkedBodyReadableByteChannel.MAX_CHUNK_SPACE_WAIT_MS / 2);
+    Assert.assertTrue(replayerThread.isAlive());
+
+    Assert.assertTrue(joinThreadWithExpoBackoff(replayerThread,
+                                                ChunkedBodyReadableByteChannel.MAX_CHUNK_SPACE_WAIT_MS));
+  }
+
+  @Test
+  /** make sure the reader does not hang if the channel is closed while it is reading. */
+  public void testUnblockReadOnPrematureClose() throws IOException
+  {
+    final ChunkedBodyReadableByteChannel channel = new ChunkedBodyReadableByteChannel();
+
+    StringBuilder kilobyte = new StringBuilder(1000);
+    while (kilobyte.length() < 1000)
+    {
+      kilobyte.append("TeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeSt");
+    }
+
+    final int chunkNum = 10000;
+    String[] chunks = new String[chunkNum];
+    for (int i = 0; i < chunkNum; ++i) chunks[i] = kilobyte.toString();
+
+    HttpResponseReplayer responseReplayer = new HttpResponseReplayer(channel, null, chunks);
+
+    Thread replayerThread = new Thread(responseReplayer);
+    //a flag if the read is finished
+    final AtomicBoolean out = new AtomicBoolean(false);
+
+    //start a thread waiting for data on the channel
+    final Thread readerThread = new Thread(new Runnable()
+      {
+
+        @Override
+        public void run()
+        {
+          ByteBuffer tmp = ByteBuffer.allocate(10 * 1024 * 1024);
+          try
+          {
+            channel.read(tmp);
+            out.set(true);
+          }
+          catch (IOException ioe)
+          {
+            out.set(true);
+          }
+        }
+      });
+    readerThread.setDaemon(true);
+
+    replayerThread.start();
+    readerThread.start();
+
+    TestUtil.sleep(5);
+
+    channel.close();
+
+    boolean replayerDone = joinThreadWithExpoBackoff(replayerThread, 30000);
+    Assert.assertTrue(replayerDone);
+
+    boolean readerDone = joinThreadWithExpoBackoff(readerThread, 30000);
+    Assert.assertTrue(readerDone);
+
   }
 
   @Test
@@ -312,6 +431,7 @@ class SimpleStringChannelReader implements Runnable
 
 class HttpResponseReplayer implements Runnable
 {
+  public static final Logger LOG = Logger.getLogger(HttpResponseReplayer.class);
 
   private final ChunkedBodyReadableByteChannel _channel;
   private final HttpResponse _response;
@@ -354,17 +474,24 @@ class HttpResponseReplayer implements Runnable
   @Override
   public void run()
   {
-    _channel.startResponse(_response);
-
-    if (null != _chunks)
+    try
     {
-      for (HttpChunk chunk: _chunks)
-      {
-        _channel.addChunk(chunk);
-      }
-    }
+      _channel.startResponse(_response);
 
-    _channel.addTrailer(HttpChunk.LAST_CHUNK);
+      if (null != _chunks)
+      {
+        for (HttpChunk chunk: _chunks)
+        {
+          _channel.addChunk(chunk);
+        }
+      }
+
+      _channel.addTrailer(HttpChunk.LAST_CHUNK);
+    }
+    catch (TimeoutException e)
+    {
+      LOG.error("timeout sending chunks", e);
+    }
   }
 
 }

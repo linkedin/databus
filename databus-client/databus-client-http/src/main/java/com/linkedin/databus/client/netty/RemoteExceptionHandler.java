@@ -1,5 +1,25 @@
 package com.linkedin.databus.client.netty;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
+
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -10,6 +30,7 @@ import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.core.DbusErrorEvent;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
@@ -102,13 +123,13 @@ public class RemoteExceptionHandler
 
     // send an error event to dispatcher through dbusEventBuffer
 
-    DbusEvent errorEvent = null;
+    DbusEventInternalWritable errorEvent = null;
     if (exception instanceof BootstrapDatabaseTooOldException)
     {
-    	errorEvent =  DbusEvent.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID));
+    	errorEvent =  DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID));
     }
     else if (exception instanceof PullerRetriesExhaustedException)
-    	errorEvent = DbusEvent.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.PULLER_RETRIES_EXPIRED));
+    	errorEvent = DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.PULLER_RETRIES_EXPIRED));
     else
     	throw new InvalidEventException("Got an unrecognizable exception ");
     byte[] errorEventBytes = new byte[errorEvent.getRawBytes().limit()];

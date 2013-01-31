@@ -1,4 +1,23 @@
 package com.linkedin.databus.core;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertFalse;
@@ -73,7 +92,7 @@ public class TestDbusEventBuffer {
 *  and ease of use. Currently, written for recreating a bug with readEvents.
 * Contains only one field of type long
 */
-public static class DummyDbusEvent extends DbusEvent
+public static class DummyDbusEvent extends DbusEventV1
 {
 
 	private ByteBuffer _buf;
@@ -419,7 +438,7 @@ public static class DummyDbusEvent extends DbusEvent
       paramsRead2.setup();
       paramsRead2._destBuf.setDropOldEvents(true);
 
-      paramsRead2._srcEvents = new Vector<DbusEvent>();
+      paramsRead2._srcEvents = new Vector<DbusEventInternalWritable>();
       paramsRead2._srcEvents.addAll(params2._srcEvents);
       paramsRead2._srcEvents.addAll(params3._srcEvents);
       paramsRead2.appendGeneratedEvents();
@@ -488,7 +507,7 @@ public static class DummyDbusEvent extends DbusEvent
       paramsRead2._numStreamedEvents = 2 * params1._numStreamedEvents + params2._numStreamedEvents;
 
       //reset the expected events
-      paramsRead2._srcEvents = new Vector<DbusEvent>();
+      paramsRead2._srcEvents = new Vector<DbusEventInternalWritable>();
       paramsRead2._srcEvents.addAll(params1._srcEvents);
       paramsRead2._srcEvents.addAll(params2._srcEvents);
 
@@ -512,9 +531,9 @@ public static class DummyDbusEvent extends DbusEvent
     private void readEventsBlocking (boolean invokeStartOnBuffer)
            throws InvalidConfigException, IOException, InterruptedException {
       //Src Event producer
-        Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
         //Dest Event consumer
-        Vector<DbusEvent>  dstTestEvents = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable>  dstTestEvents = new Vector<DbusEventInternalWritable>();
         EventBufferTestInput blockingCapacityTest = new EventBufferTestInput();
         final int numEvents = 5000;
       //set sharedBufferSize to a value much smaller than total size required
@@ -614,7 +633,7 @@ public static class DummyDbusEvent extends DbusEvent
             BufferPositionParser parser = dbusBuf.getBufferPositionParser();
             LOG.info("New Batch append 1");
             DbusEventGenerator generator = new DbusEventGenerator();
-            Vector<DbusEvent> events = new Vector<DbusEvent>();
+            Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(9, 1, 120, 39, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -645,7 +664,7 @@ public static class DummyDbusEvent extends DbusEvent
 
             LOG.info("New Batch append 2");
             generator = new DbusEventGenerator(100);
-            events = new Vector<DbusEvent>();
+            events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(1, 1, 80, 10, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -673,7 +692,7 @@ public static class DummyDbusEvent extends DbusEvent
 
             LOG.info("New Batch append 3");
             generator = new DbusEventGenerator(200);
-            events = new Vector<DbusEvent>();
+            events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(1, 1, 400, 320, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -710,7 +729,7 @@ public static class DummyDbusEvent extends DbusEvent
             BufferPositionParser parser = dbusBuf.getBufferPositionParser();
             LOG.info("New Batch append 1");
             DbusEventGenerator generator = new DbusEventGenerator();
-            Vector<DbusEvent> events = new Vector<DbusEvent>();
+            Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(28, 2, 180, 39, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -739,7 +758,7 @@ public static class DummyDbusEvent extends DbusEvent
 
             LOG.info("New Batch append 2");
             generator = new DbusEventGenerator(200);
-            events = new Vector<DbusEvent>();
+            events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(1, 1, 80, 10, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -767,7 +786,7 @@ public static class DummyDbusEvent extends DbusEvent
 
             LOG.info("New Batch append 3");
             generator = new DbusEventGenerator(300);
-            events = new Vector<DbusEvent>();
+            events = new Vector<DbusEventInternalWritable>();
             generator.generateEvents(1, 1, 400, 330, events);
 
             // Add events to the EventBuffer. Now the buffer is full
@@ -839,7 +858,7 @@ public static class DummyDbusEvent extends DbusEvent
                                         AssertLevel.ALL));
       BufferPositionParser parser = dbusBuf.getBufferPositionParser();
       DbusEventGenerator generator = new DbusEventGenerator();
-      Vector<DbusEvent> events = new Vector<DbusEvent>();
+      Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
       generator.generateEvents(9, 3, 120, 39, events);
 
       // Add events to the EventBuffer. Now the buffer is full
@@ -873,7 +892,7 @@ public static class DummyDbusEvent extends DbusEvent
       LOG.info("ScnIndex Head is :" + scnIndexHead + ", ScnIndex Tail is :" + scnIndexTail);
 
 
-      events = new Vector<DbusEvent>();
+      events = new Vector<DbusEventInternalWritable>();
       generator = new DbusEventGenerator(100);
       /*
        * The event size is carefully created such that after adding 2nd
@@ -916,7 +935,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.OVERWRITE_ON_WRITE, AssertLevel.ALL));
         BufferPositionParser parser = dbusBuf.getBufferPositionParser();
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(9, 3, 120, 39, events);
 
         // Add events to the EventBuffer. Now the buffer is full
@@ -952,7 +971,7 @@ public static class DummyDbusEvent extends DbusEvent
         dbusBuf.setTail(tailPos);
         dbusBuf.recreateIndex();
 
-        events = new Vector<DbusEvent>();
+        events = new Vector<DbusEventInternalWritable>();
         generator = new DbusEventGenerator(1000);
         /*
          * The event size is carefully created such that after adding 2nd
@@ -998,7 +1017,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.OVERWRITE_ON_WRITE, AssertLevel.ALL));
         BufferPositionParser parser = dbusBuf.getBufferPositionParser();
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(9, 3, 120, 39, events);
 
         // Add events to the EventBuffer. Now the buffer is full
@@ -1034,7 +1053,7 @@ public static class DummyDbusEvent extends DbusEvent
         /*
          * Dump lots of events
          */
-        events = new Vector<DbusEvent>();
+        events = new Vector<DbusEventInternalWritable>();
         generator = new DbusEventGenerator(100);
         generator.generateEvents(655, 3, 150, 89, events);
         appender = new DbusEventAppender(events,dbusBuf,null);
@@ -1064,7 +1083,7 @@ public static class DummyDbusEvent extends DbusEvent
          * The event size is carefully created such that after adding 2nd
          * event CWP and tail points to the same location.
          */
-        events = new Vector<DbusEvent>();
+        events = new Vector<DbusEventInternalWritable>();
         generator = new DbusEventGenerator(10000);
         generator.generateEvents(3, 5, 100, 28, events);
 
@@ -1073,7 +1092,7 @@ public static class DummyDbusEvent extends DbusEvent
 
         LOG.info("Head:" + parser.toString(dbusBuf.getHead()) + ",Tail:" + parser.toString(dbusBuf.getTail()));
 
-        events = new Vector<DbusEvent>();
+        events = new Vector<DbusEventInternalWritable>();
         generator = new DbusEventGenerator(10000);
         generator.generateEvents(3, 3, 120, 19, events);
 
@@ -1124,7 +1143,7 @@ public static class DummyDbusEvent extends DbusEvent
     	                                  QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
     	BufferPositionParser parser = dbusBuf.getBufferPositionParser();
     	DbusEventGenerator generator = new DbusEventGenerator();
-    	Vector<DbusEvent> events = new Vector<DbusEvent>();
+    	Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(11, 11, 100, 10, events);
 
     	// Add events to the EventBuffer
@@ -1145,7 +1164,7 @@ public static class DummyDbusEvent extends DbusEvent
     	assertEquals("Head Check",61,dbusBuf.getHead());
     	assertEquals("Tail Check",903,dbusBuf.getTail());
 
-    	for(DbusEvent e :events)
+    	for(DbusEventInternalWritable e :events)
     	{
     		e.applyCrc();
     		assertTrue(e.isValid(true));
@@ -1236,7 +1255,7 @@ public static class DummyDbusEvent extends DbusEvent
     	final BufferPositionParser parser2 = dbusBuf2.getBufferPositionParser();
 
     	DbusEventGenerator generator = new DbusEventGenerator();
-    	Vector<DbusEvent> events = new Vector<DbusEvent>();
+    	Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(24, 24, 100, 10, events);
     	log.info("Num Events :" + events.size());
 
@@ -1316,7 +1335,7 @@ public static class DummyDbusEvent extends DbusEvent
     							          QueuePolicy.OVERWRITE_ON_WRITE, AssertLevel.ALL));
 
     	DbusEventGenerator generator = new DbusEventGenerator();
-    	Vector<DbusEvent> events = new Vector<DbusEvent>();
+    	Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(215, 5, 100, 10, events);
 
     	// Add events to the EventBuffer
@@ -1336,7 +1355,7 @@ public static class DummyDbusEvent extends DbusEvent
 
     	long lastScn = events.get(events.size() - 1).sequence();
     	generator = new DbusEventGenerator(lastScn + 1);
-    	events = new Vector<DbusEvent>();
+    	events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(3, 3, 80, 10, events);
     	appender = new DbusEventAppender(events,dbusBuf,null);
      	appender.run();
@@ -1366,7 +1385,7 @@ public static class DummyDbusEvent extends DbusEvent
     	//dbusBuf.getLog().setLevel(Level.DEBUG);
 
     	DbusEventGenerator generator = new DbusEventGenerator();
-    	Vector<DbusEvent> events = new Vector<DbusEvent>();
+    	Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(232, 5, 100, 10, events);
 
     	// Add events to the EventBuffer
@@ -1389,7 +1408,7 @@ public static class DummyDbusEvent extends DbusEvent
     	ByteArrayOutputStream oStream = new ByteArrayOutputStream();
     	WritableByteChannel oChannel = Channels.newChannel(oStream);
 
-    	for ( DbusEvent e :events)
+    	for ( DbusEventInternalWritable e :events)
     	{
     		e.applyCrc();
     		assertTrue(e.isValid(true));
@@ -1439,7 +1458,7 @@ public static class DummyDbusEvent extends DbusEvent
     	final BufferPositionParser parser2 = dbusBuf2.getBufferPositionParser();
 
     	DbusEventGenerator generator = new DbusEventGenerator();
-    	Vector<DbusEvent> events = new Vector<DbusEvent>();
+    	Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(12, 12, 100, 10, events);
 
     	log.info("generate sample events to the EventBuffer");
@@ -1500,7 +1519,7 @@ public static class DummyDbusEvent extends DbusEvent
     	dbusBuf = new DbusEventBuffer(
 				getConfig(2000,2000,100,500,AllocationPolicy.HEAP_MEMORY,
 				          QueuePolicy.BLOCK_ON_WRITE, AssertLevel.ALL));
-    	events = new Vector<DbusEvent>();
+    	events = new Vector<DbusEventInternalWritable>();
     	generator.generateEvents(8, 9, 150, 52, events);
     	log.info("Events Size is :" + events.get(0).size());
     	appender = new DbusEventAppender(events,dbusBuf,null);
@@ -1653,7 +1672,7 @@ public static class DummyDbusEvent extends DbusEvent
     long minDbusEventBufferScn = dbuf.getMinScn();
     long expectedScn = minDbusEventBufferScn;
     DbusEventIterator eventIterator = dbuf.acquireIterator("eventIterator");
-    DbusEvent e= null;
+    DbusEventInternalWritable e= null;
     int state = 0; // searching for min scn
     long entryNum = 1;
     while (eventIterator.hasNext())
@@ -1773,7 +1792,7 @@ public static class DummyDbusEvent extends DbusEvent
       long minDbusEventBufferScn = dbuf.getMinScn();
       long expectedScn = minDbusEventBufferScn;
       DbusEventIterator eventIterator = dbuf.acquireIterator("eventIterator");
-      DbusEvent e= null;
+      DbusEventInternalWritable e= null;
       int state = 0; // searching for min scn
       while (eventIterator.hasNext())
       {
@@ -1830,7 +1849,7 @@ public static class DummyDbusEvent extends DbusEvent
       final long minDbusEventBufferScn = dbuf.getMinScn();
       long expectedScn = minDbusEventBufferScn;
       DbusEventIterator eventIterator = dbuf.acquireIterator("eventIterator");
-      DbusEvent e= null;
+      DbusEventInternalWritable e= null;
       int state = 0; // searching for min scn
       DbusEventIterator copyIterator = eventIterator.copy(null, "copyIterator");
       while (eventIterator.hasNext())
@@ -2047,7 +2066,7 @@ public static class DummyDbusEvent extends DbusEvent
         checkDbusEventBuffer.clear();
         numEvents = checkDbusEventBuffer.readEvents(readChannel, inputStats);
         long ts= 0;
-        for (DbusEvent e : checkDbusEventBuffer) {
+        for (DbusEventInternalWritable e : checkDbusEventBuffer) {
         	ts = Math.max(e.timestampInNanos(),ts);
         	messageSize += e.size();
         	if (e.isEndOfPeriodMarker())
@@ -2135,7 +2154,7 @@ public static class DummyDbusEvent extends DbusEvent
        checkDbusEventBuffer.readEvents(readChannel);
        LOG.debug("Reading events");
        DbusEventIterator eventIterator = checkDbusEventBuffer.acquireIterator("check");
-       DbusEvent e=null;
+       DbusEventInternalWritable e=null;
        while (eventIterator.hasNext())
        {
          e = eventIterator.next();
@@ -2203,9 +2222,9 @@ public static class DummyDbusEvent extends DbusEvent
             throws InvalidConfigException, IOException, InterruptedException
     {
     //Src Event producer
-      Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+      Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
       //Dest Event consumer
-      Vector<DbusEvent>  dstTestEvents = new Vector<DbusEvent>();
+      Vector<DbusEventInternalWritable>  dstTestEvents = new Vector<DbusEventInternalWritable>();
 
       //Test configurations;
       DbusEventsStatisticsCollector emitterStats = new DbusEventsStatisticsCollector(1,"appenderStats",true,true,null);
@@ -2502,8 +2521,8 @@ public static class DummyDbusEvent extends DbusEvent
       runReaderWriterTest(testInput);
     }
 
-	static protected void checkEvents(Vector<DbusEvent> srcTestEvents,
-	                                  Vector<DbusEvent> dstTestEvents, int numEvents) {
+	static protected void checkEvents(Vector<DbusEventInternalWritable> srcTestEvents,
+	                                  Vector<DbusEventInternalWritable> dstTestEvents, int numEvents) {
 	  //check data!
 	  assertEquals("Src Test Events Size", numEvents, srcTestEvents.size());
 	  assertEquals("Destination Test Events Size", numEvents, dstTestEvents.size());
@@ -2523,9 +2542,9 @@ public static class DummyDbusEvent extends DbusEvent
 	  final Logger log = Logger.getLogger("TestDbusEventBuffer.testEventReadBufferInvalidEvents");
 	    log.info("Started testing invalid events\n");
         //Src Event producer
-        Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
         //Dest Event consumer
-        Vector<DbusEvent>  dstTestEvents = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable>  dstTestEvents = new Vector<DbusEventInternalWritable>();
         //num events
         int numEvents = 100;
 
@@ -2585,7 +2604,7 @@ public static class DummyDbusEvent extends DbusEvent
 	@Test
 	public void testStatsMinMaxScn() throws Exception {
 	  //Src Event producer
-      Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+      Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
       EventBufferTestInput input = new EventBufferTestInput();
       int numEvents = 10000;
       long startScn=1000;
@@ -2755,7 +2774,7 @@ public static class DummyDbusEvent extends DbusEvent
 	@Test
 	public void testStreamScn() throws Exception {
 	  //Src Event producer
-      Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+      Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
       EventBufferTestInput input = new EventBufferTestInput();
       int numEvents = 500;
       int numScns = 10;
@@ -2951,7 +2970,7 @@ public static class DummyDbusEvent extends DbusEvent
 	@Test
 	public void testScnIndexInvalidation() throws Exception
 	{
-		  Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+		  Vector<DbusEventInternalWritable> srcTestEvents = new Vector<DbusEventInternalWritable>();
 	      EventBufferTestInput input = new EventBufferTestInput();
 	      int numEvents = 1000;
 	      int numScns = 10;
@@ -3024,8 +3043,8 @@ public static class DummyDbusEvent extends DbusEvent
 	 * @return true if the test runs without issues; false otherwise; note that tests are
 	 *              responsible for assertions involving srcTestEvents and dstTstEvents
 	 */
-    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents,
-                                                 Vector<DbusEvent> dstTestEvents,
+    protected boolean runConstEventsReaderWriter(Vector<DbusEventInternalWritable> srcTestEvents,
+                                                 Vector<DbusEventInternalWritable> dstTestEvents,
                                                  EventBufferTestInput input,
                                                  DbusEventsStatisticsCollector emitterStats,
                                                  DbusEventsStatisticsCollector streamStats,
@@ -3035,8 +3054,8 @@ public static class DummyDbusEvent extends DbusEvent
                                         streamStats, clientStats, false);
     }
 
-    protected boolean runConstEventsReaderWriter(Vector<DbusEvent> srcTestEvents,
-          Vector<DbusEvent> dstTestEvents,
+    protected boolean runConstEventsReaderWriter(Vector<DbusEventInternalWritable> srcTestEvents,
+          Vector<DbusEventInternalWritable> dstTestEvents,
           EventBufferTestInput input,
           DbusEventsStatisticsCollector emitterStats, DbusEventsStatisticsCollector streamStats,
           DbusEventsStatisticsCollector clientStats, boolean autoStartBuffer )
@@ -3215,16 +3234,16 @@ public static class DummyDbusEvent extends DbusEvent
       cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
       ErrorCountingAppender errorCountAppender = new ErrorCountingAppender();
       errorCountAppender.setName("errorCountAppender");
-      DbusEvent.LOG.addAppender(errorCountAppender);
-      Level oldLevel = DbusEvent.LOG.getLevel();
+      DbusEventV1.LOG.addAppender(errorCountAppender);
+      Level oldLevel = DbusEventV1.LOG.getLevel();
       //ensure ERROR log level because gradle likes to change it
-      DbusEvent.LOG.setLevel(Level.ERROR);
+      DbusEventV1.LOG.setLevel(Level.ERROR);
 
       int errNum = errorCountAppender.getErrorNum();
       int written = buf.streamEvents(cp, 10000, outChannel, Encoding.BINARY,
                                      new AllowAllDbusFilter(), outStatsCollector);
 
-      Assert.assertEquals(errorCountAppender, DbusEvent.LOG.getAppender("errorCountAppender"));
+      Assert.assertEquals(errorCountAppender, DbusEventV1.LOG.getAppender("errorCountAppender"));
       Assert.assertEquals(W * (E + 1), written);
       Assert.assertEquals(errNum, errorCountAppender.getErrorNum());
 
@@ -3239,9 +3258,9 @@ public static class DummyDbusEvent extends DbusEvent
       written = buf.streamEvents(cp, 10000, outChannel, Encoding.BINARY,
                                  new AllowAllDbusFilter(), outStatsCollector);
 
-      DbusEvent.LOG.setLevel(oldLevel);
+      DbusEventV1.LOG.setLevel(oldLevel);
 
-      Assert.assertEquals(errorCountAppender, DbusEvent.LOG.getAppender("errorCountAppender"));
+      Assert.assertEquals(errorCountAppender, DbusEventV1.LOG.getAppender("errorCountAppender"));
       Assert.assertEquals(0, written);
       Assert.assertEquals(errNum + 1, errorCountAppender.getErrorNum());
     }
@@ -3259,7 +3278,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
         dbusBuf.setDropOldEvents(true);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(
                         3, 1, 100, 10, events);
 
@@ -3270,7 +3289,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<3;i++)
         {
-                DbusEvent e = events.get(i);
+                DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3312,7 +3331,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
         dbusBuf.setDropOldEvents(true);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(
                         6, 1, 100, 10, events);
 
@@ -3327,7 +3346,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<6;i++)
         {
-            DbusEvent e = events.get(i);
+            DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3370,7 +3389,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
         dbusBuf.setDropOldEvents(true);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(
                         6, 1, 100, 10, events);
 
@@ -3386,7 +3405,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<6;i++)
         {
-            DbusEvent e = events.get(i);
+            DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3430,7 +3449,7 @@ public static class DummyDbusEvent extends DbusEvent
         dbusBuf.setDropOldEvents(true);
         dbusBuf.start(0);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(
                         2, 1, 100, 10, events);
 
@@ -3440,7 +3459,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<2;i++)
         {
-            DbusEvent e = events.get(i);
+            DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3483,7 +3502,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
         dbusBuf.setDropOldEvents(true);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(
                         3, 1, 100, 10, events);
         // No EOW for event 0.
@@ -3494,7 +3513,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<3;i++)
         {
-            DbusEvent e = events.get(i);
+            DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3536,7 +3555,7 @@ public static class DummyDbusEvent extends DbusEvent
                                           QueuePolicy.BLOCK_ON_WRITE, AssertLevel.NONE));
         dbusBuf.setDropOldEvents(true);
         DbusEventGenerator generator = new DbusEventGenerator();
-        Vector<DbusEvent> events = new Vector<DbusEvent>();
+        Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
         generator.generateEvents(6, 1, 100, 10, events);
 
         events.get(1).setSequence(events.get(0).sequence());
@@ -3549,7 +3568,7 @@ public static class DummyDbusEvent extends DbusEvent
         // Increment the SCN and reuse
         for (int i=0;i<6;i++)
         {
-            DbusEvent e = events.get(i);
+            DbusEventInternalWritable e = events.get(i);
             e.applyCrc();
             assertTrue(e.isValid(true));
             assertTrue( EventScanStatus.OK == e.scanEvent(true));
@@ -3643,7 +3662,7 @@ class ReadEventsTestParams
       new DbusEventsStatisticsCollector(1, "dest", true, false, null);;
   public ByteArrayOutputStream _srcByteStr;
   public DbusEventGenerator _evGen;
-  public Vector<DbusEvent> _srcEvents;
+  public Vector<DbusEventInternalWritable> _srcEvents;
   public boolean _expectDestReadError = false;
   public boolean _debuggingMode = false; //increase timeouts to let debugging through code
 
@@ -3703,10 +3722,10 @@ class ReadEventsTestParams
     _destBuf.start(0);
   }
 
-  public Vector<DbusEvent> generateAndStreamEvents() throws ScnNotFoundException,
+  public Vector<DbusEventInternalWritable> generateAndStreamEvents() throws ScnNotFoundException,
      OffsetNotFoundException
  {
-    final Vector<DbusEvent> srcEvents = generateAndAppendEvents();
+    final Vector<DbusEventInternalWritable> srcEvents = generateAndAppendEvents();
     streamEvents();
     return srcEvents;
  }
@@ -3725,7 +3744,7 @@ class ReadEventsTestParams
     Assert.assertEquals(_numSrcEvents, _srcBufStats.getTotalStats().getNumDataEvents());
   }
 
-  public Vector<DbusEvent> generateAndAppendEvents()
+  public Vector<DbusEventInternalWritable> generateAndAppendEvents()
   {
     generateEvents();
     //generate binary representation
@@ -3737,7 +3756,7 @@ class ReadEventsTestParams
   {
     _log.info("Generating events");
     _evGen = new DbusEventGenerator(_startScn);
-    _srcEvents = new Vector<DbusEvent>(_numSrcEvents);
+    _srcEvents = new Vector<DbusEventInternalWritable>(_numSrcEvents);
     Assert.assertTrue(_evGen.generateEvents(_numSrcEvents, _maxWindowSize, 200, 100, _srcEvents) > 0);
   }
 
@@ -3767,7 +3786,7 @@ class ReadEventsTestParams
   private void validateDestData()
   {
     _log.info("Verifying the events");
-    Vector<DbusEvent> destEvents1 = new Vector<DbusEvent>(_srcEvents.size());
+    Vector<DbusEventInternalWritable> destEvents1 = new Vector<DbusEventInternalWritable>(_srcEvents.size());
     DbusEventBufferConsumer consumer =
         new DbusEventBufferConsumer(_destBuf, _srcEvents.size(), 0, destEvents1);
     final long timeout = _debuggingMode ? 100000000 : 1000;

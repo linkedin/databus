@@ -1,4 +1,23 @@
 package com.linkedin.databus.container.request;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,7 +180,6 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       }
 
       //process explicit subscriptions and generate respective logical partition filters
-      DbusFilter ppartFilters = null;
       Set<PhysicalPartitionKey> ppartKeys = null;
       if (null != subsStr)
       {
@@ -188,17 +206,14 @@ public class ReadEventsRequestProcessor implements RequestProcessor
           }
         }
       }
-
-      CheckpointMult cpMult = null;
+      // TODO
+      // The following if statement is a very conservative one just to make sure that there are
+      // not some clients out there that send subs, but do not send checkpoint mult. It seems that
+      // this was the case during development but never in production, so we should remove this
+      // pretty soon (1/28/2013).
+      // Need to make sure that we don't have tests that send requests in this form.
       if(subs != null && checkpointStringMult == null && checkpointString != null) {
-      	//temp hack
-      	DatabusSubscription sub = subs.get(0); // get first and the only one - HACK
-      	PhysicalPartition pPart = sub.getPhysicalPartition();
-      	cpMult = new CheckpointMult();
-      	Checkpoint cp = new Checkpoint(checkpointString);
-      	cpMult.addCheckpoint(pPart, cp);
-        if(isDebug)
-      	  LOG.debug("USING temp solution. Createting CP for sub=" + sub + "; part=" + pPart + "; cp=" + cp);
+        throw new RequestProcessingException("Both Subscriptions and CheckpointMult should be present");
       }
 
       //convert source ids into subscriptions
@@ -214,6 +229,7 @@ public class ReadEventsRequestProcessor implements RequestProcessor
         subs.add(newSub);
       }
 
+      DbusFilter ppartFilters = null;
       if (subs.size() > 0)
       {
         try
@@ -253,34 +269,47 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       // 2. checkpointStringMult null, checkpointString not null - create empty CheckpointMult
       // and add create Checkpoint(checkpointString) and add it to cpMult;
       // 3 both are null - create empty CheckpointMult and add empty Checkpoint to it for each ppartition
+      // cpMult may have been set before event if client did not send it but the client sent a subscription list
+      // and a checkpoint.
       PhysicalPartition pPartition;
 
-
       Checkpoint cp = null;
-      if(cpMult == null) {
-      	if(checkpointStringMult != null) {
-      		cpMult = new CheckpointMult(checkpointStringMult);
-      	} else {
-      		// there is no checkpoint - create an empty one
-      		cpMult = new CheckpointMult();
-      		Iterator<Integer> it = sourceIds.iterator();
-      		while(it.hasNext()) {
-      			Integer srcId = it.next();
-      			pPartition = _eventBuffer.getPhysicalPartition(srcId);
-      			if(pPartition == null)
-      				throw new RequestProcessingException("unable to find physical partitions for source:" + srcId);
+      CheckpointMult cpMult = null;
 
-      			if(checkpointString != null) {
-      				cp = new Checkpoint(checkpointString);
-      			} else {
-      				cp = new Checkpoint();
-      				cp.setFlexible();
-      			}
-      			cpMult.addCheckpoint(pPartition, cp);
-      		}
-      	}
+      if(checkpointStringMult != null) {
+        cpMult = new CheckpointMult(checkpointStringMult);
+      } else {
+        // there is no checkpoint - create an empty one
+        cpMult = new CheckpointMult();
+        Iterator<Integer> it = sourceIds.iterator();
+        while(it.hasNext()) {
+        Integer srcId = it.next();
+        pPartition = _eventBuffer.getPhysicalPartition(srcId);
+        if(pPartition == null)
+          throw new RequestProcessingException("unable to find physical partitions for source:" + srcId);
+
+        if(checkpointString != null) {
+          cp = new Checkpoint(checkpointString);
+        } else {
+          cp = new Checkpoint();
+          cp.setFlexible();
+        }
+        cpMult.addCheckpoint(pPartition, cp);
       }
+    }
+
       if (isDebug) LOG.debug("checkpointStringMult = " + checkpointStringMult +  ";singlecheckpointString="+ checkpointString + ";CPM="+cpMult);
+
+      // If the client has not sent a cursor partition, then use the one we may have retained as a part
+      // of the server context.
+      if (cpMult.getCursorPartition() == null) {
+        cpMult.setCursorPartition(request.getCursorPartition());
+      }
+      if (isDebug) {
+        if (cpMult.getCursorPartition() != null) {
+          LOG.debug("Using physical paritition cursor " + cpMult.getCursorPartition());
+        }
+      }
 
       // for registerStreamRequest we need a single Checkpoint (TODO - fix it) (DDSDBUS-81)
       if(cp==null) {

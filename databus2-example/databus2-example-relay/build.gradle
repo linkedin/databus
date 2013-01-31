@@ -15,6 +15,5 @@ dependencies {
   compile externalDependency.log4j
   compile externalDependency.netty
   compile externalDependency.avro
-  compile externalDependency.ojdbc6
 
 }

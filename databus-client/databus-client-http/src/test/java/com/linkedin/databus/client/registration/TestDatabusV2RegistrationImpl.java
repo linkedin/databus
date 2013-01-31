@@ -1,14 +1,54 @@
 package com.linkedin.databus.client.registration;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
-import static org.testng.AssertJUnit.assertEquals;
 
+import com.linkedin.databus.client.DatabusHttpClientImpl;
+import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
+import com.linkedin.databus.client.SingleSourceSCN;
+import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
+import com.linkedin.databus.client.pub.ConsumerCallbackResult;
+import com.linkedin.databus.client.pub.DatabusClientException;
+import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
+import com.linkedin.databus.client.pub.DatabusRegistration;
+import com.linkedin.databus.client.pub.DatabusRegistration.RegistrationState;
+import com.linkedin.databus.client.pub.DbusEventDecoder;
+import com.linkedin.databus.client.pub.SCN;
+import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
+import com.linkedin.databus.core.DatabusComponentStatus.Status;
+import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.test.TestUtil;
+import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
+import com.linkedin.databus2.test.container.SimpleTestServerConnection;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
 import org.apache.avro.Schema;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -27,29 +67,7 @@ import org.jboss.netty.util.Timer;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.SingleSourceSCN;
-import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
-import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
-import com.linkedin.databus.client.pub.ConsumerCallbackResult;
-import com.linkedin.databus.client.pub.DatabusClientException;
-import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
-import com.linkedin.databus.client.pub.DatabusRegistration;
-import com.linkedin.databus.client.pub.DatabusRegistration.RegistrationState;
-import com.linkedin.databus.client.pub.DbusEventDecoder;
-import com.linkedin.databus.client.pub.SCN;
-import com.linkedin.databus.client.pub.ServerInfo;
-import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
-import com.linkedin.databus.core.DatabusComponentStatus.Status;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.schemas.utils.SchemaHelper;
-import com.linkedin.databus2.test.TestUtil;
-import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
-import com.linkedin.databus2.test.container.SimpleTestServerConnection;
+import static org.testng.AssertJUnit.assertEquals;
 
 public class TestDatabusV2RegistrationImpl 
 {
@@ -306,7 +324,7 @@ public class TestDatabusV2RegistrationImpl
 		//initialize relays
 		for (int relayN = 0; relayN < RELAY_PORT.length; ++relayN)
 		{
-			_dummyServer[relayN] = new SimpleTestServerConnection(DbusEvent.byteOrder,
+			_dummyServer[relayN] = new SimpleTestServerConnection(DbusEventV1.byteOrder,
 					SimpleTestServerConnection.ServerType.NIO);
 			_dummyServer[relayN].setPipelineFactory(new ChannelPipelineFactory() {
 				@Override

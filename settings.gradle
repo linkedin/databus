@@ -27,6 +27,7 @@ def non_os_modules = [
 'databus2-linkedin-relay',
 'databus-events',
 'databus-linkedin-client',
+'databus2-linkedin-pkgs',
 'perf',
 'integration-test',
 'sitetools'

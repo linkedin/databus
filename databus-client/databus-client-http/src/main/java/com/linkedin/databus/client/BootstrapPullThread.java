@@ -1,5 +1,25 @@
 package com.linkedin.databus.client;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
 
+
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -24,6 +44,7 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -605,7 +626,7 @@ public class BootstrapPullThread extends BasePullThread
       if (debugEnabled) _log.debug("Sending bootstrap events to buffer");
 
       //eventBuffer.startEvents();
-      DbusEvent cpEvent =  DbusEvent.createCheckpointEvent(cp);
+      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
       byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
 
       if (debugEnabled)
@@ -824,7 +845,7 @@ public class BootstrapPullThread extends BasePullThread
     try
     {
       //eventBuffer.startEvents();
-      DbusEvent cpEvent =  DbusEvent.createCheckpointEvent(cp);
+      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
       byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
       cpEvent.getRawBytes().get(cpEventBytes);
       ByteArrayInputStream cpIs = new ByteArrayInputStream(cpEventBytes);

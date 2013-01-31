@@ -1,4 +1,23 @@
 package com.linkedin.databus.bootstrap.common;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.nio.ByteBuffer;
 import java.sql.Connection;
@@ -18,6 +37,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapCleanerStaticConfig.Bootst
 import com.linkedin.databus.bootstrap.common.BootstrapCleanerStaticConfig.RetentionStaticConfig;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO.SourceStatusInfo;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.util.DBHelper;
 
@@ -644,7 +664,7 @@ public class BootstrapDBCleaner
 				scn = rs.getLong(i++);
 				ByteBuffer tmpBuffer = ByteBuffer.wrap(rs.getBytes(i));
 				LOG.info("BUFFER SIZE:" + tmpBuffer.limit());
-				event = new DbusEvent(tmpBuffer,tmpBuffer.position());
+				event = new DbusEventV1(tmpBuffer,tmpBuffer.position());
 				LOG.info("Last Row for log (" + logInfo + ") - ID :" + id + ", srcKey :" + srcKey + ", SCN :" + scn + ", Event :" + event.toString());
 			} else {
 				LOG.error("No ResultSet for query :" + sql.toString());				

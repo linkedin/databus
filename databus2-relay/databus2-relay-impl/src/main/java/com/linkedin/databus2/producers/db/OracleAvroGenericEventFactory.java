@@ -2,11 +2,34 @@
  * $Id: OracleAvroGenericEventFactory.java 177365 2011-03-26 02:28:35Z bvaradar $
  */
 package com.linkedin.databus2.producers.db;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringWriter;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.ByteBuffer;
 import java.sql.Array;
 import java.sql.Blob;
@@ -18,6 +41,8 @@ import java.sql.SQLXML;
 import java.sql.Struct;
 import java.sql.Timestamp;
 import java.util.List;
+
+import javax.sql.DataSource;
 
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
@@ -36,6 +61,7 @@ import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.PartitionFunction;
+import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 /**
@@ -479,33 +505,62 @@ implements EventFactory
         long time = ((Timestamp) databaseFieldValue).getTime();
         record.put(schemaFieldName, time);
       }
-      else if(databaseFieldValue instanceof oracle.sql.TIMESTAMP)
-      {
-        try
-        {
-          long time = ((oracle.sql.TIMESTAMP) databaseFieldValue).dateValue().getTime();
-          record.put(schemaFieldName, time);
-        }
-        catch(SQLException ex)
-        {
-          throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
-                                           + schemaFieldName, ex);
-        }
-      }
       else if(databaseFieldValue instanceof Date)
       {
         long time = ((Date) databaseFieldValue).getTime();
         record.put(schemaFieldName, time);
       }
-      else if(databaseFieldValue instanceof oracle.sql.DATE)
-      {
-        long time = ((oracle.sql.DATE) databaseFieldValue).dateValue().getTime();
-        record.put(schemaFieldName, time);
-      }
       else
       {
-        throw new EventCreationException("Cannot convert " + databaseFieldValue.getClass()
-                                         + " to long for field " + schemaFieldName);
+    	  Class timestampClass = null, dateClass = null;
+    	  Method dateValueMethod = null;
+    	  try
+    	  {
+    		  timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");
+    		  dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
+			  dateValueMethod = timestampClass.getMethod("dateValue");
+    	  } catch (Exception e)
+    	  {
+    		  String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+    				  + " to long for field " + schemaFieldName + " Unable to get oracle datatypes " + e.getMessage();
+    		  throw new EventCreationException(errMsg);
+    	  }
+    	  
+    	  if(timestampClass.isInstance(databaseFieldValue))
+    	  {
+    		  try
+    		  {
+    			  Object tsc = timestampClass.cast(databaseFieldValue);
+    			  Date dateValue = (Date) dateValueMethod.invoke(tsc);
+    			  long time = dateValue.getTime();
+    			  record.put(schemaFieldName, time);
+    		  }
+    		  catch(Exception ex)
+    		  {
+    			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
+    					  + schemaFieldName, ex);
+    		  }
+    	  }
+    	  else if(dateClass.isInstance(databaseFieldValue))
+    	  {
+    		  try
+    		  {
+    			  Object dsc = dateClass.cast(databaseFieldValue);
+    			  Date dateValue = (Date) dateValueMethod.invoke(dsc);
+    			  long time = dateValue.getTime();
+    			  record.put(schemaFieldName, time);
+    		  }
+    		  catch(Exception ex)
+    		  {
+    			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
+    					  + schemaFieldName, ex);
+    		  }			  
+    	  }
+    	  else
+    	  {
+    		  throw new EventCreationException("Cannot convert " + databaseFieldValue.getClass()
+    				  + " to long for field " + schemaFieldName);
+    	  }
       }
       break;
     case STRING:

@@ -1,4 +1,23 @@
 package com.linkedin.databus.client;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.util.List;
 
@@ -12,6 +31,7 @@ import com.linkedin.databus.client.pub.RegistrationId;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.SCNRegressMessage;
 import com.linkedin.databus.core.async.LifecycleMessage;
@@ -58,7 +78,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
       Checkpoint ckpt = null;
       try
       {
-        ckpt = DbusEvent.getCheckpointFromEvent(event);
+        ckpt = DbusEventUtils.getCheckpointFromEvent(event);
         DbusClientMode bootstrapMode = ckpt.getConsumptionMode();
 
         if (bootstrapMode != DbusClientMode.ONLINE_CONSUMPTION)
@@ -95,7 +115,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
     }
     else if (event.isSCNRegressMessage())
     {
-    	SCNRegressMessage message = DbusEvent.getSCNRegressFromEvent(event);
+    	SCNRegressMessage message = DbusEventUtils.getSCNRegressFromEvent(event);
     	LOG.warn("RelayDispatcher acting on SCNRegress : " + message);
     	curState.setSCNRegress(true);
         curState.switchToExpectEventWindow();

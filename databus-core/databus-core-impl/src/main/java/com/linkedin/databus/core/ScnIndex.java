@@ -1,4 +1,23 @@
 package com.linkedin.databus.core;
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+*/
+
 
 import java.io.File;
 import java.io.IOException;
@@ -126,7 +145,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
     if (isEnabled())
     {
-      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEvent.byteOrder, allocationPolicy,
+      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEventV1.byteOrder, allocationPolicy,
                                            restoreBuffer, mmapSessionDirectory,
                                            new File(mmapSessionDirectory, "scnIndex"));
     }
@@ -807,7 +826,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   }
 
   @Override
-  public void onEvent(DataChangeEvent event, long offset, int size)
+  public void onEvent(DbusEvent event, long offset, int size)
   {
     if(!isEnabled())
     {
@@ -830,7 +849,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     }
   }
 
-  private boolean shouldUpdate(DataChangeEvent event) {
+  private boolean shouldUpdate(DbusEvent event) {
     boolean returnVal =  (updateOnNext && !event.isControlMessage());
     updateOnNext = (event.isEndOfPeriodMarker());
     return returnVal;
