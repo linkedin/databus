@@ -158,8 +158,10 @@ subprojects {
         runtime externalDependency.log4j
     }
 
-   def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
-   jar.dependsOn gitLIGenerateClasspath 
+    if (System.getProperty('open_source') == null) {
+      def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
+      jar.dependsOn gitLIGenerateClasspath 
+    }
 
     if (isDefaultEnvironment) {
       task sourcesJar(type: Jar, dependsOn: classes) {
