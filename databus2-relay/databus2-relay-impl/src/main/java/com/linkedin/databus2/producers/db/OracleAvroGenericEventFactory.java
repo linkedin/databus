@@ -495,12 +495,22 @@ implements EventFactory
       record.put(schemaFieldName, ((Number)databaseFieldValue).intValue());
       break;
     case LONG:
-      if(databaseFieldValue instanceof Number)
+      Class timestampClass = null, dateClass = null;
+      Method dateValueMethod = null;
+      try
       {
-        long lvalue = ((Number) databaseFieldValue).longValue();
-        record.put(schemaFieldName, lvalue);
+          timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");
+          dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
+          dateValueMethod = timestampClass.getMethod("dateValue");
+      } catch (Exception e)
+      {
+          String errMsg = "Cannot convert " + databaseFieldValue.getClass()
+                  + " to long for field " + schemaFieldName + " Unable to get oracle datatypes " + e.getMessage();
+          throw new EventCreationException(errMsg);
       }
-      else if(databaseFieldValue instanceof Timestamp)
+
+
+      if(databaseFieldValue instanceof Timestamp)
       {
         long time = ((Timestamp) databaseFieldValue).getTime();
         record.put(schemaFieldName, time);
@@ -510,57 +520,49 @@ implements EventFactory
         long time = ((Date) databaseFieldValue).getTime();
         record.put(schemaFieldName, time);
       }
+      else if(timestampClass.isInstance(databaseFieldValue))
+      {
+        try
+        {
+          Object tsc = timestampClass.cast(databaseFieldValue);
+          Date dateValue = (Date) dateValueMethod.invoke(tsc);
+          long time = dateValue.getTime();
+          record.put(schemaFieldName, time);
+        }
+        catch(Exception ex)
+        {
+          throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
+              + schemaFieldName, ex);
+        }
+      }
+      else if(dateClass.isInstance(databaseFieldValue))
+      {
+        try
+        {
+          Object dsc = dateClass.cast(databaseFieldValue);
+          Date dateValue = (Date) dateValueMethod.invoke(dsc);
+          long time = dateValue.getTime();
+          record.put(schemaFieldName, time);
+        }
+        catch(Exception ex)
+        {
+          throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
+              + schemaFieldName, ex);
+        }
+      }
+      /**
+       *  This needs to stay after Oracle.sql.Timestamp because the timestamp class extends/implements the Number,BigDecimal classes,
+       *  so it will pass as a number in the instanceof check. To avoid this we stick to this order.
+       */
+      else if(databaseFieldValue instanceof Number)
+      {
+        long lvalue = ((Number) databaseFieldValue).longValue();
+        record.put(schemaFieldName, lvalue);
+      }
       else
       {
-    	  Class timestampClass = null, dateClass = null;
-    	  Method dateValueMethod = null;
-    	  try
-    	  {
-    		  timestampClass = OracleJarUtils.loadClass("oracle.sql.TIMESTAMP");
-    		  dateClass = OracleJarUtils.loadClass("oracle.sql.DATE");
-			  dateValueMethod = timestampClass.getMethod("dateValue");
-    	  } catch (Exception e)
-    	  {
-    		  String errMsg = "Cannot convert " + databaseFieldValue.getClass()
-    				  + " to long for field " + schemaFieldName + " Unable to get oracle datatypes " + e.getMessage();
-    		  throw new EventCreationException(errMsg);
-    	  }
-    	  
-    	  if(timestampClass.isInstance(databaseFieldValue))
-    	  {
-    		  try
-    		  {
-    			  Object tsc = timestampClass.cast(databaseFieldValue);
-    			  Date dateValue = (Date) dateValueMethod.invoke(tsc);
-    			  long time = dateValue.getTime();
-    			  record.put(schemaFieldName, time);
-    		  }
-    		  catch(Exception ex)
-    		  {
-    			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
-    					  + schemaFieldName, ex);
-    		  }
-    	  }
-    	  else if(dateClass.isInstance(databaseFieldValue))
-    	  {
-    		  try
-    		  {
-    			  Object dsc = dateClass.cast(databaseFieldValue);
-    			  Date dateValue = (Date) dateValueMethod.invoke(dsc);
-    			  long time = dateValue.getTime();
-    			  record.put(schemaFieldName, time);
-    		  }
-    		  catch(Exception ex)
-    		  {
-    			  throw new EventCreationException("SQLException reading oracle.sql.TIMESTAMP value for field "
-    					  + schemaFieldName, ex);
-    		  }			  
-    	  }
-    	  else
-    	  {
-    		  throw new EventCreationException("Cannot convert " + databaseFieldValue.getClass()
-    				  + " to long for field " + schemaFieldName);
-    	  }
+        throw new EventCreationException("Cannot convert " + databaseFieldValue.getClass()
+            + " to long for field " + schemaFieldName);
       }
       break;
     case STRING:
@@ -577,7 +579,7 @@ implements EventFactory
 		} catch (SQLException e) {
 			throw new EventCreationException("Cannot convert " + databaseFieldValue.getClass() + " to string field " + schemaFieldName + " cause:" + e);
 		}
-      } 
+      }
       else
       {
         String text = databaseFieldValue.toString();

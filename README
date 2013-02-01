@@ -45,7 +45,8 @@ Dependencies
 It is assumed that the user has a license to work with an Oracle database, and therefore access to jar with ivy co-ordinates of com.oracle:ojdbc6:11.2.0.2.0. Due to licensing constraints, 
 we cannot provide that jar. The name of the library is ojdbc6.jar, with version at 11.2.0.2.0 available at http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html 
 The licensing model is OTN - Oracle Technology Network License. Please accept that license at http://www.oracle.com/technetwork/licenses/distribution-license-152002.html, to obtain the jar.
-They may be copied to sandbox-repo directory under
+They may be copied to sandbox-repo directory under:
+
 com/oracle/ojdbc6/11.2.0.2.0/ojdbc6-11.2.0.2.0.jar
 com/oracle/ojdbc6/11.2.0.2.0/ojdbc6-11.2.0.2.0.ivy
 
