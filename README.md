@@ -6,7 +6,7 @@ In Internet architectures, data systems are typically categorized into source-of
 We have built Databus, a source-agnostic distributed change data capture system, which is an integral part of LinkedIn's data processing pipeline. The Databus transport layer provides latencies in the low milliseconds and handles throughput of thousands of events per second per server while supporting infinite look back capabilities and rich subscription functionality. 
 
 # Use-cases
-===========
+*****
 Typically, Primary OLTP data-stores take user facing writes and some reads, while other specialized systems serve complex queries or accelerate query results through caching. The most common data systems found in these architectures include relational databases, NoSQL data stores, caching engines, search indexes and graph query engines. This specialization has in turn made it critical to have a reliable and scalable data pipeline that can capture these changes happening for primary source-of-truth systems and route them through the rest of the 
 complex data eco-system. There are two families of solutions that are typically used for building such a pipeline.
 
@@ -25,7 +25,7 @@ After evaluating the pros and cons of the two approaches, we decided to pursue t
 More details about the architecture, usecases and performance evaluation can be obtained from a paper that got accepted for publication at the ACM Symposium on Cloud Computing - 2012. The slides for the presentation are available [here](http://www.slideshare.net/ShirshankaDas/databus-socc-2012)
 
 # How to build ?
-================
+*****
 Databus requires a library distributed by Oracle Inc under Oracle Technology Network License. Please accept that license [here](http://www.oracle.com/technetwork/licenses/distribution-license-152002.html), and download ojdbc6.jar with version at 11.2.0.2.0 [here](http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html).
 
 Databus will **NOT** build without this step. After downloading the jars, they may be copied under the directory sandbox-repo as :
@@ -33,37 +33,37 @@ Databus will **NOT** build without this step. After downloading the jars, they m
 * sandbox-repo/com/oracle/ojdbc6/11.2.0.2.0/ojdbc6-11.2.0.2.0.ivy
 
 # Build System
-==============
+*****
 Databus currently needs gradle version 1.0 or above to build. The commands to build are :
-* gradle -Dopen_source=true assemble -- builds the jars and command line package
-* gradle -Dopen_source=true clean    -- cleans the build directory
-* gradle -Dopen_source=true test     -- runs all the unit-tests that come packaged with the source
+* `gradle -Dopen_source=true assemble` -- builds the jars and command line package
+* `gradle -Dopen_source=true clean`    -- cleans the build directory
+* `gradle -Dopen_source=true test`     -- runs all the unit-tests that come packaged with the source
 
 # Licensing
-===========
+*****
 Databus will be licensed under Apache 2.0 license.
 
 # Full Documentation
-====================
+*****
 See our [wiki](https://github.com/linkedin/databus/wiki) for full documentation and examples.
 
 # Example Relay
-===============
+*****
 An example of writing a DatabusRelay is available at PersonRelayServer.java. To be able to start a relay process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-relay-pkg/distributions/databus2-example-relay-pkg.tgz. This relay is configured to get changestreams for a view "Person".
 
 After extracting to a directory, please cd to that directory and start the relay using the following command :
-* ./bin/start-example-relay.sh person
+* `./bin/start-example-relay.sh person`
 
 If the relay is started successfully, the output of the following curl command would look like :
-* $ curl http://localhost:11115/sources
-* [{“name”:“com.linkedin.events.example.person.Person”,“id”:40}]
+* $ `curl http://localhost:11115/sources`
+* `[{“name”:“com.linkedin.events.example.person.Person”,“id”:40}]`
 
 # Example Client
-================
+*****
 An example of writing a DatabusClient is available at PersonalClientMain.java. To easily be able to start the client process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-client-pkg/distributions/databus2-example-client-pkg.tgz. This client is configured to get data from the relay started previously, and configured to susbscribe for table Person.
 
 After extracting to a directory, please cd to that directory and start the client using the following command :
-* ./bin/start-example-client.sh person
+* `./bin/start-example-client.sh person`
 
 If the client successfully connects to the relay we created earlier, the output of the following curl command would look like below ( indicating a client from localhost has connected to the relay ):
-* $curl http://localhost:11115/relayStats/outbound/http/clients
+* $`curl http://localhost:11115/relayStats/outbound/http/clients`
