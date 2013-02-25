@@ -43,6 +43,10 @@ Databus currently needs gradle version 1.0 or above to build. The commands to bu
 *****
 Databus will be licensed under Apache 2.0 license.
 
+# Mailing List
+*****
+Please join our mailing list at databus-linkedin@googlegroups.com
+
 # Full Documentation
 *****
 See our [wiki](https://github.com/linkedin/databus/wiki) for full documentation and examples.
