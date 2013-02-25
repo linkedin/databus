@@ -1,0 +1,228 @@
+import org.gradle.api.tasks.bundling.Tar
+
+import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.TaskAction
+import org.gradle.api.Project
+
+ext.build_script_dir = "${projectDir.path}/build_script"
+
+ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
+ 
+File getEnvironmentScript()
+{
+  final File env = file(isDefaultEnvironment ? 'defaultEnvironment.gradle' : project.overrideBuildEnvironment)
+  assert env.isFile() : "The environment script [$env] does not exists or is not a file."
+  return env
+}
+
+apply from: environmentScript
+
+externalDependency = [
+    'avro': 'org.apache.avro:avro:1.4.0',
+    'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
+    'commonsCli': 'commons-cli:commons-cli:1.2',
+    'commonsCodec': 'commons-codec:commons-codec:1.3',
+    'commonsCollections': 'commons-collections:commons-collections:3.2.1',
+    'commonsIo': 'commons-io:commons-io:1.4',
+    'commonsLang': 'commons-lang:commons-lang:2.5',
+    'commonsLogging': 'commons-logging:commons-logging:1.1',
+    'commonsParent': 'org.apache.commons:commons-parent:5',
+    'easymock': 'org.easymock:easymock:3.1',
+    'easymockext': 'org.easymock:easymockclassextension:3.1',
+    'googleCollections': 'com.google.collections:google-collections:1.0-rc2',
+    'hadoopCore': 'org.apache.hadoop:hadoop-core:0.20.2',
+    'jacksonCoreAsl': 'org.codehaus.jackson:jackson-core-asl:1.8.5',
+    'jacksonMapperAsl': 'org.codehaus.jackson:jackson-mapper-asl:1.8.5',
+    'jline': 'jline:jline:1.0',
+    'json': 'org.json:json:20070829',
+    'junit': 'junit:junit:4.8.1',
+    'log4j': 'log4j:log4j:1.2.15',
+    'luceneAnalyzers': 'org.apache.lucene:lucene-analyzers:2.9.1',
+    'luceneCore': 'org.apache.lucene:lucene-core:2.9.1',
+    'luceneQueries': 'org.apache.lucene:lucene-queries:2.9.1',
+    'mysqlConnectorJava': 'org.mysql:mysql-connector-java:5.1.14',
+    'netty': 'org.jboss.netty:netty:3.2.4.Final',
+    'snakeyaml': 'org.yaml:snakeyaml:1.8',
+    'spring': 'org.springframework:spring:2.5.5',
+    'testng': 'org.testng:testng:6.4',
+    'zkclient': 'zkclient:zkclient:0.2.0',
+    'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
+    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
+    'ojdbc6': 'com.oracle:ojdbc6:11.2.0.2.0',
+    'espressoSchema': 'com.linkedin.espresso:espresso-schema-impl:0.5.264',
+    'espressoCommonImpl': 'com.linkedin.espresso:espresso-common-impl:0.5.264',
+    'espressoStoreImpl': 'com.linkedin.espresso:espresso-store-impl:0.5.264',
+    'helixCore': 'com.linkedin.helix:helix-core:0.5.31'
+];
+
+if (System.getProperty('open_source') != null) {
+  externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
+  externalDependency.remove('espressoSchema')
+  externalDependency.remove('espressoCommonImpl')
+  externalDependency.remove('espressoStoreImpl')
+
+  println "Open source repositories used:"
+  project(':databus-core:databus-core-container').repositories.each { repo->
+    println(repo.getName())
+  }
+}
+
+if (!isDefaultEnvironment)
+{
+  externalDependency.each { overrideDepKey, overrideDepValue ->
+    if (externalDependency[overrideDepKey] != null)
+    {
+      externalDependency[overrideDepKey] = overrideDepValue
+    }
+  }
+}
+
+allprojects {
+  tasks.withType(Compile).all { Compile compile ->
+    compile.options.compilerArgs = ['-Xlint', '-Xlint:-path']
+  }
+  /* workaround for GRADLE-2243 (http://issues.gradle.org/browse/GRADLE-2243) */
+  tasks.withType(FindBugs) {
+	ignoreFailures=true
+  }
+}
+
+task wrapper(type: Wrapper) {
+  gradleVersion = '1.3'
+}
+
+class GitLIGenerateClasspath extends DefaultTask {
+
+  public static final String TASK_NAME = "gitLIGenerateClasspath"
+
+  @OutputFile
+  File classpathFile = project.file("${project.buildDir}/${project.name}.classpath")
+
+  @Input String configurationName = "default"
+          
+  public GitLIGenerateClasspath() {
+      this.outputs.upToDateWhen { false }
+  }      
+        
+  @TaskAction 
+  def generateClasspath() { 
+    def configuration = project.configurations.getByName(configurationName)
+    def runtimePath = configuration.resolve().join(":")
+    
+    classpathFile.write(runtimePath + ":" + configuration.allArtifacts.files.getAsPath())
+  } 
+}
+/* Uncomment for Cobertura integration */
+/*
+buildscript {
+
+    apply from: 'https://github.com/valkolovos/gradle_cobertura/raw/master/repo/gradle_cobertura/gradle_cobertura/1.0/coberturainit.gradle'
+}
+*/
+
+subprojects { 
+
+  plugins.withType(JavaPlugin) {
+    plugins.apply('eclipse')
+    plugins.apply('idea')
+
+    if (System.getProperty('open_source') != null) {
+    plugins.apply('findbugs')
+    findbugs {
+	toolVersion = "1.3.9"
+	sourceSets = [sourceSets.main]
+	reportsDir = file("$project.buildDir/findbugsReports")
+	effort="max"
+	reportLevel="low"
+	ignoreFailures=true
+    	}
+    }
+
+    sourceCompatibility = JavaVersion.VERSION_1_6
+    configurations {
+
+      all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
+      all*.exclude group: 'com.sun.jmx', module: 'jmxri'
+      all*.exclude group: 'javax.jms', module: 'jms'
+
+      /* Uncomment for Cobertura integration */
+      // testRuntime.exclude group: 'net.sourceforge.cobertura', module: 'cobertura'
+
+      testArtifacts
+    }
+
+    // Default dependencies for all subprojects
+    dependencies {
+        runtime externalDependency.log4j
+    }
+
+    if (System.getProperty('open_source') == null) {
+      def gitLIGenerateClasspath = project.tasks.add(name: GitLIGenerateClasspath.TASK_NAME, type: GitLIGenerateClasspath.class)
+      jar.dependsOn gitLIGenerateClasspath 
+    }
+
+    if (isDefaultEnvironment) {
+      task sourcesJar(type: Jar, dependsOn: classes) {
+        from sourceSets.main.allSource
+        classifier = 'sources'
+      }
+  
+      task javadocJar(type: Jar, dependsOn: javadoc) {
+        from javadoc.destinationDir
+        classifier = 'javadoc'
+      }
+
+      artifacts {
+        archives sourcesJar
+        archives javadocJar
+      }
+    }
+    task testJar(type: Jar){
+      from sourceSets.test.output
+      classifier = 'tests'
+    }
+
+    artifacts {
+      testArtifacts testJar
+    }
+
+    test {
+      	maxHeapSize = '6g'
+        jvmArgs '-XX:MaxDirectMemorySize=6096m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea'
+        useTestNG() 
+        
+        /* Uncomment for Cobertura integration */
+        /*
+        project.task("cleanTest", type: Delete) {
+            description = "Cleans the results of the 'test' task and makes it out-of-date"
+            delete outputs.files
+        }
+        */  
+        doFirst { desc->
+          logger.lifecycle("Running task: " + desc);
+        }
+        beforeTest { desc->
+          logger.lifecycle("Running test: " + desc);
+        }
+    }
+  }
+
+  task cleanBuildDir(type: Exec){
+    delete(rootDir.toString()+'build')
+    commandLine = ['rm', '-rf', rootDir.toString() + '/build']
+    workingDir = file(rootDir.toString())
+  }
+
+  task makedir(type:Exec){
+    // gradle mkdir does not create dir with "-p" flag on so this is a generic task that takes -Ddirpath=..... parameter
+    // Usage examples:
+    // gradle makedir -Ddirpath=abc/xyz
+    def dir = System.getProperties()['dirpath'] ?: null
+    if (dir != null){
+      commandLine = ['mkdir','-p', dir]
+      workingDir = file(rootDir.toString())
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+    "name" : "person",
+    "id"  : 1,
+    "uri" : "jdbc:oracle:thin:person/person@devdb:1521:db",
+	"slowSourceQueryThreshold" : 2000,
+	"sources" :
+	[
+		{"id" : 101, 
+		 "name" : "com.linkedin.events.example.person.Person",
+		 "uri": "person.person", 
+		 "partitionFunction" : "constant:1"
+		}
+	]
+}

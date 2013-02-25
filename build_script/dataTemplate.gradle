@@ -1,0 +1,25 @@
+final Configuration generatorConfig = project(':generator').configurations.default
+
+project.sourceSets.all { SourceSet sourceSet ->
+  final inputDataSchemaDirPath = "src${File.separatorChar}${sourceSet.name}${File.separatorChar}pegasus"
+  final String outputDirPath = "src${File.separatorChar}${sourceSet.name}GeneratedDataTemplate${File.separatorChar}java"
+
+  final FileTree inputDataSchemaFiles = project.fileTree(dir: inputDataSchemaDirPath, includes: ["**${File.separatorChar}*.pdsc"])
+  if (inputDataSchemaFiles.empty)
+  {
+    return;
+  }
+
+  final File outputDir = project.mkdir(outputDirPath)
+  sourceSet.java.srcDir(outputDir)
+
+  final Task generateDataTemplateTask = project.task(sourceSet.name + 'GenerateDataTemplate', type: JavaExec) {
+    main = 'com.linkedin.pegasus.generator.PegasusDataTemplateGenerator'
+    classpath = generatorConfig + generatorConfig.allArtifacts.files
+    args outputDirPath
+    args inputDataSchemaFiles
+    systemProperties(['generator.resolver.path': inputDataSchemaDirPath])
+  }
+
+  project.tasks[sourceSet.compileJavaTaskName].dependsOn(generateDataTemplateTask)
+}

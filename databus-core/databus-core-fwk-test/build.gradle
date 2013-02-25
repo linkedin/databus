@@ -1,0 +1,10 @@
+apply plugin: 'java'
+
+dependencies {
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.commonsIo
+  compile externalDependency.zookeeper
+  compile externalDependency.zkclientHelix
+  compile externalDependency.testng
+}

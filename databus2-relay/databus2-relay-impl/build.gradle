@@ -1,0 +1,31 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':databus-core:databus-core-container')
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-client:databus-client-api')
+  compile project(':databus-client:databus-client-common')
+  compile project(':databus-client:databus-client-http')
+  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+
+  compile externalDependency.avro
+  compile externalDependency.commonsBeanutils
+  compile externalDependency.commonsCli
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLogging
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.json
+
+  runtime externalDependency.ojdbc6
+
+  testCompile project(':databus-core:databus-core-fwk-test')
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
+}
+
+test.useTestNG()
+test.workingDir = "${project.rootDir}"

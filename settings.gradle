@@ -1,0 +1,67 @@
+// If a new directory is added, that contains a test inside, please add the directory here
+def base_modules = [
+'databus-bootstrap-client',
+'databus-bootstrap-common',
+'databus-bootstrap-producer',
+'databus-bootstrap-server',
+'databus-bootstrap-utils',
+'databus-client',
+'databus-core',
+'databus-cluster',
+'databus-group-leader',
+'databus-relay',
+'databus-util-cmdline',
+'databus2-example',
+'databus2-relay',
+'database',
+'script'
+]
+
+def non_os_modules = [
+'databus3-core',
+'databus3-relay',
+'databus3-client',
+'databus3-scripts',
+'databus3-linkedin-relay',
+'databus-profile-client',
+'databus2-linkedin-relay',
+'databus-events',
+'databus-linkedin-client',
+'databus2-linkedin-pkgs',
+'perf',
+'integration-test',
+'sitetools'
+]
+
+
+
+// add above to get hadoop artifacts uploaded 'hadoop',
+
+//TODO modules removed due to problems with their build dependencies:
+//
+// these are being worked on
+
+def nonReleaseModules = [
+]
+
+base_modules.each { module ->
+  file(module).eachDir { submodule ->
+    if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
+      //println "including1 " + "${module}:${submodule.name}" 
+      include "${module}:${submodule.name}"
+    }
+  }
+}
+
+if (System.getProperty('open_source') == null) {
+  println ">>>>>>>>>>>>>>>>>>>>>>>> LI version (not Open Source)"
+  non_os_modules.each { module ->
+    file(module).eachDir { submodule ->
+      if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
+        //println "including non os modules" + "${module}:${submodule.name}" 
+        include "${module}:${submodule.name}"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,22 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-group-leader:databus-group-leader-api')
+  compile project(':databus-group-leader:databus-group-leader-impl')
+  compile project(':databus-cluster:databus-cluster-manager-impl')
+  
+  compile externalDependency.avro
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.helixCore
+  
+  testCompile project(':databus-core:databus-core-fwk-test')  
+  testCompile externalDependency.testng
+}
+
+test.useTestNG()
+

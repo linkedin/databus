@@ -1,0 +1,36 @@
+apply plugin: 'java'
+
+dependencies {
+  compile project(':databus2-relay:databus2-relay-impl')
+  compile project(':databus2-example:databus2-example-relay')
+}
+
+task myTar(type: Tar) {
+  extension = 'tar.gz'
+  baseName = project.name
+  compression = Compression.GZIP
+
+  into("conf") { from "conf/" }
+
+  from("script") {
+    into ("bin")
+    fileMode = 0755
+  }
+
+  into("bin") {
+    from("${project.rootDir}/script")
+    include('setup.inc')
+  }
+ 
+  from("${project.rootDir}/schemas_registry/com.linkedin.events.example.person.Person.1.avsc") {
+    into("schemas_registry")    
+  }
+
+  into("lib") {
+     from configurations.runtime
+  }
+}
+
+myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
+myTar.dependsOn ':databus2-example:databus2-example-relay:assemble'
+assemble.dependsOn myTar

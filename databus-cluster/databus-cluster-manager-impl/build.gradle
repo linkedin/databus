@@ -1,0 +1,10 @@
+apply plugin: 'java'
+
+dependencies {
+  testCompile project(':databus-core:databus-core-fwk-test')	
+  compile externalDependency.log4j
+  compile externalDependency.helixCore
+  testCompile externalDependency.testng
+}
+
+test.useTestNG()

@@ -1,0 +1,40 @@
+<?xml version='1.0'?>
+<!--
+
+ Copyright 2013 LinkedIn Corp. All rights reserved
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied.  See the License for the
+ specific language governing permissions and limitations
+ under the License.
+
+-->
+
+create-tablespace
+create-user
+db-targets.db.reinit
+db.apply.patches
+db.recreate.schema
+db.reinit
+db.schema.create
+db.schema.drop
+db.status
+db.testdata.core.install
+db.testdata.core.load
+db.testdata.core.unload
+db.testdata.install
+determine-environment
+fullclean
+generate-idea-module
+ivy-clean-locks
+ivy-fullclean
+ivy-system-init
+verify.db.reinit

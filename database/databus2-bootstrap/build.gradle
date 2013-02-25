@@ -1,0 +1,8 @@
+task reinit {
+  doFirst {
+    exec {
+       commandLine('./bootstrap_db_reinit.sh')
+    }  
+  }
+}
+
