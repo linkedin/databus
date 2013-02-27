@@ -9,7 +9,6 @@ def base_modules = [
 'databus-core',
 'databus-cluster',
 'databus-group-leader',
-'databus-relay',
 'databus-util-cmdline',
 'databus2-example',
 'databus2-relay',
@@ -18,6 +17,7 @@ def base_modules = [
 ]
 
 def non_os_modules = [
+'databus-relay',
 'databus3-core',
 'databus3-relay',
 'databus3-client',
