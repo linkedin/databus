@@ -26,7 +26,7 @@ More details about the architecture, usecases and performance evaluation can be 
 
 # How to build ?
 *****
-Databus requires a library distributed by Oracle Inc under Oracle Technology Network License. Please accept that license [here](http://www.oracle.com/technetwork/licenses/distribution-license-152002.html), and download ojdbc6.jar with version at 11.2.0.2.0 [here](http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html).
+Databus requires a library distributed by Oracle Inc under Oracle Technology Network License. Please accept that license [here](http://www.oracle.com/technetwork/licenses/distribution-license-152002.html), and download ojdbc6.jar with version at 11.2.0.2.0 [here](http://www.oracle.com/technetwork/database/enterprise-edition/jdbc-112010-090769.html). Once you download the driver jar, please copy it under sandbox-repo/com/oracle/ojdbc6/11.2.0.2.0/ and name it ojdbc6-11.2.0.2.0.jar as shown below. We have provided a sample .ivy file to facilitate the build.
 
 Databus will **NOT** build without this step. After downloading the jars, they may be copied under the directory sandbox-repo as :
 * sandbox-repo/com/oracle/ojdbc6/11.2.0.2.0/ojdbc6-11.2.0.2.0.jar

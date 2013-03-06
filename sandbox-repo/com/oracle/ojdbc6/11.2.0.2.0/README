@@ -1,2 +1,1 @@
-
-Please copy the ivy and jar files in this directory after accepting OTN license
+Please copy the Oracle OJDBC driver jar file in this directory after accepting OTN license. Make sure the name of the jar file is ojdbc6-11.2.0.2.0.jar .
