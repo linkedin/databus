@@ -52,8 +52,98 @@
 	<key>GraphicsList</key>
 	<array>
 		<dict>
+			<key>Class</key>
+			<string>LineGraphic</string>
+			<key>Head</key>
+			<dict>
+				<key>ID</key>
+				<integer>48</integer>
+				<key>Info</key>
+				<integer>2</integer>
+			</dict>
+			<key>ID</key>
+			<integer>88</integer>
+			<key>OrthogonalBarAutomatic</key>
+			<false/>
+			<key>OrthogonalBarPoint</key>
+			<string>{0, 0}</string>
+			<key>OrthogonalBarPosition</key>
+			<real>75</real>
+			<key>Points</key>
+			<array>
+				<string>{214.99998, 166.5}</string>
+				<string>{335, 268}</string>
+			</array>
+			<key>Style</key>
+			<dict>
+				<key>stroke</key>
+				<dict>
+					<key>HeadArrow</key>
+					<string>0</string>
+					<key>Legacy</key>
+					<true/>
+					<key>LineType</key>
+					<integer>2</integer>
+					<key>TailArrow</key>
+					<string>0</string>
+				</dict>
+			</dict>
+			<key>Tail</key>
+			<dict>
+				<key>ID</key>
+				<integer>83</integer>
+				<key>Info</key>
+				<integer>9</integer>
+			</dict>
+		</dict>
+		<dict>
+			<key>Class</key>
+			<string>LineGraphic</string>
+			<key>Head</key>
+			<dict>
+				<key>ID</key>
+				<integer>48</integer>
+				<key>Info</key>
+				<integer>2</integer>
+			</dict>
+			<key>ID</key>
+			<integer>87</integer>
+			<key>OrthogonalBarAutomatic</key>
+			<false/>
+			<key>OrthogonalBarPoint</key>
+			<string>{0, 0}</string>
+			<key>OrthogonalBarPosition</key>
+			<real>75</real>
+			<key>Points</key>
+			<array>
+				<string>{103.00001, 166.5}</string>
+				<string>{335, 268}</string>
+			</array>
+			<key>Style</key>
+			<dict>
+				<key>stroke</key>
+				<dict>
+					<key>HeadArrow</key>
+					<string>0</string>
+					<key>Legacy</key>
+					<true/>
+					<key>LineType</key>
+					<integer>2</integer>
+					<key>TailArrow</key>
+					<string>0</string>
+				</dict>
+			</dict>
+			<key>Tail</key>
+			<dict>
+				<key>ID</key>
+				<integer>84</integer>
+				<key>Info</key>
+				<integer>9</integer>
+			</dict>
+		</dict>
+		<dict>
 			<key>Bounds</key>
-			<string>{{141, 432}, {61, 14}}</string>
+			<string>{{307.5, 305}, {66, 14}}</string>
 			<key>Class</key>
 			<string>ShapedGraphic</string>
 			<key>FitText</key>
@@ -92,7 +182,7 @@
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs24 \cf0 t2-lb:12345}</string>
+\f0\fs24 \cf0 cl1-lb:12345}</string>
 				<key>VerticalPad</key>
 				<integer>0</integer>
 			</dict>
@@ -110,17 +200,17 @@
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>52</integer>
+			<integer>62</integer>
 			<key>OrthogonalBarAutomatic</key>
 			<false/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>30</real>
+			<real>69</real>
 			<key>Points</key>
 			<array>
-				<string>{286.49997, 336}</string>
-				<string>{175, 394}</string>
+				<string>{645.5, 166.5}</string>
+				<string>{335, 268}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -139,7 +229,7 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>36</integer>
+				<integer>76</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
@@ -151,6 +241,8 @@
 			<dict>
 				<key>ID</key>
 				<integer>48</integer>
+				<key>Info</key>
+				<integer>2</integer>
 			</dict>
 			<key>ID</key>
 			<integer>51</integer>
@@ -159,11 +251,11 @@
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>30</real>
+			<real>69</real>
 			<key>Points</key>
 			<array>
-				<string>{212.125, 336}</string>
-				<string>{175, 394}</string>
+				<string>{571.125, 166.5}</string>
+				<string>{335, 268}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -182,7 +274,7 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>37</integer>
+				<integer>77</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
@@ -194,6 +286,8 @@
 			<dict>
 				<key>ID</key>
 				<integer>48</integer>
+				<key>Info</key>
+				<integer>2</integer>
 			</dict>
 			<key>ID</key>
 			<integer>50</integer>
@@ -202,11 +296,11 @@
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>30</real>
+			<real>69</real>
 			<key>Points</key>
 			<array>
-				<string>{137.75, 336}</string>
-				<string>{175, 394}</string>
+				<string>{496.75, 166.5}</string>
+				<string>{335, 268}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -225,7 +319,7 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>38</integer>
+				<integer>78</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
@@ -247,11 +341,11 @@
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>30</real>
+			<real>69</real>
 			<key>Points</key>
 			<array>
-				<string>{63.5, 336}</string>
-				<string>{175, 394}</string>
+				<string>{422.5, 166.5}</string>
+				<string>{335, 268}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -270,14 +364,14 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>39</integer>
+				<integer>79</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
 		</dict>
 		<dict>
 			<key>Bounds</key>
-			<string>{{118.5, 394}, {113, 30}}</string>
+			<string>{{278.5, 268}, {113, 30}}</string>
 			<key>Class</key>
 			<string>ShapedGraphic</string>
 			<key>ID</key>
@@ -327,7 +421,8 @@
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs24 \cf0 T2 Load Balancer}</string>
+\f0\fs24 \cf0 Cluster 1 \
+Load Balancer}</string>
 			</dict>
 		</dict>
 		<dict>
@@ -336,22 +431,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>36</integer>
+				<integer>76</integer>
 				<key>Info</key>
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>46</integer>
+			<integer>73</integer>
 			<key>OrthogonalBarAutomatic</key>
-			<false/>
+			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>19</real>
+			<real>4.5500030517578125</real>
 			<key>Points</key>
 			<array>
-				<string>{175, 244}</string>
-				<string>{286.49997, 306}</string>
+				<string>{350, 162.5}</string>
+				<string>{371, 104.59042}</string>
+				<string>{645.5, 136.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -370,7 +466,7 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
@@ -381,22 +477,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>37</integer>
+				<integer>77</integer>
 				<key>Info</key>
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>45</integer>
+			<integer>72</integer>
 			<key>OrthogonalBarAutomatic</key>
 			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>19.100006103515625</real>
+			<real>4.5500030517578125</real>
 			<key>Points</key>
 			<array>
-				<string>{175, 244}</string>
-				<string>{212.125, 306}</string>
+				<string>{350, 162.5}</string>
+				<string>{372, 104.59042}</string>
+				<string>{571.125, 136.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -415,7 +512,9 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
+				<key>Info</key>
+				<integer>8</integer>
 			</dict>
 		</dict>
 		<dict>
@@ -424,20 +523,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>38</integer>
+				<integer>78</integer>
+				<key>Info</key>
+				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>44</integer>
+			<integer>71</integer>
 			<key>OrthogonalBarAutomatic</key>
 			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>19.100006103515625</real>
+			<real>4.5500030517578125</real>
 			<key>Points</key>
 			<array>
-				<string>{175, 244}</string>
-				<string>{153.25, 306}</string>
+				<string>{350, 162.5}</string>
+				<string>{372, 104.59042}</string>
+				<string>{496.75, 136.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -456,7 +558,9 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
+				<key>Info</key>
+				<integer>8</integer>
 			</dict>
 		</dict>
 		<dict>
@@ -465,22 +569,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>39</integer>
+				<integer>79</integer>
 				<key>Info</key>
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>43</integer>
+			<integer>70</integer>
 			<key>OrthogonalBarAutomatic</key>
-			<false/>
+			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>19</real>
+			<real>4.5500030517578125</real>
 			<key>Points</key>
 			<array>
-				<string>{175, 244}</string>
-				<string>{63.5, 306}</string>
+				<string>{350, 162.5}</string>
+				<string>{371, 104.59042}</string>
+				<string>{422.5, 136.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -499,7 +604,7 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
 				<key>Info</key>
 				<integer>8</integer>
 			</dict>
@@ -511,11 +616,11 @@
 			<array>
 				<dict>
 					<key>Bounds</key>
-					<string>{{255.5, 306}, {62, 30}}</string>
+					<string>{{614.5, 136.5}, {62, 30}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>36</integer>
+					<integer>76</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.5962857, -1.1925691}</string>
@@ -566,11 +671,11 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{181.125, 306}, {62, 30}}</string>
+					<string>{{540.125, 136.5}, {62, 30}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>37</integer>
+					<integer>77</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.59628481, -1.1925696}</string>
@@ -621,11 +726,11 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{106.75, 306}, {62, 30}}</string>
+					<string>{{465.75, 136.5}, {62, 30}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>38</integer>
+					<integer>78</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.59628481, -1.1925696}</string>
@@ -676,11 +781,11 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{32.5, 306}, {62, 30}}</string>
+					<string>{{391.5, 136.5}, {62, 30}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>39</integer>
+					<integer>79</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.59628481, -1.1925696}</string>
@@ -731,7 +836,7 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{153.125, 348}, {31, 14}}</string>
+					<string>{{484.125, 178.5}, {88, 14}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FitText</key>
@@ -739,7 +844,7 @@
 					<key>Flow</key>
 					<string>Resize</string>
 					<key>ID</key>
-					<integer>40</integer>
+					<integer>80</integer>
 					<key>Shape</key>
 					<string>Rectangle</string>
 					<key>Style</key>
@@ -770,7 +875,7 @@
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs24 \cf0 Tier 2}</string>
+\f0\b\fs24 \cf0 Cluster 1-Tier 2}</string>
 						<key>VerticalPad</key>
 						<integer>0</integer>
 					</dict>
@@ -779,11 +884,11 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{23, 298}, {304, 68}}</string>
+					<string>{{382, 128.5}, {304, 68}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>41</integer>
+					<integer>81</integer>
 					<key>Shape</key>
 					<string>Rectangle</string>
 					<key>Style</key>
@@ -809,11 +914,11 @@
 				</dict>
 			</array>
 			<key>ID</key>
-			<integer>35</integer>
+			<integer>75</integer>
 		</dict>
 		<dict>
 			<key>Bounds</key>
-			<string>{{141, 249}, {61, 14}}</string>
+			<string>{{295, 224}, {80, 14}}</string>
 			<key>Class</key>
 			<string>ShapedGraphic</string>
 			<key>FitText</key>
@@ -852,7 +957,7 @@
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs24 \cf0 t1-lb:12345}</string>
+\f0\fs24 \cf0 cl1-t1-lb:12345}</string>
 				<key>VerticalPad</key>
 				<integer>0</integer>
 			</dict>
@@ -865,22 +970,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
 				<key>Info</key>
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>22</integer>
+			<integer>61</integer>
 			<key>OrthogonalBarAutomatic</key>
-			<false/>
+			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>18</real>
+			<real>-1</real>
 			<key>Points</key>
 			<array>
-				<string>{230.49998, 166.5}</string>
-				<string>{175, 214}</string>
+				<string>{246, 166.5}</string>
+				<string>{261, 215}</string>
+				<string>{320, 162.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -899,9 +1005,9 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>31</integer>
+				<integer>83</integer>
 				<key>Info</key>
-				<integer>8</integer>
+				<integer>7</integer>
 			</dict>
 		</dict>
 		<dict>
@@ -910,22 +1016,23 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>20</integer>
+				<integer>69</integer>
 				<key>Info</key>
 				<integer>2</integer>
 			</dict>
 			<key>ID</key>
-			<integer>21</integer>
+			<integer>74</integer>
 			<key>OrthogonalBarAutomatic</key>
-			<false/>
+			<true/>
 			<key>OrthogonalBarPoint</key>
 			<string>{0, 0}</string>
 			<key>OrthogonalBarPosition</key>
-			<real>18</real>
+			<real>-1</real>
 			<key>Points</key>
 			<array>
-				<string>{118.5, 166.5}</string>
-				<string>{175, 214}</string>
+				<string>{134, 166.5}</string>
+				<string>{260, 215}</string>
+				<string>{320, 162.5}</string>
 			</array>
 			<key>Style</key>
 			<dict>
@@ -944,18 +1051,18 @@
 			<key>Tail</key>
 			<dict>
 				<key>ID</key>
-				<integer>32</integer>
+				<integer>84</integer>
 				<key>Info</key>
-				<integer>8</integer>
+				<integer>7</integer>
 			</dict>
 		</dict>
 		<dict>
 			<key>Bounds</key>
-			<string>{{118.5, 214}, {113, 30}}</string>
+			<string>{{278.5, 147.5}, {113, 30}}</string>
 			<key>Class</key>
 			<string>ShapedGraphic</string>
 			<key>ID</key>
-			<integer>20</integer>
+			<integer>69</integer>
 			<key>Magnets</key>
 			<array>
 				<string>{-0.59628522, -1.1925693}</string>
@@ -971,6 +1078,8 @@
 				<string>{-1.3333334, 1.2715658e-06}</string>
 				<string>{-1.1925701, -0.59628391}</string>
 			</array>
+			<key>Rotation</key>
+			<real>270</real>
 			<key>Shape</key>
 			<string>Rectangle</string>
 			<key>Style</key>
@@ -1010,7 +1119,7 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>31</integer>
+				<integer>83</integer>
 			</dict>
 			<key>ID</key>
 			<integer>19</integer>
@@ -1053,7 +1162,7 @@
 			<key>Head</key>
 			<dict>
 				<key>ID</key>
-				<integer>32</integer>
+				<integer>84</integer>
 			</dict>
 			<key>ID</key>
 			<integer>18</integer>
@@ -1101,7 +1210,7 @@
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>31</integer>
+					<integer>83</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.59628528, -1.1925694}</string>
@@ -1156,7 +1265,7 @@
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>32</integer>
+					<integer>84</integer>
 					<key>Magnets</key>
 					<array>
 						<string>{-0.59628481, -1.1925696}</string>
@@ -1207,15 +1316,22 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{159, 171.5}, {31, 14}}</string>
+					<string>{{130.5, 177}, {94, 14}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>FitText</key>
 					<string>YES</string>
 					<key>Flow</key>
 					<string>Resize</string>
+					<key>FontInfo</key>
+					<dict>
+						<key>Font</key>
+						<string>Helvetica-Bold</string>
+						<key>Size</key>
+						<real>12</real>
+					</dict>
 					<key>ID</key>
-					<integer>33</integer>
+					<integer>85</integer>
 					<key>Shape</key>
 					<string>Rectangle</string>
 					<key>Style</key>
@@ -1246,7 +1362,7 @@
 {\colortbl;\red255\green255\blue255;}
 \pard\tx560\tx1120\tx1680\tx2240\tx2800\tx3360\tx3920\tx4480\tx5040\tx5600\tx6160\tx6720\pardirnatural\qc
 
-\f0\fs24 \cf0 Tier 1}</string>
+\f0\b\fs24 \cf0 Cluster 1 - Tier 1}</string>
 						<key>VerticalPad</key>
 						<integer>0</integer>
 					</dict>
@@ -1255,11 +1371,11 @@
 				</dict>
 				<dict>
 					<key>Bounds</key>
-					<string>{{78.5, 127.5}, {193, 58}}</string>
+					<string>{{78.5, 127.5}, {193, 69}}</string>
 					<key>Class</key>
 					<string>ShapedGraphic</string>
 					<key>ID</key>
-					<integer>34</integer>
+					<integer>86</integer>
 					<key>Shape</key>
 					<string>Rectangle</string>
 					<key>Style</key>
@@ -1285,7 +1401,7 @@
 				</dict>
 			</array>
 			<key>ID</key>
-			<integer>30</integer>
+			<integer>82</integer>
 		</dict>
 		<dict>
 			<key>Bounds</key>
@@ -1423,7 +1539,7 @@
 	<key>MasterSheets</key>
 	<array/>
 	<key>ModificationDate</key>
-	<string>2013-05-10 16:27:03 +0000</string>
+	<string>2013-05-10 16:50:20 +0000</string>
 	<key>Modifier</key>
 	<string>Chavdar Botev</string>
 	<key>NotesVisible</key>
