@@ -41,21 +41,28 @@ else
    db=$3
 fi
 
-mysql -uroot -e "create database if not exists $db;"
-
-if [ "$4" == "" ] ; then
-   mysql -uroot -e "grant all privileges on $db.* to $user@'localhost' identified by '$pass';"
-else
-   host=$4
-   mysql -uroot -e "grant all privileges on $db.* to $user@'$host' identified by '$pass';"
+mysql_root_pwd=
+if [ ! -z "${MYSQL_ROOT_PWD}" ] ; then
+   mysql_root_pwd="-p${MYSQL_ROOT_PWD}"
 fi
 
-mysql -uroot -e "grant all privileges on $db.* to $user@'$hostname' identified by '$pass';"
-mysql -uroot -e "grant all privileges on $db.* to $user@'127.0.0.1' identified by '$pass';"
-mysql -uroot -e "grant all privileges on $db.* to $user@'%.linkedin.com' identified by '$pass';"
-mysql -uroot -e "grant all privileges on $db.* to $user@'%.linkedin.biz' identified by '$pass';"
-mysql -uroot -e "grant all privileges on $db.* to $user@'172.16.%' identified by '$pass';"
-mysql -uroot -e "grant all privileges on $db.* to $user@'rdb%.prod.linkedin.com' identified by '$pass';"
+MYSQL="mysql -uroot ${mysql_root_pwd}"
 
-mysql -uroot -e "show errors;"
-mysql -uroot -e "show warnings;"
+${MYSQL} -e "create database if not exists $db;"
+
+if [ "$4" == "" ] ; then
+   ${MYSQL} -e "grant all privileges on $db.* to $user@'localhost' identified by '$pass';"
+else
+   host=$4
+   ${MYSQL} -e "grant all privileges on $db.* to $user@'$host' identified by '$pass';"
+fi
+
+${MYSQL} -e "grant all privileges on $db.* to $user@'$hostname' identified by '$pass';"
+${MYSQL} -e "grant all privileges on $db.* to $user@'127.0.0.1' identified by '$pass';"
+${MYSQL} -e "grant all privileges on $db.* to $user@'%.linkedin.com' identified by '$pass';"
+${MYSQL} -e "grant all privileges on $db.* to $user@'%.linkedin.biz' identified by '$pass';"
+${MYSQL} -e "grant all privileges on $db.* to $user@'172.16.%' identified by '$pass';"
+${MYSQL} -e "grant all privileges on $db.* to $user@'rdb%.prod.linkedin.com' identified by '$pass';"
+
+${MYSQL} -e "show errors;"
+${MYSQL} -e "show warnings;"
