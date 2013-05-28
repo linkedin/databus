@@ -22,7 +22,7 @@ task myTar(type: Tar) {
     include('setup.inc')
   }
  
-  from("${project.rootDir}/schemas_registry/com.linkedin.events.example.person.Person.1.avsc") {
+  from("${project.rootDir}/databus2-example/schemas_registry/com.linkedin.events.example.person.Person.1.avsc") {
     into("schemas_registry")    
   }
 
