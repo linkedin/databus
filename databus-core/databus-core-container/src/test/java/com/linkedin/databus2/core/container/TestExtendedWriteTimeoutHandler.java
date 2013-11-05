@@ -31,7 +31,9 @@ import org.jboss.netty.handler.timeout.WriteTimeoutException;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.DbusEventV1Factory;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
 import com.linkedin.databus2.test.container.ExceptionListenerTestHandler;
