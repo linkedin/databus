@@ -21,7 +21,7 @@ package com.linkedin.databus.cluster;
 
 import org.apache.log4j.Logger;
 
-import com.linkedin.helix.participant.statemachine.StateModelFactory;
+import org.apache.helix.participant.statemachine.StateModelFactory;
 
 public class DatabusClusterNotifierFactory extends StateModelFactory<DatabusClusterNotifierStateModel>
 {

@@ -18,23 +18,24 @@ package com.linkedin.databus.client;
  *
 */
 
-
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
 import org.jboss.netty.channel.Channel;
-
-import com.linkedin.databus.client.pub.DatabusServerCoordinates;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventInternalReadable;
 import com.linkedin.databus.core.InternalDatabusEventsListener;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.util.IdNamePair;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
 
 public class ConnectionState implements DatabusRelayConnectionStateMessage,
                                         DatabusBootstrapConnectionStateMessage
@@ -81,13 +82,15 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   private StateId _stateId;
 
   //INIITIAL
-  private DbusEventBuffer _dataEventsBuffer;
+  private final DbusEventBuffer _dataEventsBuffer;
   private DatabusHttpClientImpl.StaticConfig _clientConfig;
-  private final List<DatabusSubscription> _subscriptions;
-  private String _sourcesNameList;
+  protected final List<DatabusSubscription> _subscriptions;
+  private final List<String> _sourcesNames;
+  protected  BootstrapCheckpointHandler _bstCheckpointHandler = null;
+  private final String _sourcesNameList;
 
   //PICK_SERVER extends INITIAL
-  private boolean _isRelayFellOff = false; 
+  private boolean _isRelayFellOff = false;
 
   //REQUEST_SOURCES extends PICK_SERVER
   private InetSocketAddress _serverInetAddress;
@@ -99,8 +102,8 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
 
   //SOURCES_RESPONSE_SUCCESS extends REQUEST_SOURCES
   private List<IdNamePair> _sources;
-  private Map<Long, IdNamePair> _sourcesIdMap = new HashMap<Long, IdNamePair>(20);
-  private Map<String, IdNamePair> _sourcesNameMap = new HashMap<String, IdNamePair>(20);
+  protected Map<Long, IdNamePair> _sourcesIdMap = new HashMap<Long, IdNamePair>(20);
+  protected Map<String, IdNamePair> _sourcesNameMap = new HashMap<String, IdNamePair>(20);
   //private DbusKeyCompositeFilter _filter = new DbusKeyCompositeFilter();
 
   //REQUEST_SOURCES_SCHEMAS extends SOURCES_READY
@@ -108,16 +111,18 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   private String _subsListString;
 
   //SOURCES_SCHEMAS_READY extends READ_SOURCES_SCHEMAS
-  private Map<Long, List<RegisterResponseEntry>> _sourcesSchemas;
+  private Map<Long, List<RegisterResponseEntry>> _sourcesSchemas;  // mandatory, else can't make callbacks to consumer
+  private Map<Long, List<RegisterResponseEntry>> _keysSchemas;
+  private List<RegisterResponseMetadataEntry> _metadataSchemas;
 
   //REQUEST_DATA_EVENTS extends SOURCES_SCHEMAS_READY
   private Checkpoint _checkpoint;
   private boolean _scnRegress = false;
   private boolean _flexibleCheckpointRequest = false;
-  
-  private List<InternalDatabusEventsListener> _readEventListeners;
 
-  
+  private final List<InternalDatabusEventsListener> _readEventListeners;
+
+
   //READ_DATA_EVENTS extends REQUEST_DATA_EVENTS
   private ChunkedBodyReadableByteChannel _readChannel;
 
@@ -125,35 +130,60 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
 
   private Channel _startScnChannel;
 
-  
+
   private ServerInfo _currentBSServerInfo;
-  
+
+  private String _hostName, _svcName;
+
   //DATA_EVENTS_DONE extends READ_DATE_EVENTS
 
-  private ConnectionState(DbusEventBuffer dataEventsBuffer,
-                          List<String> sourcesNames, List<DatabusSubscription> subs)
+  protected ConnectionState(DbusEventBuffer dataEventsBuffer, List<String> sourcesNames, List<DatabusSubscription> subs)
   {
     _stateId = StateId.INITIAL;
     _dataEventsBuffer = dataEventsBuffer;
     _readEventListeners = new ArrayList<InternalDatabusEventsListener>();
 
-    if(subs != null){
-      _subscriptions = subs;
-    } else if(sourcesNames != null) {
+    if(subs != null)
+    {
+      _subscriptions = new ArrayList<DatabusSubscription>(subs);
+      _sourcesNames = DatabusSubscription.getStrList(_subscriptions);
+    }
+    else if(sourcesNames != null)
+    {
       _subscriptions = DatabusSubscription.createSubscriptionList(sourcesNames);
-    }else {
+      _sourcesNames = new ArrayList<String>(sourcesNames);
+    }
+    else
+    {
       throw new IllegalArgumentException("both sources and subscriptions are null");
     }
 
     StringBuilder sb = new StringBuilder();
     boolean firstSource = true;
-    for (String sourceName: sourcesNames)
+    for (String sourceName: _sourcesNames)
     {
       if (! firstSource) sb.append(',');
       sb.append(sourceName);
       firstSource = false;
     }
    _sourcesNameList = sb.toString();
+   _hostName = "";
+   _svcName = "";
+
+    // The bootstrap checkpoint handler will be constructed when we get the final list of sources from the relay.
+  }
+
+  // This method is overridden for V3
+  public void createBootstrapCheckpointHandler()
+  {
+    assert _bstCheckpointHandler == null : "BootstrapCheckpointHandler already initialized " + _bstCheckpointHandler.toString();
+    _bstCheckpointHandler = new BootstrapCheckpointHandler(_sourcesNames);
+  }
+
+  public void expandSubscriptions()
+  {
+    // For V3, the table names are known after the relay responds with the source list,
+    // so this method is overridden to replace _subscriptions and _sourcesNames accordingly.
   }
 
   public StateId getStateId()
@@ -161,12 +191,6 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
     return _stateId;
   }
 
-  public static ConnectionState create(DbusEventBuffer dataEventsBuffer,
-                                       List<String> sourcesNames, List<DatabusSubscription> subs)
-  {
-    return new ConnectionState(dataEventsBuffer, sourcesNames, subs);
-  }
-  
   public ConnectionState switchToPickServer()
   {
     _stateId = StateId.PICK_SERVER;
@@ -199,10 +223,11 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   }
 
   @Override
-  public void switchToSourcesSuccess(List<IdNamePair> sources)
+  public void switchToSourcesSuccess(List<IdNamePair> sources, String hostName, String svcName)
   {
     _stateId = StateId.SOURCES_RESPONSE_SUCCESS;
     setSourcesIds(sources);
+    setTrackingInfo(hostName, svcName);
   }
 
   public void setSourcesIds(List<IdNamePair> sources)
@@ -215,6 +240,30 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
       _sourcesIdMap.put(source.getId(), source);
       _sourcesNameMap.put(source.getName(), source);
     }
+    expandSubscriptions();
+  }
+
+  public void setTrackingInfo(String hostName, String svcName)
+  {
+    _hostName = hostName;
+    _svcName = svcName;
+  }
+
+  public String getHostName()
+  {
+    return _hostName;
+  }
+
+  public String getSvcName()
+  {
+    return _svcName;
+  }
+
+  // This method is overridden for V3
+  public DbusEventInternalReadable createEopEvent(Checkpoint cp, DbusEventFactory eventFactory)
+      throws DatabusException
+  {
+    return eventFactory.createLongKeyEOPEvent(cp.getWindowScn(), (short) 0);
   }
 
   public ConnectionState switchToRequestSourcesSchemas(String sourcesIdListString,
@@ -237,16 +286,29 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   }
 
   @Override
-  public void switchToRegisterSuccess(
-      Map<Long, List<RegisterResponseEntry>> sourcesSchemas)
+  public void switchToRegisterSuccess(Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
+                                      Map<Long, List<RegisterResponseEntry>> keysSchemas,
+                                      List<RegisterResponseMetadataEntry> metadataSchemas)
   {
     _stateId = StateId.REGISTER_RESPONSE_SUCCESS;
     setSourcesSchemas(sourcesSchemas);
+    setKeysSchemas(keysSchemas);      // OK if null
+    setMetadataSchemas(metadataSchemas);  // OK if null
   }
 
   public void setSourcesSchemas(Map<Long, List<RegisterResponseEntry>> sourcesSchemas)
   {
     _sourcesSchemas = sourcesSchemas;
+  }
+
+  public void setKeysSchemas(Map<Long, List<RegisterResponseEntry>> keysSchemas)
+  {
+    _keysSchemas = keysSchemas;
+  }
+
+  public void setMetadataSchemas(List<RegisterResponseMetadataEntry> metadataSchemas)
+  {
+    _metadataSchemas = metadataSchemas;
   }
 
   public ConnectionState switchToRequestStream(Checkpoint checkpoint)
@@ -310,22 +372,13 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
     _stateId = StateId.STREAM_RESPONSE_ERROR;
   }
 
-  public ConnectionState switchToRequestTargetScn(InetSocketAddress serviceInetAddr,
-                                                  Map<Long, IdNamePair> sourceIdMap,
-                                                  Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
-                                                  Checkpoint ckpt,
-                                                  DatabusBootstrapConnection bootstrapConnection)
+  public ConnectionState switchToRequestTargetScn(Checkpoint ckpt)
   {
     _stateId = StateId.REQUEST_TARGET_SCN;
-    _serverInetAddress = serviceInetAddr;
-    _sourcesIdMap = sourceIdMap;
-    _sourcesSchemas = sourcesSchemas;
-    _checkpoint = ckpt;
-    _bootstrapConnection = bootstrapConnection;
-    _readEventListeners.add(_checkpoint);
+    setCheckpoint(ckpt);
     return this;
   }
-  
+
   @Override
   public void switchToTargetScnRequestError()
   {
@@ -344,24 +397,25 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
     _stateId = StateId.TARGET_SCN_RESPONSE_SUCCESS;
   }
 
-  public ConnectionState switchToRequestStartScn(InetSocketAddress serviceInetAddr,
-                                                 Map<Long, IdNamePair> sourceIdMap,
-                                                 Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
-                                                 Checkpoint ckpt,
+  public ConnectionState bootstrapServerSelected(InetSocketAddress serviceInetAddr,
                                                  DatabusBootstrapConnection bootstrapConnection,
                                                  ServerInfo currentBSServerInfo)
   {
-    _stateId = StateId.REQUEST_START_SCN;
     _serverInetAddress = serviceInetAddr;
-    _sourcesIdMap = sourceIdMap;
-    _sourcesSchemas = sourcesSchemas;
-    _checkpoint = ckpt;
     _bootstrapConnection = bootstrapConnection;
-    _readEventListeners.add(_checkpoint);
     _currentBSServerInfo = currentBSServerInfo;
     return this;
   }
-  
+
+
+  public ConnectionState switchToRequestStartScn(Checkpoint ckpt)
+  {
+
+    _stateId = StateId.REQUEST_START_SCN;
+    setCheckpoint(ckpt);
+    return this;
+  }
+
   @Override
   public void switchToStartScnRequestError()
   {
@@ -406,7 +460,7 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
 
   public List<String> getSourcesNames()
   {
-    return DatabusSubscription.getStrList(_subscriptions);
+    return _sourcesNames;
   }
 
   public List<DatabusSubscription> getSubscriptions()
@@ -455,6 +509,16 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
     return _sourcesSchemas;
   }
 
+  public Map<Long, List<RegisterResponseEntry>> getKeysSchemas()
+  {
+    return _keysSchemas;
+  }
+
+  public List<RegisterResponseMetadataEntry> getMetadataSchemas()
+  {
+    return _metadataSchemas;
+  }
+
   public DbusEventBuffer getDataEventsBuffer()
   {
     return _dataEventsBuffer;
@@ -467,9 +531,17 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
 
   public void setCheckpoint(Checkpoint cp)
   {
-	  _checkpoint = cp;
+    //intentional object comparison!
+    if (cp == _checkpoint) return;
+
+    if (null != _checkpoint)
+    {
+      _readEventListeners.remove(_checkpoint);
+    }
+    _checkpoint = cp;
+    _readEventListeners.add(_checkpoint);
   }
-  
+
   public Checkpoint getCheckpoint()
   {
     return _checkpoint;
@@ -507,12 +579,12 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   {
     _readEventListeners.clear();
   }
-  
+
   public void setRelayConnection(DatabusRelayConnection conn)
   {
 	  _relayConnection = conn;
   }
-  
+
   public void setBootstrapConnection(DatabusBootstrapConnection conn)
   {
 	  _bootstrapConnection = conn;
@@ -537,7 +609,7 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   public void switchToBootstrapRequested() {
 	  _stateId = StateId.BOOTSTRAP_REQUESTED;
   }
-  
+
   @Override
   public void switchToBootstrapDone()
   {
@@ -545,54 +617,63 @@ public class ConnectionState implements DatabusRelayConnectionStateMessage,
   }
 
   @Override
-  public void switchToStartScnRequestSent() 
+  public void switchToStartScnRequestSent()
   {
-	  _stateId = StateId.START_SCN_REQUEST_SENT;	
+	  _stateId = StateId.START_SCN_REQUEST_SENT;
   }
 
   @Override
-  public void switchToTargetScnRequestSent() 
+  public void switchToTargetScnRequestSent()
   {
 	  _stateId = StateId.TARGET_SCN_REQUEST_SENT;
   }
-  
+
   public ServerInfo getCurrentBSServerInfo()
   {
 	  return _currentBSServerInfo;
   }
-  
+
   public void setCurrentBSServerInfo(ServerInfo serverInfo)
   {
 	 _currentBSServerInfo = serverInfo;
   }
-  
+
   public boolean isRelayFellOff()
   {
 	  return _isRelayFellOff;
   }
-  
+
   public void setRelayFellOff(boolean retryOnFellOff)
   {
 	 _isRelayFellOff = retryOnFellOff;
   }
-  
+
   public boolean isSCNRegress()
   {
 	  return _scnRegress;
   }
-  
+
   public void setSCNRegress(boolean regress)
   {
 	  _scnRegress = regress;
   }
-  
+
   public boolean isFlexibleCheckpointRequest()
   {
 	  return _flexibleCheckpointRequest;
   }
-  
+
   public void setFlexibleCheckpointRequest(boolean flexibleCheckpointRequest)
   {
 	  _flexibleCheckpointRequest = flexibleCheckpointRequest;
   }
+
+  /**
+   * @return the bstCheckpointHandler
+   */
+  protected BootstrapCheckpointHandler getBstCheckpointHandler()
+  {
+    return _bstCheckpointHandler;
+  }
+
 }

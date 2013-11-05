@@ -35,17 +35,21 @@ public class BootstrapReadOnlyConfig
   private final String _bootstrapDBHostname;
   private final String _bootstrapDBName;
   private final long _bootstrapBatchSize;
+  private final long _bootstrapSnapshotBatchSize;
+  private final long _bootstrapCatchupBatchSize;
   private final int _bootstrapLogSize;
   private final boolean _bootstrapDBStateCheck;
   private final DatabusHttpClientImpl.StaticConfig _client;
   private final ServerContainer.StaticConfig _container;
   private final BackoffTimerStaticConfig _retryConfig;
-  
+
   public BootstrapReadOnlyConfig(String bootstrapDBUsername,
                                  String bootstrapDBPassword,
                                  String bootstrapDBHostname,
                                  String dbName,
                                  long bootstrapBatchSize,
+                                 long bootstrapSnapshotBatchSize,
+                                 long bootstrapCatchupBatchSize,
                                  int bootstrapLogSize,
                                  boolean bootstrapDBStateCheck,
                                  DatabusHttpClientImpl.StaticConfig client,
@@ -58,6 +62,8 @@ public class BootstrapReadOnlyConfig
     _bootstrapDBHostname = bootstrapDBHostname;
     _bootstrapDBName = dbName;
     _bootstrapBatchSize = bootstrapBatchSize;
+    _bootstrapSnapshotBatchSize = bootstrapSnapshotBatchSize;
+    _bootstrapCatchupBatchSize = bootstrapCatchupBatchSize;
     _bootstrapLogSize = bootstrapLogSize;
     _bootstrapDBStateCheck = bootstrapDBStateCheck;
     _client = client;
@@ -125,6 +131,22 @@ public class BootstrapReadOnlyConfig
   }
 
   /**
+   * The maximum number of rows per bootstrap snapshot call.
+   */
+  public long getBootstrapSnapshotBatchSize()
+  {
+    return _bootstrapSnapshotBatchSize;
+  }
+
+  /**
+   * The maximum number of rows per bootstrap catchup call.
+   */
+  public long getBootstrapCatchupBatchSize()
+  {
+    return _bootstrapCatchupBatchSize;
+  }
+
+  /**
    * The maximum number of rows in a bootstrap DB log_* table.
    */
   public int getBootstrapLogSize()
@@ -146,7 +168,7 @@ public class BootstrapReadOnlyConfig
   {
 	  return _bootstrapDBName;
   }
-  
+
   /* (non-Javadoc)
    * @see java.lang.Object#toString()
    */
@@ -156,7 +178,8 @@ public class BootstrapReadOnlyConfig
 	  + _bootstrapDBUsername + ", _bootstrapDBPassword=xxxxxx"
 	  + ", _bootstrapDBHostname="
 	  + _bootstrapDBHostname + ", _bootstrapBatchSize="
-	  + _bootstrapBatchSize + ", _bootstrapLogSize=" + _bootstrapLogSize
+	  + _bootstrapBatchSize + ", _bootstrapSnapshotBatchSize=" + _bootstrapSnapshotBatchSize
+	  + ", _bootstrapCatchupSize= " + _bootstrapCatchupBatchSize + ", _bootstrapLogSize=" + _bootstrapLogSize
 	  + ", _bootstrapDBStateCheck=" + _bootstrapDBStateCheck
 	  + ", _client=" + _client + ", _container=" + _container + ", BootstrapDBRetryTimer=" + _retryConfig + "]";
   }

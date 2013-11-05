@@ -19,6 +19,8 @@ package com.linkedin.databus2.schemas;
 */
 
 
+import java.io.File;
+import java.io.IOException;
 import java.util.Map;
 
 import org.apache.log4j.ConsoleAppender;
@@ -27,6 +29,10 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
 import org.testng.Assert;
 import org.testng.annotations.Test;
+
+import com.linkedin.databus.core.DatabusRuntimeException;
+import com.linkedin.databus.core.util.FileUtils;
+import com.linkedin.databus.core.util.InvalidConfigException;
 
 /**
  * NOTE: if this test is failing when run in Eclipse, run it once from the command to populate
@@ -59,12 +65,40 @@ public class TestFileSystemSchemaRegistryService
     FileSystemSchemaRegistryService.StaticConfig config = configBuilder.build();
     FileSystemSchemaRegistryService service = FileSystemSchemaRegistryService.build(config);
 
-    Map<Short,String > bizfollowSchemas =
-        service.fetchAllSchemaVersionsByType("com.linkedin.events.bizfollow.bizfollow.BizFollow");
-    Assert.assertNotNull(bizfollowSchemas);
-    Assert.assertTrue(2 <= bizfollowSchemas.size());
+    Map<Short,String > fakeSchemas =
+        service.fetchAllSchemaVersionsBySourceName("com.linkedin.events.example.fake.FakeSchema");
+    Assert.assertNotNull(fakeSchemas);
+    Assert.assertTrue(2 <= fakeSchemas.size());
 
-    String liarMemberSchema = service.fetchLatestSchemaByType("com.linkedin.events.liar.memberrelay.LiarMemberRelay");
-    Assert.assertNotNull(liarMemberSchema);
+    String personSchema = service.fetchLatestSchemaBySourceName("com.linkedin.events.example.person.Person");
+    Assert.assertNotNull(personSchema);
+  }
+
+  @Test(expectedExceptions=InvalidConfigException.class)
+  /** Instantiation should fail with fallbackToResourceDisabled and a missing directory */
+  public void testErrorOnMissingSchemasDir() throws InvalidConfigException
+  {
+    final String dirName = "/lets/hope/no/one/creates/this/dir";
+    Assert.assertFalse((new File(dirName)).exists());
+
+    FileSystemSchemaRegistryService.Config cfgBuilder = new FileSystemSchemaRegistryService.Config();
+    cfgBuilder.setFallbackToResources(false);
+    cfgBuilder.setSchemaDir(dirName);
+
+    FileSystemSchemaRegistryService.build(cfgBuilder);
+  }
+
+  @Test(expectedExceptions=DatabusRuntimeException.class)
+  /** Instantiation should fail with fallbackToResourceDisabled and a missing directory */
+  public void testErrorOnEmptySchemasDir() throws IOException, InvalidConfigException
+  {
+    File tempDir = FileUtils.createTempDir("testErrorOnEmptySchemasDir");
+    Assert.assertTrue(tempDir.exists());
+
+    FileSystemSchemaRegistryService.Config cfgBuilder = new FileSystemSchemaRegistryService.Config();
+    cfgBuilder.setFallbackToResources(false);
+    cfgBuilder.setSchemaDir(tempDir.getAbsolutePath());
+
+    FileSystemSchemaRegistryService.build(cfgBuilder);
   }
 }

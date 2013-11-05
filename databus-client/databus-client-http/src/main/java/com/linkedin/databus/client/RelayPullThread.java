@@ -18,6 +18,21 @@ package com.linkedin.databus.client;
  *
 */
 
+import java.io.ByteArrayInputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+
+import javax.management.MBeanServer;
+
+import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.ConnectionState.StateId;
 import com.linkedin.databus.client.netty.RemoteExceptionHandler;
@@ -28,9 +43,9 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventInternalWritable;
-import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.InvalidEventException;
+import com.linkedin.databus.core.PendingEventTooLargeException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
 import com.linkedin.databus.core.SCNRegressMessage;
 import com.linkedin.databus.core.ScnNotFoundException;
@@ -50,19 +65,6 @@ import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilter;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
-import java.io.ByteArrayInputStream;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Random;
-import java.util.Set;
-import javax.management.MBeanServer;
-import org.apache.log4j.Logger;
 
 public class RelayPullThread extends BasePullThread
 {
@@ -87,6 +89,10 @@ public class RelayPullThread extends BasePullThread
 
   private int _unmergedHttpCallsStats = 0;
   private long _streamCallStartMs = 0;
+
+  // if that much time passes with no events - reset the connection, and pick another server
+  private long _noEventsConnectionResetTimeSec;
+  private long _timeSinceEventsSec = System.currentTimeMillis();
 
   /**
    * When RelayPullThread  falls-off the relay, it goes to the Fell-Off mode and the below retryConfig (_retriesOnFallOff)
@@ -131,45 +137,47 @@ public class RelayPullThread extends BasePullThread
 
   public RelayPullThread(String name,
                          DatabusSourcesConnection sourcesConn,
-                         DbusEventBuffer dataEventsBuffer,
+                         DbusEventBuffer dbusEventBuffer,
+                         ConnectionStateFactory connStateFactory,
                          Set<ServerInfo> relays,
                          List<DbusKeyCompositeFilterConfig> relayFilterConfigs,
                          boolean isConsumeCurrent,
                          boolean isReadLatestScnOnErrorEnabled,
                          double pullerBufferUtilPct,
-                         MBeanServer mbeanServer)
+                         int noEventsConnectionResetTimeSec,
+                         MBeanServer mbeanServer,
+                         DbusEventFactory eventFactory)
   {
-	 super(name, sourcesConn, dataEventsBuffer,relays,mbeanServer);
+	 super(name, sourcesConn.getConnectionConfig().getPullerRetries(), sourcesConn, dbusEventBuffer, connStateFactory,relays,mbeanServer, eventFactory);
     _relayFilterConfigs = relayFilterConfigs;
     _isConsumeCurrent = isConsumeCurrent;
-    _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, dataEventsBuffer);
+    _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, dbusEventBuffer, eventFactory);
     _relayCallsStats = _sourcesConn.getLocalRelayCallsStatsCollector();
     _isReadLatestScnOnErrorEnabled = isReadLatestScnOnErrorEnabled;
     _pullerBufferUtilizationPct = pullerBufferUtilPct;
     _retriesOnFallOff = new BackoffTimer("RetriesOnFallOff",
             new BackoffTimerStaticConfig(0, 0, 1, 0, sourcesConn.getConnectionConfig().getNumRetriesOnFallOff()));
+    _noEventsConnectionResetTimeSec = noEventsConnectionResetTimeSec;
   }
 
-  @Override
-  public void shutdown()
-  {
-    _log.info("shutting down");
-    if (null != _lastOpenConnection)
-    {
-      _log.info("closing open connection");
-      _lastOpenConnection.close();
-      _lastOpenConnection = null;
-    }
-
-    super.shutdown();
-    _log.info("shut down complete");
-  }
 
   @Override
   protected void onResume()
   {
 	_currentState.switchToPickServer();
 	enqueueMessage(_currentState);
+  }
+
+  @Override
+  protected void onShutdown()
+  {
+    if (null != _lastOpenConnection)
+    {
+      _log.info("closing open connection during onShutdown()");
+      _lastOpenConnection.close();
+      _lastOpenConnection = null;
+      _log.info("Closed open connection during onShutdown()");
+    }
   }
 
   @Override
@@ -236,7 +244,7 @@ public class RelayPullThread extends BasePullThread
           case STREAM_RESPONSE_ERROR: processStreamResponseError(currentState); break;
           default:
           {
-            _log.error("Unkown state in RelayPullThread: " + currentState.getStateId());
+            _log.error("Unknown state in RelayPullThread: " + currentState.getStateId());
             success = false;
             break;
           }
@@ -253,7 +261,7 @@ public class RelayPullThread extends BasePullThread
         case BOOTSTRAP_FAILED: doBootstrapFailed(bootstrapResultMessage); break;
         default:
         {
-          _log.error("Unkown BootstrapResultChangeMessage in RelayPullThread: " +
+          _log.error("Unknown BootstrapResultChangeMessage in RelayPullThread: " +
                     bootstrapResultMessage.getTypeId());
           success = false;
           break;
@@ -367,15 +375,15 @@ public class RelayPullThread extends BasePullThread
       {
         relayConn = _sourcesConn.getRelayConnFactory().createRelayConnection(
             serverInfo, this, _remoteExceptionHandler);
-        _log.info("picked a relay:" + serverInfo);
+        _log.info("picked a relay:" + serverInfo.toSimpleString());
       }
       catch (Exception e)
       {
-        _log.error("Unable to get connection to relay:" + serverInfo, e);
+        _log.error("Unable to get connection to relay:" + serverInfo.toSimpleString(), e);
       }
     }
 
-	_status.setRetriesCounter(originalCounter);
+    _status.setRetriesCounter(originalCounter);
 
     if (!checkForShutdownRequest())
     {
@@ -444,7 +452,7 @@ public class RelayPullThread extends BasePullThread
   }
 
   /**
-   * Build the string of subs.
+   * Build the string of subs to be sent in the register call.
    * */
   private String buildSubsList(List<DatabusSubscription> subs, Map<String, IdNamePair> sourceNameMap) {
     StringBuilder sb = new StringBuilder(128);
@@ -482,12 +490,15 @@ public class RelayPullThread extends BasePullThread
     mergeRelayCallsStats();
 
     Map<String, IdNamePair> sourceNameMap = curState.getSourcesNameMap();
-
     StringBuilder sb = new StringBuilder();
     boolean firstSource = true;
     boolean error = false;
     List<IdNamePair> sourcesList = new ArrayList<IdNamePair>(_sourcesConn.getSourcesNames().size());
-    if( curState.getRelayConnection().getVersion() < 3) { // we don't need it for 3???
+    if (curState.getRelayConnection().getProtocolVersion() < 3)
+    {
+      // Generate the list of sources for the sources= parameter to the /stream call.
+      // This is needed only for version 2 of the protocol.  For version 3 and higher,
+      // we pass a list of subscriptions.
       for (String sourceName: _sourcesConn.getSourcesNames())
       {
         IdNamePair source = sourceNameMap.get(sourceName);
@@ -506,7 +517,6 @@ public class RelayPullThread extends BasePullThread
         }
       }
     }
-
     String sourcesIdList = sb.toString();
     String subsString = error ? "ERROR" : buildSubsList(curState.getSubscriptions(), sourceNameMap);
     if (_log.isDebugEnabled())
@@ -514,6 +524,9 @@ public class RelayPullThread extends BasePullThread
       _log.debug("Source ids: " + sourcesIdList);
       _log.debug("Subs : " + subsString);
     }
+
+    _sourcesConn.getRelayDispatcher().enqueueMessage(
+        SourcesMessage.createSetSourcesIdsMessage(curState.getSources(), sourcesIdList));
 
     if (toTearConnAfterHandlingResponse())
     {
@@ -533,6 +546,8 @@ public class RelayPullThread extends BasePullThread
         				SourcesMessage.createSetSourcesIdsMessage(curState.getSources(),
         				                                          curState.getSourcesIdListString()));
     		}
+    		String hostHdr = curState.getHostName(), svcHdr = curState.getSvcName();
+    		_log.info("Connected to relay " + hostHdr + " with a service identifier " + svcHdr);
     	}
         enqueueMessage(curState);
     }
@@ -553,17 +568,18 @@ public class RelayPullThread extends BasePullThread
 
     if(curState.getSourcesSchemas().size() < _sourcesConn.getSourcesNames().size())
     {
-      _log.error("Expected " + curState.getSources().size() + " schemas, got: " +
+      _log.error("Expected " + _sourcesConn.getSourcesNames().size() + " schemas, got: " +
                 curState.getSourcesSchemas().size());
       curState.switchToPickServer();
     }
     else
     {
       _sourcesConn.getRelayDispatcher().enqueueMessage(
-          DispatcherState.create().switchToStartDispatchEvents(
-              curState.getSourceIdMap(),
+          SourcesMessage.createSetSourcesSchemasMessage(
               curState.getSourcesSchemas(),
-              curState.getDataEventsBuffer()));
+              curState.getMetadataSchemas()
+              )
+          );
 
       // Determine the checkpoint for read events in the following order
       // 1. Existing checkpoint in the current state
@@ -612,7 +628,9 @@ public class RelayPullThread extends BasePullThread
           if (_sourcesConn.isBootstrapEnabled())
           {
       	    _sourcesConn.getBootstrapPuller().enqueueMessage(
-      			  SourcesMessage.createSetSourcesSchemasMessage(curState.getSourcesSchemas()));
+      			  SourcesMessage.createSetSourcesSchemasMessage(curState.getSourcesSchemas(),
+      			          curState.getMetadataSchemas()
+      			          ));
           }
 
     	  if (DbusClientMode.BOOTSTRAP_SNAPSHOT == cp.getConsumptionMode() ||
@@ -723,15 +741,11 @@ public class RelayPullThread extends BasePullThread
                                                                          EMPTY_STREAM_LIST);
     int fetchSize = (int)((curState.getDataEventsBuffer().getBufferFreeReadSpace() / 100.0) * _pullerBufferUtilizationPct);
     fetchSize = Math.max(freeBufferThreshold, fetchSize);
-    int version = curState.getRelayConnection().getVersion();
     CheckpointMult cpMult = new CheckpointMult();
     String args;
-    if (version >= 3) {
-    	// for version 3 and higher we pass subsriptions
+    if (curState.getRelayConnection().getProtocolVersion() >= 3) {
+    	// for version 3 and higher we pass subscriptions
     	args = curState.getSubsListString();
-
-    	// build Checkpoint Mult - currently we asssume only one cp
-    	// TODO - support storing multiple checkpoints (DDSDBUS-100)
     	for (DatabusSubscription sub : curState.getSubscriptions()) {
     		PhysicalPartition p = sub.getPhysicalPartition();
     		cpMult.addCheckpoint(p, cp);
@@ -809,8 +823,7 @@ public class RelayPullThread extends BasePullThread
         {
                 LOG.info("SCN Regress requested !! Sending a SCN Regress Message to dispatcher. Curr Ckpt :" + curState.getCheckpoint());
 
-                DbusEvent regressEvent = DbusEventV1
-                            .createSCNRegressEvent(new SCNRegressMessage(curState.getCheckpoint()));
+                DbusEvent regressEvent = getEventFactory().createSCNRegressEvent(new SCNRegressMessage(curState.getCheckpoint()));
 
                 writeEventToRelayDispatcher(curState, regressEvent, "SCN Regress Event from ckpt :" + curState.getCheckpoint());
                 curState.setSCNRegress(false);
@@ -820,17 +833,44 @@ public class RelayPullThread extends BasePullThread
                                                                   curState.getListeners(),
                                                                   connCollector);
 
-        if (eventsNum > 0)
-        { // no need to checkpoint if nothing returned from relay
+        boolean resetConnection = false;
+        if (eventsNum > 0) {
+          _timeSinceEventsSec = System.currentTimeMillis();
           cp.checkPoint();
+        } else {           // no need to checkpoint if nothing returned from relay
+          // check how long it has been since we got some events
+          if (_remoteExceptionHandler.getPendingEventSize(readChannel) >
+               curState.getDataEventsBuffer().getMaxReadBufferCapacity())
+          {
+            // The relay had a pending event that we can never accommodate. This is fatal error.
+            String err = "ReadBuffer max capacity(" + curState.getDataEventsBuffer().getMaxReadBufferCapacity() +
+                      ") is less than event size(" +
+                      _remoteExceptionHandler.getPendingEventSize(readChannel) +
+                      "). Increase databus.client.connectionDefaults.eventBuffer.maxEventSize and restart.";
+            _log.fatal(err);
+            enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new PendingEventTooLargeException(err)));
+            return;
+          }
+          else
+          {
+            if(_noEventsConnectionResetTimeSec > 0) { // unless the feature is disabled (<=0)
+              resetConnection = (System.currentTimeMillis() - _timeSinceEventsSec)/1000 > _noEventsConnectionResetTimeSec;
+              if(resetConnection) {
+                _timeSinceEventsSec = System.currentTimeMillis();
+                LOG.warn("about to reset connection to relay " + curState.getServerInetAddress() +
+                       ", because there were no events for " + _noEventsConnectionResetTimeSec + "secs");
+              }
+            }
+          }
         }
 
         if (debugEnabled) _log.debug("Events read: " + eventsNum);
 
-        if (toTearConnAfterHandlingResponse())
+        // if it has been too long since we got non-empty responses - the relay may be stuck, try to reconnect
+        if (toTearConnAfterHandlingResponse() || resetConnection)
         {
         	tearConnectionAndEnqueuePickServer();
-          	enqueueMessage = false;
+        	enqueueMessage = false;
         } else {
         	curState.switchToStreamResponseDone();
         	resetServerRetries();
@@ -842,19 +882,19 @@ public class RelayPullThread extends BasePullThread
     }
     catch (InterruptedException ie)
     {
-      _log.error("interupted", ie);
+      _log.warn("interrupted", ie);
       curState.switchToStreamResponseError();
       enqueueMessage(curState);
     }
     catch (InvalidEventException e)
     {
-      _log.error("error reading events from server:" + e.getMessage(), e);
+      _log.error("error reading events from server:" + e, e);
       curState.switchToStreamResponseError();
       enqueueMessage(curState);
     }
     catch (RuntimeException e)
     {
-      _log.error("runtime error reading events from server: " + e.getMessage(), e);
+      _log.error("runtime error reading events from server: " + e, e);
       curState.switchToStreamResponseError();
       enqueueMessage(curState);
     }
@@ -889,6 +929,12 @@ public class RelayPullThread extends BasePullThread
 
   protected void doBootstrap(ConnectionState curState)
   {
+    if (null != _lastOpenConnection)
+    {
+      _lastOpenConnection.close();
+      _lastOpenConnection = null;
+    }
+
     Checkpoint bootstrapCkpt = null;
     if(_sourcesConn.getBootstrapPuller() == null) {
       LOG.warn("doBootstrap got called, while BootstrapPullThread is null. Is bootstrap disabled");
@@ -896,7 +942,7 @@ public class RelayPullThread extends BasePullThread
     }
     try
     {
-      bootstrapCkpt = new Checkpoint(curState.getCheckpoint().toString());
+      bootstrapCkpt = curState.getCheckpoint().clone();
     }
     catch (Exception e)
     {
@@ -909,23 +955,21 @@ public class RelayPullThread extends BasePullThread
 
     if (!bootstrapCkpt.isBootstrapStartScnSet())
     {
-      bootstrapCkpt.resetBootstrap();
-      bootstrapCkpt.setBootstrapSinceScn(Long.valueOf(bootstrapCkpt.getWindowScn()));
+      bootstrapCkpt = curState.getBstCheckpointHandler().createInitialBootstrapCheckpoint(bootstrapCkpt,
+                                                                                          bootstrapCkpt.getWindowScn());
+      //bootstrapCkpt.setBootstrapSinceScn(Long.valueOf(bootstrapCkpt.getWindowScn()));
     }
 
-    _log.info("Bootstrap begin: sinceScn=" + (null != bootstrapCkpt ? bootstrapCkpt.getWindowScn() : -1));
+    _log.info("Bootstrap begin: sinceScn=" + bootstrapCkpt.getWindowScn());
 
     CheckpointMessage bootstrapCpMessage = CheckpointMessage.createSetCheckpointMessage(bootstrapCkpt);
     _sourcesConn.getBootstrapPuller().enqueueMessage(bootstrapCpMessage);
 
     try
     {
-        Checkpoint cpForDispatcher = new Checkpoint(
-                        bootstrapCkpt.toString());
-        cpForDispatcher
-                        .setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
-        DbusEvent cpEvent = DbusEventV1
-                        .createCheckpointEvent(cpForDispatcher);
+        Checkpoint cpForDispatcher = new Checkpoint(bootstrapCkpt.toString());
+        cpForDispatcher.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
+        DbusEvent cpEvent = getEventFactory().createCheckpointEvent(cpForDispatcher);
         writeEventToRelayDispatcher(curState, cpEvent, "Control Event to start bootstrap");
         curState.switchToBootstrapRequested();
     } catch (InterruptedException ie) {
@@ -1073,7 +1117,7 @@ public class RelayPullThread extends BasePullThread
 	  {
 		  _log.error("No scn found on relay while no bootstrap services provided:");
 		  _log.error(" bootstrapServices=" + _sourcesConn.getBootstrapServices() +
-				  "; bootstrapConsumers=" + _sourcesConn.getBootstrapConsumers());
+				  "; bootstrapRegistrations=" + _sourcesConn.getBootstrapRegistrations());
 
 		  if (_isReadLatestScnOnErrorEnabled)
 		  {
@@ -1102,6 +1146,14 @@ public class RelayPullThread extends BasePullThread
 	  super.tearConnection();
   }
 
+  /**
+   * allows adjusting noEvents threshold dynamically
+   * @param noEventsConnectionResetTimeSec - new threshold
+   */
+  public void setNoEventsConnectionResetTimeSec(long noEventsConnectionResetTimeSec) {
+	  _noEventsConnectionResetTimeSec = noEventsConnectionResetTimeSec;
+  }
+
   protected BackoffTimer getRetryonFallOff()
   {
 	  return _retriesOnFallOff;
@@ -1110,10 +1162,6 @@ public class RelayPullThread extends BasePullThread
   private void writeEventToRelayDispatcher(ConnectionState curState, DbusEvent event, String message)
           throws InterruptedException, InvalidEventException
   {
-    if (!(event instanceof DbusEventInternalWritable))
-    {
-      throw new UnsupportedClassVersionError("Dbusevent must be writable");
-    }
 	  boolean success = false;
 
 	  // Create a infinite backoff timer that waits for maximum of 1 sec
@@ -1124,12 +1172,12 @@ public class RelayPullThread extends BasePullThread
 			  timerConfig);
 	  timer.reset();
 
-	  byte[] eventBytes = new byte[((DbusEventV1)event).getRawBytes().limit()];
+	  byte[] eventBytes = new byte[event.size()];
 
 	  _log.info("Event size: " + eventBytes.length);
 	  _log.info("Event:" + event.toString());
 
-	  ((DbusEventV1)event).getRawBytes().get(eventBytes);
+	  event.getRawBytes().get(eventBytes);
 
 	  while ((!success) && (timer.getRemainingRetriesNum() > 0))
 	  {
@@ -1152,7 +1200,7 @@ public class RelayPullThread extends BasePullThread
 	  }
    }
 
-  protected DatabusRelayConnection getLastOpenConnection()
+  public DatabusRelayConnection getLastOpenConnection()
   {
     return _lastOpenConnection;
   }

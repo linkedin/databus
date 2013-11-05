@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.container.netty.HttpRelay;
 import com.linkedin.databus.core.data_model.LogicalSource;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus.core.util.DatabusEventProducer;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
@@ -81,7 +82,7 @@ public class GenerateDataEventsRequestProcessor implements RequestProcessor
        true,
        false,
        _relay.getMbeanServer());
-    _relay.getInBoundStatsCollectors().addStatsCollector("GenerateDataEventsRequestProcessor",
+       _relay.getInBoundStatsCollectors().addStatsCollector("GenerateDataEventsRequestProcessor",
                                                          _relayStatsCollector);
   }
 

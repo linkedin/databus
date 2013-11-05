@@ -23,6 +23,7 @@ import java.util.Map;
 
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
 
 
 public interface DatabusRelayConnectionStateMessage extends DatabusStreamConnectionStateMessage
@@ -30,11 +31,13 @@ public interface DatabusRelayConnectionStateMessage extends DatabusStreamConnect
   void switchToSourcesRequestError();
   void switchToSourcesRequestSent();
   void switchToSourcesResponseError();
-  void switchToSourcesSuccess(List<IdNamePair> result);
+  void switchToSourcesSuccess(List<IdNamePair> result, String hostName, String svcName);
   void switchToRegisterRequestError();
   void swichToRegisterRequestSent();
   void switchToRegisterResponseError();
-  void switchToRegisterSuccess(Map<Long, List<RegisterResponseEntry>> result);
+  void switchToRegisterSuccess(Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
+                               Map<Long, List<RegisterResponseEntry>> keysSchemas,
+                               List<RegisterResponseMetadataEntry> metadataSchemas);
   void switchToStreamRequestSent();
   void switchToBootstrapRequested();
 }

@@ -223,7 +223,7 @@ public class TestChunkedBodyReadableByteChannel
   }
 
   @Test
-  /** Block the writer because of running out of buffer space and check it times out eventually */
+  /** Block the writer due to running out of buffer space, and check that it times out eventually. */
   public void testUnblockWriteOnClose()
   {
     ChunkedBodyReadableByteChannel channel = new ChunkedBodyReadableByteChannel();
@@ -234,8 +234,9 @@ public class TestChunkedBodyReadableByteChannel
       megabyte.append("TeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeStTeSt");
     }
 
-    StringBuilder chunkBuilder = new StringBuilder(5200000);
-    for (int i = 0; i < 5; ++i)
+    int numChunks = 1 + ChunkedBodyReadableByteChannel.MAX_BUFFERED_BYTES / megabyte.length();
+    StringBuilder chunkBuilder = new StringBuilder(numChunks * megabyte.length());
+    for (int i = 0; i < numChunks; ++i)
     {
       chunkBuilder.append(megabyte);
     }
@@ -256,7 +257,7 @@ public class TestChunkedBodyReadableByteChannel
   }
 
   @Test
-  /** make sure the reader does not hang if the channel is closed while it is reading. */
+  /** Make sure the reader does not hang if the channel is closed while it is reading. */
   public void testUnblockReadOnPrematureClose() throws IOException
   {
     final ChunkedBodyReadableByteChannel channel = new ChunkedBodyReadableByteChannel();

@@ -24,12 +24,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ServerChannel;
 
@@ -47,6 +49,8 @@ import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBufferMetaInfo;
 import com.linkedin.databus.core.DbusEventBufferMult;
 import com.linkedin.databus.core.DbusEventBufferMult.PhysicalPartitionKey;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV1Factory;
 import com.linkedin.databus.core.EventLogReader;
 import com.linkedin.databus.core.EventLogWriter;
 import com.linkedin.databus.core.UnsupportedKeyException;
@@ -75,7 +79,6 @@ import com.linkedin.databus2.relay.AddRemovePartitionInterface;
 import com.linkedin.databus2.relay.config.DataSourcesStaticConfig;
 import com.linkedin.databus2.relay.config.DataSourcesStaticConfigBuilder;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
-import com.linkedin.databus2.relay.config.LogicalSourceStaticConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
@@ -94,6 +97,7 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     private static final Logger LOG = Logger.getLogger(MODULE);
 
     private DbusEventBufferMult _eventBufferMult;
+    private DbusEventFactory _eventFactory;
     private final SchemaRegistryService _schemaRegistryService;
     protected final StaticConfig _relayStaticConfig;
     private final ConfigManager<RuntimeConfig> _relayConfigManager;
@@ -112,10 +116,11 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     }
 
     public HttpRelay(StaticConfig config, PhysicalSourceStaticConfig[] pConfigs)
-           throws IOException, InvalidConfigException, DatabusException
+    throws IOException, InvalidConfigException, DatabusException
     {
       this(config, pConfigs, SourceIdNameRegistry.createFromIdNamePairs(config.getSourceIds()),
-           (new StandardSchemaRegistryFactory(config.getSchemaRegistry())).createSchemaRegistry());
+           (new StandardSchemaRegistryFactory(config.getSchemaRegistry())).createSchemaRegistry(),
+           new DbusEventV1Factory());
     }
 
     public HttpRelay(StaticConfig config, PhysicalSourceStaticConfig [] pConfigs,
@@ -123,10 +128,20 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
                      SchemaRegistryService schemaRegistry)
     throws IOException, InvalidConfigException, DatabusException
     {
-      super(config.getContainer());
+      this(config, pConfigs, sourcesIdNameRegistry, schemaRegistry, new DbusEventV1Factory());
+    }
+
+    public HttpRelay(StaticConfig config, PhysicalSourceStaticConfig [] pConfigs,
+                     SourceIdNameRegistry sourcesIdNameRegistry,
+                     SchemaRegistryService schemaRegistry,
+                     DbusEventFactory eventFactory)
+    throws IOException, InvalidConfigException, DatabusException
+    {
+      super(config.getContainer(), eventFactory.getByteOrder());
       _relayStaticConfig = config;
 
       _sourcesIdNameRegistry = sourcesIdNameRegistry;
+      _eventFactory = eventFactory;
 
       //3 possible scenarios:
       // 1. _pConfigs is initialized by this moment
@@ -145,7 +160,7 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
       if(_eventBufferMult == null) {
         PhysicalSourceStaticConfig[] psscArr = new PhysicalSourceStaticConfig[_pConfigs.size()];
         _pConfigs.toArray(psscArr);
-        _eventBufferMult = new DbusEventBufferMult(psscArr,  config.getEventBuffer());
+        _eventBufferMult = new DbusEventBufferMult(psscArr,  config.getEventBuffer(), _eventFactory);
       }
       _eventBufferMult.setDropOldEvents(true);
 
@@ -275,30 +290,6 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
       }
     }
 
-    // read configurations used for integration testing
-    private static PhysicalSourceStaticConfig [] readPhysicalConfigs(String baseDir, Config config)
-    throws Exception {
-
-      // source configuration moved here
-      // NOTE. some of tests REQUIRE specific values
-      // This values are incorporated into sources-TEST.json
-      // (id=1,2,3, sourceNames="source1, source2, source1"
-      String dbRelayConfigFileTest = "integration-test/config/sources-TEST.json";
-      String dbRelayConfigFileTest1 = "integration-test/config/sources-TEST1.json";
-
-      String[] sources = new String[]{dbRelayConfigFileTest,dbRelayConfigFileTest1};
-      PhysicalSourceConfigBuilder builder = new PhysicalSourceConfigBuilder(baseDir, sources);
-
-      PhysicalSourceStaticConfig[] pConfigs = builder.build();
-
-      for(PhysicalSourceStaticConfig pCfg : pConfigs) {
-        for(LogicalSourceStaticConfig lSC : pCfg.getSources()) {
-          config.setSourceName("" + lSC.getId(), lSC.getName());
-        }
-      }
-      return pConfigs;
-    }
-
     /**
      * add a new buffer - usually invoked by Helix
      * @param pConfig
@@ -308,7 +299,7 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
      */
     public DbusEventBuffer addNewBuffer(PhysicalSourceStaticConfig pConfig, HttpRelay.StaticConfig config)
         throws DatabusException
-     {
+    {
       DbusEventBufferMult eventMult = getEventBuffer();
       DbusEventBuffer buf = eventMult.addNewBuffer(pConfig, config.getEventBuffer());
       return buf;
@@ -344,14 +335,14 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     	for (DbusEventBuffer dBuf : eventMult.bufIterable())
     	{
 
-    		PhysicalPartition pp = dBuf.getPhysicalPartition();
-    		if (pp.getName().equals(dbName))
-    		{
-        		dBuf.closeBuffer();
-        		dBuf.removeMMapFiles();
-        		PhysicalPartitionKey pKey = new PhysicalPartitionKey(pp);
-        		eventMult.removeBuffer(pKey, null);
-    		}
+    	  PhysicalPartition pp = dBuf.getPhysicalPartition();
+    	  if (pp.getName().equals(dbName))
+    	  {
+    	    dBuf.closeBuffer(false);
+    	    dBuf.removeMMapFiles();
+    	    PhysicalPartitionKey pKey = new PhysicalPartitionKey(pp);
+    	    eventMult.removeBuffer(pKey, null);
+    	  }
     	}
 		eventMult.deallocateRemovedBuffers(true);
     	return;
@@ -380,20 +371,12 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
 
     public static void main(String[] args) throws Exception
     {
-      Properties startupProps = ServerContainer.processCommandLineArgs(args);
+      Cli cli = new Cli();
+      cli.processCommandLineArgs(args);
+      cli.parseRelayConfig();
 
-      Config config = new Config();
-
-      String baseDir = System.getProperty(PhysicalSourceConfig.PHYSICAL_SOURCE_BASE_DIR,
-                                          PhysicalSourceConfig.PHYSICAL_SOURCE_BASE_DIR_DEFAULT);
-      PhysicalSourceStaticConfig [] pConfigs = readPhysicalConfigs(baseDir, config);
-
-      ConfigLoader<StaticConfig> staticConfigLoader =
-          new ConfigLoader<StaticConfig>("databus.relay.", config);
-
-      StaticConfig staticConfig = staticConfigLoader.loadConfig(startupProps);
-
-      HttpRelay relay = new HttpRelay(staticConfig, pConfigs);
+      StaticConfig staticConfig = cli.getRelayConfigBuilder().build();
+      HttpRelay relay = new HttpRelay(staticConfig, cli.getPhysicalSourceStaticConfigs());
 
       RequestProcessorRegistry processorRegistry = relay.getProcessorRegistry();
 
@@ -434,6 +417,8 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
       public static final String DB_RELAY_CONFIG_FILE_OPT_NAME = "db_relay_config";
 
       protected String []_physicalSrcConfigFiles;
+      protected PhysicalSourceStaticConfig[] _pStaticConfigs;
+      protected Config _relayConfigBuilder;
 
       public Cli()
       {
@@ -467,6 +452,46 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
         }
       }
 
+      /**
+       * Parse the relay configuration from the properties
+       */
+      public void parseRelayConfig() throws IOException, InvalidConfigException
+      {
+        _relayConfigBuilder = new Config();
+        ConfigLoader<StaticConfig> staticConfigLoader = new ConfigLoader<StaticConfig>(
+            "databus.relay.", _relayConfigBuilder);
+
+        staticConfigLoader.loadConfig(getConfigProps());
+
+        if (null != _physicalSrcConfigFiles && 0 < _physicalSrcConfigFiles.length)
+        {
+          parsePhysicalSourceConfigs();
+        }
+      }
+
+      private void parsePhysicalSourceConfigs()
+               throws JsonParseException, JsonMappingException, IOException, InvalidConfigException
+      {
+        _pStaticConfigs = new PhysicalSourceStaticConfig[_physicalSrcConfigFiles.length];
+        ObjectMapper mapper = new ObjectMapper();
+
+        int i = 0;
+        for (String file : _physicalSrcConfigFiles) {
+            LOG.info("processing file: " + file);
+            File sourcesJson = new File(file);
+            PhysicalSourceConfig pConfig = mapper.readValue(sourcesJson, PhysicalSourceConfig.class);
+            pConfig.checkForNulls();
+            _pStaticConfigs[i] = pConfig.build();
+
+            // Register all sources with the static config
+            //TODO why do we need this?
+            for (LogicalSourceConfig lsc : pConfig.getSources()) {
+                _relayConfigBuilder.setSourceName(Short.toString(lsc.getId()), lsc.getName());
+            }
+            i++;
+        }
+      }
+
       @SuppressWarnings("static-access")
       @Override
       protected void constructCommandLineOptions()
@@ -479,6 +504,32 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
                                                .create(DB_RELAY_CONFIG_FILE_OPT_CHAR);
 
         _cliOptions.addOption(physConfigOption);
+      }
+
+      /**
+       * return the physical sources configs
+       */
+      public PhysicalSourceStaticConfig[] getPhysicalSourceStaticConfigs()
+      {
+        return null == _pStaticConfigs ? null : _pStaticConfigs.clone();
+      }
+
+      /**
+       * return a relay config builder (so settings can be further overriden)
+       */
+      public Config getRelayConfigBuilder()
+      {
+        return _relayConfigBuilder;
+      }
+
+      /**
+       * Set the default physical sources configuration files.
+       *
+       *  Note: Once command-line options have been processed, changing this option has no effect.
+       */
+      public void setDefaultPhysicalSrcConfigFiles(String... physicalSrcConfigFiles)
+      {
+        _physicalSrcConfigFiles = null == physicalSrcConfigFiles ? null : physicalSrcConfigFiles.clone();
       }
 
     }
@@ -638,7 +689,7 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
         _eventLogReaderConfig = eventLogReaderConfig;
         _startDbPuller = startDbPuller;
         _dataSources = dataSources;
-        _physicalSourcesConfigs = physicalSourcesConfigs;
+        _physicalSourcesConfigs = physicalSourcesConfigs.clone();
       }
 
       /** Configuration options for the relay event buffer */
@@ -986,6 +1037,16 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
                                 physConfigs);
       }
 
+    }
+
+    /**
+     * The relay's event factory is the source of truth for its endianness.
+     *
+     * @return the event factory for this relay
+     */
+    public DbusEventFactory getEventFactory()
+    {
+      return _eventFactory;
     }
 
     public DbusEventBufferMult getEventBuffer()

@@ -16,8 +16,10 @@ package com.linkedin.databus.core;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
+ */
 
+import java.nio.ByteBuffer;
+import java.util.Arrays;
 
 
 public class DbusEventInfo
@@ -28,12 +30,19 @@ public class DbusEventInfo
   private short _lPartitionId;
   private long _timeStampInNanos;
   private short _srcId;
-  private byte[] _schemaId;
-  private byte[] _value;
+  private byte[] _payloadSchemaMd5;
+  private ByteBuffer _payloadBuffer;
   private boolean _enableTracing;
+  // auto-commit is not a setting within the event. Instead, this boolean is used as an indication to
+  // DbusEventVx implementations during serialization that the event payload CRC needs to be computed and inserted at
+  // the right place. The header CRC is still done in another call.
   private boolean _autocommit;
+  private byte _eventSerializationVersion;
+  private short _payloadSchemaVersion;
+  /** Flag to determine if the event is replicated into the source DB **/
+  private boolean _isReplicated;
 
-
+  private DbusEventPart _metadata;
 
   public DbusEventInfo(DbusOpcode opCode,
                        long sequenceId,
@@ -41,8 +50,28 @@ public class DbusEventInfo
                        short lPartitionId,
                        long timeStampInNanos,
                        short srcId,
-                       byte[] schemaId,
-                       byte[] value,
+                       byte[] payloadSchemaMd5,
+                       byte[] payload,
+                       boolean enableTracing,
+                       boolean autocommit,
+                       byte eventSerializationVersion,
+                       short payloadSchemaVersion,
+                       DbusEventPart metadata)
+  {
+    this(opCode, sequenceId, pPartitionId, lPartitionId, timeStampInNanos, srcId, payloadSchemaMd5, payload, enableTracing, autocommit);
+    _eventSerializationVersion = eventSerializationVersion;
+    _payloadSchemaVersion = payloadSchemaVersion;
+    _metadata = metadata;
+  }
+
+  public DbusEventInfo(DbusOpcode opCode,
+                       long sequenceId,
+                       short pPartitionId,
+                       short lPartitionId,
+                       long timeStampInNanos,
+                       short srcId,
+                       byte[] payloadSchemaMd5,
+                       byte[] payload,
                        boolean enableTracing,
                        boolean autocommit)
   {
@@ -53,10 +82,15 @@ public class DbusEventInfo
     _lPartitionId = lPartitionId;
     _timeStampInNanos = timeStampInNanos;
     _srcId = srcId;
-    _schemaId = schemaId;
-    _value = value;
+    _payloadSchemaMd5 = payloadSchemaMd5;
     _enableTracing = enableTracing;
     _autocommit = autocommit;
+    _eventSerializationVersion = DbusEventFactory.DBUS_EVENT_V1;
+    _payloadSchemaVersion = 0;  // An invalid value
+    _payloadBuffer = null;
+    if(payload != null)
+      _payloadBuffer = ByteBuffer.wrap(payload);
+    _metadata = null;
   }
 
 
@@ -111,20 +145,35 @@ public class DbusEventInfo
   }
   public byte[] getSchemaId()
   {
-    return _schemaId;
+    return _payloadSchemaMd5;
   }
   public void setSchemaId(byte[] schemaId)
   {
-    _schemaId = schemaId;
+    _payloadSchemaMd5 = schemaId;
   }
-  public byte[] getValue()
+
+  /** makes a copy in case of read-only ByteBuffer */
+  public byte[] getValueBytes()
   {
-    return _value;
+    if(_payloadBuffer == null)
+      return null;
+
+    if(_payloadBuffer.isReadOnly() || ! _payloadBuffer.hasArray()) { //allocate new array
+      byte[] val = new byte[_payloadBuffer.remaining()];
+      _payloadBuffer.get(val);
+      return val;
+    }
+    // else
+    return _payloadBuffer.array();
+
   }
-  public void setValue(byte[] value)
-  {
-    _value = value;
+  public int getValueLength() {
+    if(_payloadBuffer == null)
+      return 0;
+
+    return _payloadBuffer.remaining();
   }
+
   public boolean isEnableTracing()
   {
     return _enableTracing;
@@ -141,5 +190,67 @@ public class DbusEventInfo
   {
     _autocommit = autocommit;
   }
+  public byte getEventSerializationVersion()
+  {
+    return _eventSerializationVersion;
+  }
+  public void setEventSerializationVersion(byte eventSerializationVersion)
+  {
+    _eventSerializationVersion = eventSerializationVersion;
+  }
+  public short getPayloadSchemaVersion()
+  {
+    return _payloadSchemaVersion;
+  }
+  public void setPayloadSchemaVersion(short payloadSchemaVersion)
+  {
+    _payloadSchemaVersion = payloadSchemaVersion;
+  }
+  public void setValueByteBuffer(ByteBuffer bb)
+  {
+    if(bb != null) {
+      _payloadBuffer = bb.asReadOnlyBuffer();
+    } else {
+      _payloadBuffer = null;
+    }
+  }
+  public ByteBuffer getValueByteBuffer() {
+    return _payloadBuffer;
+  }
 
+  public boolean isReplicated()
+  {
+    return _isReplicated;
+  }
+
+  public void setReplicated(boolean replicated)
+  {
+    _isReplicated = replicated;
+  }
+
+  public DbusEventPart getMetadata()
+  {
+    return _metadata;
+  }
+
+  @Override
+  public String toString()
+  {
+    return "DbusEventInfo{" +
+        "_opCode=" + _opCode +
+        ", _sequenceId=" + _sequenceId +
+        ", _pPartitionId=" + _pPartitionId +
+        ", _lPartitionId=" + _lPartitionId +
+        ", _timeStampInNanos=" + _timeStampInNanos +
+        ", _srcId=" + _srcId +
+        ", _payloadSchemaMd5=" + Arrays.toString(_payloadSchemaMd5) +
+        ", _payloadBuffer=" + _payloadBuffer +
+        ", _enableTracing=" + _enableTracing +
+        ", _autocommit=" + _autocommit +
+        ", _eventSerializationVersion=" + _eventSerializationVersion +
+        ", _payloadSchemaVersion=" + _payloadSchemaVersion +
+        ", _isReplicated=" + _isReplicated +
+        ", _metadata=" + _metadata +
+        '}';
+  }
 }

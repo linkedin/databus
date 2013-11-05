@@ -1,21 +1,26 @@
-/*
- * Copyright 2009 Red Hat, Inc.
- *
- * Red Hat licenses this file to you under the Apache License, version 2.0
- * (the "License"); you may not use this file except in compliance with the
- * License.  You may obtain a copy of the License at:
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
- * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
- * License for the specific language governing permissions and limitations
- * under the License.
- */
 package com.linkedin.databus.bootstrap.server;
 
+/*
+ *
+ * Copyright 2013 LinkedIn Corp. All rights reserved
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ */
+
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.sql.SQLException;
 import java.util.Properties;
 
@@ -46,10 +51,12 @@ public class BootstrapHttpServer extends ServerContainer
     this(config.build());
   }
 
-  public BootstrapHttpServer(BootstrapServerStaticConfig bootstrapServerConfig)
+
+  //V2 bootstrap server should use BIG_ENDIAN and v3 (which extends this class) will use LITTLE_ENDIAN for byte order.
+  public BootstrapHttpServer(BootstrapServerStaticConfig bootstrapServerConfig, ByteOrder byteOrder)
          throws IOException, InvalidConfigException, DatabusException
   {
-    super(bootstrapServerConfig.getDb().getContainer());
+    super(bootstrapServerConfig.getDb().getContainer(), byteOrder);
     _bootstrapServerConfig = bootstrapServerConfig;
 
     BootstrapHttpStatsCollector httpStatsColl = null;
@@ -67,6 +74,18 @@ public class BootstrapHttpServer extends ServerContainer
     _bootstrapHttpStatsCollector = httpStatsColl;
 
     initializeBootstrapServerCommandProcessors();
+  }
+
+  /**
+   * The default constructor. If the byte order is not explicitly set, we use BIG_ENDIAN (preserving existing v2 bootstrap behaviour).
+   * @param bootstrapServerConfig
+   * @throws DatabusException
+   * @throws IOException
+   */
+  public BootstrapHttpServer(BootstrapServerStaticConfig bootstrapServerConfig)
+      throws DatabusException, IOException
+  {
+    this(bootstrapServerConfig, ByteOrder.BIG_ENDIAN);
   }
 
   public BootstrapHttpStatsCollector getBootstrapStatsCollector() {
@@ -131,6 +150,7 @@ public class BootstrapHttpServer extends ServerContainer
   protected void initializeBootstrapServerCommandProcessors() throws DatabusException
   {
     LOG.info("Initializing Bootstrap HTTP Server");
+    LOG.info("Config=" + _bootstrapServerConfig);
     try{
       RequestProcessorRegistry processorRegistry = getProcessorRegistry();
       processorRegistry.register(EchoRequestProcessor.COMMAND_NAME, new EchoRequestProcessor(null));

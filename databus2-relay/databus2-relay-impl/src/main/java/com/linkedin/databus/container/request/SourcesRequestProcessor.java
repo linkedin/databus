@@ -44,7 +44,7 @@ public class SourcesRequestProcessor implements RequestProcessor
   public static final String MODULE = SourcesRequestProcessor.class.getName();
   public static Logger LOG = Logger.getLogger(MODULE);
   public static final String COMMAND_NAME = "sources";
-  public static final String VERSION_PARAM_NAME = "v";
+  public static final String VERSION_PARAM_NAME = "v";  // TODO:  remove? (not sent by client lib)  DDSDBUS-2107 item 13
 
   private final ExecutorService _executorService;
   private final HttpRelay _relay;

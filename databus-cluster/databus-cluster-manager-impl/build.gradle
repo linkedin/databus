@@ -1,7 +1,8 @@
 apply plugin: 'java'
 
 dependencies {
-  testCompile project(':databus-core:databus-core-fwk-test')	
+  compile project(':databus-core:databus-core-impl')
+  testCompile project(':databus-core:databus-core-fwk-test')
   compile externalDependency.log4j
   compile externalDependency.helixCore
   testCompile externalDependency.testng

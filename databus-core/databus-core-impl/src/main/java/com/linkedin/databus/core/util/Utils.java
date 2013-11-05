@@ -25,15 +25,24 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
+import java.lang.management.ManagementFactory;
 import java.math.BigInteger;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.HashSet;
+import java.util.Set;
 
-public class Utils {
+public class Utils
+{
+  /**
+   * The set of ports assigned by {@link #getAvailablePort(int)}. This is to avoid race conditions
+   * by different tests using the same port.
+   */
+  private static final Set<Integer> _assignedPorts = new HashSet<Integer>();
+
 	public static long getUnsignedInt(ByteBuffer buffer, int index) {
 		return (buffer.getInt(index) & 0xffffffffL);
 	}
@@ -47,7 +56,7 @@ public class Utils {
 	 * Translate the given buffer into a string
 	 * @param buffer The buffer to translate
 	 * @param encoding The encoding to use in translating bytes to characters
-	 * @throws UnsupportedEncodingException 
+	 * @throws UnsupportedEncodingException
 	 */
 	public static String byteBufferToString(ByteBuffer buffer, String encoding) throws UnsupportedEncodingException {
 		byte[] bytes = new byte[buffer.remaining()];
@@ -75,7 +84,7 @@ public class Utils {
 
 	/**
 	 * Open a channel for the given file
-	 * @throws FileNotFoundException 
+	 * @throws FileNotFoundException
 	 */
 	 public static FileChannel openChannel(File file, boolean mutable) throws FileNotFoundException  {
 		 if(mutable)
@@ -86,38 +95,48 @@ public class Utils {
 
 		/*
 		 * Utility method to convert an InetSocketAdress (ipAddress + port) to BigInteger
-		 * Useful for ordering objects like DatabusServerCoordinates which are based on INetSocketAddresses 
+		 * Useful for ordering objects like DatabusServerCoordinates which are based on INetSocketAddresses
 		 */
 		public static BigInteger ipToBigInt(InetSocketAddress ipAddr)
 		{
 			final int BYTES_IN_INTEGER = 4;
-			
+
 			byte[] addrBytes = ipAddr.getAddress().getAddress();
-			
+
 			int port = ipAddr.getPort();
-			
-			
+
+
 			byte[] addrPlusPortBytes = new byte[addrBytes.length + BYTES_IN_INTEGER];
 			ByteBuffer destBuf = ByteBuffer.wrap(addrPlusPortBytes);
 			destBuf.put(addrBytes);
 			destBuf.putInt(port);
-			
+
 			BigInteger bigInt = new BigInteger(destBuf.array());
-			
+
 		    return bigInt;
 		}
-		
-		
-		
+
+
+		/**
+		 * Find the first available port after a given port
+		 * @return an available port
+		 **/
 		public static synchronized int getAvailablePort(int startPort)
 		{
 			int port = startPort;
 
-			while (! portAvailable(port))
+			while (_assignedPorts.contains(port) && ! portAvailable(port) &&
+			      port < 0x7FFFFFFF)
 			{
 				port++;
 			}
 
+			if (0x7FFFFFFF == port)
+			{
+			  throw new RuntimeException("no available port found starting at " + startPort);
+			}
+
+			_assignedPorts.add(port);
 			return port;
 		}
 
@@ -157,4 +176,16 @@ public class Utils {
 
 			return false;
 		}
+
+		/**
+		 *
+		 * @return process PID
+		 */
+		public static String getPid()
+	  {
+	    String name = ManagementFactory.getRuntimeMXBean().getName();
+	    String[] values=name.split("@");
+	    String pid = values[0];
+	    return pid;
+	  }
 }

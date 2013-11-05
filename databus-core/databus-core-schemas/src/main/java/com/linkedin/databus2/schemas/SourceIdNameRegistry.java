@@ -22,8 +22,6 @@ package com.linkedin.databus2.schemas;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Hashtable;
-import java.util.Map;
 
 import org.apache.log4j.Logger;
 
@@ -36,13 +34,12 @@ public class SourceIdNameRegistry
   public static final String MODULE = SourceIdNameRegistry.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
-  private final Hashtable<String, ChangeListener> _listeners;
+  // NOTE: Any method using _nameIndex or _idIndex has to be synchronized.
   private volatile HashMap<String, LogicalSource> _nameIndex;
   private volatile HashMap<Integer, LogicalSource> _idIndex;
 
   public SourceIdNameRegistry()
   {
-    _listeners = new Hashtable<String, SourceIdNameRegistry.ChangeListener>();
     _nameIndex = new HashMap<String, LogicalSource>();
     _idIndex = new HashMap<Integer, LogicalSource>();
   }
@@ -61,29 +58,29 @@ public class SourceIdNameRegistry
   }
 
   /** Return the id associated with the name or null if none exists */
-  public Integer getSourceId(String sourceName)
+  public synchronized Integer getSourceId(String sourceName)
   {
     LogicalSource pair = _nameIndex.get(sourceName);
     return null != pair ? pair.getId() : null;
   }
 
-  public String getSourceName(Integer id)
+  public synchronized String getSourceName(Integer id)
   {
     LogicalSource pair = _idIndex.get(id);
     return null != pair ? pair.getName() : null;
   }
 
-  public LogicalSource getSource(Integer id)
+  public synchronized LogicalSource getSource(Integer id)
   {
     return _idIndex.get(id);
   }
 
-  public LogicalSource getSource(String sourceName)
+  public synchronized LogicalSource getSource(String sourceName)
   {
     return _nameIndex.get(sourceName);
   }
 
-  public Collection<LogicalSource> getAllSources()
+  public synchronized Collection<LogicalSource> getAllSources()
   {
     return _idIndex.values();
   }
@@ -96,6 +93,19 @@ public class SourceIdNameRegistry
     update(srcCollection);
   }
 
+  public void add(Collection<LogicalSource> newPairs)
+  {
+    synchronized (this)
+    {
+      for (LogicalSource pair: newPairs)
+      {
+        _nameIndex.put(pair.getName(), pair);
+        _idIndex.put(pair.getId(), pair);
+      }
+    }
+  }
+
+  // TODO Rename this method to 'replace'
   public void update(Collection<LogicalSource> newPairs)
   {
     HashMap<String, LogicalSource> newNameIndex = new HashMap<String, LogicalSource>((int)(newPairs.size() * 1.3));
@@ -115,45 +125,6 @@ public class SourceIdNameRegistry
       {
           LOG.debug("sources updated: " + _idIndex.values());
       }
-
-      for (Map.Entry<String, ChangeListener> listenerEntry: _listeners.entrySet())
-      {
-        try
-        {
-          listenerEntry.getValue().onRegistryChange();
-        }
-        catch (RuntimeException re)
-        {
-          LOG.error("error in listener callback [" + listenerEntry.getKey() + "]: " + re.getMessage(),
-                    re);
-        }
-      }
     }
-  }
-
-  public synchronized void addListener(String listenerName, ChangeListener listener)
-  {
-    if (_listeners.contains(listenerName)) throw new RuntimeException("duplicate listener name:" + listenerName);
-    _listeners.put(listenerName, listener);
-  }
-
-  public synchronized void removeListener(String listenerName)
-  {
-    _listeners.remove(listenerName);
-  }
-
-  public synchronized void removeListener(ChangeListener listener)
-  {
-    for (Map.Entry<String, ChangeListener> l: _listeners.entrySet())
-    {
-      if (listener == l.getValue()) _listeners.remove(l.getKey());
-    }
-  }
-
-  /** Defines the callback interface for listeners who care about changes to the registry */
-  public static interface ChangeListener
-  {
-    /** A callback when the registry contents changed */
-    void onRegistryChange();
   }
 }

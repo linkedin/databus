@@ -72,4 +72,34 @@ public class BinaryProtocol
 
   /** Invalid sequence number in the event */
   public static final byte RESULT_ERR_INVALID_EVENT = UNRECOVERABLE_ERROR_THRESHOLD - 6;
+
+  /** Unsupported DbusEventVersion */
+  public static final byte RESULT_ERR_UNSUPPORTED_DBUS_EVENT_VERSION = UNRECOVERABLE_ERROR_THRESHOLD - 7;
+
+  /**
+   * We received metadata with mismatching versions.
+   * Marking this unrecoverable, since metadata versions are decided at startSendEvents time,
+   * and we can change parameters only if a new connection is established.
+   */
+  public static final byte RESULT_ERR_INVALID_METADATA = UNRECOVERABLE_ERROR_THRESHOLD - 8;
+
+  public enum ErrorType
+  {
+    NONE,
+    RECOVERABLE,
+    UNRECOVERABLE,
+  }
+
+  public static ErrorType getErrorType(byte code)
+  {
+    if (code == RESULT_OK)
+    {
+      return ErrorType.NONE;
+    }
+    if (code < UNRECOVERABLE_ERROR_THRESHOLD)
+    {
+      return ErrorType.UNRECOVERABLE;
+    }
+    return ErrorType.RECOVERABLE;
+  }
 }

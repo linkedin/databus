@@ -34,6 +34,17 @@ import org.apache.avro.specific.SpecificDatumWriter;
 import com.linkedin.databus.core.monitoring.mbean.AbstractMonitoringMBean;
 import com.linkedin.databus2.core.container.monitoring.events.ContainerStatsEvent;
 
+/*
+ * Some of the seemingly odd method-naming in this class (and related classes)
+ * is due to heuristics elsewhere that sniff for "count" or "num" and use that
+ * to distinguish between RRD's "counter" and "gauge" types (i.e., aggregated
+ * vs. instantaneous values).  In particular, where "rate" might normally imply
+ * some sort of time-based value, here it's used as a label for instantaneous
+ * (non-aggregated) count values of threads.
+ *
+ * TODO:  Change aggregation variable/method names and heuristics to use
+ * "counter" instead?  Maybe change instantaneous values to use "gauge", too?
+ */
 public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
                             implements ContainerStatsMBean
 {
@@ -50,34 +61,6 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     _ioThreadPool = ioThreadPool;
     _workerThreadPool = workerThreadPool;
     reset();
-  }
-
-  @Override
-  public int getIoThreadRate()
-  {
-    Lock readLock = acquireReadLock();
-    try
-    {
-      return _event.ioThreadRate;
-    }
-    finally
-    {
-      releaseLock(readLock);
-    }
-  }
-
-  @Override
-  public int getWorkerThreadRate()
-  {
-    Lock readLock = acquireReadLock();
-    try
-    {
-      return _event.workerThreadRate;
-    }
-    finally
-    {
-      releaseLock(readLock);
-    }
   }
 
   @Override
@@ -165,13 +148,14 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
   }
 
   @Override
-  public int getIoActiveThreadRate()
+  public int getIoThreadRate()
   {
     Lock writeLock = acquireWriteLock();
     try
     {
-      _event.ioActiveThreadRate = null != _ioThreadPool ? _ioThreadPool.getActiveCount() : -1;
-      return _event.ioActiveThreadRate;
+      _event.ioThreadRate = null != _ioThreadPool ? _ioThreadPool.getActiveCount() : -1;
+      _event.ioThreadMax = Math.max(_event.ioThreadRate, _event.ioThreadMax);
+      return _event.ioThreadRate;
     }
     finally
     {
@@ -185,9 +169,18 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     Lock writeLock = acquireWriteLock();
     try
     {
-      int taskCount = null != _ioThreadPool ? _ioThreadPool.getQueue().size() : -1;
-      _event.ioTaskCount += taskCount;
-      _event.ioTaskMax = Math.max(taskCount, _event.ioTaskMax);
+      if (null != _ioThreadPool)
+      {
+        long taskCount = _ioThreadPool.getTaskCount();
+        long taskDelta = taskCount - _event.ioTaskCount;
+        // Don't update max on the very first call; it will be artificially high
+        // if there was a long delay between startup and the first call.
+        if (_event.ioTaskCount > 0)
+        {
+          _event.ioTaskMax = (int)Math.max(taskDelta, _event.ioTaskMax);
+        }
+        _event.ioTaskCount = taskCount;
+      }
       return _event.ioTaskCount;
     }
     finally
@@ -210,6 +203,29 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     }
   }
 
+  // We expect this metric to be zero virtually all the time since the time tasks
+  // wait in the queue is vanishingly small in comparison to the update (call)
+  // rate of the metric.  (Or so we believe, anyway.  To add timing instrumentation,
+  // one would need to subclass BlockingQueue and track the entry and exit of each
+  // item in the queue.)
+  @Override
+  public int getIoTaskQueueSize()
+  {
+    Lock writeLock = acquireWriteLock();
+    try
+    {
+      if (null != _ioThreadPool)
+      {
+        _event.ioTaskQueueSize = _ioThreadPool.getQueue().size();
+      }
+      return _event.ioTaskQueueSize;  // FIXME:  prefer to return -1 if no _ioThreadPool?
+    }
+    finally
+    {
+      releaseLock(writeLock);
+    }
+  }
+
   @Override
   public int getWorkerThreadMax()
   {
@@ -225,13 +241,14 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
   }
 
   @Override
-  public int getWorkerActiveThreadRate()
+  public int getWorkerThreadRate()
   {
     Lock writeLock = acquireWriteLock();
     try
     {
-      _event.workerActiveThreadRate = _workerThreadPool.getActiveCount();
-      return _event.workerActiveThreadRate;
+      _event.workerThreadRate = _workerThreadPool.getActiveCount();
+      _event.workerThreadMax = Math.max(_event.workerThreadRate, _event.workerThreadMax);
+      return _event.workerThreadRate;
     }
     finally
     {
@@ -245,9 +262,15 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     Lock writeLock = acquireWriteLock();
     try
     {
-      int taskCount = _workerThreadPool.getQueue().size();
-      _event.workerTaskCount += taskCount;
-      _event.workerTaskMax = Math.max(taskCount, _event.workerTaskMax);
+      long taskCount = _workerThreadPool.getTaskCount();
+      long taskDelta = taskCount - _event.workerTaskCount;
+      // Don't update max on the very first call; it will be artificially high
+      // if there was a long delay between startup and the first call.
+      if (_event.workerTaskCount > 0)
+      {
+        _event.workerTaskMax = (int)Math.max(taskDelta, _event.workerTaskMax);
+      }
+      _event.workerTaskCount = taskCount;
       return _event.workerTaskCount;
     }
     finally
@@ -267,6 +290,26 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     finally
     {
       releaseLock(readLock);
+    }
+  }
+
+  // We expect this metric to be zero virtually all the time since the time tasks
+  // wait in the queue is vanishingly small in comparison to the update (call)
+  // rate of the metric.  (Or so we believe, anyway.  To add timing instrumentation,
+  // one would need to subclass BlockingQueue and track the entry and exit of each
+  // item in the queue.)
+  @Override
+  public int getWorkerTaskQueueSize()
+  {
+    Lock writeLock = acquireWriteLock();
+    try
+    {
+      _event.workerTaskQueueSize = _workerThreadPool.getQueue().size();
+      return _event.workerTaskQueueSize;
+    }
+    finally
+    {
+      releaseLock(writeLock);
     }
   }
 
@@ -313,14 +356,14 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     _event.timestampLastResetMs = System.currentTimeMillis();
     _event.ioThreadRate = 0;
     _event.ioThreadMax = 0;
-    _event.ioActiveThreadRate = 0;
     _event.ioTaskCount = 0;
     _event.ioTaskMax = 0;
+    _event.ioTaskQueueSize = 0;
     _event.workerThreadRate = 0;
     _event.workerThreadMax = 0;
-    _event.workerActiveThreadRate = 0;
     _event.workerTaskCount = 0;
     _event.workerTaskMax = 0;
+    _event.workerTaskQueueSize = 0;
     _event.errorCount = 0;
     _event.errorRequestProcessingCount = 0;
     _event.errorUncaughtCount = 0;
@@ -333,14 +376,14 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
     event.timestampLastResetMs = _event.timestampLastResetMs;
     event.ioThreadRate = _event.ioThreadRate;
     event.ioThreadMax = _event.ioThreadMax;
-    event.ioActiveThreadRate = _event.ioActiveThreadRate;
     event.ioTaskCount = _event.ioTaskCount;
     event.ioTaskMax = _event.ioTaskMax;
+    event.ioTaskQueueSize = _event.ioTaskQueueSize;
     event.workerThreadRate = _event.workerThreadRate;
     event.workerThreadMax = _event.workerThreadMax;
-    event.workerActiveThreadRate = _event.workerActiveThreadRate;
     event.workerTaskCount = _event.workerTaskCount;
     event.workerTaskMax = _event.workerTaskMax;
+    event.workerTaskQueueSize = _event.workerTaskQueueSize;
     event.errorCount = _event.errorCount;
     event.errorRequestProcessingCount = _event.errorRequestProcessingCount;
     event.errorUncaughtCount = _event.errorUncaughtCount;
@@ -377,14 +420,14 @@ public class ContainerStats extends AbstractMonitoringMBean<ContainerStatsEvent>
 
     _event.ioThreadRate = e.ioThreadRate;
     _event.ioThreadMax = Math.max(e.ioThreadMax, _event.ioThreadMax);
-    _event.ioActiveThreadRate = e.ioActiveThreadRate;
     _event.ioTaskCount += e.ioTaskCount;
     _event.ioTaskMax = Math.max(e.ioTaskMax, _event.ioTaskMax);
+    _event.ioTaskQueueSize = e.ioTaskQueueSize;
     _event.workerThreadRate = e.workerThreadRate;
     _event.workerThreadMax = Math.max(e.workerThreadMax, _event.workerThreadMax);
-    _event.workerActiveThreadRate = e.workerActiveThreadRate;
     _event.workerTaskCount += e.workerTaskCount;
     _event.workerTaskMax = Math.max(e.workerTaskMax, _event.workerTaskMax);
+    _event.workerTaskQueueSize = e.workerTaskQueueSize;
     _event.errorCount += e.errorCount;
     _event.errorRequestProcessingCount += e.errorRequestProcessingCount;
     _event.errorUncaughtCount += e.errorUncaughtCount;

@@ -97,6 +97,27 @@ public interface DbusEventBufferAppendable
   /**
    * Append a single event.
    * Safe only for a single-writer thread.
+   *
+   * @param key                 the event key
+   * @param lPartitionId        the event physical partition id
+   * @param pPartitionId        the event logical partition id
+   * @param timeStamp           the event creation timestamp (in nanoseconds)
+   * @param srcId               the event logical source id
+   * @param schemaId            the MD5 hash of the event payload schema
+   * @param value               the event payload bytes
+   * @param enableTracing       a flag if to trace the event flowing through the system
+   * @param isReplicated        a flag to indicate the event is replicated into the Source DB
+   * @param statsCollector      a statistics collector to update on success (can be null)
+   * @return true iff the append succeeded
+   */
+  boolean appendEvent(DbusEventKey key, short pPartitionId,
+          short lPartitionId, long timeStamp, short srcId, byte[] schemaId,
+          byte[] value, boolean enableTracing, boolean isReplicated,
+          DbusEventsStatisticsCollector statsCollector);
+
+  /**
+   * Append a single event.
+   * Safe only for a single-writer thread.
    * if eventInfo.opCode is set to null - it means use default opCode ('UPSERT' usually).
    *
    * @param key                     the event key

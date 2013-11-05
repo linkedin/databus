@@ -37,7 +37,9 @@ public class SingleSourceSCN implements SCN
   private final long _sequence;
   /** Cache the json representation */
   private String _jsonString = null;
+  
 
+  
   public SingleSourceSCN(int sourceId, long sequence)
   {
     _sequence = sequence;
@@ -101,6 +103,7 @@ public class SingleSourceSCN implements SCN
     return _jsonString;
   }
 
+  
   @Override
   public String toString()
   {

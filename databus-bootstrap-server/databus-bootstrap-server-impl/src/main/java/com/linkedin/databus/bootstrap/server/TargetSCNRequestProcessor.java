@@ -32,17 +32,11 @@ import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.linkedin.databus.bootstrap.api.BootstrapProcessingException;
-import com.linkedin.databus.bootstrap.common.BootstrapConn;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO;
 import com.linkedin.databus.bootstrap.common.BootstrapHttpStatsCollector;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
-
-/**
- * @author lgao
- *
- */
 
 public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
 {
@@ -68,7 +62,7 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
   {
     BootstrapHttpStatsCollector bootstrapStatsCollector = _bootstrapServer.getBootstrapStatsCollector();
     long startTime = System.currentTimeMillis();
-    
+
     int srcId = -1;
     long targetScn = -1;
     String source = request.getRequiredStringParam(SOURCE_PARAM);
@@ -81,10 +75,10 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
     	{
     		// get src id from db
     		BootstrapDBMetaDataDAO.SourceStatusInfo srcIdStatus = processor.getSrcIdStatusFromDB(source, true);
-    	    
+
     		if ( !srcIdStatus.isValidSource())
     	    	throw new BootstrapProcessingException("Bootstrap DB not servicing source :" + source);
-    	    
+
     		srcId = srcIdStatus.getSrcId();
 
     		// select target scn
@@ -92,7 +86,7 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
     	}
     	catch (BootstrapDatabaseTooOldException tooOldException)
     	{
-    	    if (bootstrapStatsCollector != null) 
+    	    if (bootstrapStatsCollector != null)
     	    {
     	    	bootstrapStatsCollector.registerErrTargetSCN();
     	    	bootstrapStatsCollector.registerErrDatabaseTooOld();
@@ -103,10 +97,10 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
     	}
     	catch (SQLException e)
     	{
-    		if (bootstrapStatsCollector != null) 
+    		if (bootstrapStatsCollector != null)
     	    {
-    			bootstrapStatsCollector.registerErrTargetSCN();
-    			bootstrapStatsCollector.registerErrSqlException();
+    		    bootstrapStatsCollector.registerErrTargetSCN();
+    		    bootstrapStatsCollector.registerErrSqlException();
     	    }
 
     		LOG.error("Error encountered while fetching targetSCN from database.", e);
@@ -126,8 +120,8 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
     	if ( null != processor)
     		processor.shutdown();
     }
-    
-    if (bootstrapStatsCollector != null) 
+
+    if (bootstrapStatsCollector != null)
     {
     	bootstrapStatsCollector.registerTargetSCNReq(System.currentTimeMillis()-startTime);
     }

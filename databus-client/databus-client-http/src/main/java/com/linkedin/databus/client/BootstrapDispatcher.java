@@ -19,21 +19,25 @@ package com.linkedin.databus.client;
 */
 
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
+
+import javax.management.MBeanServer;
+
+import org.apache.log4j.Logger;
+
 import com.linkedin.databus.client.DatabusSourcesConnection.StaticConfig;
 import com.linkedin.databus.client.consumer.MultiConsumerCallback;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.RegistrationId;
 import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
-import javax.management.MBeanServer;
-import org.apache.log4j.Logger;
 
 public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
 {
@@ -49,32 +53,32 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
                              List<DatabusSubscription> subs,
                              CheckpointPersistenceProvider checkpointPersistor,
                              DbusEventBuffer dataEventsBuffer,
-                             MultiConsumerCallback<DatabusCombinedConsumer> asyncCallback,
+                             MultiConsumerCallback asyncCallback,
                              RelayPullThread relayPuller,
                              MBeanServer mbeanServer,
                              DatabusHttpClientImpl serverHandle,
                              RegistrationId registrationId)
   {
-    super(name, connConfig, subs, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId);
+    super(name, connConfig, subs, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId, connConfig.getBstDispatcherRetries());
     _relayPuller = relayPuller;
   }
 
   @Override
-  protected void doStartDispatchEvents(DispatcherState curState)
+  protected void doStartDispatchEvents()
   {
     _bootstrapMode = DbusClientMode.BOOTSTRAP_SNAPSHOT;
     _lastCkpt = null;
-    super.doStartDispatchEvents(curState);
+    super.doStartDispatchEvents();
   }
 
   @Override
   protected boolean processSysEvent(DispatcherState curState, DbusEvent event)
   {
     boolean success = true;
-    boolean debugEnabled = LOG.isDebugEnabled();
+    boolean debugEnabled = getLog().isDebugEnabled();
 
     Checkpoint ckptInEvent = null;
-    short eventSrcId = event.srcId();
+    int eventSrcId = event.getSourceId();
 
     if (event.isCheckpointMessage())
     {
@@ -89,38 +93,40 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
           String cpString = new String(eventBytes, "UTF-8");
           ckptInEvent = new Checkpoint(cpString);
           _lastCkpt = ckptInEvent;
+          getLog().info("bootstrap checkpoint received: " + ckptInEvent);
+
           _bootstrapMode = _lastCkpt.getConsumptionMode();
-          LOG.info(getName() + ": boostrap mode: " + _bootstrapMode.toString());
 
           curState.setEventsSeen(true);
 
           if (_bootstrapMode == DbusClientMode.ONLINE_CONSUMPTION)
           {
-            LOG.info(getName() + ": bootstrap done");
+            getLog().info("bootstrap done");
+            Checkpoint restartCkpt = _lastCkpt.clone();
             _relayPuller.enqueueMessage(
-                BootstrapResultMessage.createBootstrapCompleteMessage(_lastCkpt));
+                BootstrapResultMessage.createBootstrapCompleteMessage(restartCkpt));
           }
         }
         catch (RuntimeException e )
         {
-          LOG.error(getName() + ": checkpoint deserialization failed", e);
+          getLog().error("checkpoint deserialization failed", e);
           success = false;
         }
         catch (IOException e )
         {
-          LOG.error(getName() + ": checkpoint deserialization failed", e);
+          getLog().error("checkpoint deserialization failed", e);
           success = false;
         }
       }
       else
       {
-        LOG.error("Missing checkpoint in control message");
+        getLog().error("Missing checkpoint in control message");
         success = false;
       }
     }
     else
     {
-      if (debugEnabled) LOG.debug(getName() + ": control srcid:" + eventSrcId);
+      if (debugEnabled) getLog().debug(getName() + ": control srcid:" + eventSrcId);
       success = super.processSysEvent(curState, event);
     }
 
@@ -134,11 +140,8 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
     {
       if (null == _lastCkpt)
       {
-        _lastCkpt = new Checkpoint();
-        _lastCkpt.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
-        _lastCkpt.setSnapshotSource(curState.getCurrentSource().getName());
-        _lastCkpt.startSnapShotSource();
-        _lastCkpt.setSnapshotOffset(0);
+        throw new DatabusRuntimeException("unable to create a checkpoint");
+        //NOTE: we cannot create a checkpoint here as we don't know the sinceSCN, bootstrap stage, etc.
       }
 
       _lastCkpt.onEvent(event);

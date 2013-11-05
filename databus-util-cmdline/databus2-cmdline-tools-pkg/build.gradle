@@ -29,5 +29,14 @@ task myTar(type: Tar) {
 }
 
 myTar.dependsOn ':databus-util-cmdline:databus-util-cmdline-impl:assemble'
-assemble.dependsOn myTar
+//assemble.dependsOn myTar
+artifacts {
+	archives myTar
+}
+
+if (!isDefaultEnvironment) {
+	generateModuleArtifactSpec {
+		exclude {proj, conf, artifact -> artifact.file.name.endsWith('.jar') }
+	}
+}
 

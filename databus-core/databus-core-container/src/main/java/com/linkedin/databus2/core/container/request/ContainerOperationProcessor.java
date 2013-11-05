@@ -20,12 +20,12 @@ package com.linkedin.databus2.core.container.request;
 
 
 import java.io.IOException;
-import java.lang.management.ManagementFactory;
 import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.log4j.Logger;
 
+import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.InvalidRequestParamValueException;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
@@ -64,7 +64,7 @@ public class ContainerOperationProcessor implements RequestProcessor {
 	    String action = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME, "");
 	    if (action.equals("shutdown"))
 	    {
-	      String pid = getPid();
+	      String pid = Utils.getPid();
 	      String response="{\"Container\":\"set-shutdown\",\"pid\":\""+ pid + "\"}";
           request.getResponseContent().write(ByteBuffer.wrap(response.getBytes()));
 	      Thread runThread = new Thread(new Runnable()
@@ -89,7 +89,7 @@ public class ContainerOperationProcessor implements RequestProcessor {
         }
         else if (action.equals("getpid"))
         {
-          String pid = getPid();
+          String pid = Utils.getPid();
           String response="{\"pid\":\""+ pid + "\"}";
           request.getResponseContent().write(ByteBuffer.wrap(response.getBytes()));
         }
@@ -100,11 +100,4 @@ public class ContainerOperationProcessor implements RequestProcessor {
 	    return request;
 	}
 
-  private String getPid()
-  {
-    String name = ManagementFactory.getRuntimeMXBean().getName();
-    String[] values=name.split("@");
-    String pid = values[0];
-    return pid;
-  }
 }

@@ -19,10 +19,10 @@ package com.linkedin.databus.core;
 */
 
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
-import java.io.IOException;
 
 
 /**
@@ -36,7 +36,7 @@ import java.io.IOException;
  */
 public class DbusEventUtils
 {
-  public static boolean isControlSrcId(short srcId)
+  public static boolean isControlSrcId(int srcId)
   {
     return srcId < 0;
   }

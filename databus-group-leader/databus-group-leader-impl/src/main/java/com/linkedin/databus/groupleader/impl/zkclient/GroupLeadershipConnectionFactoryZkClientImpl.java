@@ -26,11 +26,6 @@ import org.I0Itec.zkclient.ZkClient;
 import com.linkedin.databus.groupleader.pub.GroupLeadershipConnection;
 import com.linkedin.databus.groupleader.pub.GroupLeadershipConnectionFactory;
 
-/**
- *
- * @author Mitch Stuart
- * @version $Revision: 154385 $
- */
 public class GroupLeadershipConnectionFactoryZkClientImpl implements
     GroupLeadershipConnectionFactory
 {
@@ -45,8 +40,6 @@ public class GroupLeadershipConnectionFactoryZkClientImpl implements
                                                       int sessionTimeoutMillis,
                                                       int connectTimeoutMillis)
   {
-    // TODO MED MAS (DDSDBUS-64) switch millis to Timespan values after integrating LI util
-
     _zkServerList = zkServerList;
     _sessionTimeoutMillis = sessionTimeoutMillis;
     _connectTimeoutMillis = connectTimeoutMillis;

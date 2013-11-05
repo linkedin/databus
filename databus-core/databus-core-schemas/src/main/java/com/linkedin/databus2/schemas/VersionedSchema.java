@@ -29,15 +29,18 @@ public class VersionedSchema
   private final Schema _schema;
   private final VersionedSchemaId _id;
 
-  public VersionedSchema(VersionedSchemaId id, Schema s)
+  private final String _origSchemaStr;
+
+  public VersionedSchema(VersionedSchemaId id, Schema s, String origSchemaStr)
   {
     _schema = s;
     _id = id;
+    _origSchemaStr = origSchemaStr;
   }
 
-  public VersionedSchema(String baseName, short id, Schema s)
+  public VersionedSchema(String baseName, short id, Schema s, String origSchemaStr)
   {
-    this(new VersionedSchemaId(baseName, id), s);
+    this(new VersionedSchemaId(baseName, id), s, origSchemaStr);
   }
 
   public int getVersion()
@@ -56,6 +59,9 @@ public class VersionedSchema
     return "(" + getSchemaBaseName() + ","  + getVersion() + "," + _schema + ")";
   }
 
+  /**
+   * @return The source name (table name)
+   */
   public String getSchemaBaseName()
   {
     return _id.getBaseSchemaName();
@@ -78,5 +84,13 @@ public class VersionedSchema
   public VersionedSchemaId getId()
   {
     return _id;
+  }
+
+  /**
+   * @return The original schema string as registered. Returns null if the original schema string is not available.
+   */
+  public String getOrigSchemaStr()
+  {
+    return _origSchemaStr;
   }
 }

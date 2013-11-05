@@ -359,8 +359,8 @@ public class DbusBootstrapHttpStats extends AbstractMonitoringMBean<DbusBootstra
         _event.numReqSnapshot++;
         _event.latencySnapshot += latency;
       }
-      _event.maxBootstrapSCN = Math.max(cp.getWindowScn(),_event.maxBootstrapSCN);
-      _event.minBootstrapSCN = Math.min(cp.getWindowScn(),_event.minBootstrapSCN);
+      _event.maxBootstrapSCN = maxValue(cp.getWindowScn(),_event.maxBootstrapSCN);
+      _event.minBootstrapSCN = minValue(cp.getWindowScn(),_event.minBootstrapSCN);
       _event.sizeBatch += size;
     }
     finally
@@ -552,8 +552,8 @@ public class DbusBootstrapHttpStats extends AbstractMonitoringMBean<DbusBootstra
     _event.latencyStartSCN=0;
     _event.latencyTargetSCN=0;
     _event.sizeBatch=0;
-    _event.minBootstrapSCN=Long.MAX_VALUE;
-    _event.maxBootstrapSCN=Long.MIN_VALUE;
+    _event.minBootstrapSCN=DEFAULT_MIN_LONG_VALUE;
+    _event.maxBootstrapSCN=DEFAULT_MAX_LONG_VALUE;
 
   }
 
@@ -625,8 +625,8 @@ public class DbusBootstrapHttpStats extends AbstractMonitoringMBean<DbusBootstra
     _event.latencyStartSCN+=e.latencyStartSCN;
     _event.latencyTargetSCN+=e.latencyTargetSCN;
     _event.sizeBatch+=e.sizeBatch;
-    _event.minBootstrapSCN=Math.min(_event.minBootstrapSCN,e.minBootstrapSCN);
-    _event.maxBootstrapSCN=Math.max(_event.maxBootstrapSCN,e.maxBootstrapSCN);
+    _event.minBootstrapSCN=minValue(_event.minBootstrapSCN,e.minBootstrapSCN);
+    _event.maxBootstrapSCN=maxValue(_event.maxBootstrapSCN,e.maxBootstrapSCN);
 
   }
 

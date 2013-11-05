@@ -19,6 +19,37 @@ package com.linkedin.databus.core;
 */
 
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNotNull;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.commons.io.IOUtils;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
+import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeTest;
+import org.testng.annotations.Test;
+
 import com.linkedin.databus.core.DbusEventBufferMult.PhysicalPartitionKey;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.data_model.LogicalPartition;
@@ -41,47 +72,10 @@ import com.linkedin.databus2.core.filter.PhysicalPartitionDbusFilter;
 import com.linkedin.databus2.core.filter.SourceDbusFilter;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.channels.Channels;
-import java.nio.channels.WritableByteChannel;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import org.apache.commons.io.IOUtils;
-import org.apache.log4j.ConsoleAppender;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.apache.log4j.PatternLayout;
-import org.codehaus.jackson.JsonParseException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
-import org.testng.Assert;
-import org.testng.annotations.BeforeTest;
-import org.testng.annotations.Test;
-
-import static org.testng.Assert.*;
+import com.linkedin.databus2.test.TestUtil;
 
 public class TestDbusEventBufferMult {
   public static final Logger LOG = Logger.getLogger(TestDbusEventBufferMult.class);
-
-  static
-  {
-    PatternLayout defaultLayout = new PatternLayout("%d{ISO8601} +%r [%t] (%p) {%c} %m%n");
-    ConsoleAppender defaultAppender = new ConsoleAppender(defaultLayout);
-
-    Logger.getRootLogger().removeAllAppenders();
-    Logger.getRootLogger().addAppender(defaultAppender);
-
-    Logger.getRootLogger().setLevel(Level.OFF);
-    //Logger.getRootLogger().setLevel(Level.ERROR);
-    //Logger.getRootLogger().setLevel(Level.INFO);
-    //Logger.getRootLogger().setLevel(Level.DEBUG);
-  }
 
   /** Encapsulate test set so that multiple threads can run in parallel */
   static class TestSetup
@@ -108,7 +102,7 @@ public class TestDbusEventBufferMult {
       DbusEventBuffer.Config conf = new DbusEventBuffer.Config();
       conf.setAllocationPolicy("MMAPPED_MEMORY");
       DbusEventBuffer.StaticConfig config = conf.build();
-      _eventBuffer = new DbusEventBufferMult(_physConfigs, config);
+      _eventBuffer = new DbusEventBufferMult(_physConfigs, config, new DbusEventV2Factory());
       for(DbusEventBuffer b : _eventBuffer.bufIterable()) {
         b.start(1);
       }
@@ -206,7 +200,7 @@ public class TestDbusEventBufferMult {
   "                 \"partition\" : 0 \n" +
   "                },\n" +
   "                {\"id\" : 23, \n" +
-  "                 \"name\" : \"srcName22\",\n" +
+  "                 \"name\" : \"srcName23\",\n" +
   "                 \"uri\" : \"member2.member_account\", \n" +
   "                 \"partitionFunction\" : \"constant:1\", \n" +
   "                 \"partition\" : 0 \n" +
@@ -311,7 +305,7 @@ public class TestDbusEventBufferMult {
       }
     }
 
-    _eventBufferMult = new DbusEventBufferMult(_pConfigs, _config);
+    _eventBufferMult = new DbusEventBufferMult(_pConfigs, _config, new DbusEventV2Factory());
     for(DbusEventBuffer b : _eventBufferMult.bufIterable()) {
       b.start(1);
     }
@@ -367,6 +361,11 @@ public class TestDbusEventBufferMult {
   @Test
   //reading from the source that belong to two different physical buffers
   public void verifyReadingMultBuf() throws IOException, ScnNotFoundException, InvalidConfigException, DatabusException, OffsetNotFoundException {
+    verifyReadingMultBuf(2000);
+    verifyReadingMultBuf(100);  // Pretty much only one event can fit at a time.
+  }
+
+  private void verifyReadingMultBuf(final int batchFetchSize) throws IOException, ScnNotFoundException, InvalidConfigException, DatabusException, OffsetNotFoundException {
     createBufMult();
     addEvents();
     Set<Integer> srcIds = new HashSet<Integer>(2);
@@ -374,7 +373,7 @@ public class TestDbusEventBufferMult {
     srcIds.add(12);
 
     // total expected events 20 = 20 original events - 10 filtered out (srcs 2 and 11)
-    batchReading(srcIds, 10);
+    batchReading(srcIds, 10, batchFetchSize);
   }
 
   @Test
@@ -541,7 +540,201 @@ public class TestDbusEventBufferMult {
                  Math.min(ppartStats[0].getTimeLag(), Math.min(ppartStats[1].getTimeLag(), ppartStats[2].getTimeLag())));
   }
 
-  private void batchReading(Set<Integer> srcIds, int expectEvents)
+  @Test
+  public void testSinglePPartionStreamFromLatest() throws Exception
+  {
+    createBufMult();
+
+    PhysicalPartition[] p = {_pConfigs[0].getPhysicalPartition()
+                            };
+
+    //generate a bunch of windows for 3 partitions
+    int windowsNum = 10;
+    for (int i = 1; i <= windowsNum; ++i)
+    {
+      DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(p[0]);
+
+      buf.startEvents();
+      byte [] schema = "abcdefghijklmnop".getBytes();
+      assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
+                                    System.currentTimeMillis() * 1000000, (short)2,
+                                    schema, new byte[10], false, null));
+      buf.endEvents(100 * i, null);
+    }
+    String[] pnames = new String[p.length];
+    int count=0;
+    for (PhysicalPartition ip:p)
+    {
+      pnames[count++] = ip.toSimpleString();
+    }
+
+    StatsCollectors<DbusEventsStatisticsCollector> statsColl = createStats(pnames);
+
+    PhysicalPartitionKey[] pkeys =
+      {new PhysicalPartitionKey(p[0])
+      };
+
+    CheckpointMult cpMult = new CheckpointMult();
+    Checkpoint cp = new Checkpoint();
+    cp.setFlexible();
+    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+    cpMult.addCheckpoint(p[0], cp);
+
+    DbusEventBufferBatchReadable reader =
+        _eventBufferMult.getDbusEventBufferBatchReadable(cpMult, Arrays.asList(pkeys), statsColl);
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    WritableByteChannel writeChannel = Channels.newChannel(baos);
+    // Set streamFromLatestScn == true
+    reader.streamEvents(true, 1000000, writeChannel, Encoding.BINARY, new AllowAllDbusFilter());
+    writeChannel.close();
+    baos.close();
+
+    //make sure we got the physical partition names right
+    List<String> ppartNames = statsColl.getStatsCollectorKeys();
+    assertEquals(ppartNames.size(), 1);
+
+    HashSet<String> expectedPPartNames = new HashSet<String>(Arrays.asList(p[0].toSimpleString()));
+    for (String ppartName: ppartNames)
+    {
+      assertTrue(expectedPPartNames.contains(ppartName));
+    }
+
+    //verify event counts per partition
+    DbusEventsTotalStats[] ppartStats = {statsColl.getStatsCollector(p[0].toSimpleString()).getTotalStats()};
+
+    // Only the last window is returned in each of the partitions
+    assertEquals(ppartStats[0].getNumDataEvents(), 1);
+    assertEquals(ppartStats[0].getNumSysEvents(), 1);
+
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getNumDataEvents(), (1));
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getNumSysEvents(), (1));
+
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getMaxTimeLag(),
+                 ppartStats[0].getTimeLag());
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getMinTimeLag(),
+                 ppartStats[0].getTimeLag());
+  }
+
+  @Test
+  public void testMultiPPartionStreamFromLatest() throws Exception
+  {
+    createBufMult();
+
+    PhysicalPartition[] p = {_pConfigs[0].getPhysicalPartition(),
+                             _pConfigs[1].getPhysicalPartition(),
+                             _pConfigs[2].getPhysicalPartition()
+                            };
+
+    //generate a bunch of windows for 3 partitions
+    int windowsNum = 10;
+    for (int i = 1; i <= windowsNum; ++i)
+    {
+      DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(p[0]);
+
+      buf.startEvents();
+      byte [] schema = "abcdefghijklmnop".getBytes();
+      assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
+                                    System.currentTimeMillis() * 1000000, (short)2,
+                                    schema, new byte[10], false, null));
+      buf.endEvents(100 * i, null);
+
+      buf = _eventBufferMult.getDbusEventBufferAppendable(p[1]);
+      buf.startEvents();
+      assertTrue(buf.appendEvent(new DbusEventKey(1), (short)101, (short)2,
+                                 System.currentTimeMillis() * 1000000, (short)2,
+                                 schema, new byte[100], false, null));
+      assertTrue(buf.appendEvent(new DbusEventKey(2), (short)101, (short)2,
+                                 System.currentTimeMillis() * 1000000, (short)2,
+                                 schema, new byte[10], false, null));
+      buf.endEvents(100 * i + 1, null);
+
+      buf = _eventBufferMult.getDbusEventBufferAppendable(p[2]);
+      buf.startEvents();
+      assertTrue(buf.appendEvent(new DbusEventKey(1), (short)101, (short)2,
+                                 System.currentTimeMillis() * 1000000, (short)2,
+                                 schema, new byte[100], false, null));
+      assertTrue(buf.appendEvent(new DbusEventKey(2), (short)101, (short)2,
+                                 System.currentTimeMillis() * 1000000, (short)2,
+                                 schema, new byte[10], false, null));
+      assertTrue(buf.appendEvent(new DbusEventKey(3), (short)101, (short)2,
+                                 System.currentTimeMillis() * 1000000, (short)2,
+                                 schema, new byte[10], false, null));
+      buf.endEvents(100 * i + 2, null);
+    }
+    String[] pnames = new String[p.length];
+    int count=0;
+    for (PhysicalPartition ip:p)
+    {
+      pnames[count++] = ip.toSimpleString();
+    }
+
+    StatsCollectors<DbusEventsStatisticsCollector> statsColl = createStats(pnames);
+
+    PhysicalPartitionKey[] pkeys =
+      {new PhysicalPartitionKey(p[0]),
+       new PhysicalPartitionKey(p[1]),
+       new PhysicalPartitionKey(p[2])};
+
+    CheckpointMult cpMult = new CheckpointMult();
+    for (int i =0; i < 3; ++i)
+    {
+      Checkpoint cp = new Checkpoint();
+      cp.setFlexible();
+      cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+      cpMult.addCheckpoint(p[i], cp);
+    }
+
+    DbusEventBufferBatchReadable reader =
+        _eventBufferMult.getDbusEventBufferBatchReadable(cpMult, Arrays.asList(pkeys), statsColl);
+
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    WritableByteChannel writeChannel = Channels.newChannel(baos);
+    // Set streamFromLatestScn == true
+    reader.streamEvents(true, 1000000, writeChannel, Encoding.BINARY, new AllowAllDbusFilter());
+    writeChannel.close();
+    baos.close();
+
+    //make sure we got the physical partition names right
+    List<String> ppartNames = statsColl.getStatsCollectorKeys();
+    assertEquals(ppartNames.size(), 3);
+
+    HashSet<String> expectedPPartNames = new HashSet<String>(Arrays.asList(p[0].toSimpleString(),
+                                                                           p[1].toSimpleString(),
+                                                                           p[2].toSimpleString()));
+    for (String ppartName: ppartNames)
+    {
+      assertTrue(expectedPPartNames.contains(ppartName));
+    }
+
+    //verify event counts per partition
+    DbusEventsTotalStats[] ppartStats = {statsColl.getStatsCollector(p[0].toSimpleString()).getTotalStats(),
+                                         statsColl.getStatsCollector(p[1].toSimpleString()).getTotalStats(),
+                                         statsColl.getStatsCollector(p[2].toSimpleString()).getTotalStats()};
+
+    // Only the last window is returned in each of the partitions
+    assertEquals(ppartStats[0].getNumDataEvents(), 1);
+    assertEquals(ppartStats[1].getNumDataEvents(), 2);
+    assertEquals(ppartStats[2].getNumDataEvents(), 3);
+    assertEquals(ppartStats[0].getNumSysEvents(), 1);
+    assertEquals(ppartStats[1].getNumSysEvents(), 1);
+    assertEquals(ppartStats[2].getNumSysEvents(), 1);
+
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getNumDataEvents(), (1+2+3));
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getNumSysEvents(), (1+1+1));
+
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getMaxTimeLag(),
+                 Math.max(ppartStats[0].getTimeLag(), Math.max(ppartStats[1].getTimeLag(), ppartStats[2].getTimeLag())));
+    assertEquals(statsColl.getStatsCollector().getTotalStats().getMinTimeLag(),
+                 Math.min(ppartStats[0].getTimeLag(), Math.min(ppartStats[1].getTimeLag(), ppartStats[2].getTimeLag())));
+  }
+
+  private void batchReading(Set<Integer> srcIds, final int expectEvents)
+  throws IOException, ScnNotFoundException, DatabusException, OffsetNotFoundException {
+    batchReading(srcIds, expectEvents, 2000);
+  }
+
+  private void batchReading(Set<Integer> srcIds, final int expectEvents, final int batchFetchSize)
   throws IOException, ScnNotFoundException, DatabusException, OffsetNotFoundException {
 
     // for debug generate this line
@@ -564,11 +757,11 @@ public class TestDbusEventBufferMult {
     DbusEventBufferBatchReadable read =
       _eventBufferMult.getDbusEventBufferBatchReadable(srcIds, cpMult, null);
 
-    int batchFetchSize = 2000;
     int totalRead = 0;
     int numEventsRead = Integer.MAX_VALUE;
     int numNonControlEventsRead = 0;
     int maxIterNum = 100, iterCount = 0;
+    String prevEvent = "";
     while(numEventsRead > 0) {
       if(iterCount++ > maxIterNum) {
         fail("Checkpoint doesn't work - it is a never-ending loop");
@@ -577,7 +770,7 @@ public class TestDbusEventBufferMult {
       WritableByteChannel jsonOutChannel = Channels.newChannel(jsonOut);
 
       numEventsRead = read.streamEvents(false, batchFetchSize, jsonOutChannel,
-                                        Encoding.JSON_PLAIN_VALUE,  new SourceDbusFilter(srcIds));
+                                        Encoding.JSON_PLAIN_VALUE,  new SourceDbusFilter(srcIds)).getNumEventsStreamed();
 
       totalRead += numEventsRead;
       LOG.info("read for " + inputSrcIds + ": " + numEventsRead + " events");
@@ -592,12 +785,19 @@ public class TestDbusEventBufferMult {
 
       for(int i=0; i<jsonStrings.length; i++) {
         // verify what was written
-        Map<String, Object> jsonMap = mapper.readValue(jsonStrings[i],
+        String evtStr = jsonStrings[i];
+        if (evtStr.equals(prevEvent)) {
+          // It may so happen that we receive the same event twice, especially when the
+          // offered buffer is small. This check gets around the issue.
+          continue;
+        }
+        prevEvent = evtStr;
+        Map<String, Object> jsonMap = mapper.readValue(evtStr,
                                                        new TypeReference<Map<String, Object>>(){});
-        assertEquals(jsonMap.size(), 10);
-        if(jsonMap.get("opcode") != null) { // not a control message
+        //assertEquals(jsonMap.size(), 10);
+        Integer srcId = (Integer)jsonMap.get("srcId");
+        if(!DbusEventUtils.isControlSrcId(srcId)) { // not a control message
           numNonControlEventsRead++;
-          Integer srcId = (Integer)jsonMap.get("srcId");
           Integer physicalPartitionId = (Integer)jsonMap.get("physicalPartitionId");
           Integer logicalPartitionId = (Integer)jsonMap.get("logicalPartitionId");
           PhysicalPartition pPartition = _eventBufferMult.getPhysicalPartition(srcId,
@@ -612,7 +812,12 @@ public class TestDbusEventBufferMult {
     }
     assertTrue(totalRead>numNonControlEventsRead);
     assertEquals(numNonControlEventsRead, expectEvents);
+  }
 
+  @BeforeClass
+  public void setupClass()
+  {
+    TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestDbusEventBufferMult_", ".log", Level.INFO);
   }
 
   @Test
@@ -770,6 +975,9 @@ public class TestDbusEventBufferMult {
   @Test
   public void testSubscriptionStream() throws Exception
   {
+    final Logger log = Logger.getLogger("TestDbusEventBufferMult.testSubscriptionStream");
+    log.info("start");
+
     TestSetup t = new TestSetup();
 
     PhysicalPartition pp100 = new PhysicalPartition(100, "multBufferTest1");
@@ -855,12 +1063,27 @@ public class TestDbusEventBufferMult {
         t._eventBuffer.getDbusEventBufferBatchReadable(cpMult1, Arrays.asList(pk1), statsColls1);
 
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
-    int eventsRead = reader1.streamEvents(false, 1000000, Channels.newChannel(baos),
+    // Try a call with 20 bytes of fetch size, we should see the event size in the first return with 0 events read.
+    StreamEventsResult result = reader1.streamEvents(false, 20, Channels.newChannel(baos),
+                                                     Encoding.BINARY, filter1);
+    assertEquals(0, result.getNumEventsStreamed());
+    assertEquals(161, result.getSizeOfPendingEvent());
+
+    result = reader1.streamEvents(false, 1000000, Channels.newChannel(baos),
                                           Encoding.BINARY, filter1);
+    int eventsRead = result.getNumEventsStreamed();
     assertEquals(eventsRead, 8); //4 events + 1 eop + 2 events + 1 eop
     assertEquals(statsColls1.getStatsCollector("multBufferTest1:100").getTotalStats().getNumSysEvents(), 2);
     assertEquals(statsColls1.getStatsCollector("multBufferTest1:100").getTotalStats().getNumDataEvents(), 6);
+    assertEquals(result.getSizeOfPendingEvent(), 0, "Size of pending event not zero");
 
+    // Now that we have read all the events, we should not see a pending event even if we offer a small fetch size.
+
+    result = reader1.streamEvents(false, 20, Channels.newChannel(baos),
+                                                     Encoding.BINARY, filter1);
+
+    assertEquals(0, result.getNumEventsStreamed(), "There should be no more events in the buffer now");
+    assertEquals(0, result.getSizeOfPendingEvent(), "We should not see pending event size since there are no events in buffer");
     baos.reset();
     statsCol1.reset(); statsCol2.reset();
 
@@ -875,7 +1098,7 @@ public class TestDbusEventBufferMult {
                                                              statsColls1);
 
     eventsRead = reader1.streamEvents(false, 1000000, Channels.newChannel(baos),
-                                      Encoding.BINARY, filter1);
+                                      Encoding.BINARY, filter1).getNumEventsStreamed();
     assertEquals(eventsRead, 10); //4 events + 1 eop + 1 eop from the other buffer + 2 events +
                                   //1 eop + 1 eop from the other buffer
     assertEquals(statsColls1.getStatsCollector("multBufferTest1:100").getTotalStats().getNumSysEvents(), 2);
@@ -905,7 +1128,7 @@ public class TestDbusEventBufferMult {
         t._eventBuffer.getDbusEventBufferBatchReadable(cpMult2, Arrays.asList(pk2), statsColls1);
 
     eventsRead = reader2.streamEvents(false, 1000000, Channels.newChannel(baos),
-                                      Encoding.BINARY, filter2);
+                                      Encoding.BINARY, filter2).getNumEventsStreamed();
     assertEquals(eventsRead, 6); //1 events + 1 eop + 3events + 1 eop
 
     baos.reset();
@@ -936,7 +1159,7 @@ public class TestDbusEventBufferMult {
     DbusEventBufferBatchReadable reader3 =
         t._eventBuffer.getDbusEventBufferBatchReadable(cpMult3, Arrays.asList(pk1, pk2), statsColls1);
     eventsRead = reader3.streamEvents(false, 1000000, Channels.newChannel(baos),
-                                      Encoding.BINARY, filter3);
+                                      Encoding.BINARY, filter3).getNumEventsStreamed();
     assertEquals(eventsRead, 11); //1 events + 1 eop + 1 events + 1 eop + 2 events + 1 eop + 3 events + 1 eop
     assertEquals(statsColls1.getStatsCollector("multBufferTest1:100").getTotalStats().getNumSysEvents(), 2);
     assertEquals(statsColls1.getStatsCollector("multBufferTest2:101").getTotalStats().getNumSysEvents(), 2);
@@ -945,6 +1168,8 @@ public class TestDbusEventBufferMult {
 
     baos.reset();
     statsCol1.reset(); statsCol2.reset();
+
+    log.info("end");
   }
 
   @Test
@@ -973,7 +1198,7 @@ public class TestDbusEventBufferMult {
                                  (short)(i<105?21:22),
                                  schema,
                                  (""+i).getBytes(), false, null));
-      if(i%2 == 1)
+      if((i & 1) == 1)
         buf.endEvents(i);
     }
 
@@ -1027,6 +1252,42 @@ public class TestDbusEventBufferMult {
     Assert.assertNull(buf1);
 
 
+  }
+
+  @Test
+  public void testEnableStreamFromLatest() throws DatabusException, IOException
+  {
+    CheckpointMult cp = null;
+    Collection<PhysicalPartitionKey> phyPartitions = new ArrayList<PhysicalPartitionKey>();
+    DbusEventBufferMult db = new DbusEventBufferMult();
+    DbusEventBufferMult.DbusEventBufferBatchReader dbr = db.new DbusEventBufferBatchReader(cp, phyPartitions, null);
+
+    // Return true only once if streamFromLatest == true
+    PhysicalPartitionKey pk = new PhysicalPartitionKey();
+    Set<PhysicalPartitionKey> sls = new HashSet<PhysicalPartitionKey>();
+    boolean streamFromLatestScn = true;
+
+    // The set is initially empty - meaning none of the partitions have been served
+    Assert.assertTrue(dbr.computeStreamFromLatestScnForPartition(pk, sls, streamFromLatestScn));
+    Assert.assertEquals(sls.size(), 1);
+    Assert.assertFalse(dbr.computeStreamFromLatestScnForPartition(pk, sls, streamFromLatestScn));
+    sls.clear();
+
+    // Check null input
+    Assert.assertFalse(dbr.computeStreamFromLatestScnForPartition(null, sls, streamFromLatestScn));
+
+    streamFromLatestScn = false;
+
+    // The set is initially empty - meaning none of the partitions have been served
+    Assert.assertFalse(dbr.computeStreamFromLatestScnForPartition(pk, sls, streamFromLatestScn));
+    Assert.assertEquals(sls.size(), 0);
+    Assert.assertFalse(dbr.computeStreamFromLatestScnForPartition(pk, sls, streamFromLatestScn));
+    Assert.assertEquals(sls.size(), 0);
+
+    // Check null input
+    Assert.assertFalse(dbr.computeStreamFromLatestScnForPartition(null, sls, streamFromLatestScn));
+
+    return;
   }
 
 }

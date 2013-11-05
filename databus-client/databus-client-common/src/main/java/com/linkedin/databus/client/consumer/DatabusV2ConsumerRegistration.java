@@ -26,12 +26,10 @@ import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 
 /**
- *
- * @author pganti
- *
  * A class to make it convenient to use templated ConsumerRegistration
  */
-public class DatabusV2ConsumerRegistration extends ConsumerRegistration<DatabusCombinedConsumer>{
+public class DatabusV2ConsumerRegistration extends ConsumerRegistration
+{
 
   protected DatabusV2ConsumerRegistration(DatabusCombinedConsumer consumer,
                                        List<DatabusCombinedConsumer> consumers,
@@ -52,13 +50,6 @@ public class DatabusV2ConsumerRegistration extends ConsumerRegistration<DatabusC
 										 DbusKeyCompositeFilterConfig filterConfig)
 	{
 		super(consumer, sources, filterConfig);
-	}
-
-	public DatabusV2ConsumerRegistration(DatabusCombinedConsumer[] consumers,
-										 List<String> sources,
-										 DbusKeyCompositeFilterConfig filterConfig)
-	{
-		super(consumers, sources, filterConfig);
 	}
 
 }

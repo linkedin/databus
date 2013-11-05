@@ -1,9 +1,5 @@
-/*
- * $Id: SchemaHelper.java 269330 2011-05-11 23:34:36Z cbotev $
- */
 package com.linkedin.databus2.schemas.utils;
 /*
- *
  * Copyright 2013 LinkedIn Corp. All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,8 +14,7 @@ package com.linkedin.databus2.schemas.utils;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
-*/
+ */
 
 
 import java.util.List;
@@ -30,10 +25,7 @@ import org.apache.avro.Schema.Type;
 
 
 /**
- * Static helper methods for common Avro schema related operations.
- *
- * @author Jemiah Westerman<jwesterman@linkedin.com>
- * @version $Revision: 269330 $
+ * Static helper methods for common Avro schema-related operations.
  */
 public class SchemaHelper
 {
@@ -62,57 +54,35 @@ public class SchemaHelper
   }
 
   /**
-   * @return the fields type; if the field is a union, the first non-null type from the union is returned.
+   * @return the field's type; if the field is a union, the first non-null type from the union is returned.
    */
   public static Type getAnyType(Field field)
   {
-    Schema schema = field.schema();
-    Type fieldType = schema.getType();
-
-    // If this is a union, then check the child types and see if the type exists here
-    if(fieldType == Type.UNION)
-    {
-      List<Schema> unionTypes = schema.getTypes();
-      for(Schema unionSubSchema : unionTypes)
-      {
-        if(unionSubSchema.getType() != Type.NULL)
-        {
-          return unionSubSchema.getType();
-        }
-      }
-    }
-    else
-    {
-      return fieldType;
-    }
-
-    // Not a match, return false.
-    return fieldType;
+    return unwindUnionSchema(field).getType();
   }
 
+  /**
+   * @return the field's schema; if the field is a union, the schema for the first non-null type from the
+   *         union is returned.
+   */
   public static Schema unwindUnionSchema(Field field)
   {
     Schema schema = field.schema();
     Type fieldType = schema.getType();
 
-    // If this is a union, then check the child types and see if the type exists here
-    if(fieldType == Type.UNION)
+    // If this is a union, check the child types and return the first non-null schema
+    if (fieldType == Type.UNION)
     {
       List<Schema> unionTypes = schema.getTypes();
-      for(Schema unionSubSchema : unionTypes)
+      for (Schema unionSubSchema : unionTypes)
       {
-        if(unionSubSchema.getType() != Type.NULL)
+        if (unionSubSchema.getType() != Type.NULL)
         {
           return unionSubSchema;
         }
       }
     }
-    else
-    {
-      return schema;
-    }
 
-    // Not a match, return false.
     return schema;
   }
 
@@ -132,18 +102,18 @@ public class SchemaHelper
     Type fieldType = schema.getType();
 
     // If the types are equal, then we're done
-    if(fieldType == type)
+    if (fieldType == type)
     {
       return true;
     }
 
     // If this is a union, then check the child types and see if the type exists here
-    if(fieldType == Type.UNION)
+    if (fieldType == Type.UNION)
     {
       List<Schema> unionTypes = schema.getTypes();
-      for(Schema unionSubSchema : unionTypes)
+      for (Schema unionSubSchema : unionTypes)
       {
-        if(unionSubSchema.getType() == type)
+        if (unionSubSchema.getType() == type)
         {
           return true;
         }
@@ -157,26 +127,35 @@ public class SchemaHelper
   /**
    * @return the value of the meta field name contained in this Schema's "meta" attribute
    */
+  // TODO:  merge this and subsequent method using generics for first arg
   public static final String getMetaField(Schema schema, String metaFieldName)
   {
-    if(schema == null) return null;
+    if (schema == null)
+    {
+      return null;
+    }
 
     String metaValue = schema.getProp(metaFieldName);
-    if (null != metaValue) return metaValue;
+    if (null != metaValue)
+    {
+      return metaValue;
+    }
 
     String meta = schema.getProp("meta");
-    if(meta == null) return null;
+    if (meta == null)
+    {
+      return null;
+    }
 
     String[] metaSplit = meta.split(";");
-    for(String s : metaSplit)
+    for (String s : metaSplit)
     {
       int eqIdx = s.indexOf('=');
       if (eqIdx > 0)
       {
         String itemKey = s.substring(0, eqIdx).trim();
         String itemValue = s.substring(eqIdx + 1).trim();
-        schema.addProp(itemKey, itemValue); //cache the value
-        if(null == metaValue && metaFieldName.equals(itemKey))
+        if (null == metaValue && metaFieldName.equals(itemKey))
         {
           metaValue = itemValue;
         }
@@ -190,24 +169,32 @@ public class SchemaHelper
    */
   public static final String getMetaField(Field field, String metaFieldName)
   {
-    if(field == null) return null;
+    if (field == null)
+    {
+      return null;
+    }
 
     String metaValue = field.getProp(metaFieldName);
-    if (null != metaValue) return metaValue;
+    if (null != metaValue)
+    {
+      return metaValue;
+    }
 
     String meta = field.getProp("meta");
-    if(meta == null) return null;
+    if (meta == null)
+    {
+      return null;
+    }
 
     String[] metaSplit = meta.split(";");
-    for(String s : metaSplit)
+    for (String s : metaSplit)
     {
       int eqIdx = s.indexOf('=');
       if (eqIdx > 0)
       {
         String itemKey = s.substring(0, eqIdx).trim();
         String itemValue = s.substring(eqIdx + 1).trim();
-        field.addProp(itemKey, itemValue); //cache the value
-        if(null == metaValue && metaFieldName.equals(itemKey))
+        if (null == metaValue && metaFieldName.equals(itemKey))
         {
           metaValue = itemValue;
         }

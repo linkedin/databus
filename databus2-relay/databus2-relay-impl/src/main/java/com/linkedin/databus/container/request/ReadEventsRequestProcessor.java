@@ -19,14 +19,17 @@ package com.linkedin.databus.container.request;
 */
 
 
+
 import java.io.IOException;
+import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.NavigableSet;
+import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.log4j.Logger;
@@ -39,15 +42,18 @@ import com.linkedin.databus.core.CheckpointMult;
 import com.linkedin.databus.core.DbusEventBufferBatchReadable;
 import com.linkedin.databus.core.DbusEventBufferMult;
 import com.linkedin.databus.core.DbusEventBufferMult.PhysicalPartitionKey;
+import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.Encoding;
 import com.linkedin.databus.core.OffsetNotFoundException;
 import com.linkedin.databus.core.ScnNotFoundException;
+import com.linkedin.databus.core.StreamEventsResult;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.data_model.LogicalSource;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus2.core.DatabusException;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
 import com.linkedin.databus2.core.container.monitoring.mbean.HttpStatisticsCollector;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.InvalidRequestParamValueException;
@@ -115,11 +121,20 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       String subsStr = request.getParams().getProperty(SUBS_PARAM, null);
       String partitionInfoStr = request.getParams().getProperty(PARTITION_INFO_STRING);
       String streamFromLatestSCNStr = request.getParams().getProperty(STREAM_FROM_LATEST_SCN);
+      String clientMaxEventVersionStr = request.getParams().getProperty(DatabusHttpHeaders.MAX_EVENT_VERSION);
+      int clientEventVersion = (clientMaxEventVersionStr != null) ?
+          Integer.parseInt(clientMaxEventVersionStr) : DbusEventFactory.DBUS_EVENT_V1;
+
+      if (clientEventVersion < 0 || clientEventVersion == 1 || clientEventVersion > DbusEventFactory.DBUS_EVENT_V2)
+      {
+        throw new InvalidRequestParamValueException(COMMAND_NAME,
+                                                    DatabusHttpHeaders.MAX_EVENT_VERSION,
+                                                    clientMaxEventVersionStr);
+      }
 
       if (null == sourcesListStr && null == subsStr)
       {
-        throw new InvalidRequestParamValueException(COMMAND_NAME, SOURCES_PARAM + "|" + SUBS_PARAM,
-                                                    "null");
+        throw new InvalidRequestParamValueException(COMMAND_NAME, SOURCES_PARAM + "|" + SUBS_PARAM, "null");
       }
 
       //TODO for now we separte the code paths to limit the impact on existing Databus 2 deployments (DDSDBUS-79)
@@ -180,7 +195,7 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       }
 
       //process explicit subscriptions and generate respective logical partition filters
-      Set<PhysicalPartitionKey> ppartKeys = null;
+      NavigableSet<PhysicalPartitionKey> ppartKeys = null;
       if (null != subsStr)
       {
         List<DatabusSubscription.Builder> subsBuilder = null;
@@ -192,7 +207,7 @@ public class ReadEventsRequestProcessor implements RequestProcessor
           subs.add(subBuilder.build());
         }
 
-        ppartKeys = new HashSet<DbusEventBufferMult.PhysicalPartitionKey>(subs.size());
+        ppartKeys = new TreeSet<PhysicalPartitionKey>();
         for (DatabusSubscription sub: subs)
         {
           PhysicalPartition ppart = sub.getPhysicalPartition();
@@ -269,34 +284,37 @@ public class ReadEventsRequestProcessor implements RequestProcessor
       // 2. checkpointStringMult null, checkpointString not null - create empty CheckpointMult
       // and add create Checkpoint(checkpointString) and add it to cpMult;
       // 3 both are null - create empty CheckpointMult and add empty Checkpoint to it for each ppartition
-      // cpMult may have been set before event if client did not send it but the client sent a subscription list
-      // and a checkpoint.
       PhysicalPartition pPartition;
 
       Checkpoint cp = null;
       CheckpointMult cpMult = null;
 
       if(checkpointStringMult != null) {
-        cpMult = new CheckpointMult(checkpointStringMult);
+        try {
+          cpMult = new CheckpointMult(checkpointStringMult);
+        } catch (InvalidParameterSpecException e) {
+          LOG.error("Invalid CheckpointMult:" + checkpointStringMult, e);
+          throw new InvalidRequestParamValueException("stream", "CheckpointMult", checkpointStringMult);
+        }
       } else {
         // there is no checkpoint - create an empty one
         cpMult = new CheckpointMult();
         Iterator<Integer> it = sourceIds.iterator();
         while(it.hasNext()) {
-        Integer srcId = it.next();
-        pPartition = _eventBuffer.getPhysicalPartition(srcId);
-        if(pPartition == null)
-          throw new RequestProcessingException("unable to find physical partitions for source:" + srcId);
+          Integer srcId = it.next();
+          pPartition = _eventBuffer.getPhysicalPartition(srcId);
+          if(pPartition == null)
+            throw new RequestProcessingException("unable to find physical partitions for source:" + srcId);
 
-        if(checkpointString != null) {
-          cp = new Checkpoint(checkpointString);
-        } else {
-          cp = new Checkpoint();
-          cp.setFlexible();
+          if(checkpointString != null) {
+            cp = new Checkpoint(checkpointString);
+          } else {
+            cp = new Checkpoint();
+            cp.setFlexible();
+          }
+          cpMult.addCheckpoint(pPartition, cp);
         }
-        cpMult.addCheckpoint(pPartition, cp);
       }
-    }
 
       if (isDebug) LOG.debug("checkpointStringMult = " + checkpointStringMult +  ";singlecheckpointString="+ checkpointString + ";CPM="+cpMult);
 
@@ -347,11 +365,17 @@ public class ReadEventsRequestProcessor implements RequestProcessor
           : _eventBuffer.getDbusEventBufferBatchReadable(cpMult, ppartKeys, statsCollectors);
 
         int eventsRead = 0;
+        int minPendingEventSize = 0;
+        StreamEventsResult result = null;
+
+        bufRead.setClientMaxEventVersion(clientEventVersion);
 
         if (v2Mode)
         {
-          eventsRead = bufRead.streamEvents(streamFromLatestSCN, fetchSize,
+          result = bufRead.streamEvents(streamFromLatestSCN, fetchSize,
                                             request.getResponseContent(), enc, filters);
+          eventsRead = result.getNumEventsStreamed();
+          minPendingEventSize = result.getSizeOfPendingEvent();
           if(isDebug) {
             LOG.debug("Process: streamed " + eventsRead + " from sources " +
                      Arrays.toString(sourceIds.toArray()));
@@ -361,13 +385,26 @@ public class ReadEventsRequestProcessor implements RequestProcessor
         }
         else
         {
-          eventsRead = bufRead.streamEvents(streamFromLatestSCN, fetchSize,
+          result = bufRead.streamEvents(streamFromLatestSCN, fetchSize,
                                             request.getResponseContent(), enc, filters);
+          eventsRead = result.getNumEventsStreamed();
+          minPendingEventSize = result.getSizeOfPendingEvent();
           if(isDebug)
             LOG.debug("Process: streamed " + eventsRead + " with subscriptions " + subs);
+          cpMult = bufRead.getCheckpointMult();
+          if (cpMult != null) {
+            request.setCursorPartition(cpMult.getCursorPartition());
+          }
         }
 
-
+        if (eventsRead == 0 && minPendingEventSize > 0)
+        {
+          // Append a header to indicate to the client that we do have at least one event to
+          // send, but it is too large to fit into client's offered buffer.
+          request.getResponseContent().addMetadata(DatabusHttpHeaders.DATABUS_PENDING_EVENT_SIZE,
+                                                   minPendingEventSize);
+          LOG.debug("Returning 0 events but have pending event of size " + minPendingEventSize);
+        }
       }
       catch (ScnNotFoundException snfe)
       {

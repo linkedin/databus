@@ -36,8 +36,6 @@ import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 /**
  * A default implementation for an actor which let it be run in a thread and provides
  * controls for its lifecycle.
- * @author cbotev
- *
  */
 public abstract class AbstractActorMessageQueue implements Runnable, ActorMessageQueue
 {
@@ -51,11 +49,12 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
   private final String _name;
   private final Queue<Object> _messageQueue = new ArrayDeque<Object>(MAX_QUEUED_MESSAGES);
   protected final CircularFifoBuffer _messageProcessedHistory = new CircularFifoBuffer(MAX_QUEUED_MESSAGE_HISTORY_SIZE);
+  volatile boolean _hasMessages;
 
   private final Lock _controlLock = new ReentrantLock(true);
   private final Condition _shutdownCondition = _controlLock.newCondition();
   private final Condition _newStateCondition = _controlLock.newCondition();
-  protected LifecycleMessage _shutdownRequest = null;
+  private volatile LifecycleMessage _shutdownRequest = null;
   protected LifecycleMessage _currentLifecycleState;
   protected final DatabusComponentStatus _componentStatus;
 
@@ -79,6 +78,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     _currentLifecycleState = null;
     _componentStatus = new DatabusComponentStatus(name, errorRetriesConf);
     _enablePullerMessageQueueLogging = enablePullerMessageQueueLogging;
+    _hasMessages = false;
   }
 
   public AbstractActorMessageQueue(String name)
@@ -86,8 +86,20 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     this(name,BackoffTimerStaticConfig.UNLIMITED_RETRIES);
   }
 
-  protected void onShutdown()
+  /**
+   * This method is called by the StatMachine thread after it exits out of the main loop in AbstractActorMessageQueue.run() and
+   * is about to shutdown.
+   * After this method returns, the State Machine's status will be set to SHUTDOWN and other waiting threads (for this shutdown) will be signaled.
+   * Subclasses must implement this method to cleanup their state for shutdown
+   */
+  protected abstract void onShutdown();
+
+  /**
+   * This method is called by the StatMachine thread after it exits out of the main loop in AbstractActorMessageQueue.run()
+   */
+  private void performShutdown()
   {
+    onShutdown();
     LOG.info(getName() + " shutdown.");
     clearQueue(shutdownFilter);
   }
@@ -138,10 +150,15 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
       switch (lcMessage.getTypeId())
       {
         case START: doStart(lcMessage); break;
-        case SHUTDOWN: doShutdown(lcMessage); break;
         case PAUSE: doPause(lcMessage); break;
         case SUSPEND_ON_ERROR: doSuspendOnError(lcMessage); break;
         case RESUME: doResume(lcMessage); break;
+        case SHUTDOWN:
+        {
+          LOG.error("Shutdown message is seen in the queue but not expected : Message :" + lcMessage);
+          success = false;
+          break;
+        }
         default:
         {
           LOG.error("Unkown Lifecycle message in RelayPullThread: " + lcMessage.getTypeId());
@@ -168,7 +185,15 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
   protected void doSuspendOnError(LifecycleMessage lcMessage)
   {
-	 LOG.info(getName() + ": suspending");
+    final Throwable lastError = lcMessage.getLastError();
+    if (null != lastError)
+    {
+      LOG.info(getName() + ": suspending due to " + lastError, lastError);
+    }
+    else
+    {
+      LOG.info(getName() + ": suspending");
+    }
 	 if (LOG.isDebugEnabled())
 		 LOG.debug(" because of message: " + lcMessage.getLastError());
     _componentStatus.suspendOnError(lcMessage.getLastError());
@@ -186,28 +211,6 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
   {
     LOG.info(getName() + ": starting");
     _componentStatus.start();
-  }
-
-  protected void doShutdown(LifecycleMessage lcMessage)
-  {
-    if (null != lcMessage.getLastError())
-    {
-      LOG.info(getName() + ": starting shutdown", lcMessage.getLastError());
-    }
-    else
-    {
-      LOG.info(getName() + ": starting shutdown");
-    }
-
-    _controlLock.lock();
-    try
-    {
-      _shutdownRequest = LifecycleMessage.createShutdownMessage(lcMessage.getLastError());
-    }
-    finally
-    {
-      _controlLock.unlock();
-    }
   }
 
   @Override
@@ -255,21 +258,24 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
         LOG.debug(sb.toString());
     }
 
-
-    _controlLock.lock();
     try
     {
-      onShutdown();
-      _componentStatus.shutdown();
-      _shutdownCondition.signalAll();
-    }
-    finally
-    {
-      _controlLock.unlock();
-    }
+      performShutdown();
+    } finally {
+      _controlLock.lock();
+      try
+      {
+        _componentStatus.shutdown();
+        _shutdownCondition.signalAll();
+      }
+      finally
+      {
+        _controlLock.unlock();
+      }
 
-	LOG.info("Message Queue History (earliest first) at shutdown:" + getMessageHistoryLog());
-    if (isDebugEnabled) LOG.debug(getName() + ": exited message loop.");
+      LOG.info("Message Queue History (earliest first) at shutdown:" + getMessageHistoryLog());
+      if (isDebugEnabled) LOG.debug(getName() + ": exited message loop.");
+    }
   }
 
   /*
@@ -338,6 +344,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
                                      + "; queue.size=" + _messageQueue.size());
 
         if (1 == _messageQueue.size()) _newStateCondition.signalAll();
+        _hasMessages = true;
       }
 
 //      LOG.info(getName() + ": " + _messageQueue.toString());
@@ -351,7 +358,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
   public void shutdown()
   {
     LOG.info(getName() + ": shutdown requested.");
-    enqueueMessage(LifecycleMessage.createShutdownMessage());
+    _shutdownRequest = LifecycleMessage.createShutdownMessage();
   }
 
   public void awaitShutdown()
@@ -410,6 +417,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
       if (! checkForShutdownRequest())
       {
         nextState = _messageQueue.poll();
+        _hasMessages = _messageQueue.size() > 0;
       }
     }
     finally
@@ -586,5 +594,9 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     return _messageProcessedHistory.toString();
   }
 
+  protected boolean hasMessages()
+  {
+    return _hasMessages;
+  }
 
 }

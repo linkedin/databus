@@ -32,7 +32,7 @@ import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.map.ObjectMapper;
 
 /**
- * User: jwesterm Date: Oct 15, 2010 Time: 3:15:29 PM
+ * Generate an Avro schema to describe the fields of a database table.
  */
 public class FieldToAvro
 {
@@ -43,13 +43,13 @@ public class FieldToAvro
                                 String[][] headers,
                                 TableTypeInfo topRecordTypeInfo)
   {
-    if(namespace == null)
+    if (namespace == null)
       throw new IllegalArgumentException("namespace should not be null.");
-    if(topRecordAvroName == null)
+    if (topRecordAvroName == null)
       throw new IllegalArgumentException("topRecordAvroName should not be null.");
-    if(topRecordDatabaseName == null)
+    if (topRecordDatabaseName == null)
       throw new IllegalArgumentException("topRecordDatabaseName should not be null.");
-    if(topRecordTypeInfo == null)
+    if (topRecordTypeInfo == null)
       throw new IllegalArgumentException("topRecordTypeInfo should not be null.");
 
     FieldInfo fieldInfo = new FieldInfo(topRecordDatabaseName, topRecordTypeInfo, -1);
@@ -61,11 +61,12 @@ public class FieldToAvro
     // Add namespace
     field.put("namespace", namespace);
 
-    // Serialize to JSON
+    // Add doc and serialize to JSON
     try
     {
       SimpleDateFormat df = new SimpleDateFormat("MMM dd, yyyy hh:mm:ss a zzz");
-      field.put("doc", "Auto-generated Avro schema for " + topRecordDatabaseName + ". Generated at " + df.format(new Date(System.currentTimeMillis())));
+      field.put("doc", "Auto-generated Avro schema for " + topRecordDatabaseName +
+                       ". Generated at " + df.format(new Date(System.currentTimeMillis())));
 
       ObjectMapper mapper = new ObjectMapper();
       JsonFactory factory = new JsonFactory();
@@ -86,19 +87,15 @@ public class FieldToAvro
     TypeInfo typeInfo = fieldInfo.getFieldTypeInfo();
     //System.out.println(fieldInfo.getFieldName() + ":" + typeInfo.getClass().getSimpleName() + " --> " + asSchema);
 
-    if(typeInfo instanceof SimpleTypeInfo)
+    if (typeInfo instanceof SimpleTypeInfo)
     {
       return simpleTypeToAvro(fieldInfo, (SimpleTypeInfo) typeInfo);
     }
-    else if(typeInfo instanceof TableTypeInfo)
+    else if (typeInfo instanceof UserTypeInfo)  // TableTypeInfo is now a subclass of this
     {
-      return tableTypeToAvro(fieldInfo, (TableTypeInfo) typeInfo, asSchema);
+      return tableOrUserTypeToAvro(fieldInfo, (UserTypeInfo) typeInfo, asSchema);
     }
-    else if(typeInfo instanceof UserTypeInfo)
-    {
-      return userTypeToAvro(fieldInfo, (UserTypeInfo) typeInfo, asSchema);
-    }
-    else if(typeInfo instanceof CollectionTypeInfo)
+    else if (typeInfo instanceof CollectionTypeInfo)
     {
       return collectionTypeToAvro(fieldInfo, (CollectionTypeInfo)typeInfo);
     }
@@ -122,18 +119,26 @@ public class FieldToAvro
     arrayType.put("type", "array");
     arrayType.put("items", itemsRecordType);
 
-    field.put("type", arrayType);
+    List<Object> nullableType = new ArrayList<Object>();  // ["null", { .. arrayType .. }]
+    nullableType.add("null");
+    nullableType.add(arrayType);
+
+    field.put("type", nullableType);
+    field.put("default", null);
 
     // Field metadata
     String dbFieldName = fieldInfo.getFieldName();
     int dbFieldPosition = fieldInfo.getFieldPosition();
-    String meta = buildMetaString(dbFieldName, dbFieldPosition,"");
+    String dbFieldType  = fieldInfo.getFieldTypeInfo().getName();
+    String meta = buildMetaString(dbFieldName, dbFieldPosition, dbFieldType, null);
     itemsRecordType.put("meta", meta);
 
     return field;
   }
 
-  private Map<String,Object> userTypeToAvro(FieldInfo fieldInfo, UserTypeInfo typeInfo, boolean asSchema)
+  private Map<String,Object> tableOrUserTypeToAvro(FieldInfo fieldInfo,
+                                                   UserTypeInfo typeInfo,
+                                                   boolean asSchema)
   {
     Map<String,Object> field = new HashMap<String,Object>();
 
@@ -142,23 +147,31 @@ public class FieldToAvro
     field.put("name", name);
 
     // Field type
-    Map<String,Object> type = new HashMap<String, Object>();
-    //check if we are a top-level record or not
-    Map<String,Object> fieldsDest = asSchema ? field : type;
+    Map<String,Object> realType = new HashMap<String, Object>();
+    // check if we are a "top-level" record or not
+    Map<String,Object> fieldsDest = asSchema ? field : realType;
     if (asSchema)
     {
+      // asSchema is true only for the very topmost level of the schema (type = record; should never be null)
+      // and for the "items" descriptor in collectionTypeToAvro() (aggregate descriptor of sub-fields; latter
+      // may be null individually, but descriptor presumably never can be).  Ergo, "default":null makes sense
+      // only in the other half of this conditional.
       field.put("type", "record");
     }
     else
     {
-       type.put("type", "record");
-       type.put("name", typeInfo.getName());
-       field.put("type", type);
+      realType.put("type", "record");                       // inner, curly-brace level ("real" structure)
+      realType.put("name", typeInfo.getName());
+      List<Object> nullableType = new ArrayList<Object>();  // outer, square-brackets level (solely for nullability)
+      nullableType.add("null");
+      nullableType.add(realType);
+      field.put("type", nullableType);
+      field.put("default", null); // field default value:  only for this level?
     }
 
     // Child fields
     List<Map<String, Object>> fields = new ArrayList<Map<String, Object>>();
-    for(FieldInfo childField : typeInfo.getFields())
+    for (FieldInfo childField : typeInfo.getFields())
     {
       Map<String, Object> childFieldMap = fieldToAvro(childField, false);
       fields.add(childFieldMap);
@@ -168,50 +181,9 @@ public class FieldToAvro
     // Field metadata
     String dbFieldName = fieldInfo.getFieldName();
     int dbFieldPosition = fieldInfo.getFieldPosition();
-    String meta = buildMetaString(dbFieldName, dbFieldPosition,"");
-    field.put("meta", meta);
-
-    // Return the Map for this field
-    return field;
-  }
-
-  private Map<String,Object> tableTypeToAvro(FieldInfo fieldInfo, TableTypeInfo typeInfo, boolean asSchema)
-  {
-    Map<String,Object> field = new HashMap<String,Object>();
-
-    // Field name
-    String name = SchemaUtils.toCamelCase(fieldInfo.getFieldName());
-    field.put("name", name);
-
-    // Field type
-    Map<String,Object> type = new HashMap<String, Object>();
-    //check if we are a top-level record or not
-    Map<String,Object> fieldsDest = asSchema ? field : type;
-    if (asSchema)
-    {
-      field.put("type", "record");
-    }
-    else
-    {
-       type.put("type", "record");
-       type.put("name", typeInfo.getName());
-       field.put("type", type);
-    }
-
-    // Child fields
-    List<Map<String, Object>> fields = new ArrayList<Map<String, Object>>();
-    for(FieldInfo childField : typeInfo.getFields())
-    {
-      Map<String, Object> childFieldMap = fieldToAvro(childField, false);
-      fields.add(childFieldMap);
-    }
-    fieldsDest.put("fields", fields);
-
-    // Field metadata
-    String dbFieldName = fieldInfo.getFieldName();
-    int dbFieldPosition = fieldInfo.getFieldPosition();
-    String pk = typeInfo.getPrimaryKey();
-    String meta = buildMetaString(dbFieldName, dbFieldPosition,pk);
+    String dbFieldType = fieldInfo.getFieldTypeInfo().getName();
+    String pk = typeInfo.getPrimaryKey();  // null unless TableTypeInfo (== top-level table)
+    String meta = buildMetaString(dbFieldName, dbFieldPosition, dbFieldType, pk);
     field.put("meta", meta);
 
     // Return the Map for this field
@@ -226,22 +198,26 @@ public class FieldToAvro
     String name = SchemaUtils.toCamelCase(fieldInfo.getFieldName());
     field.put("name", name);
 
+    // Field default value (for Avro unions, corresponds to _first_ field type in list)
+    field.put("default", null);
+
     // Field type
-    String[] type = new String[] { typeInfo.getPrimitiveType().getAvroType(), "null" };
+    String[] type = new String[] { "null", typeInfo.getPrimitiveType().getAvroType() };
     field.put("type", type);
 
     // Field metadata
     String dbFieldName = fieldInfo.getFieldName();
     int dbFieldPosition = fieldInfo.getFieldPosition();
-    
-    String meta = buildMetaString(dbFieldName, dbFieldPosition,"");
+    String dbFieldType = fieldInfo.getFieldTypeInfo().getName();
+
+    String meta = buildMetaString(dbFieldName, dbFieldPosition, dbFieldType, null);
     field.put("meta", meta);
-    
+
     // Return the Map for this field
     return field;
   }
 
-  private String buildMetaString(String dbFieldName, int dbFieldPosition,String pk)
+  private String buildMetaString(String dbFieldName, int dbFieldPosition, String dbFieldType, String pk)
   {
     // Metadata for database field name and position.
     // Have to store this as a serialized String, since Avro's "getProp()" method will not return
@@ -257,11 +233,17 @@ public class FieldToAvro
     {
       meta.append("dbFieldPosition=" + dbFieldPosition + ";");
     }
-    if (!pk.isEmpty())
+
+    if (dbFieldType != null)
     {
-    	meta.append("pk=" + pk + ";");
+      meta.append("dbFieldType=" + dbFieldType + ";");
     }
-    
+
+    if ((null != pk) && (!pk.isEmpty()))
+    {
+      meta.append("pk=" + pk + ";");
+    }
+
     return meta.toString();
   }
 

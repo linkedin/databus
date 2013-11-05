@@ -25,8 +25,8 @@ import org.apache.avro.generic.GenericRecord;
 public class IntegerFieldGenerate extends SchemaFiller {
 
 
-  public static int minIntLength = -10;
-  public static int maxIntLength = Integer.MAX_VALUE;
+  private static int minIntLength = -10;
+  private static int maxIntLength = Integer.MAX_VALUE;
 
   public static int getMinIntLength()
   {

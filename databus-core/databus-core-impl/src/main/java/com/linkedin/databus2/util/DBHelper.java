@@ -27,6 +27,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+import org.apache.log4j.Logger;
+
 /**
  * Static helper methods for common database operations.
  *
@@ -35,7 +37,9 @@ import java.sql.Statement;
  */
 public class DBHelper
 {
-
+  public static final String MODULE = DBHelper.class.getName();
+  public static final Logger LOG    = Logger.getLogger(MODULE);
+	
   public static void close(ResultSet rs, Statement stmt, Connection con)
   {
     close(rs);
@@ -93,4 +97,39 @@ public class DBHelper
       }
     }
   }
+  
+  /**
+   * Invokes a commit on the connection if auto-commit is turned off
+   */
+  public static void commit(Connection conn)
+  throws SQLException
+  {
+	  if (conn != null && !conn.isClosed())
+	  {
+		  if (!conn.getAutoCommit())
+			  conn.commit();
+	  }
+	  else
+	  {
+		  LOG.error("Invoking a commit after the connection closed ");
+	  }
+  }
+  
+  /**
+   * Invokes a rollback on the connection if auto-commit is turned off
+   */
+  public static void rollback(Connection conn)
+  throws SQLException
+  {
+	  if (conn != null && !conn.isClosed())
+	  {
+		  if (!conn.getAutoCommit())
+			  conn.rollback();
+	  }
+	  else
+	  {
+		  LOG.error("Invoking a rollback after the connection is closed ");
+	  }
+  }
+
 }

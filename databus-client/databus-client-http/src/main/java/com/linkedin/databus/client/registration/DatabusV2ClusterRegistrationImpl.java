@@ -1,23 +1,22 @@
 package com.linkedin.databus.client.registration;
 /*
- *
- * Copyright 2013 LinkedIn Corp. All rights reserved
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+*
+* Copyright 2013 LinkedIn Corp. All rights reserved
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*
 */
-
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -39,6 +38,7 @@ import com.linkedin.databus.client.DatabusHttpClientImpl;
 import com.linkedin.databus.client.DbusPartitionInfoImpl;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
 import com.linkedin.databus.client.pub.ClusterCheckpointPersistenceProvider;
+import com.linkedin.databus.client.pub.ClusterCheckpointPersistenceProvider.ClusterCheckpointException;
 import com.linkedin.databus.client.pub.DatabusClientException;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.DatabusRegistration;
@@ -56,8 +56,8 @@ import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStatsMBean;
 import com.linkedin.databus.client.pub.monitoring.events.ConsumerCallbackStatsEvent;
 import com.linkedin.databus.cluster.DatabusCluster;
-import com.linkedin.databus.cluster.DatabusClusterDataNotifier;
 import com.linkedin.databus.cluster.DatabusCluster.DatabusClusterMember;
+import com.linkedin.databus.cluster.DatabusClusterDataNotifier;
 import com.linkedin.databus.cluster.DatabusClusterNotifier;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
@@ -72,7 +72,7 @@ import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 
 public class DatabusV2ClusterRegistrationImpl implements
 		DatabusMultiPartitionRegistration, DatabusClusterNotifier, DatabusClusterDataNotifier
-{	
+{
     public class Status extends DatabusComponentStatus
 	{
       public Status()
@@ -88,7 +88,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 		} catch (Exception e) {
 			_log.error("Got exception while trying to start the registration", e);
 			throw new RuntimeException(e);
-		} 
+		}
         super.start();
       }
 
@@ -101,7 +101,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 
       @Override
       public void pause()
-      { 
+      {
     	  DatabusV2ClusterRegistrationImpl.this.pause();
          super.pause();
       }
@@ -120,53 +120,53 @@ public class DatabusV2ClusterRegistrationImpl implements
         super.suspendOnError(error);
       }
 	}
-    
+
     /** State of the registration **/
 	private RegistrationState _state;
-	
+
 	/** Client-instance wide unique id to locate the registration **/
 	private RegistrationId _id;
-	    
+
 	/** Client instance **/
 	private final DatabusHttpClientImpl _client;
-	
+
 	/** Databus Componenent Status for this registration **/
 	private Status _status = new Status();
 
 	/** Child Registrations container **/
-	public final Map<DbusPartitionInfo, DatabusRegistration> regMap = 
+	public final Map<DbusPartitionInfo, DatabusRegistration> regMap =
 								new HashMap<DbusPartitionInfo, DatabusRegistration>();
-	
+
 	/** Checkpoint Persisitence Provider Config **/
 	private final ClusterCheckpointPersistenceProvider.StaticConfig _ckptPersistenceProviderConfig;
 
 	/** Aggregator for relay callback statistics across all partitions */
 	private StatsCollectors<ConsumerCallbackStats> _relayCallbackStatsMerger;
-	  
+
 	/** Aggregator for bootstrap callback statistics across all partitions */
 	private StatsCollectors<ConsumerCallbackStats> _bootstrapCallbackStatsMerger;
-	  
+
 	/** Aggregator for relay event statistics across all partitions */
 	private StatsCollectors<DbusEventsStatisticsCollector> _relayEventStatsMerger;
-	  
+
 	/** Aggregator for bootstrap event statistics across all partitions */
 	private StatsCollectors<DbusEventsStatisticsCollector> _bootstrapEventStatsMerger;
-	
-	/** Registration specific Logger */ 
+
+	/** Registration specific Logger */
     private Logger _log;
 
     /** Server Side Filter Factory **/
     private final DbusServerSideFilterFactory _serverSideFilterFactory;
-    
+
     /** Consumer Factory **/
     private final DbusClusterConsumerFactory _consumerFactory;
-    
+
     /** Partition Listener **/
     private final DbusPartitionListener _partitionListener;
-    
+
     /** Set of Partitions **/
-    private Set<DbusPartitionInfo> _partitionSet;
-    
+    private final Set<DbusPartitionInfo> _partitionSet;
+
     /** Databus Cluster Config **/
     private final DbusClusterInfo _clusterInfo;
 
@@ -175,16 +175,16 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 	/** Current Active Nodes **/
 	private List<String> _currentActiveNodes;
-	
+
 	/** Partition to node map **/
 	private Map<Integer, String> _activePartitionMap;
-	
+
 	private final ClusterRegistrationStaticConfig _clientClusterConfig;
-	
+
 	/** Databus Cluster **/
 	private DatabusCluster _cluster;
 	private DatabusClusterMember _clusterMember;
-	
+
 	public DatabusV2ClusterRegistrationImpl(RegistrationId id,
 											DatabusHttpClientImpl client,
 											ClusterCheckpointPersistenceProvider.StaticConfig ckptPersistenceProviderConfig,
@@ -207,12 +207,12 @@ public class DatabusV2ClusterRegistrationImpl implements
     	_sources = new ArrayList<String>();
         _clusterInfo = clusterInfo;
     	_clientClusterConfig = client.getClientStaticConfig().getClientCluster(clusterInfo.getName());
-        
+
     	if ( null != sources)
         	_sources.addAll(Arrays.asList(sources));
-    	
+
 	}
-	
+
     /**
      * Set Logger for this registration
      * @param log
@@ -221,10 +221,10 @@ public class DatabusV2ClusterRegistrationImpl implements
     {
     	_log = log;
     }
-    
+
 	@Override
-	public synchronized boolean start() 
-			throws IllegalStateException, DatabusClientException 
+	public synchronized boolean start()
+			throws IllegalStateException, DatabusClientException
 	{
 		if (_state.isRunning())
 		{
@@ -248,18 +248,21 @@ public class DatabusV2ClusterRegistrationImpl implements
 		}
 
 		/**
-		 *  The id below has to be unique within a given cluster. HttpPort is used to get a unique name for service colocated in a single box. 
+		 *  The id below has to be unique within a given cluster. HttpPort is used to get a unique name for service colocated in a single box.
 		 *  The Container id is not necessarily a sufficient differentiating factor.
 		 */
 		String id = host + "-" + _client.getContainerStaticConfig().getHttpPort() + "-" +  _client.getContainerStaticConfig().getId();
 
+
 		try {
-			_cluster = createCluster(id);
+			_cluster = createCluster();
 			_cluster.start();
 		} catch (Exception e) {
 			_log.fatal("Got exception while trying to create the cluster with id (" + id + ")", e);
 			throw new DatabusClientException(e);
 		}
+
+		initializeStatsCollectors();
 
 		_log.info("Dabatus cluster object created : " + _cluster + " with id :" + id);
 
@@ -277,13 +280,13 @@ public class DatabusV2ClusterRegistrationImpl implements
 		return true;
 
 	}
-	
+
 	@Override
-	public synchronized void shutdown() throws IllegalStateException 
+	public synchronized void shutdown() throws IllegalStateException
 	{
-		
+
 		boolean left = true;
-   			
+
 		if (! _state.isRunning())
 		{
 			_log.warn("Registration (" + _id + ") is not in running state to be shutdown. Current state :" + _state);
@@ -307,14 +310,18 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 		if ( !left )
 			_log.error("Unable to leave the cluster cleanly !!" + _clusterInfo);
-
+		if (null != _cluster)
+        {
+            _cluster.shutdown();
+			ClusterCheckpointPersistenceProvider.close(_cluster.getClusterName());
+        }
 		_state = RegistrationState.SHUTDOWN;
 
 	}
 
 	@Override
-	public synchronized void pause() 
-			throws IllegalStateException 
+	public synchronized void pause()
+			throws IllegalStateException
 	{
 		if ( _state == RegistrationState.PAUSED)
 			return;
@@ -337,8 +344,8 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public synchronized void suspendOnError(Throwable ex) 
-			throws IllegalStateException 
+	public synchronized void suspendOnError(Throwable ex)
+			throws IllegalStateException
 	{
 		if ( _state == RegistrationState.SUSPENDED_ON_ERROR)
 			return;
@@ -361,7 +368,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public synchronized void resume() throws IllegalStateException 
+	public synchronized void resume() throws IllegalStateException
 	{
 		if ( _state == RegistrationState.RESUMED)
 			return;
@@ -384,13 +391,13 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public RegistrationState getState() 
+	public RegistrationState getState()
 	{
 		return _state;
 	}
 
 	@Override
-	public synchronized boolean deregister() throws IllegalStateException 
+	public synchronized boolean deregister() throws IllegalStateException
 	{
 		if ((_state == RegistrationState.DEREGISTERED) || (_state == RegistrationState.INIT))
 			return false;
@@ -408,20 +415,20 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public Collection<DatabusSubscription> getSubscriptions() 
+	public Collection<DatabusSubscription> getSubscriptions()
 	{
 		Set<DatabusSubscription> subscriptions = new HashSet<DatabusSubscription>();
-		
+
 		for (Entry<DbusPartitionInfo, DatabusRegistration> e : regMap.entrySet())
 		{
 			subscriptions.addAll(e.getValue().getSubscriptions());
 		}
-		
+
 		return subscriptions;
 	}
 
 	@Override
-	public DatabusComponentStatus getStatus() 
+	public DatabusComponentStatus getStatus()
 	{
 		return _status;
 	}
@@ -432,61 +439,61 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public DatabusRegistration getParent() 
+	public DatabusRegistration getParent()
 	{
 		return null;
 	}
-	
+
 	@Override
 	public synchronized DatabusRegistration withRegId(RegistrationId regId)
-			throws DatabusClientException, IllegalStateException 
+			throws DatabusClientException, IllegalStateException
 	{
 		if ( (_id != null) && (_id.equals(regId)))
 			return this;
-		
+
 		if (! RegistrationIdGenerator.isIdValid(regId))
 			throw new DatabusClientException("Another registration with the same regId (" + regId + ") already present !!");
-	
+
 		if (_state.isRunning())
 			throw new IllegalStateException("Cannot update regId when registration is in running state. RegId :" + _id + ", State :" + _state);
-		
+
 		_id = regId;
 		_status = new Status(); // Component Status should use the correct component name
-		
+
 		return this;
 	}
 
 	@Override
 	public synchronized DatabusRegistration withServerSideFilter(
 			DbusKeyCompositeFilterConfig filterConfig)
-			throws IllegalStateException 
+			throws IllegalStateException
     {
-		// Nothing to do 
+		// Nothing to do
 		return this;
 	}
 
 	@Override
-	public Collection<DbusPartitionInfo> getPartitions() 
+	public Collection<DbusPartitionInfo> getPartitions()
 	{
 		Set<DbusPartitionInfo> partitions = new HashSet<DbusPartitionInfo>();
-		
+
 		for ( DbusPartitionInfo p : regMap.keySet())
 		{
 			partitions.add(p);
 		}
-		
+
 		return partitions;
 	}
 
 	@Override
-	public Checkpoint getLastPersistedCheckpoint() 
+	public Checkpoint getLastPersistedCheckpoint()
 	{
 		throw new RuntimeException("Operation Not supported !!");
 	}
 
 	@Override
 	public boolean storeCheckpoint(Checkpoint ckpt)
-			throws IllegalStateException 
+			throws IllegalStateException
 	{
 		throw new RuntimeException("Operation Not supported !!");
 
@@ -514,21 +521,21 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 	@Override
 	public RelayFindMaxSCNResult fetchMaxSCN(FetchMaxSCNRequest request)
-			throws InterruptedException 
+			throws InterruptedException
 	{
 		throw new RuntimeException("Operation Not supported !!");
 	}
 
 	@Override
 	public RelayFlushMaxSCNResult flush(RelayFindMaxSCNResult fetchSCNResult,
-			FlushRequest flushRequest) throws InterruptedException 
+			FlushRequest flushRequest) throws InterruptedException
 	{
 		throw new RuntimeException("Operation Not supported !!");
 	}
 
 	@Override
 	public RelayFlushMaxSCNResult flush(FetchMaxSCNRequest maxScnRequest,
-			FlushRequest flushRequest) throws InterruptedException 
+			FlushRequest flushRequest) throws InterruptedException
 	{
 		throw new RuntimeException("Operation Not supported !!");
 	}
@@ -547,20 +554,18 @@ public class DatabusV2ClusterRegistrationImpl implements
 	{
 	  return "Status" + ((_id != null ) ? "_" + _id.getId() : "");
 	}
-	
-	
-	  
+
+
 	protected synchronized void initializeStatsCollectors()
 	{
 		//some safety against null pointers coming from unit tests
 	    MBeanServer mbeanServer = null;
-	    
+
 	    if ( null != _client)
 	    {
-	        mbeanServer = _client.getClientStaticConfig().isEnablePerConnectionStats() ?
-	        						_client.getMbeanServer() : null;
+	        mbeanServer = _client.getMbeanServer();
 	    }
-	    
+
 	    int ownerId = null == _client ? -1 : _client.getContainerStaticConfig().getId();
 	    String regId = null != _id ? _id.getId() : "unknownReg";
 
@@ -592,7 +597,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 	      _client.getGlobalStatsMerger().registerStatsCollector(_bootstrapCallbackStatsMerger);
 	    }
 	}
-	
+
 	/**
 	 * Callback for ClusterManage when a partition getting added
 	 * @param partition
@@ -619,18 +624,18 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 	/**
 	 * Callback to activate partitions when quorum is reached.
-	 * 
+	 *
 	 * @throws DatabusException
 	 */
 	private synchronized void activatePartitions()
 		throws DatabusClientException
 	{
 		_state = RegistrationState.STARTED;
-		
+
 		for (DbusPartitionInfo p : _partitionSet)
 			activateOnePartition(p);
 	}
-	
+
 	/**
 	 * Callback to activate one partition that was added
 	 * @param partition
@@ -640,13 +645,13 @@ public class DatabusV2ClusterRegistrationImpl implements
 		throws DatabusClientException
 	{
 		_log.info("Trying to activate partition :" + partition);
-		
+
 		try
 		{
 			if ( regMap.containsKey(partition))
 			{
-				_log.info("Partition (" + partition 
-						+ ") is already added and is currently in state : " 
+				_log.info("Partition (" + partition
+						+ ") is already added and is currently in state : "
 						+ regMap.get(partition).getState() + " skipping !!");
 				return;
 			}
@@ -666,7 +671,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 			}
 
 			// Create Registration
-			RegistrationId id = new RegistrationId(_id + "-" + partition.getPartitionId());		
+			RegistrationId id = new RegistrationId(_id + "-" + partition.getPartitionId());
 			CheckpointPersistenceProvider ckptProvider = createCheckpointPersistenceProvider(partition);
 
 			DatabusV2RegistrationImpl reg = createChildRegistration(id, _client, ckptProvider);
@@ -678,7 +683,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 			regMap.put(partition,reg);
 			reg.onRegister();
-			
+
 			// Add Server-Side Filter
 			if ( null != filterConfig)
 				reg.withServerSideFilter(filterConfig);
@@ -694,21 +699,31 @@ public class DatabusV2ClusterRegistrationImpl implements
 				_log.error("Got exception while starting the registration for partition (" + partition + ")", e);
 				throw e;
 			}
+
+			//Add partition Specific metrics to cluster-merge
+			_relayEventStatsMerger.addStatsCollector(id.getId(), (DbusEventsStatisticsCollector)reg.getRelayEventStats());
+			_bootstrapEventStatsMerger.addStatsCollector(id.getId(), (DbusEventsStatisticsCollector)reg.getBootstrapEventStats());
+			_relayCallbackStatsMerger.addStatsCollector(id.getId(), (ConsumerCallbackStats)reg.getRelayCallbackStats());
+			_bootstrapCallbackStatsMerger.addStatsCollector(id.getId(), (ConsumerCallbackStats)reg.getBootstrapCallbackStats());
+
 			_log.info("Partition (" + partition + ") started !!");
 		} catch (DatabusException e) {
 			_log.error("Got exception while activating partition(" + partition + ")",e);
 			throw new DatabusClientException(e);
+		} catch (ClusterCheckpointException e) {
+			_log.error("Got exception while activating partition(" + partition + ")",e);
+			throw new DatabusClientException(e);
 		}
 	}
-	
+
 	private DatabusV2RegistrationImpl createChildRegistration(RegistrationId id, DatabusHttpClientImpl client, CheckpointPersistenceProvider ckptProvider)
 	{
 		return new DatabusClusterChildRegistrationImpl(id, client, this, ckptProvider);
 	}
-	
+
 	/**
 	 * Callback to drop one partition
-	 * 
+	 *
 	 * @param partition
 	 * @throws DatabusException
 	 */
@@ -721,7 +736,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 		} else if ( _state.isRunning()) {
 			if (! regMap.containsKey(partition))
 			{
-				_log.warn("Partition (" + partition 
+				_log.warn("Partition (" + partition
 						+ ") not available to be dropped. skipping !! Active Partitions :" + regMap.keySet());
 				return;
 			}
@@ -734,15 +749,21 @@ public class DatabusV2ClusterRegistrationImpl implements
 			regMap.remove(partition);
 			_partitionSet.remove(partition);
 
+			// remove dropped partition specific metrics
+			_relayEventStatsMerger.removeStatsCollector(reg.getRegistrationId().getId());
+			_bootstrapEventStatsMerger.removeStatsCollector(reg.getRegistrationId().getId());
+			_relayCallbackStatsMerger.removeStatsCollector(reg.getRegistrationId().getId());
+			_bootstrapCallbackStatsMerger.removeStatsCollector(reg.getRegistrationId().getId());
+
 			// Notify Listener
 			_partitionListener.onDropPartition(partition, reg);
 		} else {
 			throw new IllegalStateException("Registration is not in correct state to drop a partition !! State :" + _state);
 		}
-		
+
 	}
-	
-	
+
+
 	private static class DatabusClusterChildRegistrationImpl
 	   extends DatabusV2RegistrationImpl
 	{
@@ -750,21 +771,49 @@ public class DatabusV2ClusterRegistrationImpl implements
 		public DatabusClusterChildRegistrationImpl(RegistrationId id,
 				DatabusHttpClientImpl client,
 				DatabusRegistration parentReg,
-				CheckpointPersistenceProvider ckptProvider) 
+				CheckpointPersistenceProvider ckptProvider)
 		{
 			super(id, client, ckptProvider);
 			setParent(parentReg);
 		}
-		
+
 		@Override
 		protected void deregisterFromClient()
 		{
 			//do nothing
 		}
+
+		/**
+		 * Only Enable PerPartition Stats if required by config
+		 */
+		@Override
+    protected synchronized void initializeStatsCollectors()
+		{
+		  MBeanServer mbeanServer =  null;
+
+		  if ( null != _client )
+		  {
+		    mbeanServer = _client.getClientStaticConfig().isEnablePerConnectionStats() ?
+		        _client.getMbeanServer() : null;
+		  }
+
+		  int ownerId = null == _client ? -1 : _client.getContainerStaticConfig().getId();
+		  String regId = null != _id ? _id.getId() : "unknownReg";
+
+		  initializeStatsCollectors(regId, ownerId, mbeanServer);
+
+		  if (null != _client && _client.getClientStaticConfig().isEnablePerConnectionStats())
+		  {
+		    _client.getBootstrapEventsStats().addStatsCollector(regId, _bootstrapEventsStatsCollector );
+		    _client.getInBoundStatsCollectors().addStatsCollector(regId, _inboundEventsStatsCollector);
+		    _client.getRelayConsumerStatsCollectors().addStatsCollector(regId, _relayConsumerStats);
+		    _client.getBootstrapConsumerStatsCollectors().addStatsCollector(regId, _bootstrapConsumerStats);
+		  }
+		}
 	}
 
 	@Override
-	public synchronized void onGainedPartitionOwnership(int partition) 
+	public synchronized void onGainedPartitionOwnership(int partition)
 	{
 		_log.info("Partition (" + partition + ") getting added !!");
 
@@ -779,7 +828,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public synchronized void onLostPartitionOwnership(int partition) 
+	public synchronized void onLostPartitionOwnership(int partition)
 	{
 		_log.info("Partition (" + partition + ") getting removed !!");
 
@@ -802,7 +851,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 	@Override
 	public synchronized void onReset(int partition) {
 		_log.error("Reset notification received for partition");
-		onLostPartitionOwnership(partition);		
+		onLostPartitionOwnership(partition);
 	}
 
     /**
@@ -819,8 +868,8 @@ public class DatabusV2ClusterRegistrationImpl implements
            throws IllegalStateException
    {
 	   	if ( ! _state.isPreStartState())
-	   		throw new IllegalStateException("Cannot add sources when state is running/shutdown. Current State :" + _state);  
-          
+	   		throw new IllegalStateException("Cannot add sources when state is running/shutdown. Current State :" + _state);
+
 	   	for (String s : sources)
 	   		if (! _sources.contains(s))
 	   			_sources.add(s);
@@ -838,11 +887,11 @@ public class DatabusV2ClusterRegistrationImpl implements
    {
 	   	if ( ! _state.isRunning())
 	   		throw new IllegalStateException("Cannot remove sources when state is running. Current State :" + _state);
-	    
+
 	   	for (String s : sources)
 	   		_sources.remove(s);
    }
-   
+
    /**
     * Callback when registration is added to client Registration Set.
     * @param state
@@ -854,7 +903,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 
    @Override
-   public synchronized void onInstanceChange(List<String> activeNodes) 
+   public synchronized void onInstanceChange(List<String> activeNodes)
    {
 	   if ( _currentActiveNodes == null)
 		   _currentActiveNodes = new ArrayList<String>();
@@ -876,7 +925,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 
    }
 
-   
+
    private static void findDiff(Collection<String> lhs, Collection<String> rhs, Collection<String> result)
    {
 	   for (String c : lhs)
@@ -885,10 +934,10 @@ public class DatabusV2ClusterRegistrationImpl implements
 			   result.add(c);
 	   }
    }
-   
-   
+
+
    @Override
-   public synchronized void onPartitionMappingChange(Map<Integer, String> activePartitionMap) 
+   public synchronized void onPartitionMappingChange(Map<Integer, String> activePartitionMap)
    {
 	   for (int i = 0 ; i < _clusterInfo.getNumTotalPartitions(); i++)
 	   {
@@ -906,18 +955,14 @@ public class DatabusV2ClusterRegistrationImpl implements
 
 	   _log.info("Current Partition to Client mapping :" + activePartitionMap);
    }
-   
-	protected DatabusCluster createCluster(String id) throws Exception
+
+	protected DatabusCluster createCluster() throws Exception
 	{
-		return new DatabusCluster(_clientClusterConfig.getZkAddr(),
-                  _clientClusterConfig.getClusterName(), 
-                 id, 
-               (int)(_clientClusterConfig.getNumPartitions()), 
-               (int)(_clientClusterConfig.getQuorum()));
+		return new DatabusCluster(_clientClusterConfig);
 	}
-	
-	protected CheckpointPersistenceProvider createCheckpointPersistenceProvider(DbusPartitionInfo partition) 
-			throws InvalidConfigException
+
+	protected CheckpointPersistenceProvider createCheckpointPersistenceProvider(DbusPartitionInfo partition)
+			throws InvalidConfigException,ClusterCheckpointException
 	{
 		return new ClusterCheckpointPersistenceProvider(partition.getPartitionId(),_ckptPersistenceProviderConfig);
 	}
@@ -935,7 +980,7 @@ public class DatabusV2ClusterRegistrationImpl implements
 	}
 
 	@Override
-	public DbusKeyCompositeFilterConfig getFilterConfig() 
+	public DbusKeyCompositeFilterConfig getFilterConfig()
 	{
 		return null;
 	}

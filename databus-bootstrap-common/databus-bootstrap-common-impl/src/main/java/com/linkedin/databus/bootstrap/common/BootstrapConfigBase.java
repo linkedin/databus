@@ -34,7 +34,6 @@ import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.DatabusHttpClientImpl;
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfig.ProviderType;
-import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 
@@ -53,6 +52,7 @@ public class BootstrapConfigBase
   public static final String DEFAULT_BOOTSTRAP_DB_NAME = "bootstrap";
 
   public static final long DEFAULT_BOOTSTRAP_FETCH_SIZE = 1000;
+
   public static final int DEFAULT_BOOTSTRAP_LOG_SIZE = 10000;
   public static final boolean DEFAULT_BOOTSTRAP_DB_STATE_CHECK = false;
 
@@ -61,6 +61,9 @@ public class BootstrapConfigBase
   protected String _bootstrapDBHostname = DEFAULT_BOOTSTRAP_DB_HOSTNAME;
   protected String _bootstrapDBName = DEFAULT_BOOTSTRAP_DB_NAME;
   protected long _bootstrapBatchSize = DEFAULT_BOOTSTRAP_FETCH_SIZE;
+  protected long _bootstrapSnapshotBatchSize = 0;
+  protected long _bootstrapCatchupBatchSize = 0;
+
   protected int _bootstrapLogSize = DEFAULT_BOOTSTRAP_LOG_SIZE;
   protected boolean _bootstrapDBStateCheck = DEFAULT_BOOTSTRAP_DB_STATE_CHECK;
 
@@ -146,8 +149,8 @@ public class BootstrapConfigBase
   {
       _bootstrapDBName = dbName;
   }
-  
-  
+
+
   public String getBootstrapDBPassword()
   {
       return _bootstrapDBPassword;
@@ -174,6 +177,24 @@ public class BootstrapConfigBase
       return _bootstrapBatchSize;
   }
 
+  /**
+   *
+   * @return bootstrapSnapshotBatchSize : defaults to bootstrapBatchSize if none defined
+   */
+  public long getBootstrapSnapshotBatchSize()
+  {
+      return _bootstrapSnapshotBatchSize > 0 ? _bootstrapSnapshotBatchSize : _bootstrapBatchSize;
+  }
+
+  /**
+   *
+   * @return bootstrapCatchupBatchSize : defaults to bootstrapBatchSize if none defined
+   */
+  public long getBootstrapCatchupBatchSize()
+  {
+      return _bootstrapCatchupBatchSize > 0 ? _bootstrapCatchupBatchSize : _bootstrapBatchSize;
+  }
+
   public int getBootstrapLogSize()
   {
       return _bootstrapLogSize;
@@ -198,6 +219,16 @@ public class BootstrapConfigBase
   public void setBootstrapDBHostname(String bootstrapDBHostname)
   {
       _bootstrapDBHostname = bootstrapDBHostname;
+  }
+
+  public void setBootstrapCatchupBatchSize(long bootstrapBatchSize)
+  {
+      _bootstrapCatchupBatchSize = bootstrapBatchSize;
+  }
+
+  public void setBootstrapSnapshotBatchSize(long bootstrapBatchSize)
+  {
+      _bootstrapSnapshotBatchSize = bootstrapBatchSize;
   }
 
   public void setBootstrapBatchSize(long bootstrapBatchSize)

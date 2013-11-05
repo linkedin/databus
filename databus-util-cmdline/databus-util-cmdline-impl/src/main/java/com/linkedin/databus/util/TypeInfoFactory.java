@@ -28,12 +28,13 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
-
 /**
- * User: jwesterm Date: Oct 14, 2010 Time: 6:26:32 PM
+ * This class has been replaced by TypeInfoFactoryInteractive
  */
+@Deprecated
 public class TypeInfoFactory
 {
+
   public TypeInfo getTypeInfo(Connection con, String typeOwner, String typeName, int precision, int scale,String primaryKey)
       throws SQLException
   {
@@ -67,7 +68,7 @@ public class TypeInfoFactory
     try
     {
       String fullTableName = tableOwner + "." + tableName;
-      stmt = con.prepareStatement("SELECT * FROM " + fullTableName + " WHERE 0=1");
+      stmt = con.prepareStatement("SELECT * FROM " + fullTableName + " WHERE 0=1") ;
       stmt.executeQuery();
       return true;
     }
@@ -101,7 +102,7 @@ public class TypeInfoFactory
       {
         String columnName = rsmd.getColumnName(column);
 
-	System.out.println("Processing column " + tableName + "." + columnName + ":" + rsmd.getColumnTypeName(column));
+	      System.out.println("Processing column " + tableName + "." + columnName + ":" + rsmd.getColumnTypeName(column));
 
         int columnPrecision = rsmd.getPrecision(column);
         int columnScale = rsmd.getScale(column);

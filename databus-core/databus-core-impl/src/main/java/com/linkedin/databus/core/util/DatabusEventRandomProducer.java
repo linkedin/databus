@@ -121,7 +121,6 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
       this._maxEventsPerWindow = config.getMaxEventsPerWindow();
       LOG.info("Sources: " + _sources + ",duration:" + _duration + ",tickInMS:" + _tickInNanos + ",startScn" + _startScn);
       LOG.info("minEventsPerWindow:" + _minEventsPerWindow + ",maxEventsPerWindow:" + _maxEventsPerWindow);
-      LOG.info("minLength:" + _minLength + ",maxLength:" + _maxLength);
       this._tickInNanos = NANOSECONDS_IN_A_SECOND/config.getEventRate();
       LOG.info("Will wait for " + _tickInNanos + " nanoseconds per event produced");
 
@@ -386,6 +385,8 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
                  ", _maxEventsPerWindow =" + _maxEventsPerWindow +
                  ", _keyMin =" + _keyMin +
                  ", _keyMax =" + _keyMax +
+                 ", _minLength=" + _minLength +
+                 ", _maxLength=" + _maxLength +
                  ", numEvents = " + numEventsGeneratedAfterResume + ", eventBufferSize = " + eventBufferSize +
                  ", sources = " + _sources.size());
 

@@ -270,8 +270,8 @@ public class DbusHttpTotalStats extends AbstractMonitoringMBean<DbusHttpTotalSta
     Lock writeLock = acquireWriteLock();
     try
     {
-      _event.maxStreamWinScn = Math.max(_event.maxStreamWinScn, winScn);
-      _event.minStreamWinScn = Math.min(_event.minStreamWinScn, winScn);
+      _event.maxStreamWinScn = maxValue(_event.maxStreamWinScn, winScn);
+      _event.minStreamWinScn = minValue(_event.minStreamWinScn, winScn);
       registerPeer(peer);
     }
     finally
@@ -290,8 +290,8 @@ public class DbusHttpTotalStats extends AbstractMonitoringMBean<DbusHttpTotalSta
     _event.numSourcesCalls = 0;
     _event.numStreamCalls = 0;
     _event.timeStreamCallsMs = 0;
-    _event.maxStreamWinScn = Long.MIN_VALUE;
-    _event.minStreamWinScn = Long.MAX_VALUE;
+    _event.maxStreamWinScn = DEFAULT_MAX_LONG_VALUE;
+    _event.minStreamWinScn = DEFAULT_MIN_LONG_VALUE;
     _event.numErrInvalidParamsRegisterCalls = 0;
     _event.numErrRegisterCalls = 0;
     _event.numErrInvalidParamsStreamCalls = 0;
@@ -379,8 +379,8 @@ public class DbusHttpTotalStats extends AbstractMonitoringMBean<DbusHttpTotalSta
     _event.numSourcesCalls += e.numSourcesCalls;
     _event.numStreamCalls += e.numStreamCalls;
     _event.timeStreamCallsMs += e.timeStreamCallsMs;
-    _event.maxStreamWinScn = Math.max(_event.maxStreamWinScn, e.maxStreamWinScn);
-    _event.minStreamWinScn = Math.min(_event.minStreamWinScn, e.minStreamWinScn);
+    _event.maxStreamWinScn = maxValue(_event.maxStreamWinScn, e.maxStreamWinScn);
+    _event.minStreamWinScn = minValue(_event.minStreamWinScn, e.minStreamWinScn);
     _event.numErrInvalidParamsRegisterCalls += e.numErrInvalidParamsRegisterCalls;
     _event.numErrRegisterCalls += e.numErrRegisterCalls;
     _event.numErrInvalidParamsStreamCalls += e.numErrInvalidParamsStreamCalls;

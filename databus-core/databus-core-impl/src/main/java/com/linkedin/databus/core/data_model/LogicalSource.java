@@ -161,6 +161,42 @@ public class LogicalSource
     return _id.intValue() != UNKNOWN_LOGICAL_SOURCE_ID.intValue();
   }
 
+  /**
+   * Converts the logical source to a human-readable string
+   * @param   sb        a StringBuilder to accumulate the string representation; if null, a new one will be allocated
+   * @return  the StringBuilder
+   */
+  public StringBuilder toSimpleString(StringBuilder sb)
+  {
+    if (null == sb)
+    {
+      sb = new StringBuilder(50);
+    }
+    sb.append("[");
+    if (isWildcard())
+    {
+      sb.append("*");
+    }
+    else if (idKnown())
+    {
+      sb.append("name=").append(_name).append(", id=").append(_id);
+    }
+    else
+    {
+      sb.append("name=").append(_name);
+    }
+    sb.append("]");
+    return sb;
+  }
+
+  /**
+   * Converts the logical source to a human-readable string
+   */
+  public String toSimpleString()
+  {
+    return toSimpleString(null).toString();
+  }
+
   public static class Builder
   {
     //private Integer _id = UNKNOWN_LOGICAL_SOURCE_ID;

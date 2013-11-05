@@ -34,15 +34,14 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.monitoring.mbean.DBStatistics;
 import com.linkedin.databus.monitoring.mbean.DBStatisticsMBean;
 import com.linkedin.databus.monitoring.mbean.SourceDBStatistics;
-import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventProducer;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.util.DBHelper;
 
 public class MonitoringEventProducer implements EventProducer , Runnable {
 
-	private final	List<MonitoredSourceInfo> _sources ;
+	private final	List<OracleTriggerMonitoredSourceInfo> _sources ;
 	private final String _name;
 	private final String _dbname;
 	protected enum MonitorState {INIT,RUNNING, PAUSE,SHUT}
@@ -63,7 +62,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	private final MBeanServer _mbeanServer;
 
 
-	public MonitoringEventProducer(String name,String dbname, String uri,List<MonitoredSourceInfo> sources,MBeanServer mbeanServer) {
+	public MonitoringEventProducer(String name,String dbname, String uri,List<OracleTriggerMonitoredSourceInfo> sources,MBeanServer mbeanServer) {
 		_sources = sources;
 		_name = name;
 		_dbname = dbname;
@@ -77,7 +76,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 		// Generate the event queries for each source
 		_monitorQueriesBySource = new  HashMap<Short, String>();
 		_dbStats = new DBStatistics(dbname);
-		for(MonitoredSourceInfo sourceInfo : sources)
+		for(OracleTriggerMonitoredSourceInfo sourceInfo : sources)
 		{
 		  if (null==_schema)
 		  {
@@ -170,7 +169,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 				  long maxDBScn = getMaxTxlogSCN(_con);
 				  _log.info("Max DB Scn =  " + maxDBScn);
 				  _dbStats.setMaxDBScn(maxDBScn);
-					for (MonitoredSourceInfo source: _sources) {
+					for (OracleTriggerMonitoredSourceInfo source: _sources) {
 						String eventQuery = _monitorQueriesBySource.get(source.getSourceId());
 						pstmt = _con.prepareStatement(eventQuery);
 						pstmt.setFetchSize(10);
@@ -182,7 +181,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 							_log.info("Source: " + source.getSourceId() + " Max Scn=" + maxScn);
 							_dbStats.setSrcMaxScn(source.getSourceName(), maxScn);
 						}
-						_con.commit();
+						DBHelper.commit(_con);
 						DBHelper.close(rs,pstmt, null);
 						if (_state != MonitorState.SHUT) {
 							Thread.sleep(PER_SRC_MAX_SCN_POLL_TIME);
@@ -192,11 +191,14 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 						Thread.sleep(MAX_SCN_POLL_TIME);
 					}
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+				    _log.error("Exception trace", e);
 					shutDown();
 				} catch (SQLException e) {
-					e.printStackTrace();
-					shutDown();
+                   try { 
+                        DBHelper.rollback(_con); 
+                   } catch (SQLException s){}
+				   _log.error("Exception trace", e);
+				   shutDown();
 				}
 				finally
 			    {
@@ -214,7 +216,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	  _curThread = null;
 	}
 
-	private String generateEventQuery(MonitoredSourceInfo sourceInfo)
+	private String generateEventQuery(OracleTriggerMonitoredSourceInfo sourceInfo)
 	{
 	  /*
 	  select scn from sy$txlog where txn = (select max(txn) from sy$member_account);
@@ -261,7 +263,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 	    }
 	    finally
 	    {
-	      DBHelper.close(rs, pstmt, null);
+            DBHelper.close(rs, pstmt, null);
 	    }
 
 	    return maxScn;
@@ -280,7 +282,7 @@ public class MonitoringEventProducer implements EventProducer , Runnable {
 				_con.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
 			}
 		} catch (SQLException e) {
-			e.printStackTrace();
+		    _log.error("Exception trace", e);
 			return false;
 		}
 		return true;

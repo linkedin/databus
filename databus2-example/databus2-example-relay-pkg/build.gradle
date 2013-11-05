@@ -3,6 +3,10 @@ apply plugin: 'java'
 dependencies {
   compile project(':databus2-relay:databus2-relay-impl')
   compile project(':databus2-example:databus2-example-relay')
+
+  if ((System.getProperty('open_source') == null) || (System.getProperty('open_source').trim().equalsIgnoreCase("false"))) {
+    compile externalDependency.databusSchemas
+  }
 }
 
 task myTar(type: Tar) {
@@ -20,10 +24,6 @@ task myTar(type: Tar) {
   into("bin") {
     from("${project.rootDir}/script")
     include('setup.inc')
-  }
- 
-  from("${project.rootDir}/databus2-example/schemas_registry/com.linkedin.events.example.person.Person.1.avsc") {
-    into("schemas_registry")    
   }
 
   into("lib") {

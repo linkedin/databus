@@ -26,6 +26,8 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV2Factory;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.util.InvalidConfigException;
 
@@ -49,7 +51,7 @@ public class TestDbusEventBufferNG
       DbusEventBuffer.Config cfgBuilder = new DbusEventBuffer.Config();
       cfgBuilder.setMaxSize(10000);
       cfgBuilder.setScnIndexSize(1024);
-      cfgBuilder.setReadBufferSize(1024);
+      cfgBuilder.setAverageEventSize(1024);
       cfgBuilder.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
       cfgBuilder.getTrace().setOption(RelayEventTraceOption.Option.file.toString());
       cfgBuilder.getTrace().setFilename(tmpFile.getAbsolutePath());
@@ -57,7 +59,8 @@ public class TestDbusEventBufferNG
 
       //test that the first gets created
       PhysicalPartition pp = new PhysicalPartition(1, "TestPart");
-      DbusEventBuffer buf1 = new DbusEventBuffer(cfgBuilder.build(), pp);
+      DbusEventFactory eventFactory = new DbusEventV2Factory();
+      DbusEventBuffer buf1 = new DbusEventBuffer(cfgBuilder.build(), pp, eventFactory);
       buf1Trace = new File(tmpFile.getAbsolutePath() + "." + pp.getName() + "_" + pp.getId());
       Assert.assertTrue(buf1Trace.exists());
 
@@ -74,7 +77,7 @@ public class TestDbusEventBufferNG
       Assert.assertTrue(trace1len > 0);
 
       //create the second buffer and check its trace is different
-      DbusEventBuffer buf2 = new DbusEventBuffer(cfgBuilder.build(), pp);
+      DbusEventBuffer buf2 = new DbusEventBuffer(cfgBuilder.build(), pp, eventFactory);
       buf2Trace = new File(tmpFile.getAbsolutePath() + "." + pp.getName() + "_" + pp.getId() + ".1");
       Assert.assertTrue(buf2Trace.exists());
 
@@ -92,7 +95,7 @@ public class TestDbusEventBufferNG
       Assert.assertTrue(buf1Trace.length() == trace1len);
 
       //create a third buffer and check its trace is different
-      DbusEventBuffer buf3 = new DbusEventBuffer(cfgBuilder.build(), pp);
+      DbusEventBuffer buf3 = new DbusEventBuffer(cfgBuilder.build(), pp, eventFactory);
       buf3Trace = new File(tmpFile.getAbsolutePath() + "." + pp.getName() + "_" + pp.getId() + ".2");
       Assert.assertTrue(buf3Trace.exists());
 

@@ -101,7 +101,7 @@ public class TestFileSystemVersionedSchemaSetProvider
                           "latest TestSchema id correct");
 
 
-      SchemaId vs1Id = SchemaId.forSchema(TEST_SCHEMA1_TEXT);
+      SchemaId vs1Id = SchemaId.createWithMd5(TEST_SCHEMA1_TEXT);
       VersionedSchema vs11 = schemaSet.getById(vs1Id);
       Assert.assertNotNull(vs11);
       Assert.assertEquals(vs11.getId(), new VersionedSchemaId("TestSchema", (short)1),
@@ -130,6 +130,7 @@ public class TestFileSystemVersionedSchemaSetProvider
       if (null != schema2Writer) schema2Writer.close();
       if (null != schema3Writer) schema3Writer.close();
     }
+
 
   }
 

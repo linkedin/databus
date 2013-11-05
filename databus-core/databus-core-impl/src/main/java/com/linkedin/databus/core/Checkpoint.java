@@ -33,6 +33,8 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import com.linkedin.databus.core.util.Fnv1aHashImpl;
+
 /**
  * This class represents the state of a consumer consuming events from a Databus server for
  * a single timeline (physical partition). There are two main types of checkpoints:
@@ -45,43 +47,99 @@ import org.codehaus.jackson.map.ObjectMapper;
  * The type of a checkpoint is determined by the consumptionMode parameter
  * {@link #getConsumptionMode()}.
  *
- * <b>Online-Consumption checkpoints<b>
+ * <p><b>Online-Consumption checkpoints</b>
  *
- * Online-consumption checkpoints ({@link DbusClientMode#ONLINE_CONSUMPTION} represent the state of
+ * Online-consumption checkpoints {@link DbusClientMode#ONLINE_CONSUMPTION} represent the state of
  * a consumer of event stream from a relay. The main properties of the checkpoint are:
  *
  * <ul>
- *  <li> {@code windowScn} - the sequence number (SCN) of the current window; -1 denotes
- *  "flexible" checkpoint (see below).
- *  <li> {@code prevScn} - the sequence number (SCN) of the window before current; -1 means
- *  "unknown".
- *  <li> {@code windowOffset} - the number of events processed from the current window;
- *  -1 means the entire window has been processed including the end-of-window event.
+ *  <li> {@code consumption_mode} - must be {@link DbusClientMode#ONLINE_CONSUMPTION}
+ *  <li> {@code windowScn}        - the sequence number (SCN) of the current window; -1 denotes
+ *                                  "flexible" checkpoint (see below).
+ *  <li> {@code prevScn}          - the sequence number (SCN) of the window before current; -1 means
+ *                                  "unknown".
+ *  <li> {@code windowOffset}     - the number of events processed from the current window;
+ *                                  -1 means the entire window has been processed including the end-of-window event and
+ *                                  prevScn must be equal to windowScn.
  * </ul>
  *
- * <i>Flexible online-consumption checkpoints<i>
+ * <i>Flexible online-consumption checkpoints</i>
  *
  * Used by consumers which do not care from where they start consuming. The relay will make the
  * best effort to serve whatever data it has. Flexible checkpoints can be created using
  * {@link #createFlexibleCheckpoint()} or invoking {@link #setFlexible()} on an existing Checkpoint.
  *
- * <b>Bootstrap checkpoints</b>
+ *<p><b>Bootstrap checkpoints</b>
+ *
+ * These are common fields for snapshot and catchup bootsrap checkpoints (see below).
+ *
+ * <ul>
+ *   <li> {@code bootstrap_since_scn} - the SCN of the last fully-consumed window or 0 for a full bootstrap. Must be >= 0.
+ *   <li> {@code bootstrap_start_scn}  - the last SCN written to the snapshot when the snapshot started; must be set
+ *                                       before any data is read, i.e. {@code bootstrap_snapshot_source_index} > 0 or
+ *                                       {@code snapshot_offset} > 0 or {@code bootstrap_target_scn} != -1
+ *   <li> {@code bootstrap_target_scn} - the last SCN written to the log tables when the snapshot of the last source
+ *                                       completed. It provides an upper bound of how much dirty data might have been
+ *                                       read while snapshotting. It specifies the SCN up to which catch-up should be
+ *                                       performed to guarantee consistency of the bootstrap results.
+ * </ul>
+ *
+ * <p><b>Bootstrap snapshot checkpoints</b>
+ *
+ * Bootstrap snapshot checkpoints ({@link DbusClientMode#BOOTSTRAP_SNAPSHOT}) represent a consumer in the SNAPSHOT
+ * phase of bootstrapping. The main properties of checkpoints are:
+ *
+ * <ul>
+ *   <li> {@code consumption_mode}    - must be {@link DbusClientMode#BOOTSTRAP_SNAPSHOT}
+ *   <li> {@code bootstrap_snapshot_source_index} - the index of the current source being snapshotted or the index
+ *                                      of the next source if {@code bootstrap_snapshot_offet} == -1
+ *   <li> {@code snapshot_source}     - the name of the current source being snapshotted or the name of the next source
+ *                                      if {@code bootstrap_snapshot_offet} == -1
+ *   <li> {@code bootstrap_snapshot_offset} - number of rows successfully read for the current snapshot source; if -1,
+ *                                      all rows have been read
+ *   <li> {@code bootstrap_snapshot_file_record_offset} - Applicable for V3 bootstrap only; refers to the offset of the
+ *                                       record within the AVRO block
+ *   <li> {@code storage_cluster_name} - Applicable for V3 bootstrap only; refers to name of espresso storage cluster
+ *
+ * </ul>
+ *
+ * <p><b>Bootstrap catchup checkpoints</b>
+ *
+ * Bootstrap catchup checkpoints ({@link DbusClientMode#BOOTSTRAP_CATCHUP}) represent a consumer in the CATCHUP
+ * phase of bootstrapping. The main properties of checkpoints are:
+ *
+ * <ul>
+ *   <li> {@code consumption_mode}     - must be {@link DbusClientMode#BOOTSTRAP_CATCHUP}
+ *   <li> {@code bootstrap_snapshot_source_index} - the index of the last snapshot source
+ *   <li> {@code bootstrap_snapshot_offset} - should always be -1
+ *   <li> {@code catchup_source}       - the name of the current catch-up source or the name of the next source
+ *                                       if {@code windowScn} == -1
+ *  <li> {@code windowScn}             - the sequence number (SCN) of the current window being caught-up;
+ *  <li> {@code windowOffset}          - the number of events processed from the current window;
+ * </ul>
+ *
  *
  * @see CheckpointMult for multi-partition checkpoints
  *
  */
 public class Checkpoint
 	extends InternalDatabusEventsListenerAbstract
-	implements Serializable
+	implements Serializable, Cloneable
 {
   private static final long serialVersionUID = 1L;
   public static final String  MODULE               = Checkpoint.class.getName();
   public static final Logger  LOG                  = Logger.getLogger(MODULE);
 
-  public static final long INVALID_BOOTSTRAP_START_SCN = -1;
-  public static final long INVALID_BOOTSTRAP_SINCE_SCN = 0;
-  public static final long INVALID_BOOTSTRAP_TARGET_SCN = -1;
-  public static final int INVALID_BOOTSTRAP_INDEX = 0;
+  public static final long UNSET_BOOTSTRAP_START_SCN = -1;
+  public static final long UNSET_BOOTSTRAP_SINCE_SCN = -1;
+  public static final long UNSET_BOOTSTRAP_TARGET_SCN = -1;
+  public static final int UNSET_BOOTSTRAP_INDEX = 0;
+  public static final long UNSET_ONLINE_PREVSCN = -1;
+  public static final String NO_SOURCE_NAME = "";
+
+  /** The window offset value for a full-consumed window*/
+  public static final Long FULLY_CONSUMED_WINDOW_OFFSET = -1L;
+  public static final Long DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET = -1L;
 
 
   private static final String WINDOW_SCN           = "windowScn";
@@ -107,7 +165,11 @@ public class Checkpoint
   // 7. The window scn for the catchup [Similar to regular consumption mode]
   // 8. The window offset for the catchup [Similar to regular consumption mode]
   // 9. Since SCN - the SCN at which bootstrap process is initiated.
-  // 10. Boostrap Server Coordinates
+  // 10. Bootstrap Server Coordinates
+  // 11. (V3 only) Bootstrap server side file record offset.
+  //     (i)  snapshot_offset field has the avro block number to seek within the avro file in v3 bootstrap
+  //     (ii) snapshot_file_record_offset is used to skip records
+  // 12. (V3 only) When storage in on Espresso, this refers to storage cluster name
 
   private static final String CONSUMPTION_MODE     = "consumption_mode";
   private static final String BOOTSTRAP_START_SCN  = "bootstrap_start_scn";
@@ -119,10 +181,10 @@ public class Checkpoint
   private static final String BOOTSTRAP_SNAPSHOT_SOURCE_INDEX = "bootstrap_snapshot_source_index";
   private static final String BOOTSTRAP_CATCHUP_SOURCE_INDEX = "bootstrap_catchup_source_index";
   public static final String BOOTSTRAP_SERVER_INFO = "bootstrap_server_info";
+  public static final String SNAPSHOT_FILE_RECORD_OFFSET = "bootstrap_snapshot_file_record_offset";
+  public static final String STORAGE_CLUSTER_NAME = "storage_cluster_name";
 
-  private static final String FLEXIBLE             = "flexible";
-
-  private static ObjectMapper mapper               = new ObjectMapper();
+  private static final ObjectMapper mapper               = new ObjectMapper();
   private final Map<String, Object> internalData;
 
   private long                currentWindowScn;
@@ -130,18 +192,14 @@ public class Checkpoint
   private long                currentWindowOffset;
   private long                snapShotOffset;
 
-
-  private DbusClientMode      mode;
-
   @SuppressWarnings("unchecked")
   public Checkpoint(String serializedCheckpoint) throws JsonParseException,
       JsonMappingException,
       IOException
   {
-
-    internalData =
-        mapper.readValue(new ByteArrayInputStream(serializedCheckpoint.getBytes()),
-                         Map.class);
+    this();
+    internalData.putAll(mapper.readValue(new ByteArrayInputStream(serializedCheckpoint.getBytes()),
+                                         Map.class));
     // copy from map to local state variables
     mapToInternalState();
 
@@ -151,7 +209,7 @@ public class Checkpoint
   {
     currentWindowScn =  (internalData.get(WINDOW_SCN) != null) ? ((Number) internalData.get(WINDOW_SCN)).longValue() : -1;
     prevWindowScn = (internalData.get(PREV_SCN) != null) ? ((Number) internalData.get(PREV_SCN)).longValue() : -1;
-    currentWindowOffset =  (internalData.get(WINDOW_OFFSET) != null) ? ((Number) internalData.get(WINDOW_OFFSET)).longValue() : -1;
+    currentWindowOffset =  (internalData.get(WINDOW_OFFSET) != null) ? ((Number) internalData.get(WINDOW_OFFSET)).longValue() : FULLY_CONSUMED_WINDOW_OFFSET;
     snapShotOffset =  (internalData.get(SNAPSHOT_OFFSET) != null) ? ((Number) internalData.get(SNAPSHOT_OFFSET)).longValue() : -1;
   }
 
@@ -165,8 +223,8 @@ public class Checkpoint
 
   public Checkpoint()
   {
-	internalData = new HashMap<String, Object>();
-	init();
+    internalData = new HashMap<String, Object>();
+    init();
   }
 
   /** Clears the checkpoint. */
@@ -174,7 +232,7 @@ public class Checkpoint
   {
 	  currentWindowScn = -1L;
 	  prevWindowScn = -1L;
-	  currentWindowOffset = -1;
+	  currentWindowOffset = FULLY_CONSUMED_WINDOW_OFFSET;
 	  snapShotOffset = -1;
 	  internalData.clear();
 	  setConsumptionMode(DbusClientMode.INIT);
@@ -190,16 +248,16 @@ public class Checkpoint
 	  internalData.put(BOOTSTRAP_CATCHUP_SOURCE_INDEX, index);
   }
 
-  public void incrementBootstrapSnapshotSourceIndex()
+  int nextBootstrapSnapshotSourceIndex()
   {
 	  int index = getBootstrapSnapshotSourceIndex();
-	  internalData.put(BOOTSTRAP_SNAPSHOT_SOURCE_INDEX, index + 1);
+	  return index + 1;
   }
 
-  public void incrementBootstrapCatchupSourceIndex()
+  int nextBootstrapCatchupSourceIndex()
   {
 	  int index = getBootstrapCatchupSourceIndex();
-	  internalData.put(BOOTSTRAP_CATCHUP_SOURCE_INDEX, index + 1);
+	  return index + 1;
   }
 
   public void setBootstrapServerInfo(String serverInfoStr)
@@ -218,6 +276,10 @@ public class Checkpoint
 
   public void setWindowScn(Long windowScn)
   {
+    if (DbusClientMode.BOOTSTRAP_CATCHUP == getConsumptionMode() && !isBootstrapTargetScnSet())
+    {
+      throw new InvalidCheckpointException("target SCN must be set for catchup to proceed", this);
+    }
      currentWindowScn = windowScn;
   }
 
@@ -233,7 +295,18 @@ public class Checkpoint
 
   public void setWindowOffset(long windowOffset)
   {
+    if (DbusClientMode.BOOTSTRAP_CATCHUP == getConsumptionMode() && !isBootstrapTargetScnSet())
+    {
+      throw new InvalidCheckpointException("target SCN must be set for catchup to proceed", this);
+    }
     currentWindowOffset = windowOffset;
+  }
+
+  @Deprecated
+  /** @deprecated Please use {@link #setWindowOffset(long)} */
+  public void setWindowOffset(Integer windowOffset)
+  {
+    currentWindowOffset = windowOffset.longValue();
   }
 
   public void setConsumptionMode(DbusClientMode mode)
@@ -243,31 +316,79 @@ public class Checkpoint
 
   public void setBootstrapStartScn(Long bootstrapStartScn)
   {
+    if (isBootstrapStartScnSet() && bootstrapStartScn.longValue() != UNSET_BOOTSTRAP_START_SCN)
+    {
+      throw new InvalidCheckpointException("bootstrap_start_scn is already set", this);
+    }
+    if (bootstrapStartScn.longValue() != UNSET_BOOTSTRAP_START_SCN &&
+        DbusClientMode.BOOTSTRAP_SNAPSHOT != getConsumptionMode())
+    {
+      throw new InvalidCheckpointException("not in bootstrap snapshot mode", this);
+    }
+    if (bootstrapStartScn.longValue() != UNSET_BOOTSTRAP_START_SCN &&
+        bootstrapStartScn.longValue() < 0)
+    {
+      throw new InvalidCheckpointException("invalid bootstra_start_scn value:" + bootstrapStartScn, this);
+    }
     internalData.put(BOOTSTRAP_START_SCN, bootstrapStartScn);
   }
 
-  public void setSnapshotSource(String snapshotSource)
+  public void setSnapshotSource(int sourceIndex, String sourceName)
   {
-    internalData.put(SNAPSHOT_SOURCE, snapshotSource);
+    internalData.put(SNAPSHOT_SOURCE, sourceName);
+    setBootstrapSnapshotSourceIndex(sourceIndex);
   }
 
   public void setSnapshotOffset(long snapshotOffset)
   {
+    if (snapshotOffset != 0 && !isBootstrapStartScnSet())
+    {
+      throw new InvalidCheckpointException("cannot snapshot without bootstrap_start_scn", this);
+    }
+    internalData.put(SNAPSHOT_OFFSET, Long.valueOf(snapshotOffset));
+    this.snapShotOffset = snapshotOffset;
+  }
+
+  protected void clearSnapshotOffset()
+  {
+    internalData.put(SNAPSHOT_OFFSET, FULLY_CONSUMED_WINDOW_OFFSET);
+    this.snapShotOffset = FULLY_CONSUMED_WINDOW_OFFSET;
+  }
+
+  @Deprecated
+  /** @deprecated Please use #setSnapshotOffset(long) */
+  public void setSnapshotOffset(Integer snapshotOffset)
+  {
     internalData.put(SNAPSHOT_OFFSET, Long.valueOf(snapshotOffset));
   }
 
-  public void setCatchupSource(String catchupSource)
+  protected void setCatchupSource(int sourceIndex, String sourceName)
   {
-    internalData.put(CATCHUP_SOURCE, catchupSource);
+    setBootstrapCatchupSourceIndex(sourceIndex);
+    internalData.put(CATCHUP_SOURCE, sourceName);
   }
 
   public void setCatchupOffset(Integer catchupOffset)
   {
-    setWindowOffset(catchupOffset);
+    setWindowOffset(catchupOffset.longValue());
+    // There is no separate field called CATCHUP_OFFSET in checkpoint.
+    // WINDOW_OFFSET is used to store the catchupOffset
+    internalData.put(WINDOW_OFFSET, catchupOffset);
   }
 
   public void setBootstrapTargetScn(Long targetScn)
   {
+    if (UNSET_BOOTSTRAP_TARGET_SCN != targetScn.longValue())
+    {
+      if (targetScn < getBootstrapStartScn())
+      {
+        throw new InvalidCheckpointException("bootstrap_target_scn cannot be smaller than bootstrap_start_scn", this);
+      }
+      if (!isSnapShotSourceCompleted())
+      {
+        throw new InvalidCheckpointException("snapshot should be complete before setting bootstrap_target_scn", this);
+      }
+    }
     internalData.put(BOOTSTRAP_TARGET_SCN, targetScn);
   }
 
@@ -293,24 +414,45 @@ public class Checkpoint
     return (DbusClientMode.valueOf((String) internalData.get(CONSUMPTION_MODE)));
   }
 
-  public Long getBootstrapStartScn()
-  {
-	  Number n = ((Number) internalData.get(BOOTSTRAP_START_SCN));
-
-	  if ( null == n)
-		  return INVALID_BOOTSTRAP_START_SCN;
-
-	  return n.longValue();
-  }
-
   public String getSnapshotSource()
   {
     return (String) internalData.get(SNAPSHOT_SOURCE);
   }
 
+  public long getSnapshotFileRecordOffset()
+  {
+    return number2Long((Number)internalData.get(SNAPSHOT_FILE_RECORD_OFFSET),
+        DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET);
+  }
+
+  public void setSnapshotFileRecordOffset(long snapshotFileRecordOffset)
+  {
+    internalData.put(SNAPSHOT_FILE_RECORD_OFFSET, snapshotFileRecordOffset);
+  }
+
+  public String getStorageClusterName()
+  {
+    return (String) internalData.get(STORAGE_CLUSTER_NAME);
+  }
+
+  public void setStorageClusterName(String storageClusterName)
+  {
+    internalData.put(STORAGE_CLUSTER_NAME, storageClusterName);
+  }
+
+  private static Long number2Long(Number n, Long nullValue)
+  {
+    return (null == n) ? nullValue :  (n instanceof Long) ? (Long)n : n.longValue();
+  }
+
+  private static Integer number2Integer(Number n, Integer nullValue)
+  {
+    return (null == n) ? nullValue :  (n instanceof Integer) ? (Integer)n : n.intValue();
+  }
+
   public Long getSnapshotOffset()
   {
-    return ((Number)internalData.get(SNAPSHOT_OFFSET)).longValue();
+    return number2Long((Number)internalData.get(SNAPSHOT_OFFSET), FULLY_CONSUMED_WINDOW_OFFSET);
   }
 
   public String getCatchupSource()
@@ -318,44 +460,34 @@ public class Checkpoint
     return (String) internalData.get(CATCHUP_SOURCE);
   }
 
+  public Long getBootstrapStartScn()
+  {
+      Number n = ((Number) internalData.get(BOOTSTRAP_START_SCN));
+      return number2Long(n, UNSET_BOOTSTRAP_START_SCN);
+  }
+
   public Long getBootstrapTargetScn()
   {
 	  Number n = ((Number) internalData.get(BOOTSTRAP_TARGET_SCN));
-
-	  if ( null == n )
-		 return INVALID_BOOTSTRAP_TARGET_SCN;
-
-	  return n.longValue();
+	  return number2Long(n, UNSET_BOOTSTRAP_TARGET_SCN);
   }
 
   public Integer getBootstrapSnapshotSourceIndex()
   {
 	  Number n = ((Number) internalData.get(BOOTSTRAP_SNAPSHOT_SOURCE_INDEX));
-
-	  if ( null == n )
-		 return INVALID_BOOTSTRAP_INDEX;
-
-	  return n.intValue();
+	  return number2Integer(n, UNSET_BOOTSTRAP_INDEX);
   }
 
   public Integer getBootstrapCatchupSourceIndex()
   {
 	  Number n = ((Number) internalData.get(BOOTSTRAP_CATCHUP_SOURCE_INDEX));
-
-	  if ( null == n )
-		 return INVALID_BOOTSTRAP_INDEX;
-
-	  return n.intValue();
+      return number2Integer(n, UNSET_BOOTSTRAP_INDEX);
   }
 
   public Long getBootstrapSinceScn()
   {
 	  Number n = ((Number) internalData.get(BOOTSTRAP_SINCE_SCN));
-
-	  if ( null == n )
-		 return INVALID_BOOTSTRAP_SINCE_SCN;
-
-	  return n.longValue();
+      return number2Long(n, UNSET_BOOTSTRAP_SINCE_SCN);
   }
 
   public void serialize(OutputStream outStream) throws JsonGenerationException,
@@ -414,30 +546,37 @@ public class Checkpoint
     }
     else if (e.isCheckpointMessage())
     {
+      Checkpoint ckpt = null;
       try
       {
         ByteBuffer tmpBuffer = e.value();
         byte[] valueBytes = new byte[tmpBuffer.limit()];
         tmpBuffer.get(valueBytes);
-        Checkpoint ckpt = new Checkpoint(new String(valueBytes));
+        ckpt = new Checkpoint(new String(valueBytes, "UTF-8"));
 
-        if (this.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT)
+        switch (this.getConsumptionMode())
         {
-          onSnapshotEvent(ckpt.getSnapshotOffset());
-        }
-        else if (this.getConsumptionMode() == DbusClientMode.BOOTSTRAP_CATCHUP)
-        {
-          onCatchupEvent(ckpt.getWindowScn(), ckpt.getWindowOffset());
-        }
-        else
-        {
-          throw new RuntimeException("Invalid checkpoint message received: " + this);
+          case BOOTSTRAP_SNAPSHOT:
+               copyBootstrapSnapshotCheckpoint(ckpt);
+               break;
+          case BOOTSTRAP_CATCHUP:
+               copyBootstrapCatchupCheckpoint(ckpt);
+               break;
+          case ONLINE_CONSUMPTION:
+               copyOnlineCheckpoint(ckpt);
+               break;
+          default:
+             throw new RuntimeException("Invalid checkpoint message received: " + this);
         }
       }
       catch (Exception exception)
       {
         LOG.error("Exception encountered while reading checkpiont from bootstrap service",
                   exception);
+      }
+      finally
+      {
+        if (null != ckpt) ckpt.close();
       }
     }
     else // regular dbusEvent
@@ -449,19 +588,55 @@ public class Checkpoint
       else
       {
         currentWindowScn = e.sequence();
-        currentWindowOffset = 1;
+        currentWindowOffset = 1L;
       }
     }
 
     if (LOG.isDebugEnabled())
-    	LOG.info("CurrentWindowSCN : " + currentWindowScn
-    			  + ", currentWindowOffset :" + currentWindowOffset
-    			  + ", PrevSCN :" + prevWindowScn);
+      LOG.info("CurrentWindowSCN : " + currentWindowScn
+          + ", currentWindowOffset :" + currentWindowOffset
+          + ", PrevSCN :" + prevWindowScn);
+  }
+
+  /** Copy data about bootstrap catchup consumption from another checkpoint */
+  protected void copyBootstrapCatchupCheckpoint(Checkpoint ckpt)
+  {
+    setWindowScn(ckpt.getWindowScn());
+    setWindowOffset(ckpt.getWindowOffset());
+    //setCatchupSource(ckpt.getCatchupSource());
+    //setBootstrapCatchupSourceIndex(ckpt.getBootstrapCatchupSourceIndex());
+
+    // Update file record offset. The storage_cluster_name is not updated, as it
+    // is meant to be an invariant, once set
+    setSnapshotFileRecordOffset(ckpt.getSnapshotFileRecordOffset());
+  }
+
+  /** Copy data about bootstrap snapshot consumption from another checkpoint
+   *  TODO : This seems to be used only on the eventBuffer and on client side,
+   *  the lastCheckpoint is saved and then this method is invoked on itself.
+   *  This seems to be a no-op
+   */
+  protected void copyBootstrapSnapshotCheckpoint(Checkpoint ckpt)
+  {
+    setSnapshotOffset(ckpt.getSnapshotOffset());
+    setSnapshotSource(ckpt.getBootstrapSnapshotSourceIndex(), ckpt.getSnapshotSource());
+    //setBootstrapSnapshotSourceIndex(ckpt.getBootstrapSnapshotSourceIndex());
+
+    // Update file record offset. The storage_cluster_name is not updated, as it
+    // is meant to be an invariant, once set
+    setSnapshotFileRecordOffset(ckpt.getSnapshotFileRecordOffset());
+  }
+
+  /** Copy data about online consumption from another checkpoint */
+  private void copyOnlineCheckpoint(Checkpoint fromCkpt)
+  {
+    setWindowScn(fromCkpt.getWindowScn());
+    setWindowOffset(fromCkpt.getWindowOffset());
   }
 
   public void endEvents(long endWindowScn)
   {
-    currentWindowOffset = -1;
+    currentWindowOffset = FULLY_CONSUMED_WINDOW_OFFSET;
     this.clearWindowOffset();
     this.setWindowScn(endWindowScn);
   }
@@ -479,14 +654,12 @@ public class Checkpoint
 
   public void startSnapShotSource()
   {
-    snapShotOffset = 0;
-    this.setSnapshotOffset(snapShotOffset);
+    setSnapshotOffset(0);
   }
 
   public void endSnapShotSource()
   {
-    snapShotOffset = -1;
-    this.setSnapshotOffset(snapShotOffset);
+    this.setSnapshotOffset(-1);
   }
 
   public boolean isSnapShotSourceCompleted()
@@ -496,21 +669,20 @@ public class Checkpoint
 
   public void startCatchupSource()
   {
-    currentWindowOffset = 0;
-    currentWindowScn = 0;
-    this.setWindowOffset(currentWindowOffset);
+    setWindowOffset(0);
+    setWindowScn(getBootstrapStartScn());
   }
 
   public void endCatchupSource()
   {
     endEvents(currentWindowScn);
-    this.setWindowOffset(-1);
+    this.setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
   }
 
 
-  public boolean isCatchupCompleted()
+  public boolean isCatchupSourceCompleted()
   {
-    return ((this.getWindowOffset() == -1) ? true : false);
+    return (this.getWindowOffset() == FULLY_CONSUMED_WINDOW_OFFSET);
   }
 
   public void bootstrapCheckPoint()
@@ -541,6 +713,11 @@ public class Checkpoint
     {
       this.setWindowOffset(currentWindowOffset);
     }
+  }
+
+  public boolean isPartialWindow()
+  {
+    return currentWindowOffset >= 0;
   }
 
   /** @deprecated Please use {@link Checkpoint#init()}*/
@@ -578,54 +755,94 @@ public class Checkpoint
 
   public void clearBootstrapSinceScn()
   {
-    setBootstrapSinceScn(Long.valueOf(INVALID_BOOTSTRAP_SINCE_SCN));
+    setBootstrapSinceScn(Long.valueOf(UNSET_BOOTSTRAP_SINCE_SCN));
   }
 
   public void clearBootstrapStartScn()
   {
-    setBootstrapStartScn(Long.valueOf(INVALID_BOOTSTRAP_START_SCN));
+    setBootstrapStartScn(Long.valueOf(UNSET_BOOTSTRAP_START_SCN));
   }
 
   public void clearBootstrapTargetScn()
   {
-    setBootstrapTargetScn(Long.valueOf(INVALID_BOOTSTRAP_TARGET_SCN));
+    setBootstrapTargetScn(Long.valueOf(UNSET_BOOTSTRAP_TARGET_SCN));
   }
 
   public boolean isBootstrapStartScnSet()
   {
-    return (INVALID_BOOTSTRAP_START_SCN != getBootstrapStartScn().longValue());
+    return (null != getBootstrapStartScn() &&
+            UNSET_BOOTSTRAP_START_SCN != getBootstrapStartScn().longValue());
+  }
+
+  public boolean isBootstrapTargetScnSet()
+  {
+    return (null != getBootstrapTargetScn() &&
+           UNSET_BOOTSTRAP_TARGET_SCN != getBootstrapTargetScn().longValue());
   }
 
   public boolean isBootstrapSinceScnSet()
   {
-    return (INVALID_BOOTSTRAP_SINCE_SCN != getBootstrapSinceScn().longValue());
+    return (null != getBootstrapSinceScn() &&
+            UNSET_BOOTSTRAP_SINCE_SCN != getBootstrapSinceScn().longValue());
   }
 
   /*
-   * reset bootstrap specific values in the chckpoint
+   * reset bootstrap specific values in the checkpoint
    */
   public void resetBootstrap()
   {
 	  clearBootstrapSinceScn();
-	  resetBSServerGeneratedState();
+	  clearSnapshotOffset();
+	  setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
+	  clearBootstrapStartScn();
+	  clearBootstrapTargetScn();
+	  setBootstrapSnapshotSourceIndex(UNSET_BOOTSTRAP_INDEX);
+	  setBootstrapCatchupSourceIndex(UNSET_BOOTSTRAP_INDEX);
+	  setBootstrapServerInfo(null);
+	  setSnapshotFileRecordOffset(DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET);
+	  setStorageClusterName("");
   }
 
   /**
-   * Reset all state info originated from BSServer
+   * Resets the bootstrap checkpoint to consume events from a new bootstrap server
+   * This method must be invoked on the client whenever a connection is made to a
+   * bootstrap server that is different from the one serving so far.
    */
-  public void resetBSServerGeneratedState()
+  protected void resetForServerChange()
   {
-	  clearBootstrapStartScn();
-	  clearBootstrapTargetScn();
-	  setBootstrapSnapshotSourceIndex(INVALID_BOOTSTRAP_INDEX);
-	  setBootstrapCatchupSourceIndex(INVALID_BOOTSTRAP_INDEX);
-	  setBootstrapServerInfo(null);
+    setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
+    setSnapshotOffset(0L);
+    setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
+    setWindowScn(getBootstrapSinceScn());
+    clearBootstrapStartScn();
+    clearBootstrapTargetScn();
+    setBootstrapSnapshotSourceIndex(UNSET_BOOTSTRAP_INDEX);
+    setBootstrapCatchupSourceIndex(UNSET_BOOTSTRAP_INDEX);
+    setBootstrapServerInfo(null);
+    setSnapshotFileRecordOffset(DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET);
+    setStorageClusterName("");
   }
 
   /** Remove IOException javac warnings */
   @Override
   public void close()
   {
+  }
+
+  @Override
+  public Checkpoint clone()
+  {
+    Checkpoint ckpt = new Checkpoint();
+    ckpt.currentWindowOffset = currentWindowOffset;
+    ckpt.currentWindowScn = currentWindowScn;
+    ckpt.prevWindowScn = prevWindowScn;
+    ckpt.snapShotOffset = snapShotOffset;
+    for (Map.Entry<String, Object> srcEntry: internalData.entrySet())
+    {
+      ckpt.internalData.put(srcEntry.getKey(), srcEntry.getValue());
+    }
+
+    return ckpt;
   }
 
   /* Helper factory methods */
@@ -648,11 +865,209 @@ public class Checkpoint
    */
   public static Checkpoint createOnlineConsumptionCheckpoint(long lastConsumedScn)
   {
+    if (lastConsumedScn < 0)
+    {
+      throw new InvalidCheckpointException("scn must be non-negative: " + lastConsumedScn, null);
+    }
+
     Checkpoint cp = new Checkpoint();
     cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
     cp.setWindowScn(lastConsumedScn);
-    cp.setWindowOffset(-1);
+    cp.setPrevScn(lastConsumedScn);
+    cp.setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
 
     return cp;
   }
+
+  @Override
+  public boolean equals(Object other)
+  {
+    if (null == other) return false;
+    if (this == other) return true;
+    if (!(other instanceof Checkpoint)) return false;
+    Checkpoint otherCp = (Checkpoint)other;
+
+    boolean success = (currentWindowScn == otherCp.currentWindowScn &&
+                       prevWindowScn == otherCp.prevWindowScn &&
+                       currentWindowOffset == otherCp.currentWindowOffset &&
+                       snapShotOffset == otherCp.getSnapshotOffset());
+    if (success)
+    {
+      //Unfortunately, we cannot use the the Map.equals() method.
+      //If a checkpoint is deserialized from a string, the ObjectMapper may create Integer objects for some fields while
+      //the other checkpoint may have Longs. For java, Integer(-1) != Long(-1). Go figure.
+      for (Map.Entry<String, Object> e: internalData.entrySet())
+      {
+        String k = e.getKey();
+        Object v = e.getValue();
+        Object otherV = otherCp.internalData.get(k);
+        if (v instanceof Number)
+        {
+          success = (otherV instanceof Number) && (((Number) v).longValue() == ((Number)otherV).longValue());
+        }
+        else
+        {
+          success = v.equals(otherV);
+        }
+        if (!success) break;
+      }
+    }
+    return success;
+  }
+
+  @Override
+  public int hashCode()
+  {
+    long lhash = Fnv1aHashImpl.init32();
+    final DbusClientMode mode = getConsumptionMode();
+    lhash = Fnv1aHashImpl.addInt32(lhash, mode.ordinal());
+    lhash = Fnv1aHashImpl.addLong32(lhash, currentWindowScn);
+    lhash = Fnv1aHashImpl.addLong32(lhash, prevWindowScn);
+    lhash = Fnv1aHashImpl.addLong32(lhash, currentWindowOffset);
+    if (DbusClientMode.BOOTSTRAP_CATCHUP == mode || DbusClientMode.BOOTSTRAP_SNAPSHOT == mode)
+    {
+      lhash = Fnv1aHashImpl.addLong32(lhash, snapShotOffset);
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapSinceScn().longValue());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapStartScn().longValue());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapTargetScn().longValue());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapCatchupSourceIndex());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapSnapshotSourceIndex());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getSnapshotFileRecordOffset());
+    }
+
+    return Fnv1aHashImpl.getHash32(lhash);
+  }
+
+  /**
+   * Checks invariants for a checkpoint.
+   * @param ckpt    the checkpoint to validate
+   * @return true; this is so one can write "assert assertCheckpoint()" if they want control if the assert is to be run
+   * @throws InvalidCheckpointException if the validation fails
+   */
+  public boolean assertCheckpoint()
+  {
+    switch (getConsumptionMode())
+    {
+    case INIT: return true;
+    case ONLINE_CONSUMPTION: return assertOnlineCheckpoint();
+    case BOOTSTRAP_SNAPSHOT: return assertSnapshotCheckpoint();
+    case BOOTSTRAP_CATCHUP: return assertCatchupCheckpoint();
+    default:
+      throw new InvalidCheckpointException("unknown checkpoint type", this);
+    }
+  }
+
+  private boolean assertCatchupCheckpoint()
+  {
+    assertCatchupSourceIndex();
+    if (! isBootstrapSinceScnSet())
+    {
+      throw new InvalidCheckpointException("bootstrap_since_scn must be set", this);
+    }
+    if (! isBootstrapStartScnSet())
+    {
+      throw new InvalidCheckpointException("bootstrap_start_scn must be set", this);
+    }
+    if (! isBootstrapTargetScnSet())
+    {
+      throw new InvalidCheckpointException("bootstrap_target_scn must be set", this);
+    }
+    if (! isSnapShotSourceCompleted())
+    {
+      throw new InvalidCheckpointException("bootstrap_snapshot_offset must be -1 for CATCHUP checkpoints", this);
+    }
+    if (getBootstrapTargetScn() < getBootstrapStartScn())
+    {
+      throw new InvalidCheckpointException("bootstrap_target_scn < getbootstrap_start_scn", this);
+    }
+    // If offset is set, then clusterName cannot be empty
+    if (getSnapshotFileRecordOffset() != DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET)
+    {
+      if (getStorageClusterName().isEmpty())
+      {
+        throw new InvalidCheckpointException("snapshot file record offset cannot be set when storage cluster name is empty", this);
+      }
+    }
+
+    return true;
+  }
+
+  private boolean assertSnapshotCheckpoint()
+  {
+    if (0 != getBootstrapCatchupSourceIndex())
+    {
+      throw new InvalidCheckpointException("bootstrap_catchup_source_index must be 0", this);
+    }
+    if (! isBootstrapSinceScnSet())
+    {
+      throw new InvalidCheckpointException("bootstrap_since_scn must be set", this);
+    }
+    if (! isBootstrapStartScnSet())
+    {
+      //we allow bootstrap_start_scn not to be set only in the beginning of the bootstrap before any
+      //data has been read
+      if (0 != getBootstrapSnapshotSourceIndex())
+      {
+        throw new InvalidCheckpointException("bootstrap_snapshot_source_index must be 0 when bootstrap_start_scn is not set",
+                                             this);
+      }
+      if (0 != getSnapshotOffset())
+      {
+        throw new InvalidCheckpointException("snapshot_offset must be 0 when bootstrap_start_scn is not set", this);
+      }
+      if (isBootstrapTargetScnSet())
+      {
+        throw new InvalidCheckpointException("bootstrap_target_scn cannot be set when bootstrap_start_scn is not set",
+                                             this);
+      }
+    }
+    // If offset is set, then clusterName cannot be empty
+    if (getSnapshotFileRecordOffset() != DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET)
+    {
+      if (getStorageClusterName().isEmpty())
+      {
+        throw new InvalidCheckpointException("snapshot file record offset cannot be set when storage cluster name is empty", this);
+      }
+    }
+
+    return true;
+  }
+
+  private boolean assertOnlineCheckpoint()
+  {
+    if (getFlexible())
+    {
+      return true;
+    }
+    if (getWindowScn() < 0)
+    {
+      throw new InvalidCheckpointException("unexpected windowScn: " + getWindowScn(), this);
+    }
+    final long ofs = getWindowOffset();
+    if (ofs < 0 && FULLY_CONSUMED_WINDOW_OFFSET != ofs)
+    {
+      throw new InvalidCheckpointException("unexpected windowOfs: " + getWindowOffset(), this);
+    }
+    if (FULLY_CONSUMED_WINDOW_OFFSET == ofs && UNSET_ONLINE_PREVSCN != getPrevScn() && getPrevScn() != getWindowScn())
+    {
+      throw new InvalidCheckpointException("prevScn != windowScn for a fully consumed window ", this);
+    }
+    if (getPrevScn() > getWindowScn())
+    {
+      throw new InvalidCheckpointException("prevScn > windowScn", this);
+    }
+
+    return true;
+  }
+
+  private void assertCatchupSourceIndex()
+  {
+    final int catchupSourceIndex = getBootstrapCatchupSourceIndex();
+    final int snapshotSourceIndex = getBootstrapSnapshotSourceIndex();
+    if (0 > catchupSourceIndex || catchupSourceIndex > snapshotSourceIndex)
+    {
+      throw new InvalidCheckpointException("invalid catchup source index for using sources ", this);
+    }
+  }
+
 }

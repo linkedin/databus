@@ -20,6 +20,8 @@ package com.linkedin.databus.client.generic;
 
 
 import com.linkedin.databus.client.ClientFileBasedEventTrackingCallback;
+import com.linkedin.databus.client.ClientFileBasedMetadataTrackingCallback;
+import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
@@ -38,18 +40,26 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
   public final static String MODULE = DatabusFileLoggingConsumer.class.getName();
   public final static Logger LOG = Logger.getLogger(MODULE);
   private ClientFileBasedEventTrackingCallback _fileBasedCallback = null;
+  private ClientFileBasedMetadataTrackingCallback _fileBasedMetadataCallback = null;
   private boolean _isPaused;
   private String _EventPattern = null;
 
   public static class StaticConfig
   {
     private final String _valueDumpFile;
+    private final String _metadataDumpFile;
     private boolean _append;
     
     /** The file where to store the JSON values. If null, no values are to be stored. */
     public String getValueDumpFile()
     {
       return _valueDumpFile;
+    }
+    
+    /** The file where to store the decoded metadata info from v2 event. If null, no metadata are to be stored. */
+    public String getMetadataDumpFile()
+    {
+    	return _metadataDumpFile;
     }
 
     public boolean isAppendOnly()
@@ -59,25 +69,41 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
     
     public StaticConfig(String valueDumpFile, boolean append)
     {
-      _valueDumpFile = valueDumpFile;
-      _append = append;
+      this(valueDumpFile, null, append);
     }
-
+    
+    public StaticConfig(String valueDumpFile, String metadataDumpFile, boolean append)
+    {
+    	_valueDumpFile = valueDumpFile;
+    	_metadataDumpFile = metadataDumpFile;
+    	_append = append;
+    }
   }
 
   public static class StaticConfigBuilder implements ConfigBuilder<StaticConfig>
   {
     private String _valueDumpFile;
+    private String _metadataDumpFile;
     private boolean _appendOnly = false; // by default file logging is not append-only
     
     public String getValueDumpFile()
     {
       return _valueDumpFile;
     }
+    
+    public String getMetadataDumpFile()
+    {
+    	return _metadataDumpFile;
+    }
 
     public void setValueDumpFile(String valueDumpFile)
     {
       _valueDumpFile = valueDumpFile;
+    }
+    
+    public void setMetadataDumpFile(String metadataDumpFile)
+    {
+    	_metadataDumpFile = metadataDumpFile;
     }
     
     public boolean getAppendOnly() {
@@ -91,7 +117,7 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 	@Override
     public StaticConfig build() throws InvalidConfigException
     {
-      return new StaticConfig(_valueDumpFile, _appendOnly);
+      return new StaticConfig(_valueDumpFile, _metadataDumpFile, _appendOnly);
     }
 
   }
@@ -104,16 +130,28 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 
   public DatabusFileLoggingConsumer(StaticConfig config) throws IOException
   {
-    this(config.getValueDumpFile(), config.isAppendOnly());
+    this(config.getValueDumpFile(), config.getMetadataDumpFile(), config.isAppendOnly());
   }
 
   public DatabusFileLoggingConsumer(String outputFilename, boolean appendOnly) throws IOException
+  {
+    this( outputFilename, null, appendOnly);
+  }
+  
+  public DatabusFileLoggingConsumer(String outputFilename, String metadataDumpFile, boolean appendOnly) throws IOException
   {
     if (outputFilename != null)
     {
       LOG.info("DatabusFileLoggingConsumer instantiated with output file :" + outputFilename + ", appendOnly :" + appendOnly);	
       _fileBasedCallback = new ClientFileBasedEventTrackingCallback(outputFilename, appendOnly);
       _fileBasedCallback.init();
+    }
+    
+    if( metadataDumpFile != null )
+    {
+    	LOG.info("DatabusFileLoggingConsumer instantiated with output file: " + metadataDumpFile + ", appendOnly: " + appendOnly);
+    	_fileBasedMetadataCallback = new ClientFileBasedMetadataTrackingCallback(metadataDumpFile, appendOnly);
+    	_fileBasedMetadataCallback.init();
     }
   }
 
@@ -143,6 +181,11 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
     if (_fileBasedCallback != null)
     {
       _fileBasedCallback.dumpEventValue(e, eventDecoder);
+    }
+    
+    if( _fileBasedMetadataCallback != null && eventDecoder instanceof DbusEventAvroDecoder )
+    {
+    	_fileBasedMetadataCallback.dumpEventMetadata(e, (DbusEventAvroDecoder) eventDecoder);
     }
     LogTypedValue(e, eventDecoder);
     return ConsumerCallbackResult.SUCCESS;

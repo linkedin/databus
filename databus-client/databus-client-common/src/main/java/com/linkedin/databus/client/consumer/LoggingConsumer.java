@@ -19,6 +19,19 @@ package com.linkedin.databus.client.consumer;
 */
 
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
+import java.util.Formatter;
+
+import org.apache.avro.Schema;
+import org.apache.log4j.Level;
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
+
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -30,16 +43,7 @@ import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 import com.linkedin.databus.core.util.ConfigApplier;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.StringWriter;
-import java.util.Formatter;
-import org.apache.avro.Schema;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.codehaus.jackson.JsonGenerationException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
+import com.linkedin.databus2.schemas.VersionedSchema;
 
 /**
  * A databus stream consumer that can be used for logging/debugging purposes. The class is thread-
@@ -54,6 +58,9 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
   private static final Logger CLASS_LOG = Logger.getLogger(MODULE);
 
   private static final double NANOS_PER_MS = 1000000.0;
+  private static final long BOOTSTRAP_EVENT_LOG_FREQUENCY = 100;
+  private static final String BOOTSTRAP_EVENT_LOG_FORMAT =
+      "bootstrap => #events: %d, last scn: %d, last key: %s, source: %s";
 
   public static enum Verbosity
   {
@@ -71,6 +78,7 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
   private long _curSourceStartTs;
   private int _curSourceEvents;
   private int _curWindowEvents;
+  private long _bstEventsNum;
   private StringBuffer _perSourceMsgBuilder;
   private FileBasedEventTrackingCallback _fileBasedCallback = null;
 
@@ -118,7 +126,7 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
       enableEventFileTrace(outputFileName,false);
     }
   }
-  
+
   public  void enableEventFileTrace(String outputFileName, boolean append) throws IOException
   {
     if (outputFileName != null)
@@ -316,6 +324,12 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
     if (! rtConfig.isEnabled() || !Verbosity.ALL.equals(rtConfig.getVerbosity())) return result;
 
     _log.log(rtConfig.getLogLevel(), bootstrapOn ? "startBootstrap" : "startConsumption");
+
+    if (bootstrapOn)
+    {
+      _bstEventsNum = 0;
+    }
+
     return result;
   }
 
@@ -365,7 +379,32 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
     }
 
     //for backwards compatibility
-    if (bootstrapOn) _log.log(rtConfig.getLogLevel(), "onBootstrapEvent:" + e.sequence());
+    if (bootstrapOn)
+    {
+      ++ _bstEventsNum;
+      if (_bstEventsNum % BOOTSTRAP_EVENT_LOG_FREQUENCY == 1)
+      {
+        final VersionedSchema payloadSchema = eventDecoder.getPayloadSchema(e);
+        String schemaName = (null == payloadSchema) ? "unknown source: " + e.srcId() :
+                            payloadSchema.getSchema().getName();
+        String keyStr;
+        try
+        {
+          keyStr = e.isKeyString() ? new String(e.keyBytes(), "UTF-8") : Long.toString(e.key());
+        }
+        catch (UnsupportedEncodingException e1)
+        {
+          keyStr = "unsupported key encoding";
+        }
+        catch (RuntimeException ex)
+        {
+          keyStr = "key decoding error: " + ex;
+        }
+        String msg = String.format(BOOTSTRAP_EVENT_LOG_FORMAT, _bstEventsNum, e.sequence(), keyStr,
+                                   schemaName);
+        _log.log(rtConfig.getLogLevel(), msg);
+      }
+    }
 
     _currentWindowScn = e.sequence();
     if (_fileBasedCallback != null)

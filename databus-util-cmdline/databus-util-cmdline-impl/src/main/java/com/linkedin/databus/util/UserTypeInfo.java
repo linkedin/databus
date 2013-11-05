@@ -19,22 +19,22 @@ package com.linkedin.databus.util;
 */
 
 
-
 import java.util.Collections;
 import java.util.List;
 
 
 /**
- * TypeInfo implementation for user defined column types. A user type is typically comprised of a number of columns
- * of built in types, basically like a table within a table. We see examples of this in member2, which has an education
- * history type with the name of the institution (VARCHAR2), dates attended (DATE), etc.
+ * TypeInfo implementation for user-defined column types. A user type is typically comprised of a number of columns
+ * of built-in types, basically like a table within a table. We see examples of this in member2, which has an education
+ * history type with the name of the institution (VARCHAR2), dates attended (DATE), etc.  Alternatively, a user type
+ * can be thought of as a generic table, with top-level database tables as a special case.
+ * TODO:  sanitize comment for OSS (open source) release
  */
-public class UserTypeInfo
-  implements TypeInfo
+public class UserTypeInfo implements TypeInfo
 {
-  private final String _ownerName;
-  private final String _name;
-  private final List<FieldInfo> _fields;
+  protected final String _ownerName;
+  protected final String _name;
+  protected final List<FieldInfo> _fields;
 
   public UserTypeInfo(String ownerName, String name, List<FieldInfo> fields)
   {
@@ -60,11 +60,19 @@ public class UserTypeInfo
   }
 
   /**
-   * @return info for all fields (columns) in this user defined type
+   * @return info for all fields (columns) in this user-defined type
    */
   public List<FieldInfo> getFields()
   {
     return _fields;
+  }
+
+  /**
+   * @return name of the primary-key field, if present
+   */
+  public String getPrimaryKey()
+  {
+    return null;
   }
 
   public String toString()

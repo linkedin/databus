@@ -35,15 +35,15 @@ public class TestResourceVersionedSchemaSetProvider
     ResourceVersionedSchemaSetProvider resourceProvider = new ResourceVersionedSchemaSetProvider(this.getClass().getClassLoader());
     VersionedSchemaSet schemaSet = resourceProvider.loadSchemas();
 
-    VersionedSchema bizfollowSchema = schemaSet.getLatestVersionByName("com.linkedin.events.bizfollow.bizfollow.BizFollow");
-    Assert.assertNotNull(bizfollowSchema);
-    Assert.assertTrue(bizfollowSchema.getVersion() >= 2, "version >= 2: " + bizfollowSchema.getVersion());
+    VersionedSchema fakeExistingSchema = schemaSet.getLatestVersionByName("com.linkedin.events.example.fake.FakeSchema");
+    Assert.assertNotNull(fakeExistingSchema);
+    Assert.assertTrue(fakeExistingSchema.getVersion() >= 2, "version >= 2: " + fakeExistingSchema.getVersion());
 
-    VersionedSchema liarJobSchema = schemaSet.getLatestVersionByName("com.linkedin.events.liar.jobrelay.LiarJobRelay");
-    Assert.assertNotNull(liarJobSchema);
+    VersionedSchema personSchema = schemaSet.getLatestVersionByName("com.linkedin.events.example.person.Person");
+    Assert.assertNotNull(personSchema);
 
-    VersionedSchema fakeSchema = schemaSet.getLatestVersionByName("fake.schema");
-    Assert.assertTrue(null == fakeSchema);
+    VersionedSchema fakeNonExistingSchema = schemaSet.getLatestVersionByName("fake.schema");
+    Assert.assertTrue(null == fakeNonExistingSchema);
   }
 
 }

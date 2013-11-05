@@ -31,8 +31,8 @@ import com.linkedin.databus.client.pub.RegistrationId;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.SCNRegressMessage;
 import com.linkedin.databus.core.async.LifecycleMessage;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
@@ -47,25 +47,20 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
                          List<DatabusSubscription> subsList,
                          CheckpointPersistenceProvider checkpointPersistor,
                          DbusEventBuffer dataEventsBuffer,
-                         MultiConsumerCallback<DatabusCombinedConsumer> asyncCallback,
+                         MultiConsumerCallback asyncCallback,
                          BootstrapPullThread bootstrapPuller,
                          MBeanServer mbeanServer,
                          DatabusHttpClientImpl serverHandle,
                          RegistrationId registrationId)
   {
-    super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId);
+    super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId, connConfig.getDispatcherRetries());
     _bootstrapPuller = bootstrapPuller;
   }
 
   @Override
   protected Checkpoint createCheckpoint(DispatcherState curState, DbusEvent event)
   {
-    Checkpoint cp = new Checkpoint();
-    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
-    cp.setWindowScn(event.sequence());
-    cp.setWindowOffset(-1);
-
-    return cp;
+      return createOnlineConsumptionCheckpoint(_lastWindowScn, curState, event);
   }
 
   @Override
@@ -119,7 +114,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
     	LOG.warn("RelayDispatcher acting on SCNRegress : " + message);
     	curState.setSCNRegress(true);
         curState.switchToExpectEventWindow();
-        enqueueMessage(curState);
+        //enqueueMessage(curState);
     }
     else
     {

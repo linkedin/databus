@@ -85,7 +85,7 @@ public class FileMaxSCNHandler implements MaxSCNReaderWriter
     _flushCounter = new AtomicLong(0);
     _scn = new AtomicLong(0);
     _scnFileName = _staticConfig.getScnDir().getAbsolutePath() + File.separator + _staticConfig.getKey();
-    LOG.info("creatgin file:" + _scnFileName);
+    LOG.info("creating file:" + _scnFileName);
   }
 
   /**
@@ -221,7 +221,7 @@ public class FileMaxSCNHandler implements MaxSCNReaderWriter
       }
     }
   }
-  
+
   /**
    * Make Sure We dump back the SCN VAL on shut down
    *

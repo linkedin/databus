@@ -18,18 +18,36 @@ package com.linkedin.databus2.relay;
  *
 */
 
-
-import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.util.HashSet;
 import java.util.Vector;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Executors;
 
 import org.apache.avro.Schema;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelFuture;
+import org.jboss.netty.channel.ChannelHandlerContext;
+import org.jboss.netty.channel.ChannelPipeline;
+import org.jboss.netty.channel.ChannelPipelineFactory;
+import org.jboss.netty.channel.DefaultChannelPipeline;
+import org.jboss.netty.channel.ExceptionEvent;
+import org.jboss.netty.channel.MessageEvent;
+import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
+import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
+import org.jboss.netty.handler.codec.http.HttpChunkAggregator;
+import org.jboss.netty.handler.codec.http.HttpClientCodec;
+import org.jboss.netty.handler.codec.http.HttpHeaders;
+import org.jboss.netty.handler.codec.http.HttpMethod;
+import org.jboss.netty.handler.codec.http.HttpRequest;
+import org.jboss.netty.handler.codec.http.HttpResponse;
+import org.jboss.netty.handler.codec.http.HttpResponseStatus;
+import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.testng.Assert;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import com.linkedin.databus.client.DatabusSourcesConnection;
@@ -39,12 +57,16 @@ import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.container.netty.HttpRelay;
+import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.data_model.LogicalSource;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.core.BackoffTimerStaticConfigBuilder;
+import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.DatabusException;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.seq.MaxSCNReaderWriter;
 import com.linkedin.databus2.producers.EventProducer;
@@ -52,169 +74,31 @@ import com.linkedin.databus2.producers.RelayEventProducer;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
+import com.linkedin.databus2.relay.util.test.DatabusRelayTestUtil;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
 
 public class TestDatabusRelayMain
 {
-	static
-	{
-		 TestUtil.setupLogging(true, "TestDatabusRelayMain.log", Level.WARN);
-	}
+  static
+  {
+    TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestDatabusRelayMain_", ".log", Level.INFO);
+  }
 
-	public final static String MODULE = TestDatabusRelayMain.class.getName();
-	public final static Logger LOG = Logger.getLogger(MODULE);
-
-	@BeforeMethod
-	public void beforeMethod()
-	{
-	}
-
-	@AfterMethod
-	public void afterMethod()
-	{
-	}
-
-	public static DbusEventBuffer.Config createBufferConfig(long eventBufferMaxSize,
-			int readBufferSize, int scnIndexSize)
-	{
-		DbusEventBuffer.Config bconf = new DbusEventBuffer.Config();
-		bconf.setMaxSize(eventBufferMaxSize);
-		bconf.setReadBufferSize(readBufferSize);
-		bconf.setScnIndexSize(scnIndexSize);
-		bconf.setAllocationPolicy("DIRECT_MEMORY");
-		return bconf;
-	}
-
-	/**
-	 * @return
-	 */
-	public static ServerContainer.Config createContainerConfig(int id, int httpPort)
-	{
-		ServerContainer.Config sconf = new ServerContainer.Config();
-		sconf.setHealthcheckPath("/admin");
-		sconf.setHttpPort(httpPort);
-		sconf.setId(id);
-		sconf.getJmx().setRmiEnabled(false);
-		return sconf;
-	}
-
-
-	public static PhysicalSourceConfig createPhysicalConfigBuilder(short id,
-			String name, String uri, long pollIntervalMs, int eventRatePerSec,
-			String[] logicalSources)
-	{
-		return createPhysicalConfigBuilder(id, name, uri, pollIntervalMs, eventRatePerSec,0,1*1024*1024,5*1024*1024,logicalSources);
-	}
-
-	public static PhysicalSourceConfig createPhysicalConfigBuilder(short id,
-			String name, String uri, long pollIntervalMs, int eventRatePerSec,
-			long restartScnOffset,int largestEventSize, long largestWindowSize,
-			String[] logicalSources)
-	{
-		PhysicalSourceConfig pConfig = new PhysicalSourceConfig();
-		pConfig.setId(id);
-		pConfig.setName(name);
-		pConfig.setUri(uri);
-		pConfig.setEventRatePerSec(eventRatePerSec);
-		pConfig.setRestartScnOffset(restartScnOffset);
-		pConfig.setLargestEventSizeInBytes(largestEventSize);
-		pConfig.setLargestWindowSizeInBytes(largestWindowSize);
-		BackoffTimerStaticConfigBuilder retriesConf = new BackoffTimerStaticConfigBuilder();
-		retriesConf.setInitSleep(pollIntervalMs);
-		pConfig.setRetries(retriesConf);
-		short lid = (short) (id + 1);
-		for (String schemaName : logicalSources)
-		{
-			LogicalSourceConfig lConf = new LogicalSourceConfig();
-			lConf.setId(lid++);
-			lConf.setName(schemaName);
-			// this is table name in the oracle source world
-			lConf.setUri(schemaName);
-			lConf.setPartitionFunction("constant:1");
-			pConfig.addSource(lConf);
-		}
-		return pConfig;
-	}
-
-	public static DatabusRelayMain createDatabusRelay(int relayId, int httpPort,
-			int maxBufferSize, PhysicalSourceConfig[] sourceConfigs)
-	{
-		try
-		{
-			HttpRelay.Config httpRelayConfig = new HttpRelay.Config();
-			ServerContainer.Config containerConfig = createContainerConfig(
-					relayId, httpPort);
-			DbusEventBuffer.Config bufferConfig = createBufferConfig(
-					maxBufferSize, maxBufferSize / 10, maxBufferSize / 10);
-			httpRelayConfig.setContainer(containerConfig);
-			httpRelayConfig.setEventBuffer(bufferConfig);
-			httpRelayConfig.setStartDbPuller("true");
-			PhysicalSourceStaticConfig[] pStaticConfigs = new PhysicalSourceStaticConfig[sourceConfigs.length];
-			int i = 0;
-			for (PhysicalSourceConfig pConf : sourceConfigs)
-			{
-				// register logical sources! I guess the physical db name is
-				// prefixed to the id or what?
-				for (LogicalSourceConfig lsc : pConf.getSources())
-				{
-					httpRelayConfig.setSourceName("" + lsc.getId(),
-							lsc.getName());
-				}
-				pStaticConfigs[i++] = pConf.build();
-			}
-			DatabusRelayMain relayMain = new DatabusRelayMain(
-					httpRelayConfig.build(), pStaticConfigs);
-			return relayMain;
-		}
-		catch (IOException e)
-		{
-			LOG.error("IO Exception " + e);
-		}
-		catch (InvalidConfigException e)
-		{
-			LOG.error("Invalid config " + e);
-		}
-		catch (DatabusException e)
-		{
-			LOG.error("Databus Exception " + e);
-		}
-		return null;
-	}
-
-	public static String getPhysicalSrcName(String s)
-	{
-		String[] cmpt = s.split("\\.");
-		String name = (cmpt.length >= 4) ? cmpt[3] : s;
-		return name;
-	}
-
-	String join(String[] name, String delim)
-	{
-		StringBuilder joined = new StringBuilder();
-		if (name.length > 0)
-		{
-			joined.append(name[0]);
-			for (int i = 1; i < name.length; ++i)
-			{
-				joined.append(delim);
-				joined.append(name[i]);
-			}
-		}
-		return joined.toString();
-	}
+  public final static Logger LOG = Logger.getLogger(TestDatabusRelayMain.class);
+  public static final String SCHEMA_REGISTRY_DIR = "TestDatabusRelayMain_schemas";
 
 	//cleanup
-	void cleanup(RelayRunner[] relayRunners,ClientRunner clientRunner)
+	void cleanup(DatabusRelayTestUtil.RelayRunner[] relayRunners,ClientRunner clientRunner)
 	{
 		LOG.info("Starting cleanup");
-		for (RelayRunner r1: relayRunners)
+        Assert.assertNotNull(clientRunner);
+        clientRunner.shutdown();
+		for (DatabusRelayTestUtil.RelayRunner r1: relayRunners)
 		{
 			if(null != r1)
 				Assert.assertTrue(r1.shutdown(2000));
 		}
-		Assert.assertNotNull(clientRunner);
-		clientRunner.shutdown();
 		LOG.info("Finished cleanup");
 	}
 
@@ -241,43 +125,60 @@ public class TestDatabusRelayMain
 		}
 	}
 
+    public void assertRelayRunning(final HttpRelay relay, long timeoutMs, Logger log)
+    {
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+        @Override
+        public boolean check()
+        {
+          return relay.isRunningStatus();
+        }
+      }, "wait for relay " + relay.getContainerStaticConfig().getHttpPort() + " to start", timeoutMs, log);
+    }
+
 	@Test
 	public void testRelayEventGenerator() throws InterruptedException, InvalidConfigException
 	{
-		RelayRunner r1=null;
+		DatabusRelayTestUtil.RelayRunner r1=null;
+		//Logger.getRootLogger().setLevel(Level.INFO);
+		final Logger log = Logger.getLogger("TestDatabusRelayMain.testRelayEventGenerator");
+		//log.setLevel(Level.DEBUG);
+
+
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.fake.FakeSchema",
+			  "com.linkedin.events.example.person.Person" }, };
 
-			// create main relay with random generator
+			log.info("create main relay with random generator");
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
 			int i = 0;
-			int eventRatePerSec = 10;
+			int eventRatePerSec = 20;
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1), DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
-			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1001, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			int relayPort = Utils.getAvailablePort(11993);
+			final DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1001, relayPort,
+					10 * 1024 * 1024, srcConfigs, SCHEMA_REGISTRY_DIR);
 			Assert.assertNotEquals(relay1, null);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
-			// async starts
+			log.info("async starts");
 			r1.start();
 
-			// start client in parallel
-			String srcSubscriptionString = join(srcNames[0], ",");
+			log.info("start client in parallel");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + relayPort;
-			CountingConsumer countingConsumer = new CountingConsumer();
+			final CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
 					.createDatabusSourcesConnection("testProducer", serverName,
 							srcSubscriptionString, countingConsumer,
@@ -285,14 +186,13 @@ public class TestDatabusRelayMain
 							1, true);
 			cr = new ClientRunner(clientConn);
 			cr.start();
-			// terminating conditions
-			DbusEventsTotalStats stats = relay1
-					.getInboundEventStatisticsCollector().getTotalStats();
-			long totalRunTime = 10000;
+			log.info("terminating conditions");
+			final DbusEventsTotalStats stats = relay1.getInboundEventStatisticsCollector().getTotalStats();
+			long totalRunTime = 5000;
 			long startTime = System.currentTimeMillis();
 			do
 			{
-				LOG.info("numDataEvents=" + stats.getNumDataEvents()
+				log.info("numDataEvents=" + stats.getNumDataEvents()
 						+ " numWindows=" + stats.getNumSysEvents() + " size="
 						+ stats.getSizeDataEvents());
 				Thread.sleep(1000);
@@ -300,43 +200,49 @@ public class TestDatabusRelayMain
 			while ((System.currentTimeMillis() - startTime) < totalRunTime);
 
 			r1.pause();
-			LOG.info("Sending pause to relay!");
-			LOG.info("numDataEvents=" + stats.getNumDataEvents()
+			log.info("Sending pause to relay!");
+			log.info("numDataEvents=" + stats.getNumDataEvents()
 					+ " numWindows=" + stats.getNumSysEvents() + " size="
 					+ stats.getSizeDataEvents());
-			Thread.sleep(4000);
-			for (EventProducer p: relay1.getProducers())
-			{
-				Assert.assertTrue(p.isPaused());
-			}
 
-			// wait until client got all events or for maxTimeout;
-			long maxTimeOutMs = 5 * 1000;
-			startTime = System.currentTimeMillis();
-			while (countingConsumer.getNumWindows() <= stats.getNumSysEvents())
-			{
-				Thread.sleep(1000);
-				if ((System.currentTimeMillis() - startTime) > maxTimeOutMs)
-				{
-					break;
-				}
-			}
+			TestUtil.assertWithBackoff(new ConditionCheck()
+            {
+              @Override
+              public boolean check()
+              {
+                boolean success = true;
+                for (EventProducer p: relay1.getProducers())
+                {
+                    if (!(success = success && p.isPaused())) break;
+                }
+                return success;
+              }
+            }, "waiting for producers to pause", 4000, log);
 
-			LOG.info("Client stats=" + countingConsumer);
-			LOG.info("Event windows generated="
-					+ stats.getNumSysEvents());
+			TestUtil.assertWithBackoff(new ConditionCheck()
+            {
+              @Override
+              public boolean check()
+              {
+                log.debug("countingConsumer.getNumWindows()=" + countingConsumer.getNumWindows());
+                return countingConsumer.getNumWindows() == stats.getNumSysEvents();
+              }
+            }, "wait until client got all events or for maxTimeout", 64 * 1024, log);
+
+			log.info("Client stats=" + countingConsumer);
+			log.info("Event windows generated=" + stats.getNumSysEvents());
+
+            cr.shutdown(2000, log);
+            log.info("Client cr stopped");
+            Assert.assertEquals(countingConsumer.getNumDataEvents(), stats.getNumDataEvents());
 
 			boolean stopped = r1.shutdown(2000);
 			Assert.assertTrue(stopped);
-			LOG.info("Relay r1 stopped");
-			cr.shutdown();
-			LOG.info("Client cr stopped");
-			Assert.assertEquals(countingConsumer.getNumDataEvents(), stats
-					.getNumDataEvents());
+			log.info("Relay r1 stopped");
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1} , cr);
 		}
 
 	}
@@ -347,91 +253,114 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingBasic() throws InterruptedException, InvalidConfigException
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
+        final Logger log = Logger.getLogger("TestDatabusRelayMain.testRelayChainingBasic");
+        Logger.getRootLogger().setLevel(Level.INFO);
+        log.setLevel(Level.DEBUG);
+
+        log.debug("available processors:" + Runtime.getRuntime().availableProcessors());
+        log.debug("available memory:" + Runtime.getRuntime().freeMemory());
+        log.debug("total memory:" + Runtime.getRuntime().totalMemory());
+
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+	            { "com.linkedin.events.example.fake.FakeSchema",
+	              "com.linkedin.events.example.person.Person" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
 			int i = 0;
-			int eventRatePerSec = 2;
+			int eventRatePerSec = 20;
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
-						500, eventRatePerSec, srcs);
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1), DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
+						100, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
-			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1002, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+            int relayPort = Utils.getAvailablePort(11994);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1002, relayPort,
+					10 * 1024 * 1024, srcConfigs, SCHEMA_REGISTRY_DIR);
 			Assert.assertNotNull(relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
-			// create chained relay
+			log.info("create chained relay");
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
 			int j = 0;
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1), DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
-			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1003,
-					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs);
+			int chainedRelayPort = relayPort + 1000;
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1003,
+					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs, SCHEMA_REGISTRY_DIR);
 			Assert.assertNotNull(relay2);
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			resetSCN(relay2);
 
-			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			log.info("now create client");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
-			CountingConsumer countingConsumer = new CountingConsumer();
+			final CountingConsumer countingConsumer = new CountingConsumer();
+			//Set maxSize to 100K, maxEventSize to 50K
 			DatabusSourcesConnection clientConn = RelayEventProducer
 					.createDatabusSourcesConnection("testProducer", serverName,
 							srcSubscriptionString, countingConsumer,
-							1 * 1024 * 1024, 50000, 30 * 1000, 100, 15 * 1000,
+							100 * 1024 , 10000, 30 * 1000, 100, 30 * 1000,
 							1, true);
 			cr = new ClientRunner(clientConn);
 
-			// async starts for all components;
+			log.info("async starts for all components");
 			r1.start();
-			// start chained relay
+			assertRelayRunning(r1.getRelay(), 5000, log);
+			log.info("start chained relay");
 			r2.start();
-			// start client
+            assertRelayRunning(r2.getRelay(), 5000, log);
+
 			Thread.sleep(5*1000);
-			cr.start();
 
 			r1.pause();
-			// let it run for 10 seconds
-			Thread.sleep(10 * 1000);
 
+      // wait for r2 to catchup with r1
+      final DbusEventsTotalStats stats = relay1
+          .getInboundEventStatisticsCollector().getTotalStats();
+      final DbusEventsTotalStats stats2 = relay2
+          .getInboundEventStatisticsCollector().getTotalStats();
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
 
-			// wait until client got all events or for maxTimeout;
-			long maxTimeOutMs = 5 * 1000;
-			long startTime = System.currentTimeMillis();
-			DbusEventsTotalStats stats = relay1
-					.getInboundEventStatisticsCollector().getTotalStats();
-			DbusEventsTotalStats stats2 = relay2
-					.getInboundEventStatisticsCollector().getTotalStats();
-			while (countingConsumer.getNumWindows() < stats.getNumSysEvents())
-			{
-				Thread.sleep(500);
-				if ((System.currentTimeMillis() - startTime) > maxTimeOutMs)
-				{
-					break;
-				}
-			}
+        @Override
+        public boolean check()
+        {
+          log.debug("stats2.getNumSysEvents()=" + stats2.getNumSysEvents());
+          return stats2.getNumSysEvents() == stats.getNumSysEvents();
+        }
+      }, "wait for chained relay to catchup", 60000, log);
+
+      log.info("start the client");
+      cr.start();
+
+      // wait until client got all events or for maxTimeout;
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+
+        @Override
+        public boolean check()
+        {
+          log.debug("countingConsumer.getNumWindows()="
+              + countingConsumer.getNumWindows());
+          return countingConsumer.getNumWindows() == stats.getNumSysEvents();
+        }
+      }, "wait until client got all events", 10000, log);
 
 			LOG.info("Client stats=" + countingConsumer);
 			LOG.info("Event windows generated="
@@ -451,12 +380,111 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
 
+	@Test
+  /**
+   * Basic consumption client and by chained relay from regular relay
+   * but start with small readBuffer (20K) - Set up large events
+   */
+  public void testDynamicBufferGrowthClient() throws InterruptedException, InvalidConfigException
+  {
+    DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
+    final Logger log = Logger.getLogger("TestDatabusRelayMain.testDynamicBufferGrowth");
+    Logger.getRootLogger().setLevel(Level.INFO);
 
+    ClientRunner cr = null;
+    try
+    {
+      String[][] srcNames =
+      {
+              { "com.linkedin.events.example.Account",
+                "com.linkedin.events.example.Settings" }, };
+
+      // create main relay with random generator
+      PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
+      int i = 0;
+      int eventRatePerSec = 20;
+      for (String[] srcs : srcNames)
+      {
+
+        PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+            (short) (i + 1), DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
+            100, eventRatePerSec, srcs);
+        srcConfigs[i++] = src1;
+      }
+      int relayPort = Utils.getAvailablePort(11994);
+      DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1002, relayPort,
+          10 * 1024 * 1024, srcConfigs, SCHEMA_REGISTRY_DIR);
+      Assert.assertNotNull(relay1);
+      r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
+
+
+      log.info("now create client");
+      String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
+      String serverName = "localhost:" + relayPort;
+      final CountingConsumer countingConsumer = new CountingConsumer();
+      //Set maxSize to 100K, maxEventSize to 15k, set init readBufferSize to maxEventSize/2
+      int maxEventSize=15*1024;
+      int initReadBufferSize=maxEventSize/2;
+
+      DatabusSourcesConnection clientConn = RelayEventProducer
+          .createDatabusSourcesConnection("testProducer", serverName,
+              srcSubscriptionString, countingConsumer,
+              100 * 1024 , maxEventSize, 30 * 1000, 100, 30 * 1000,
+              1, true,initReadBufferSize);
+      cr = new ClientRunner(clientConn);
+
+      log.info("async starts for all components");
+      r1.start();
+      assertRelayRunning(r1.getRelay(), 5000, log);
+
+      Thread.sleep(5*1000);
+
+      r1.pause();
+
+      final DbusEventsTotalStats stats = relay1
+          .getInboundEventStatisticsCollector().getTotalStats();
+
+
+      log.info("start the client");
+      cr.start();
+
+      // wait until client got all events or for maxTimeout;
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+
+        @Override
+        public boolean check()
+        {
+          log.debug("countingConsumer.getNumWindows()="
+              + countingConsumer.getNumWindows());
+          return countingConsumer.getNumWindows() == stats.getNumSysEvents();
+        }
+      }, "wait until client got all events", 10000, log);
+
+      LOG.info("Client stats=" + countingConsumer);
+      LOG.info("Event windows generated="
+          + stats.getNumSysEvents());
+      LOG.info("numDataEvents=" + stats.getNumDataEvents()
+          + " numWindows=" + stats.getNumSysEvents() + " size="
+          + stats.getSizeDataEvents());
+
+      Assert.assertEquals(stats.getNumDataEvents(), countingConsumer
+          .getNumDataEvents());
+      Assert.assertEquals(countingConsumer.getNumSources(), 2);
+      Assert.assertEquals(stats.getNumSysEvents(), countingConsumer
+          .getNumWindows());
+    }
+    finally
+    {
+      cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
+    }
+
+  }
 
 	@Test
 	/** Client and chained relay start before relay, simulating unavailable relay and retries at chained relay and client
@@ -464,14 +492,15 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingConnectFailure()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
-			String[][] srcNames =
-			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+
+      String[][] srcNames =
+      {
+              { "com.linkedin.events.example.fake.FakeSchema",
+                "com.linkedin.events.example.person.Person" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -480,16 +509,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1004, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1004, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -497,21 +526,21 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1005,
-					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1005,
+					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 			resetSCN(relay2);
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
@@ -562,11 +591,9 @@ public class TestDatabusRelayMain
 					+ " numWindows=" + stats.getNumSysEvents() + " size="
 					+ stats.getSizeDataEvents());
 
-			Assert.assertTrue(stats.getNumDataEvents() == countingConsumer
-					.getNumDataEvents());
-			Assert.assertTrue(countingConsumer.getNumSources() == 2);
-			Assert.assertTrue(stats.getNumSysEvents() == countingConsumer
-					.getNumWindows());
+			Assert.assertEquals(stats.getNumDataEvents(), countingConsumer.getNumDataEvents());
+			Assert.assertEquals(countingConsumer.getNumSources(), 2);
+			Assert.assertEquals(stats.getNumSysEvents(), countingConsumer.getNumWindows());
 
 		}
 		catch (Exception e)
@@ -576,7 +603,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -585,16 +612,16 @@ public class TestDatabusRelayMain
 	/**
 	 * Client consumes subset of sources from chained relay
 	 */
-	public void testRelayChainingPartialSubscribe()
+	public void testRelalyChainingPartialSubscribe()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -603,16 +630,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1006, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1006, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -620,28 +647,28 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1007,
-					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1007,
+					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
 			resetSCN(relay2);
 
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			// now create client:
-			String srcSubscriptionString = "com.linkedin.events.member2.privacy.PrivacySettings";
+			String srcSubscriptionString = "com.linkedin.events.example.Settings";
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
 					.createDatabusSourcesConnection("testProducer", serverName,
 							srcSubscriptionString, countingConsumer,
-							1 * 1024 * 1024, 50000, 30 * 1000, 100, 15 * 1000,
+							1 * 1024 * 1024, -1, 30 * 1000, 100, 15 * 1000,
 							1, true);
 			cr = new ClientRunner(clientConn);
 
@@ -684,11 +711,11 @@ public class TestDatabusRelayMain
 					+ " numWindows=" + stats.getNumSysEvents() + " size="
 					+ stats.getSizeDataEvents());
 
-			Assert.assertTrue(stats.getNumDataEvents() == 2 * countingConsumer
-					.getNumDataEvents());
 			Assert.assertTrue(countingConsumer.getNumSources() == 1);
 			Assert.assertTrue(stats.getNumSysEvents() == countingConsumer
 					.getNumWindows());
+			 Assert.assertTrue(stats.getNumDataEvents() == 2 * countingConsumer
+	          .getNumDataEvents());
 
 
 		}
@@ -699,7 +726,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -710,14 +737,14 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingPartialSubscribeRelay()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -726,16 +753,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1008, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1008, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -744,23 +771,23 @@ public class TestDatabusRelayMain
 			{
 				String partialSrcs[] = new String[1];
 				partialSrcs[0] = srcs[srcs.length - 1];
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (srcs.length), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (srcs.length),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50,
 						partialSrcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1009,
-					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1009,
+					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
 			resetSCN(relay2);
 
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			// now create client:
-			String srcSubscriptionString = "com.linkedin.events.member2.privacy.PrivacySettings";
+			String srcSubscriptionString = "com.linkedin.events.example.Settings";
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
@@ -831,7 +858,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -843,14 +870,14 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingDelayedConsumer()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -859,16 +886,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1010, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1010, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay with only 1 MB buffer
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -876,22 +903,22 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1011,
-					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1011,
+					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
 			resetSCN(relay2);
 
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
@@ -961,7 +988,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -973,14 +1000,14 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingSlowConsumer()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -989,16 +1016,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1012, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1012, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay with only 1 MB buffer
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1006,21 +1033,21 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1013,
-					chainedRelayPort, 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1013,
+					chainedRelayPort, 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
 			resetSCN(relay2);
 
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			// create slow consumer with 100ms delay
 			CountingConsumer countingConsumer = new CountingConsumer(500);
@@ -1089,7 +1116,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -1101,14 +1128,14 @@ public class TestDatabusRelayMain
 	 */
 	public void testRelayChainingPauseResume()
 	{
-		RelayRunner r1=null,r2=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1117,16 +1144,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1014, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1014, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1134,21 +1161,21 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1015,
-					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1015,
+					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
 			resetSCN(relay2);
 
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
@@ -1218,7 +1245,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2} , cr);
 		}
 
 	}
@@ -1231,14 +1258,14 @@ public class TestDatabusRelayMain
 	{
 	  final Logger log = Logger.getLogger("TestDatabusRelayMain.testRelayChainingRestartSCNOffset");
 	  log.info("start");
-		RelayRunner r1=null,r2=null,r3=null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null,r3=null;
 		ClientRunner cr = null;
 		try
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-					"com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+					"com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1247,16 +1274,16 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1016, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1016, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay1);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1264,21 +1291,21 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, eventRatePerSec, 50, srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 			int chainedRelayPort = relayPort + 1;
-			DatabusRelayMain relay2 = createDatabusRelay(1017,
-					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs);
+			DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1017,
+					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertTrue(null != relay2);
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			resetSCN(relay2);
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			final CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
@@ -1332,9 +1359,9 @@ public class TestDatabusRelayMain
 
 			//start r3; new chained relay with restart SCN offset; we get some data;
 			chainedSrcConfigs[0].setRestartScnOffset(dbRelayStats.getMaxScn() - dbRelayStats.getPrevScn());
-			DatabusRelayMain relay3 = createDatabusRelay(1018,
-					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs);
-			r3 = new RelayRunner(relay3);
+			DatabusRelayMain relay3 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1018,
+					chainedRelayPort, 1 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
+			r3 = new DatabusRelayTestUtil.RelayRunner(relay3);
 			r3.start();
 
 			final DbusEventsTotalStats newChainedRlyStats = relay3
@@ -1353,7 +1380,7 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2,r3} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2,r3} , cr);
             log.info("end");
 		}
 	}
@@ -1365,7 +1392,7 @@ public class TestDatabusRelayMain
 	public void testRelayChainingSCNRegress() throws InvalidConfigException, InterruptedException
 	{
       final Logger log = Logger.getLogger("TestDatabusRelayMain.testRelayChainingSCNRegress");
-		RelayRunner r1=null,r2=null,r3 = null;
+		DatabusRelayTestUtil.RelayRunner r1=null,r2=null,r3 = null;
 		ClientRunner cr = null;
 		//log.setLevel(Level.DEBUG);
 		log.info("start");
@@ -1374,31 +1401,31 @@ public class TestDatabusRelayMain
 		{
 			String[][] srcNames =
 			{
-			{ "com.linkedin.events.member2.account.MemberAccount",
-              "com.linkedin.events.member2.privacy.PrivacySettings" }, };
+			{ "com.linkedin.events.example.Account",
+              "com.linkedin.events.example.Settings" }, };
 
 			// create main relay with random generator
 			PhysicalSourceConfig[] srcConfigs = new PhysicalSourceConfig[srcNames.length];
 			int i = 0;
 			int eventRatePerSec = 10;
-			int largestEventSize = 15*1024;
-			long largestWindowSize = 100*1024;
+			int largestEventSize = 512*1024;
+			long largestWindowSize = 1*1024*1024;
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (i + 1), getPhysicalSrcName(srcs[0]), "mock",
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (i + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]), "mock",
 						500, eventRatePerSec, srcs);
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = createDatabusRelay(1019, relayPort,
-					10 * 1024 * 1024, srcConfigs);
-			DatabusRelayMain relay3 = createDatabusRelay(1020, relayPort,
-					10 * 1024 * 1024, srcConfigs);
+			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1019, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
+			DatabusRelayMain relay3 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1020, relayPort,
+					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertNotNull(relay1);
 			Assert.assertNotNull(relay3);
-			r1 = new RelayRunner(relay1);
+			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
 			final DbusEventsTotalStats stats = relay1
 					.getInboundEventStatisticsCollector().getTotalStats();
 			final DbusEventsTotalStats stats3 = relay3
@@ -1410,28 +1437,28 @@ public class TestDatabusRelayMain
 			for (String[] srcs : srcNames)
 			{
 
-				PhysicalSourceConfig src1 = createPhysicalConfigBuilder(
-						(short) (j + 1), getPhysicalSrcName(srcs[0]),
+				PhysicalSourceConfig src1 = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+						(short) (j + 1),DatabusRelayTestUtil.getPhysicalSrcName(srcs[0]),
 						"localhost:" + relayPort, 500, eventRatePerSec,0,largestEventSize,largestWindowSize,srcs);
 				chainedSrcConfigs[j++] = src1;
 			}
 			int chainedRelayPort = relayPort + 1;
-			final DatabusRelayMain relay2 = createDatabusRelay(1021,
-					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs);
+			final DatabusRelayMain relay2 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1021,
+					chainedRelayPort, 10 * 1024 * 1024, chainedSrcConfigs,SCHEMA_REGISTRY_DIR);
 			Assert.assertNotNull(relay2);
-			r2 = new RelayRunner(relay2);
+			r2 = new DatabusRelayTestUtil.RelayRunner(relay2);
 
 			resetSCN(relay2);
 
 			// now create client:
-			String srcSubscriptionString = join(srcNames[0], ",");
+			String srcSubscriptionString = TestUtil.join(srcNames[0], ",");
 			String serverName = "localhost:" + chainedRelayPort;
 			CountingConsumer countingConsumer = new CountingConsumer();
 			DatabusSourcesConnection clientConn = RelayEventProducer
 					.createDatabusSourcesConnection("testProducer", serverName,
 							srcSubscriptionString, countingConsumer,
-							1 * 1024 * 1024, 50000, 30 * 1000, 100, 15 * 1000,
-							1, true);
+							1 * 1024 * 1024, largestEventSize, 30 * 1000, 100, 15 * 1000,
+							1, true,largestEventSize/10);
 
 			final DbusEventsTotalStats stats2 = relay2
 					.getInboundEventStatisticsCollector().getTotalStats();
@@ -1460,7 +1487,7 @@ public class TestDatabusRelayMain
 			Assert.assertTrue(stats.getNumSysEvents() > 0);
 
 
-			log.info("numDataEvents1=" + firstGenDataEvents
+			log.warn("numDataEvents1=" + firstGenDataEvents
 					+ " numWindows1=" + firstGenWindows + " minScn="
 					+ firstGenMinScn + " maxScn=" + stats.getMaxScn());
 
@@ -1478,7 +1505,7 @@ public class TestDatabusRelayMain
 			Thread.sleep(2*1000);
 
 			//restart relay
-			r3 = new RelayRunner(relay3);
+			r3 = new DatabusRelayTestUtil.RelayRunner(relay3);
 			r3.start();
 
 			Thread.sleep(15*1000);
@@ -1523,74 +1550,276 @@ public class TestDatabusRelayMain
 		}
 		finally
 		{
-			cleanup ( new RelayRunner[] {r1,r2,r3} , cr);
+			cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1,r2,r3} , cr);
 	        log.info("end");
 		}
 	}
 
-	static public class RelayRunner extends Thread
-	{
-		private final DatabusRelayMain _relay;
+  class HttpClientPipelineFactory implements ChannelPipelineFactory
+  {
+    private final HttpResponseHandler _handler;
+    public HttpClientPipelineFactory(HttpResponseHandler handler)
+    {
+      _handler = handler;
+    }
 
-		public RelayRunner(DatabusRelayMain relay)
-		{
-			_relay = relay;
-			Assert.assertTrue(_relay != null);
-		}
+    @Override
+    public ChannelPipeline getPipeline() throws Exception
+    {
+      ChannelPipeline pipeline = new DefaultChannelPipeline();
+      pipeline.addLast("codec", new HttpClientCodec());
+      pipeline.addLast("aggregator", new HttpChunkAggregator( 1024 * 1024));
+      pipeline.addLast("responseHandler", _handler);
+      return pipeline;
+    }
+  }
 
-		@Override
-		public void run()
-		{
-			try
-			{
-				_relay.initProducers();
-			}
-			catch (Exception e)
-			{
-				LOG.error("Exception " + e);
-				return;
-			}
-			_relay.startAsynchronously();
-		}
+  class HttpResponseHandler extends SimpleChannelUpstreamHandler
+  {
+    public String _pendingEventHeader;
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent event)
+        throws Exception
+    {
+      LOG.error("Exception caught during finding max scn" + event.getCause());
+      super.exceptionCaught(ctx, event);
+    }
 
-		public void pause()
-		{
-			_relay.pause();
-		}
+    @Override
+    public void messageReceived(ChannelHandlerContext ctx, MessageEvent event)
+    {
+      try
+      {
+        // Default to HTTP_ERROR
+        HttpResponse response = (HttpResponse) event.getMessage();
+        if(response.getStatus().equals(HttpResponseStatus.OK))
+        {
+          ChannelBuffer content = response.getContent();
+          _pendingEventHeader = response.getHeader(DatabusHttpHeaders.DATABUS_PENDING_EVENT_SIZE);
+        }
+        else
+        {
+          LOG.error("Got Http status (" + response.getStatus() + ") from remote address :" + ctx.getChannel().getRemoteAddress());
+          Assert.assertTrue(false);
+        }
+      }
+      catch(Exception ex)
+      {
+        LOG.error("Got exception while handling Relay MaxSCN response :", ex);
+        Assert.assertTrue(false);
+      }
+      finally
+      {
+        ctx.getChannel().close();
+      }
+    }
+  }
 
-		public void unpause()
-		{
-			_relay.resume();
-		}
+  private void testClient(int relayPort, int fetchSize, long scn, HttpResponseHandler handler) throws Exception
+  {
+    Checkpoint ckpt = Checkpoint.createOnlineConsumptionCheckpoint(scn);
+    //TODO why is this needed
+    //ckpt.setCatchupSource("foo");
+    String uristr = "/stream?sources=105&output=json&size=" + fetchSize + "&streamFromLatestScn=false&checkPoint=" + ckpt.toString();
+    ClientBootstrap bootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(Executors.newCachedThreadPool(),
+                                                                                      Executors.newCachedThreadPool()));
+    bootstrap.setPipelineFactory(new HttpClientPipelineFactory(handler));
+    ChannelFuture future = bootstrap.connect(new InetSocketAddress("localhost", relayPort));
+    Channel channel = future.awaitUninterruptibly().getChannel();
+    Assert.assertTrue(future.isSuccess(), "Cannot connect to relay at localhost:" + relayPort);
+    HttpRequest request  = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uristr);
+    request.setHeader(HttpHeaders.Names.HOST, "localhost");
+    channel.write(request);
+    channel.getCloseFuture().awaitUninterruptibly();
+  }
 
-		public boolean shutdown(int timeoutMs)
-		{
-			_relay.shutdown();
-			try
-			{
-				if (timeoutMs > 0)
-				{
-					_relay.awaitShutdown(timeoutMs);
-				}
-				else
-				{
-					_relay.awaitShutdown();
-				}
-			}
-			catch (TimeoutException e)
-			{
-				LOG.error("Not shutdown in " + timeoutMs + " ms");
-				return false;
-			}
-			catch (InterruptedException e)
-			{
-				LOG.info("Interrupted before " + timeoutMs + " ms");
-				return true;
-			}
-			return true;
-		}
+  @Test
+  /**
+   * When the relay has no events, we should not get the x-dbus-pending-event-size even if we present a small buffer.
+   * When the relay has events, we should see the header on a small buffer but see an event when the buffer
+   * is large enough, and should not see the header in the large buffer case.
+   */
+  public void testPendingEventSize() throws Exception
+  {
+    DatabusRelayMain relay = null;
+    try
+    {
+      final short srcId = 104;
+      final String srcName = "foo";
+      PhysicalSourceConfig pConfig = new PhysicalSourceConfig();
+      pConfig.setId(srcId);
+      pConfig.setName(srcName);
+      pConfig.setUri("mock");
+      short lid = (short) (srcId + 1);
+      LogicalSourceConfig lConf = new LogicalSourceConfig();
+      lConf.setId(lid);
+      lConf.setName(srcName);
+      // this is table name in the oracle source world
+      lConf.setUri(srcName);
+      lConf.setPartitionFunction("constant:1");
+      pConfig.addSource(lConf);
+      int relayPort = Utils.getAvailablePort(11994);
+      final int relayId = 666;
+      HttpRelay.Config httpRelayConfig = new HttpRelay.Config();
+      ServerContainer.Config containerConfig = DatabusRelayTestUtil.createContainerConfig(relayId, relayPort);
+      DbusEventBuffer.Config bufferConfig = DatabusRelayTestUtil.createBufferConfig(
+          10000, 250, 100);
+      httpRelayConfig.setContainer(containerConfig);
+      httpRelayConfig.setEventBuffer(bufferConfig);
+      httpRelayConfig.setStartDbPuller("true");
+      PhysicalSourceStaticConfig[] pStaticConfigs = new PhysicalSourceStaticConfig[1];
+      for (LogicalSourceConfig lsc : pConfig.getSources())
+      {
+        httpRelayConfig.setSourceName("" + lsc.getId(), lsc.getName());
+      }
+      pStaticConfigs[0] = pConfig.build();
+      relay = new DatabusRelayMain(httpRelayConfig.build(), pStaticConfigs);
 
-	}
+      relay.start();
+
+      // Insert one event into the relay.
+      LogicalSource lsrc = new LogicalSource((int)lid, srcName);
+      DbusEventBuffer buf = relay.getEventBuffer().getDbusEventBuffer(lsrc);
+      byte [] schema = "abcdefghijklmnop".getBytes();
+      final long prevScn = 99;
+      final long eventScn = 101;
+      buf.start(prevScn);
+      buf.startEvents();
+      Assert.assertTrue(buf.appendEvent(new DbusEventKey(1),
+                                        (short) 100,
+                                        (short) 0,
+                                        System.currentTimeMillis() * 1000000,
+                                        lid,
+                                        schema,
+                                        new byte[100],
+                                        false,
+                                        null));
+      buf.endEvents(eventScn,  null);
+
+
+      HttpResponseHandler handler = new HttpResponseHandler();
+
+      // On a good buffer length we should not see the extra header.
+      testClient(relayPort, 1000, 100L, handler);
+      Assert.assertNull(handler._pendingEventHeader, "Received pending event header on full buffer");
+
+      // We should see the extra header when we get 0 events and the next event is too big to fit in
+      testClient(relayPort, 10, 100L, handler);
+      Assert.assertNotNull(handler._pendingEventHeader);
+      Assert.assertEquals(Integer.valueOf(handler._pendingEventHeader).intValue(), 161);
+
+      // But if there are no events, then we should not see the header even if buffer is very small
+      handler._pendingEventHeader = null;
+      testClient(relayPort, 10, 1005L, handler);
+      Assert.assertNull(handler._pendingEventHeader, "Received pending event header on full buffer");
+    }
+    finally
+    {
+      relay.shutdownUninteruptibly();
+    }
+  }
+
+	@Test
+	/**
+	 * test resetting connection when there is no events for some period of time
+	 * @throws InterruptedException
+	 * @throws InvalidConfigException
+	 */
+  public void testClientNoEventsResetConnection() throws InterruptedException, InvalidConfigException
+  {
+	  LOG.setLevel(Level.ALL);
+    DatabusRelayTestUtil.RelayRunner r1=null;
+    ClientRunner cr = null;
+    try
+    {
+      String srcName = "com.linkedin.events.example.Settings";
+
+      // create main relay with random generator
+      int eventRatePerSec = 10;
+      PhysicalSourceConfig srcConfig = DatabusRelayTestUtil.createPhysicalConfigBuilder(
+            (short) 1, DatabusRelayTestUtil.getPhysicalSrcName(srcName), "mock",
+            500, eventRatePerSec, new String[] {srcName});
+
+      int relayPort = 11995;
+      DatabusRelayMain relay = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1001, relayPort,
+          10 * 1024 * 1024, new PhysicalSourceConfig[] {srcConfig},SCHEMA_REGISTRY_DIR);
+      Assert.assertNotEquals(relay, null);
+      r1 = new DatabusRelayTestUtil.RelayRunner(relay);
+
+      // async starts
+      r1.start();
+      DbusEventsTotalStats stats = relay.getInboundEventStatisticsCollector().getTotalStats();
+
+      // start client in parallel
+      String srcSubscriptionString = srcName;
+      String serverName = "localhost:" + relayPort;
+      ResetsCountingConsumer countingConsumer = new ResetsCountingConsumer();
+      DatabusSourcesConnection clientConn = RelayEventProducer
+      .createDatabusSourcesConnection("testProducer", serverName,
+    		  srcSubscriptionString, countingConsumer,
+    		  1 * 1024 * 1024, 50000, 30 * 1000, 100, 15 * 1000,
+    		  1, true);
+
+      cr = new ClientRunner(clientConn);
+      cr.start();
+      TestUtil.sleep(1000); // generate some events
+
+      // pause event generator
+      // and wait untill all the events are consumed
+      // but since it is less then timeout the connection should NOT reset
+      LOG.info("Sending pause to relay!");
+      r1.pause();
+      TestUtil.sleep(4000);
+
+      LOG.info("no events, time less then threshold. Events=" + countingConsumer.getNumDataEvents() +
+    		  "; resets = " + countingConsumer.getNumResets());
+      Assert.assertEquals(countingConsumer.getNumResets(), 0);
+
+      // generate more events, more time elapsed then the threshold, but since there are
+      // events - NO reset
+      r1.unpause();
+      Thread.sleep(8000);
+      LOG.info("some events, more time then timeout. Events=" + countingConsumer.getNumDataEvents() +
+    		  "; resets = " + countingConsumer.getNumResets());
+      Assert.assertEquals(countingConsumer.getNumResets(), 0);
+
+      r1.pause(); // stop events
+      //set threshold to 0 completely disabling the feature
+      clientConn.getRelayPullThread().setNoEventsConnectionResetTimeSec(0);
+      Thread.sleep(8000);
+      LOG.info("no events, more time then timeout, but feature disabled. Events=" +
+    		  countingConsumer.getNumDataEvents() + "; resets = " + countingConsumer.getNumResets());
+      Assert.assertEquals(countingConsumer.getNumResets(), 0);
+
+
+      // enable the feature, and sleep for timeout
+      clientConn.getRelayPullThread().setNoEventsConnectionResetTimeSec(5);
+      // now wait with no events
+      LOG.info("pause the producer. sleep for 6 sec, should reset");
+      TestUtil.sleep(6000);
+
+      LOG.info("Client stats=" + countingConsumer);
+      LOG.info("Num resets=" + countingConsumer.getNumResets());
+      LOG.info("Event windows generated=" + stats.getNumSysEvents());
+      Assert.assertEquals(countingConsumer.getNumResets(), 0, "0 resets");
+      Assert.assertEquals(countingConsumer.getNumDataEvents(), stats.getNumDataEvents());
+
+      boolean stopped = r1.shutdown(2000);
+      Assert.assertTrue(stopped);
+      LOG.info("Relay r1 stopped");
+      cr.shutdown();
+      LOG.info("Client cr stopped");
+      Assert.assertEquals(countingConsumer.getNumDataEvents(), stats
+    		  .getNumDataEvents());
+    }
+    finally
+    {
+      cleanup ( new DatabusRelayTestUtil.RelayRunner[] {r1} , cr);
+    }
+
+  }
+
+
 
 	static public class ClientRunner extends Thread
 	{
@@ -1603,7 +1832,7 @@ public class TestDatabusRelayMain
 		}
 
 		@Override
-    public void run()
+        public void run()
 		{
 			_conn.start();
 		}
@@ -1624,19 +1853,60 @@ public class TestDatabusRelayMain
 			return true;
 		}
 
+        public boolean shutdown(long timeoutMs, final Logger log)
+        {
+            _conn.stop();
+            TestUtil.assertWithBackoff(new ConditionCheck()
+            {
+
+              @Override
+              public boolean check()
+              {
+                return !isShutdown();
+              }
+            }, "waiting for client to shutdown", timeoutMs, log);
+            return isShutdown();
+        }
+
+		public boolean isShutdown()
+		{
+		  return _conn.isRunning();
+		}
+
+	}
+
+	static public class ResetsCountingConsumer extends CountingConsumer {
+	  private volatile int _numResets = -1; //first reset is actually the start
+	  @Override
+    public ConsumerCallbackResult onStartConsumption()
+    {
+	    _numResets ++ ;
+      return ConsumerCallbackResult.SUCCESS;
+    }
+
+	   @Override
+	    public ConsumerCallbackResult onStartSource(String source,
+	        Schema sourceSchema)
+	    {
+	      return ConsumerCallbackResult.SUCCESS;
+	    }
+
+	   public int getNumResets() {
+	     return _numResets;
+	   }
 	}
 
 	static public class CountingConsumer implements DatabusCombinedConsumer
 	{
-		private int _numWindows = 0;
-		private int _numStartWindows = 0;
-		private int _numDataEvents = 0;
-		private int _numErrors = 0;
-		private int _numRollbacks = 0;
-		private final HashSet<String> _srcIds;
-		private final Vector<Long> _startScns;
-		private final Vector<Long> _endScns;
-		private long _delayInMs = 0;
+		protected int _numWindows = 0;
+		protected int _numStartWindows = 0;
+		protected volatile int _numDataEvents = 0;
+		protected int _numErrors = 0;
+		protected int _numRollbacks = 0;
+		protected final HashSet<String> _srcIds;
+		protected final Vector<Long> _startScns;
+		protected final Vector<Long> _endScns;
+		protected long _delayInMs = 0;
 
 		public CountingConsumer()
 		{

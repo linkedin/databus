@@ -45,13 +45,13 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
   }
 
   @Override
-  public Map<Short, String> fetchAllSchemaVersionsByType(String type)
+  public Map<Short, String> fetchAllSchemaVersionsBySourceName(String databusSourceName)
          throws NoSuchSchemaException, DatabusException
   {
 	  boolean isDebugEnabled = LOG.isDebugEnabled();
 
 	  Map<Short, String> resultMap = new HashMap<Short, String>();
-	  SortedMap<VersionedSchemaId, VersionedSchema>  schemaMap = _curSchemaSet.getAllVersionsByName(type);
+	  SortedMap<VersionedSchemaId, VersionedSchema>  schemaMap = _curSchemaSet.getAllVersionsByName(databusSourceName);
 
 	  if (null != schemaMap)
 	  {
@@ -61,7 +61,7 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
 
     		  if ( isDebugEnabled)
     		  {
-    			  LOG.debug("fetchAllSchemaVersionsByType: Source (" + type +
+    			  LOG.debug("fetchAllSchemaVersionsBySourceName: Source (" + databusSourceName +
     			            "). For Version (" +  e.getKey().getVersion() + ") adding schema ("
     			            + e.getValue().getSchema().toString() + ") to result set.");
     		  }
@@ -69,23 +69,36 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
 	  }
 	  else
 	  {
-	    LOG.warn("unkown source: " + type);
+	    LOG.warn("unknown source: " + databusSourceName);
 	  }
 
 	  return resultMap;
   }
 
+  @Override
+  public VersionedSchemaSet fetchAllMetadataSchemaVersions(short maxVersion)
+  throws DatabusException
+  {
+    return null;
+  }
 
   @Override
-  public String fetchLatestSchemaByType(String type)
+  public VersionedSchemaSet fetchAllMetadataSchemaVersions()
+  throws DatabusException
+  {
+    return null;
+  }
+
+  @Override
+  public String fetchLatestSchemaBySourceName(String databusSourceName)
          throws NoSuchSchemaException, DatabusException
   {
-    VersionedSchema vSchema = _curSchemaSet.getLatestVersionByName(type);
+    VersionedSchema vSchema = _curSchemaSet.getLatestVersionByName(databusSourceName);
     String result = null != vSchema ? vSchema.getSchema().toString() : null;
     if (LOG.isDebugEnabled())
     {
-      if (null == result) LOG.debug("No schema found for source " + type);
-      else LOG.debug("Schema for source " + type + ": " + result);
+      if (null == result) LOG.debug("No schema found for source " + databusSourceName);
+      else LOG.debug("Schema for source " + databusSourceName + ": " + result);
 
       //LOG.debug("Schema set: " + curSchemaSet.toString());
     }
@@ -93,23 +106,27 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
   }
 
   @Override
-  public VersionedSchema fetchLatestVersionedSchemaByType(String type) throws NoSuchSchemaException, DatabusException
+  public VersionedSchema fetchLatestVersionedSchemaBySourceName(String databusSourceName) throws NoSuchSchemaException, DatabusException
   {
-	  VersionedSchema vSchema = _curSchemaSet.getLatestVersionByName(type);
+	  VersionedSchema vSchema = _curSchemaSet.getLatestVersionByName(databusSourceName);
 	  return vSchema;
   }
-  
+
   @Override
   public String fetchSchema(String schemaId) throws NoSuchSchemaException, DatabusException
   {
     byte[] idBytes = getBytesFromHexSchemaId(schemaId);
     VersionedSchema vSchema = _curSchemaSet.getById(new SchemaId(idBytes));
+    if (null == vSchema)
+    {
+      throw new NoSuchSchemaException(schemaId);
+    }
     return vSchema.getSchema().toString();
   }
 
   /**
    * Registers a schema represented by its JSON schema definition. Note that the schema will not be
-   * persisted on disk. If there is a schema registered with the same name, it's version will be
+   * persisted on disk. If there is a schema registered with the same name, its version will be
    * increased by one.
    */
   @Override
@@ -125,7 +142,7 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
   }
 
   @Override
-  public void dropDatabase(String dbName) throws DatabusException 
+  public void dropDatabase(String dbName) throws DatabusException
   {
 	  throw new DatabusException("Unsupported method dropDatabase");
   }
@@ -142,7 +159,7 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
     {
       char c1 = hexSchemaId.charAt(2 * i);
       char c2 = hexSchemaId.charAt(2 * i + 1);
-      int byteValue = Character.digit(c1, 16) << 4 + Character.digit(c2, 16);
+      int byteValue = (Character.digit(c1, 16) << 4) + Character.digit(c2, 16);
       result[i] = (byte)byteValue;
     }
 
@@ -160,9 +177,9 @@ public class VersionedSchemaSetBackedRegistryService implements SchemaRegistrySe
   }
 
   @Override
-  public SchemaId fetchSchemaIdForSourceNameAndVersion(String lSourceName, int version) throws DatabusException
+  public SchemaId fetchSchemaIdForSourceNameAndVersion(String databusSourceName, int version) throws DatabusException
   {
-    throw new DatabusException("method should never be called for this type");
+    VersionedSchema vschema = _curSchemaSet.getSchemaByNameVersion(databusSourceName, (short)version);
+    return SchemaId.createWithMd5(vschema.getSchema());
   }
-
 }

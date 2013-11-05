@@ -212,6 +212,41 @@ public class ServerInfo implements Comparable<ServerInfo>
   }
 
   /**
+   * Converts the server info to a human-readable representation
+   * @param   sb      a StringBuilder to which to append the string representation; if null, a new one will be created
+   * @return  the StringBuilder
+   */
+  public StringBuilder toSimpleString(StringBuilder sb)
+  {
+    if (null == sb)
+    {
+      sb = new StringBuilder(200);
+    }
+    sb.append("[server=").append(_serverCoordinates).append(", subs=[");
+    boolean notFirst = false;
+    for (DatabusSubscription sub: _subs)
+    {
+      if (notFirst)
+      {
+        sb.append(",");
+      }
+      sb.append(sub.toSimpleString());
+      notFirst = true;
+    }
+    sb.append("]]");
+
+    return sb;
+  }
+
+  /**
+   * Converts the server info to a human-readable representation
+   */
+  public String toSimpleString()
+  {
+    return toSimpleString(null).toString();
+  }
+
+  /**
    * Checks if the server supports a list of sources. Order is significant
    * @param sources   the list of source to check
    * @return true iff the server can serve the sources

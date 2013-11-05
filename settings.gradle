@@ -8,6 +8,7 @@ def base_modules = [
 'databus-client',
 'databus-core',
 'databus-cluster',
+'databus-tools',
 'databus-group-leader',
 'databus-util-cmdline',
 'databus2-example',
@@ -21,16 +22,20 @@ def non_os_modules = [
 'databus3-core',
 'databus3-relay',
 'databus3-client',
+'databus3-example',
 'databus3-scripts',
 'databus3-linkedin-relay',
+'databus3-bootstrap-server',
 'databus-profile-client',
 'databus2-linkedin-relay',
 'databus-events',
 'databus-linkedin-client',
 'databus2-linkedin-pkgs',
+'databus2-gg',
 'perf',
 'integration-test',
-'sitetools'
+'sitetools',
+'code-coverage-all'
 ]
 
 
@@ -47,7 +52,7 @@ def nonReleaseModules = [
 base_modules.each { module ->
   file(module).eachDir { submodule ->
     if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-      //println "including1 " + "${module}:${submodule.name}" 
+      //println "including1 " + "${module}:${submodule.name}"
       include "${module}:${submodule.name}"
     }
   }
@@ -58,7 +63,7 @@ if (System.getProperty('open_source') == null) {
   non_os_modules.each { module ->
     file(module).eachDir { submodule ->
       if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-        //println "including non os modules" + "${module}:${submodule.name}" 
+        //println "including non os modules" + "${module}:${submodule.name}"
         include "${module}:${submodule.name}"
       }
     }

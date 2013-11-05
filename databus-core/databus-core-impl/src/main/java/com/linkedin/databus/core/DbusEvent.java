@@ -18,151 +18,182 @@ package com.linkedin.databus.core;
  *
 */
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.channels.WritableByteChannel;
-import java.util.Map;
-
-import org.apache.commons.codec.binary.Hex;
-import org.apache.log4j.Logger;
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParseException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
-
 import java.nio.ByteBuffer;
 
 /**
  * Read-only interface for Databus events.
  **/
-public interface DbusEvent
+public abstract class DbusEvent
 {
-  /**
-   * Denotes the end of the range of srcid values reserved for private use:
-   * (Short.MIN_VALUE, PRIVATE_RANGE_MAX_SRCID]
-   */
-  public static final short EOPMarkerSrcId = -2;
-  public static final short CHECKPOINT_SRCID = -3;
-  // -4 - -50 are reserved for errors
-  public static final short PRIVATE_RANGE_MAX_ERROR_SRCID = -4;
-  public static final short BOOTSTRAPTOOOLD_ERROR_SRCID = -5;
-  public static final short PULLER_RETRIES_EXPIRED = -6;
-  public static final short DISPATCHER_RETRIES_EXPIRED = -7;
-  public static final short PRIVATE_RANGE_MIN_ERROR_SRCID = -50;
-  public static final short PRIVATE_RANGE_MAX_SRCID = -20000;
-
-  public static final short SCN_REGRESS = -51;
-  // TODO Move these enums to Readable or Writable interface. They are here to get things compiled
-  /**
-   *
-   * @author snagaraj
-   *  used to determine status of event when it is read;
-   */
-  public enum HeaderScanStatus {
-    OK,
-    ERR,
-    PARTIAL,
+  public enum SchemaDigestType
+  {
+    MD5,
+    // The algorithm to be used for computing CRC32 is not com.linkedin.databus.core.util.ByteBufferCRC32
+    // but standard CRC32 (java.util.zip.CRC32).
+    CRC32,
   }
 
-  /**
-   *
-   * @author snagaraj
-   * used to signal status of event when it is read;
-   */
-  public enum EventScanStatus {
-    OK,
-    ERR,
-    PARTIAL,
-  }
+  public final static int MD5_DIGEST_LEN = 16;
+  public final static int CRC32_DIGEST_LEN = 4;
 
-  public boolean isExtReplicatedEvent();
+  /**
+   * @return true if this event is an "externally replicated" event. In case of espresso,this bit is
+   * set when the source row is modified by applying a change from another data center
+   * (as opposed to modification due to application write/update in the local data center).
+   */
+  public abstract boolean isExtReplicatedEvent();
 
   /** Returns true iff the event points to a valid Databus event */
-  public boolean isValid();
+  public abstract boolean isValid();
 
   //Event type tests
 
   /** Checks if the event is a control message */
-  public boolean isControlMessage();
+  public abstract boolean isControlMessage();
 
   /** Checks if the event is a private control message */
-  public boolean isPrivateControlMessage();
+  public abstract boolean isPrivateControlMessage();
 
   /** Checks if the event is a checkpoint message */
-  public boolean isCheckpointMessage();
+  public abstract boolean isCheckpointMessage();
 
   /** Returns true iff the key of the event is a numeric (long) */
-  public boolean isKeyNumber();
+  public abstract boolean isKeyNumber();
 
-  /** Returns true iff the key of th event is a string (byte sequence) */
-  public boolean isKeyString();
+  /** Returns true iff the key is a string (byte sequence) */
+  public abstract boolean isKeyString();
+
+  /** Returns true if the key is of type schema. */
+  public abstract boolean isKeySchema();
 
   /** Checks if the event is a SCNRegressMessage */
-  public boolean isSCNRegressMessage();
-  
+  public abstract boolean isSCNRegressMessage();
+
 
   // Attribute tests
 
   /** Returns true if tracing has been enabled for the event */
-  public boolean isTraceEnabled();
+  public abstract boolean isTraceEnabled();
 
   /** Checks if the event denotes the end of an event window */
-  public boolean isEndOfPeriodMarker();
+  public abstract boolean isEndOfPeriodMarker();
 
   // Event fields
 
   /** Returns the opcode of the data event; null for non-data events */
-  public DbusOpcode getOpcode();
+  public abstract DbusOpcode getOpcode();
 
   /** Returns the creation timestamp of the event in nanoseconds from Unix epoch */
-  public long timestampInNanos();
+  public abstract long timestampInNanos();
 
-  /** Returns the total size of the event binary serialization */
-  public int size();
+  /**
+   *  Returns the total size of the event binary serialization including header, metadata and payload.
+   */
+  public abstract int size();
 
-  /** Returns the sequence number of the event */
-  public long sequence();
+  /** Returns the sequence number (SCN) of the event */
+  public abstract long sequence();
 
   /** Returns key value for events with numeric keys; undefined for events with string keys. */
-  public long key();
+  public abstract long key();
 
-  /** Returns the length of the event key */
-  public int keyLength();
+  /**
+   * @deprecated caller should use getKeyBytes().length.
+   *  In V1,  Returns length+4 if sting key, 8 if long key.
+   *  V2 will throw an Exception
+   */
+  @Deprecated
+  public abstract int keyLength();
 
   /** Returns the key value for events with string keys; undefined for events with numeric keys. */
-  public byte[] keyBytes();
+  public abstract byte[] keyBytes();
 
-  /** Returns the Databus source id of the event */
-  public short srcId();
+  /** @deprecated Returns the Databus source id of the event.
+   * This method is deprecated in favor of getSourceId()
+   */
+  @Deprecated
+  public abstract short srcId();
 
-  /** Returns the physical partition id for the event */
-  public short physicalPartitionId();
+  /**
+   * As of DbusEvent version 2, sourceId is an int instead of short.
+   * SourceIds from DbusEventV1 are guaranteed to be short, but it is strongly suggested that callers
+   * change their code to handle an int instead of short.
+   *
+   * @return source id as an integer.
+   */
+  public abstract int getSourceId();
 
-  /** Returns the logical partition id for the event */
-  public short logicalPartitionId();
+  /** @deprecated Returns the physical partition id for the event. Call getPartitionId() instead. */
+  @Deprecated
+  public abstract short physicalPartitionId();
+
+  /** @deprecated Returns the logical partition id for the event. Call getPartitionId() instead. */
+  @Deprecated
+  public abstract short logicalPartitionId();
+
+  /**
+   * @return The partition id for the event.
+   */
+  public abstract short getPartitionId();
 
   /**
    * Returns a byte array with the hash id of the event serialization schema.
    * <p> NOTE: this will most likely lead to a memory allocation. The preferred way to access the
-   * schema id is through {@link DbusEvent#schemaId(byte[]). </p>
+   * schema id is through {@link DbusEvent#schemaId(byte[])}. </p>
+   * TODO Deprecate this when getPayloadPart() is fully implemented.
    * */
-  public byte[] schemaId();
+  public abstract byte[] schemaId();
 
   /**
    * Stores the hash id of the event serialization schema in an existing byte array.
    * <p>NOTE: The byte array should be at least 16 bytes long. </p>
+   * TODO Deprecate this when getPayloadPart() is fully implemented.
    * */
-  public void schemaId(byte[] md5);
+  public abstract void schemaId(byte[] md5);
 
-  /** Returns the length of the data event value (data payload) */
-  public int valueLength();
+  /** Returns the length (in bytes) of the data event value (data payload).
+   * TODO Deprecate this when getPayloadPart() is fully implemented.
+   */
+  public abstract int valueLength();
 
-  /** Obtains the data payload of the event */
-  public ByteBuffer value();
+  /**
+   * Returns the data payload of the event, i.e., the serialized event minus the header, key,
+   * and any metadata.  The returned ByteBuffer is read-only, and its position and limit may
+   * be freely modified.
+   * <b>NOTE: The data may be subsequently overwritten; if you need it beyond the onDataEvent()
+   * call, save your own copy before returning.</b>
+   * TODO Deprecate this when getPayloadPart() is fully implemented.
+   */
+  public abstract ByteBuffer value();
+
+  /**
+   * Returns a copy of the serialized event with the (implicitly) specified byte order.
+   * TODO Deprecate this when getPayloadPart() is fully implemented.
+   */
+  public abstract ByteBuffer getRawBytes();
+
+  /**
+   * @return The payload part of the DbusEvent that has the payload bytes, and the schema digest and version
+   * with which the payload bytes were encoded.
+   */
+  public abstract DbusEventPart getPayloadPart();
+
+  /**
+   *
+   * @return The payload-metadata part of the DbusEvent that has the metadata bytes, and the schema digest and
+   * version with which the metadata bytes were encoded. Returns null if metadata is not present or
+   * dbus event version does not support metadata.
+   */
+  public abstract DbusEventPart getPayloadMetadataPart();
+
+  // TODO Add a getKeyPart(), but then we have a DbusEventKey class, so we need to figure out how these two play
+  // with each other. But then we may not need it until we support schema keys, so we may be ok for now.
+
+  /**
+   * Returns the DbusEventPart that corresponds to the key of the event (valid only if the key is of schema type).
+   * See isKeySchema();
+   * @throws DatabusRuntimeException if this method is called and the key is not of schema type.
+   * @return
+   */
+  public abstract DbusEventPart getKeyPart();
 }

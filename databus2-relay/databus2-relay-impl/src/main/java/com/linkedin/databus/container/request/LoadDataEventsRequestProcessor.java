@@ -22,7 +22,7 @@ package com.linkedin.databus.container.request;
 import com.linkedin.databus.container.netty.HttpRelay;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBufferMult;
-import com.linkedin.databus.core.DbusEventV1;
+import com.linkedin.databus.core.DbusEventSerializable;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
@@ -98,8 +98,7 @@ public class LoadDataEventsRequestProcessor implements RequestProcessor
         DbusEventsStatisticsCollector statsCollector = _relay.getInBoundStatsCollectors().getStatsCollector(pPartition.toSimpleString());
 
         int eventsAppended = 0;
-        if (!((eventsAppended = DbusEventV1.appendToEventBuffer(in, buf, statsCollector,
-                                                              startWin))>0))
+        if (!((eventsAppended = DbusEventSerializable.appendToEventBuffer(in, buf, statsCollector, startWin))>0))
         {
           throw new RequestProcessingException("event loading failed");
         }

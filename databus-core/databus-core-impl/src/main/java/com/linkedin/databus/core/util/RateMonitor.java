@@ -1,4 +1,6 @@
 package com.linkedin.databus.core.util;
+
+import com.linkedin.databus.core.DbusConstants;
 /*
  *
  * Copyright 2013 LinkedIn Corp. All rights reserved
@@ -22,9 +24,6 @@ package com.linkedin.databus.core.util;
 
 /**
  * A class that can be used to monitor rate of events in a sequence of intervals
- *
- * @author sdas
- *
  */
 public class RateMonitor
 {
@@ -71,7 +70,7 @@ public class RateMonitor
     if ( (_state == State.STARTED ) ||
          (_state == State.RESUMED))
     {
-      _durationSoFar += (System.nanoTime() - _startTime);
+      _durationSoFar += (getNanoTime() - _startTime);
       _startTime = 0;
       _state = State.SUSPENDED;
     }
@@ -85,7 +84,7 @@ public class RateMonitor
   {
     if ( _state == State.SUSPENDED)
     {
-      _startTime = System.nanoTime();
+      _startTime = getNanoTime();
       _state = State.RESUMED;
     }
   }
@@ -95,7 +94,7 @@ public class RateMonitor
    */
   public void start()
   {
-    _startTime = System.nanoTime();
+    _startTime = getNanoTime();
     _durationSoFar = 0;
     _numTicks = 0;
     _state = State.STARTED;
@@ -152,9 +151,9 @@ public class RateMonitor
 
     switch ( _state)
     {
-      case STARTED   :  duration = System.nanoTime() - _startTime;
+      case STARTED   :  duration = getNanoTime() - _startTime;
                         break;
-      case RESUMED   :  duration = System.nanoTime() - _startTime + _durationSoFar;
+      case RESUMED   :  duration = getNanoTime() - _startTime + _durationSoFar;
                         break;
 
       case STOPPED   :
@@ -167,12 +166,20 @@ public class RateMonitor
   }
 
   /*
+   * Returns the number of ticks
+   */
+  public long getNumTicks()
+  {
+    return _numTicks;
+  }
+
+  /*
    * Stops the monitor. Equivalent to suspend state except that it cannot be resumed
    */
   public void stop()
   {
     if ( _state != State.SUSPENDED)
-      _durationSoFar += (System.nanoTime() - _startTime);
+      _durationSoFar += (getNanoTime() - _startTime);
 
     _state = State.STOPPED;
   }
@@ -180,16 +187,8 @@ public class RateMonitor
   @Override
   public String toString()
   {
-   StringBuilder sb = new StringBuilder();
-   sb.append("RateMonitor:")
-     .append(_name)
-     .append(":avg = ")
-     .append(getRate())
-     .append(":state = ")
-     .append(_state);
-
-   return sb.toString();
-
+    return "RateMonitor [_name=" + _name + ", _numTicks=" + _numTicks + ", _rate="
+        + _rate + ", _durationSoFar=" + _durationSoFar + ", state = " + _state + "]";
   }
 
   /*
@@ -204,4 +203,44 @@ public class RateMonitor
   {
     return _state == State.STARTED;
   }
+
+  public long getNanoTime()
+  {
+    return System.nanoTime();
+  }
+  
+  public void sleep(long msec) throws InterruptedException
+  {
+    Thread.sleep(msec);	  
+  }
+  
+  /**
+   * A rate monitor that mocks time to avoid ambiguity to running unit tests
+   */
+  public static class MockRateMonitor extends RateMonitor
+  {
+    private long _currentTimeInNs = 0L;
+    public MockRateMonitor(String name)
+    {
+      super(name);
+    }
+
+    @Override
+    public long getNanoTime()
+    {
+      return _currentTimeInNs;
+    }
+
+    public void setNanoTime(long ns)
+    {
+      _currentTimeInNs = ns;
+    }
+    
+    @Override
+    public void sleep(long msec) throws InterruptedException
+    {
+      _currentTimeInNs += (msec * DbusConstants.NUM_NSECS_IN_MSEC);
+    }
+  }
+
 }

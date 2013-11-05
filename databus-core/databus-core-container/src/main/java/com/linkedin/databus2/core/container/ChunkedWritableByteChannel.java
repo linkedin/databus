@@ -44,7 +44,7 @@ public interface ChunkedWritableByteChannel extends WritableByteChannel
    * @param name        the name of the footer
    * @param value       the value of the footer
    */
-  public void addMetadata(String name, String value);
+  public void addMetadata(String name, Object value);
   
   /**
    * Adds a new footer or replaces the value of an existing footer in the response. 
@@ -53,7 +53,7 @@ public interface ChunkedWritableByteChannel extends WritableByteChannel
    * @param name        the name of the footer
    * @param value       the value of the footer
    */
-  public void setMetadata(String name, String value);
+  public void setMetadata(String name, Object value);
 
   /**
    * Removes a footer from the response

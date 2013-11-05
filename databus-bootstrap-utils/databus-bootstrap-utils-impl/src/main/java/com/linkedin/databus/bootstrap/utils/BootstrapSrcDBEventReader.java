@@ -27,6 +27,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -38,11 +41,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import java.lang.reflect.Method;
-
-import java.net.URL;
-import java.net.URLClassLoader;
 
 import javax.sql.DataSource;
 
@@ -57,7 +55,7 @@ import com.linkedin.databus.core.util.RateMonitor;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.producers.db.ReadEventCycleSummary;
 import com.linkedin.databus2.producers.db.SourceDBEventReader;
 import com.linkedin.databus2.util.DBHelper;
@@ -69,7 +67,7 @@ public class BootstrapSrcDBEventReader
 	private static final Logger LOG = Logger.getLogger(BootstrapSrcDBEventReader.class);
 	private static final long MILLISEC_TO_MIN = (1000 * 60);
 
-	private final List<MonitoredSourceInfo> _sources;
+	private final List<OracleTriggerMonitoredSourceInfo> _sources;
 	private final DataSource _dataSource;
 	private final BootstrapEventBuffer _bootstrapSeedWriter;
 	private final int _numRetries;
@@ -87,13 +85,12 @@ public class BootstrapSrcDBEventReader
 	private final Map<String,DbusEventKey.KeyType> _pKeyTypeMap;
 	private final Map<String, String> _pKeyIndexMap;
 	private final Map<String, String> _queryHintMap;
-	private final Map<String,String> _checkpointPersistanceScript;
 	private final Map<String,String> _eventQueryMap;
 	private final Map<String,String> _beginSrcKeyMap;
 	private final Map<String,String> _endSrcKeyMap;
     private final Method _setLobPrefetchSizeMethod;
     private final Class _oraclePreparedStatementClass;
-    
+
 	public Map<String, File> getKeyTxnFilesMap() {
 		return _keyTxnFilesMap;
 	}
@@ -113,16 +110,15 @@ public class BootstrapSrcDBEventReader
 	public BootstrapSrcDBEventReader(DataSource dataSource,
 									 BootstrapEventBuffer eventBuffer,
 			                         StaticConfig   config,
-			                         List<MonitoredSourceInfo> sources,
+			                         List<OracleTriggerMonitoredSourceInfo> sources,
 			                         Map<String, Long> lastRows,
 			                         Map<String, String> lastKeys,
-			                         long           sinceSCN,
-			                         Map<String, String> checkpointPersistanceScript
+			                         long           sinceSCN
 			                         )
 		throws Exception
 	{
 	    super("BootstrapSrcDBEventReader");
-	    List<MonitoredSourceInfo> sourcesTemp = new ArrayList<MonitoredSourceInfo>();
+	    List<OracleTriggerMonitoredSourceInfo> sourcesTemp = new ArrayList<OracleTriggerMonitoredSourceInfo>();
 	    sourcesTemp.addAll(sources);
 	    _sources = Collections.unmodifiableList(sourcesTemp);
 		_dataSource = dataSource;
@@ -154,11 +150,10 @@ public class BootstrapSrcDBEventReader
 		_pKeyTypeMap = config.getPKeyTypeMap();
 		_pKeyIndexMap = config.getPKeyIndexMap();
 		_queryHintMap = config.getQueryHintMap();
-		_checkpointPersistanceScript = checkpointPersistanceScript;
 		_eventQueryMap = config.getEventQueryMap();
 		_beginSrcKeyMap = config.getBeginSrcKeyMap();
 		_endSrcKeyMap = config.getEndSrcKeyMap();
-		
+
         File file = new File("ojdbc6-11.2.0.2.0.jar");
 		URL ojdbcJarFile = file.toURL();
 		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
@@ -172,8 +167,6 @@ public class BootstrapSrcDBEventReader
 	public void validate()
 		throws Exception
 	{
-		if ( null == _checkpointPersistanceScript)
-			throw new Exception("_checkpointPersistanceScript cannot be null !!");
 
 		if ( null == _pKeyTypeMap)
 			throw new Exception("_pKeyTypeMap cannot be null !!");
@@ -187,21 +180,8 @@ public class BootstrapSrcDBEventReader
 		if ( isNullIndex && isNullQueryHint)
 			throw new Exception("Index and Query Hint both cannot be null !!");
 
-		for (MonitoredSourceInfo s : _sources)
+		for (OracleTriggerMonitoredSourceInfo s : _sources)
 		{
-			if ( null == _checkpointPersistanceScript.get(s.getEventView()))
-				throw new Exception("CheckpointPersistance Script for Source (" + s.getEventView() + ") not provided !!");
-
-			try
-			{
-				File f = new File(_checkpointPersistanceScript.get(s.getEventView()));
-				boolean perm = f.isFile() && f.canExecute();
-				if (!perm)
-					throw new Exception("Checkpoint Persistance File (" + f + ") for source (" + s.getEventView() + ") is either not present or cannot be executed !!");
-			}	catch (Exception ex) {
-				throw new Exception("Exception while checking checkpoint persistance script validity for source (" + s.getEventView() + ")");
-			}
-
 			if ( null == _pKeyTypeMap.get(s.getEventView()))
 					throw new Exception("pKey Type for Source (" + s.getEventView() + ") not provided !!");
 
@@ -261,7 +241,7 @@ public class BootstrapSrcDBEventReader
 	    		maxScn = getMaxScn(_sources.get(0));
 	    	}
 
-	    	for ( MonitoredSourceInfo sourceInfo : _sources)
+	    	for ( OracleTriggerMonitoredSourceInfo sourceInfo : _sources)
 	    	{
 	    		LOG.info("Bootstrapping " + sourceInfo.getEventView());
 	    		_bootstrapSeedWriter.start(maxScn);
@@ -317,7 +297,7 @@ public class BootstrapSrcDBEventReader
 		return numRows;
 	}
 
-	private EventReaderSummary readEventsForSource(MonitoredSourceInfo sourceInfo, long maxScn)
+	private EventReaderSummary readEventsForSource(OracleTriggerMonitoredSourceInfo sourceInfo, long maxScn)
 	throws DatabusException, EventCreationException,
 			UnsupportedKeyException,SQLException, IOException
 	{
@@ -331,7 +311,7 @@ public class BootstrapSrcDBEventReader
 		String sql = _eventQueryMap.get(sourceInfo.getEventView());
 		String beginSrcKey = _beginSrcKeyMap.get(sourceInfo.getEventView());
 		String endSrcKey = _endSrcKeyMap.get(sourceInfo.getEventView());
-		
+
 		if (sql == null)
 		{
 			sql = generateEventQuery2(sourceInfo,keyName, keyType, getPKIndex(sourceInfo), getQueryHint(sourceInfo));
@@ -347,9 +327,9 @@ public class BootstrapSrcDBEventReader
 			else
 				endKeyTxn = new PrimaryKeyTxn(endSrcKey);
 		}
-		
-		
-		
+
+
+
 		long timestamp = System.currentTimeMillis();
 		int numRowsFetched = 0;
 		long totalEventSize = 0;
@@ -398,16 +378,16 @@ public class BootstrapSrcDBEventReader
 			 */
 			if ( null == lastKey )
 			{
-				lastKey = _beginSrcKeyMap.get(sourceInfo.getEventView());	
+				lastKey = _beginSrcKeyMap.get(sourceInfo.getEventView());
 				LOG.info("No last Src Key available in bootstrap_seeder_state for source ("  + sourceInfo + ". Trying beginSrc Key from config :" + lastKey);
 			}
-						
+
 			if ( (null == lastKey) || (lastKey.trim().isEmpty()) )
-			{				
+			{
 				if ( KeyType.LONG == keyType )
 					pKey = new PrimaryKeyTxn(executeAndGetLong(minKeySQL));
-				else 
-					pKey = new PrimaryKeyTxn(executeAndGetString(minKeySQL));				
+				else
+					pKey = new PrimaryKeyTxn(executeAndGetString(minKeySQL));
 			} else {
 				if ( KeyType.LONG == keyType )
 					pKey = new PrimaryKeyTxn(Long.parseLong(lastKey));
@@ -417,35 +397,34 @@ public class BootstrapSrcDBEventReader
 
 			PrimaryKeyTxn lastRoundKeyTxn = new PrimaryKeyTxn(pKey);
 			PrimaryKeyTxn lastKeyTxn = new PrimaryKeyTxn(pKey);
-			long numUniqueKeys = 0;
-			
+			long numUniqueKeysThisRound = 0;
+
 			boolean first  = true;
 			_rate.resume();
 			while ( ! done )
 			{
 				LOG.info("MinKey being used for this round:" + pKey );
-
+				numUniqueKeysThisRound = 0;
 				try
 				{
 					lastRoundKeyTxn.copyFrom(pKey);
-					
+
 					if ( KeyType.LONG == keyType )
 					{
 						pstmt.setLong(1,pKey.getKey());
 					} else {
 						String key = pKey.getKeyStr();
-						String[] subKeys = key.split("_");
-						pstmt.setString(1, subKeys[0]);
+						pstmt.setString(1, key);
 					}
 
 					pstmt.setLong(2, _numRowsPerQuery);
 					pstmt.setFetchSize(_numRowsPrefetch);
-					
+
 					if ( _oraclePreparedStatementClass.isInstance(pstmt))
 					{
 						try
 						{
-							_setLobPrefetchSizeMethod.invoke(pstmt, _LOBPrefetchSize);							
+							_setLobPrefetchSizeMethod.invoke(pstmt, _LOBPrefetchSize);
 						} catch (Exception e)
 						{
 							throw new EventCreationException("Unable to set Lob Prefetch size" + e.getMessage());
@@ -473,10 +452,9 @@ public class BootstrapSrcDBEventReader
 							pKey.setKeyTxn(rs.getLong(1),txnId);
 						} else {
 							String key = rs.getString(1);
-							String[] subKeys = key.split("_");
-							pKey.setKeyStrTxn(subKeys[0],txnId);
+							pKey.setKeyStrTxn(key,txnId);
 						}
-						
+
 						//Write TXN to file
 						pKey.writeTo(keyTxnWriter);
 
@@ -490,13 +468,13 @@ public class BootstrapSrcDBEventReader
 						totProcessTime += (totLatency/1000*1000);
 						numRowsFetched++;
 						numRowsThisRound++;
-						
+
 						if ( lastKeyTxn.compareKey(pKey) != 0)
 						{
-							numUniqueKeys++;
+							numUniqueKeysThisRound++;
 							lastKeyTxn.copyFrom(pKey);
 						}
-						
+
 						if ( numRowsFetched%checkpointInterval == 0 )
 						{
 							// Commit this batch and reinit
@@ -531,72 +509,72 @@ public class BootstrapSrcDBEventReader
 							}
 							lastTime = currTime;
 						}
-						
-						if ( (null != endKeyTxn) &&  (endKeyTxn.compareKey(lastKeyTxn) < 0) ) 
+
+						if ( (null != endKeyTxn) &&  (endKeyTxn.compareKey(lastKeyTxn) < 0) )
 						{
 							LOG.info("Seeding to be stopped for current source as it has completed seeding upto endSrckey :" + endKeyTxn
 									+ ", Current SrcKey :" + lastKeyTxn);
 							break;
 						}
-						
+
 					}
 					seedingRate.suspend();
-					
-					if ( (numRowsThisRound <= 1) || 							
-							((numRowsThisRound < _numRowsPerQuery) && (numUniqueKeys == 1)))
+
+					if ( (numRowsThisRound <= 1) ||
+							((numRowsThisRound < _numRowsPerQuery) && (numUniqueKeysThisRound <= 1)))
 					{
-						LOG.info("Seeding Done for source :" + sourceInfo.getEventView() + ", numRowsThisRound :" 
-					               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery 
-					               + ", numUniqueKeys :" + numUniqueKeys);
+						LOG.info("Seeding Done for source :" + sourceInfo.getEventView() + ", numRowsThisRound :"
+					               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery
+					               + ", numUniqueKeys :" + numUniqueKeysThisRound);
 						done = true;
-					} else if ((numRowsThisRound == _numRowsPerQuery) && (numUniqueKeys == 1)) {
-						String msg = "Seeding stuck at infinte loop for source : " + sourceInfo.getEventView() + ", numRowsThisRound :" 
-					               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery 
-					               + ", numUniqueKeys :" + numUniqueKeys + ", lastChunkKey :" + lastRoundKeyTxn;
+					} else if ((numRowsThisRound == _numRowsPerQuery) && (numUniqueKeysThisRound <= 1)) {
+						String msg = "Seeding stuck at infinte loop for source : " + sourceInfo.getEventView() + ", numRowsThisRound :"
+					               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery
+					               + ", numUniqueKeys :" + numUniqueKeysThisRound + ", lastChunkKey :" + lastRoundKeyTxn;
 						LOG.error(msg);
-						throw new DatabusException(msg);						
+						throw new DatabusException(msg);
 					} else if ( null != endKeyTxn) {
 						if ( endKeyTxn.compareKey(lastKeyTxn) < 0 ) {
-							LOG.info("Seeding stopped for source :" + sourceInfo.getEventView() 
-									  + ", as it has completed seeding upto the endSrckey :" + endKeyTxn + ", numRowsThisRound :" 
-						               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery 
-						               + ", numUniqueKeys :" + numUniqueKeys + " , Current SrcKey :" + lastKeyTxn);
+							LOG.info("Seeding stopped for source :" + sourceInfo.getEventView()
+									  + ", as it has completed seeding upto the endSrckey :" + endKeyTxn + ", numRowsThisRound :"
+						               + numRowsThisRound + ", _numRowsPerQuery :" + _numRowsPerQuery
+						               + ", numUniqueKeys :" + numUniqueKeysThisRound + " , Current SrcKey :" + lastKeyTxn);
 							done = true;
 						}
 					}
 
-					if ( !first || done)
+					if (currRowId > 0 && (!first || done))
 					{
 						currRowId--; //Since next time, we will read the last seen record again
 					}
+					LOG.info("about to call end events with currRowId = " + currRowId);
 					first = false;
 					_bootstrapSeedWriter.endEvents(currRowId,timestamp,null);
+					isException = false;
+				} catch (SQLException ex) {
+				  LOG.error("Got SQLException for source (" + sourceInfo + ")", ex);
 
+				  _bootstrapSeedWriter.rollbackEvents();
+
+				  numRetry++;
+				  isException = true;
+
+				  if (numRetry >= retryMax)
+				  {
+				    throw new DatabusException("Error: Reached max retries for reading/processing bootstrap", ex);
+				  }
 				} finally {
 					DBHelper.close(rs);
 					rs = null;
 				}
 			}
-		} catch (SQLException ex) {
-			LOG.error("Got SQLException for source (" + sourceInfo + ")", ex);
+		}  catch (DatabusException ex) {
 
-			_bootstrapSeedWriter.rollbackEvents();
-
-			numRetry++;
-			isException = true;
-
-			if (numRetry >= retryMax)
-			{
-				throw new DatabusException(
-						"Error: Reached max retries for reading/processing bootstrap", ex);
-			}
-		} catch (DatabusException ex) {
-			
 			isException = true;
 			throw ex;
-			
+
 		}  finally {
-		
+
 			DBHelper.close(rs,pstmt,conn);
 			keyTxnWriter.close();
 			rs = null;
@@ -614,7 +592,7 @@ public class BootstrapSrcDBEventReader
 		                              numRowsFetched, totalEventSize, (timeEnd - timeStart),totProcessTime,0,0,0);
 	}
 
-	private long getMaxScn(MonitoredSourceInfo sourceInfo)
+	private long getMaxScn(OracleTriggerMonitoredSourceInfo sourceInfo)
 	  throws SQLException
 	{
 		String schema = ( sourceInfo.getEventSchema() == null) ? "" :
@@ -688,7 +666,7 @@ public class BootstrapSrcDBEventReader
 		return val;
 	}
 
-	public static String getTableName(MonitoredSourceInfo sourceInfo)
+	public static String getTableName(OracleTriggerMonitoredSourceInfo sourceInfo)
 	{
 		String schema = ( sourceInfo.getEventSchema() == null) ? "" :
 										sourceInfo.getEventSchema() + ".";
@@ -696,7 +674,7 @@ public class BootstrapSrcDBEventReader
 		return table;
 	}
 
-	public String getPKIndex(MonitoredSourceInfo sourceInfo)
+	public String getPKIndex(OracleTriggerMonitoredSourceInfo sourceInfo)
 	{
 		String index = _pKeyIndexMap.get(sourceInfo.getEventView());
 
@@ -707,7 +685,7 @@ public class BootstrapSrcDBEventReader
 		return index;
 	}
 
-	public String getQueryHint(MonitoredSourceInfo sourceInfo)
+	public String getQueryHint(OracleTriggerMonitoredSourceInfo sourceInfo)
 	{
 	   String index = _queryHintMap.get(sourceInfo.getEventView());
 
@@ -731,7 +709,7 @@ public class BootstrapSrcDBEventReader
 	}
 	*/
 
-	public static String generateEventQuery2(MonitoredSourceInfo sourceInfo, String keyName, KeyType keyType, String pkIndex, String queryHint)
+	public static String generateEventQuery2(OracleTriggerMonitoredSourceInfo sourceInfo, String keyName, KeyType keyType, String pkIndex, String queryHint)
 	{
 		return generateEventQuery2(getTableName(sourceInfo),keyName, keyType, pkIndex, queryHint);
 	}
@@ -755,7 +733,36 @@ public class BootstrapSrcDBEventReader
 		return sql.toString();
 	}
 
-	public static String generateMinKeyQuery(MonitoredSourceInfo sourceInfo, String keyName)
+	/**
+	 * Same as previous query; but doesn't include keyName in query result; all keys greater than keyName
+	 * @param table
+	 * @param keyName : databus schema's key - e.g. 'key' or 'id' or 'memberId'
+	 * @param keyType : TODO: remove - unused here
+	 * @param pkIndex : used to develop hint used in oracle query
+	 * @param queryHint: other hints
+	 * @return
+	 */
+	 public static String generateEventQueryAudit(String table, String keyName, KeyType keyType, String pkIndex, String queryHint)
+	  {
+	      StringBuilder sql = new StringBuilder();
+
+	      sql.append("select * from (");
+	      if ( (null == queryHint) || ( queryHint.isEmpty()))
+	        sql.append("select /*+ INDEX(src ").append(pkIndex).append(") */ ");
+	      else
+	         sql.append("select /*+ " + queryHint + " */ ");
+
+	      sql.append(keyName).append( " keyn,");
+	      sql.append(" txn txnid, src.*, ROW_NUMBER() OVER(order by src.").append(keyName).append(" asc) as row_counter from ");
+	      sql.append(table);
+	      sql.append(" src");
+	    sql.append(" where src." + keyName + " > ?");
+	      sql.append(" ) where row_counter <= ?");
+	    return sql.toString();
+	  }
+
+
+	public static String generateMinKeyQuery(OracleTriggerMonitoredSourceInfo sourceInfo, String keyName)
 	{
 		return generateMinKeyQuery(getTableName(sourceInfo), keyName );
 	}
@@ -956,7 +963,7 @@ public class BootstrapSrcDBEventReader
         {
             return _queryHintMap;
         }
-        
+
 
 		public Map<String, DbusEventKey.KeyType> getPKeyTypeMap()
 		{
@@ -976,12 +983,12 @@ public class BootstrapSrcDBEventReader
 		public boolean isEnableNumRowsQuery() {
 			return _enableNumRowsQuery;
 		}
-		
+
         public Map<String, String> getBeginSrcKeyMap()
         {
             return _beginSrcKeyMap;
         }
-        
+
         public Map<String, String> getEndSrcKeyMap()
         {
             return _endSrcKeyMap;
@@ -1039,7 +1046,7 @@ public class BootstrapSrcDBEventReader
 
 	public static class Config implements ConfigBuilder<StaticConfig>
 	{
-		private static final boolean DEFAULT_ENABLE_NUM_ROWS_QUERY = true;
+		private static final boolean DEFAULT_ENABLE_NUM_ROWS_QUERY = false;
 		private static final int DEFAULT_NUM_ROWS_PREFETCH = 10;
 		private static final int DEFAULT_LOB_PREFETCH_SIZE = 4000;
 		private static final int DEFAULT_COMMIT_INTERVAL = 10000;
@@ -1053,7 +1060,7 @@ public class BootstrapSrcDBEventReader
 	    private static final String DEFAULT_BEGINSRC_KEY = "";
 	    private static final String DEFAULT_ENDSRC_KEY = "";
 
-	  
+
 		public Config()
 		{
 			_enableNumRowsQuery = DEFAULT_ENABLE_NUM_ROWS_QUERY;
@@ -1091,7 +1098,7 @@ public class BootstrapSrcDBEventReader
 			LOG.info("_beginSrcKeyMap:" + _beginSrcKeyMap);
 			LOG.info("_endSrcKeyMap:" + _endSrcKeyMap);
 
-			
+
 			HashMap<String, DbusEventKey.KeyType> pKeyTypeMap = new HashMap<String, DbusEventKey.KeyType>();
 			Iterator<Entry<String, String>> itr = _pKeyTypeMap.entrySet().iterator();
 			while ( itr.hasNext())
@@ -1171,7 +1178,7 @@ public class BootstrapSrcDBEventReader
 		{
 			_beginSrcKeyMap.put(srcName, key);
 		}
-		
+
 		public String getBeginSrcKey(String srcName)
 		{
 		      String key = _beginSrcKeyMap.get(srcName);
@@ -1184,12 +1191,12 @@ public class BootstrapSrcDBEventReader
 
 		      return key;
 		}
-		
+
 		public void setEndSrcKey(String srcName, String key)
 		{
 			_endSrcKeyMap.put(srcName, key);
 		}
-		
+
 		public String getEndSrcKey(String srcName)
 		{
 		      String key = _endSrcKeyMap.get(srcName);
@@ -1202,7 +1209,7 @@ public class BootstrapSrcDBEventReader
 
 		      return key;
 		}
-		
+
 		public void setQueryHint(String srcName, String key)
 		{
 			_queryHintMap.put(srcName, key);
@@ -1294,12 +1301,12 @@ public class BootstrapSrcDBEventReader
 		public void setEnableNumRowsQuery(boolean enableNumRowsQuery) {
 			this._enableNumRowsQuery = enableNumRowsQuery;
 		}
-		
+
 		public void setEventQuery(String name,String value)
 		{
 			_eventQueryMap.put(name, value);
 		}
-		
+
 		public String getEventQuery(String src)
 		{
 			return _eventQueryMap.get(src);
@@ -1312,15 +1319,15 @@ public class BootstrapSrcDBEventReader
 		private  int _commitInterval;
 		private  int _numRetries;
 		private  int _numRowsPerQuery;
-		private Map<String, String> _keyTxnFilesMap;
-		private Map<String, Integer> _keyTxnBufferSizeMap;
-		private Map<String, String> _pKeyNameMap;
-		private Map<String, String> _pKeyTypeMap;
-		private Map<String, String> _pKeyIndexMap;
-        private Map<String, String> _queryHintMap;
-        private Map<String, String> _eventQueryMap;
-        private Map<String, String> _beginSrcKeyMap;
-        private Map<String, String> _endSrcKeyMap;
+		private final Map<String, String> _keyTxnFilesMap;
+		private final Map<String, Integer> _keyTxnBufferSizeMap;
+		private final Map<String, String> _pKeyNameMap;
+		private final Map<String, String> _pKeyTypeMap;
+		private final Map<String, String> _pKeyIndexMap;
+        private final Map<String, String> _queryHintMap;
+        private final Map<String, String> _eventQueryMap;
+        private final Map<String, String> _beginSrcKeyMap;
+        private final Map<String, String> _endSrcKeyMap;
 
 	}
 
@@ -1372,13 +1379,13 @@ public class BootstrapSrcDBEventReader
 		public KeyType getKeyType() {
 			return keyType;
 		}
-		
-		public PrimaryKeyTxn(PrimaryKeyTxn keyTxn) 
+
+		public PrimaryKeyTxn(PrimaryKeyTxn keyTxn)
 		{
-			super();			
+			super();
 			copyFrom(keyTxn);
 		}
-				
+
 		public PrimaryKeyTxn(long key) {
 			super();
 			this.key = key;
@@ -1466,7 +1473,7 @@ public class BootstrapSrcDBEventReader
 	}
 
 	@Override
-	public List<MonitoredSourceInfo> getSources() {
+	public List<OracleTriggerMonitoredSourceInfo> getSources() {
 		return _sources;
 	}
 

@@ -31,9 +31,8 @@ import org.testng.annotations.Test;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
 import com.linkedin.databus.core.DbusEventBuffer.InternalEventIterator;
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
-import com.linkedin.databus.core.util.DbusEventAppender;
-import com.linkedin.databus.core.util.DbusEventGenerator;
-import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.test.DbusEventAppender;
+import com.linkedin.databus.core.test.DbusEventGenerator;
 import com.linkedin.databus2.core.AssertLevel;
 import com.linkedin.databus2.test.ConditionCheck;
 import com.linkedin.databus2.test.TestUtil;
@@ -51,7 +50,8 @@ public class TestDbusEventBufferIterators
   /**
    * Verify internal iterators see all current updates and nothing after that for a event buffer with
    * a single ByteBuffer*/
-  public void testInternalIteratorHappyPathSingleBuf() throws InvalidConfigException
+  public void testInternalIteratorHappyPathSingleBuf()
+  throws Exception
   {
     final Logger log =
         Logger.getLogger("TestDbusEventBufferIterator.testInternalIteratorHappyPathSingleBuf");
@@ -75,7 +75,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
+    final Vector<DbusEvent> events = new Vector<DbusEvent>();
     generator.generateEvents(5, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -97,7 +97,7 @@ public class TestDbusEventBufferIterators
     readAndCompareIteratorEvents(iter1, events, false);
 
     log.info("add more windows");
-    final Vector<DbusEventInternalWritable> events2 = new Vector<DbusEventInternalWritable>();
+    final Vector<DbusEvent> events2 = new Vector<DbusEvent>();
     final DbusEventGenerator generator2 = new DbusEventGenerator(1000);
     generator2.generateEvents(50, 4, 180, 100, events2);
     injectEventsInBuffer(dbusBuf, events2, false);
@@ -133,7 +133,8 @@ public class TestDbusEventBufferIterators
   /**
    * Verify internal iterators see all current updates and nothing after that for a event buffer with
    * a single ByteBuffer*/
-  public void testInternalIteratorWrapSingleBuf() throws InvalidConfigException
+  public void testInternalIteratorWrapSingleBuf()
+  throws Exception
   {
     final Logger log =
         Logger.getLogger("TestDbusEventBufferIterator.testInternalIteratorWrapSingleBuf");
@@ -149,7 +150,7 @@ public class TestDbusEventBufferIterators
     {
       log.info("add first window iteration " + i);
       final DbusEventGenerator generator = new DbusEventGenerator(40 * i);
-      final Vector<DbusEventInternalWritable> events1 = new Vector<DbusEventInternalWritable>();
+      final Vector<DbusEvent> events1 = new Vector<DbusEvent>();
       generator.generateEvents(6, 1, 120, 41, events1);
       injectEventsInBuffer(dbusBuf, events1, true);
 
@@ -172,7 +173,8 @@ public class TestDbusEventBufferIterators
   /**
    * Verify internal iterators see all current updates and nothing after that for a event buffer with
    * multiple ByteBuffers*/
-  public void testInternalIteratorHappyPathMultiBuf() throws InvalidConfigException
+  public void testInternalIteratorHappyPathMultiBuf()
+  throws Exception
   {
     final Logger log =
         Logger.getLogger("TestDbusEventBufferIterator.testInternalIteratorHappyPathMultiBuf");
@@ -196,7 +198,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
+    final Vector<DbusEvent> events = new Vector<DbusEvent>();
     generator.generateEvents(5, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -218,7 +220,7 @@ public class TestDbusEventBufferIterators
     readAndCompareIteratorEvents(iter1, events, false);
 
     log.info("add more windows");
-    final Vector<DbusEventInternalWritable> events2 = new Vector<DbusEventInternalWritable>();
+    final Vector<DbusEvent> events2 = new Vector<DbusEvent>();
     final DbusEventGenerator generator2 = new DbusEventGenerator(1000);
     generator2.generateEvents(50, 4, 180, 100, events2);
     injectEventsInBuffer(dbusBuf, events2, false);
@@ -253,7 +255,8 @@ public class TestDbusEventBufferIterators
   @SuppressWarnings("unused")
   @Test
   /** Verify that internal iterators are automatically released during GC */
-  public void testInternalIteratorGC() throws InvalidConfigException
+  public void testInternalIteratorGC()
+  throws Exception
   {
     final Logger log =
         Logger.getLogger("TestDbusEventBufferIterator.testInternalIteratorGC");
@@ -271,7 +274,7 @@ public class TestDbusEventBufferIterators
 
     log.info("append a full window of events");
     final DbusEventGenerator generator = new DbusEventGenerator();
-    final Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
+    final Vector<DbusEvent> events = new Vector<DbusEvent>();
     generator.generateEvents(15, 5, 120, 39, events);
     injectEventsInBuffer(dbusBuf, events, false);
 
@@ -325,23 +328,24 @@ public class TestDbusEventBufferIterators
 
   /** Write the events directly to the ByteBuffer because we want to avoid invoking internal
    * listeners which in turn will try to use iterators. A bit of a Catch-22. */
-  private static void injectEventsInBuffer(DbusEventBuffer buf, Vector<DbusEventInternalWritable> events,
+  private static void injectEventsInBuffer(DbusEventBuffer buf, Vector<DbusEvent> events,
                                            boolean updateScnIndex)
+  throws Exception
   {
     DbusEventAppender appender = new DbusEventAppender(events, buf, null, 1.0, false, -1,
-                                                       updateScnIndex);
+                                                       updateScnIndex,0);
     appender.run();
   }
 
   protected void readAndCompareIteratorEvents(InternalEventIterator iter,
-                                              List<DbusEventInternalWritable> expectedEvents,
+                                              List<DbusEvent> expectedEvents,
                                               boolean prefixMatch)
   {
     readAndCompareIteratorEvents(iter, expectedEvents, 0, expectedEvents.size(), prefixMatch);
   }
 
   protected void readAndCompareIteratorEvents(InternalEventIterator iter,
-                                              List<DbusEventInternalWritable> expectedEvents,
+                                              List<DbusEvent> expectedEvents,
                                               final int startIdx, final int endIdx,
                                               boolean prefixMatch)
   {

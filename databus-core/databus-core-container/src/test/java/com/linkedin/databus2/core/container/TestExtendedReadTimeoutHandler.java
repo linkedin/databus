@@ -42,6 +42,7 @@ import com.linkedin.databus2.test.container.SimpleTestServerConnection;
 public class TestExtendedReadTimeoutHandler
 {
   static final long CONNECT_TIMEOUT_MS = 1000;
+  static final DbusEventFactory _eventFactory = new DbusEventV1Factory();
 
   @Test
   /**
@@ -61,12 +62,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(_eventFactory.getByteOrder());
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(1, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(_eventFactory.getByteOrder());
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(1, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -171,12 +172,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerComplexRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(_eventFactory.getByteOrder());
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(2, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(_eventFactory.getByteOrder());
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(2, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -281,12 +282,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleRequestTimeout()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(_eventFactory.getByteOrder());
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(3, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(_eventFactory.getByteOrder());
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(3, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");
@@ -373,12 +374,12 @@ public class TestExtendedReadTimeoutHandler
    */
   public void testServerSimpleResponseTimeout()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(_eventFactory.getByteOrder());
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(4, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
+    SimpleTestClientConnection clientConn = new SimpleTestClientConnection(_eventFactory.getByteOrder());
     clientConn.setPipelineFactory(new SimpleClientPipelineFactory());
     boolean clientConnected = clientConn.startSynchronously(4, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");

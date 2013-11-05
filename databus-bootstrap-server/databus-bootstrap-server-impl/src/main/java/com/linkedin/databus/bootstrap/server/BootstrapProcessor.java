@@ -29,25 +29,24 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 
 import org.apache.log4j.Logger;
+
 import com.linkedin.databus.bootstrap.api.BootstrapEventCallback;
 import com.linkedin.databus.bootstrap.api.BootstrapEventProcessResult;
 import com.linkedin.databus.bootstrap.api.BootstrapProcessingException;
 import com.linkedin.databus.bootstrap.common.BootstrapConn;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO;
-import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
+import com.linkedin.databus.bootstrap.common.BootstrapDBTimedQuery;
+import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.DbusClientMode;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
+import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooYoungException;
 import com.linkedin.databus2.core.filter.DbusFilter;
 import com.linkedin.databus2.core.filter.DbusKeyFilter;
 import com.linkedin.databus2.core.filter.FilterToSQL;
 import com.linkedin.databus2.util.DBHelper;
-import com.linkedin.databus.core.Checkpoint;
-import com.linkedin.databus.core.DbusClientMode;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 
-/**
- * @author ksurlake
- * 
- */
+
 public class BootstrapProcessor
 {
   public static final String            MODULE                      =
@@ -57,36 +56,42 @@ public class BootstrapProcessor
 
   public final static String            EVENT_COLUMNS               = "val";
   public final static String            PHASE_COMPLETED_HEADER_NAME = "PhaseCompleted";
+  public final static String            PHASE_COMPLETED_HEADER_TRUE = "TRUE";
   public final static String            EMPTY_STRING = "";
-  public final static boolean          DEFAULT_PREDICATE_OPTIMIZATION = true;
-
-  private final long                    _maxRowsPerFetch;
+  private final long                    _maxSnapshotRowsPerFetch;
+  private final long                    _maxCatchupRowsPerFetch;
+  private final int                     _queryTimeInSec;
   private BootstrapDBMetaDataDAO                _dbDao;
-  private DbusEventsStatisticsCollector _curStatsCollector;
+  private final DbusEventsStatisticsCollector _curStatsCollector;
   private DbusKeyFilter                 keyFilter;
-  private boolean predicatePushDownOptimization = DEFAULT_PREDICATE_OPTIMIZATION;
-  
-  public BootstrapProcessor(BootstrapReadOnlyConfig config,
+  //Bootstrap server config
+  BootstrapServerStaticConfig config;
+
+  public BootstrapProcessor(BootstrapServerStaticConfig config,
                             DbusEventsStatisticsCollector curStatsCollector) throws InstantiationException,
                             IllegalAccessException,
                             ClassNotFoundException,
                             SQLException
                             {
     _curStatsCollector = curStatsCollector;
-     BootstrapConn dbConn = new BootstrapConn();
-    dbConn.initBootstrapConn(true,
-                              config.getBootstrapDBUsername(),
-                              config.getBootstrapDBPassword(),
-                              config.getBootstrapDBHostname(),
-                              config.getBootstrapDBName());
+    BootstrapConn dbConn = new BootstrapConn();
+    this.config = config;
+    final boolean autoCommit = true;
+    dbConn.initBootstrapConn(autoCommit,
+                              config.getDb().getBootstrapDBUsername(),
+                              config.getDb().getBootstrapDBPassword(),
+                              config.getDb().getBootstrapDBHostname(),
+                              config.getDb().getBootstrapDBName());
     _dbDao = new BootstrapDBMetaDataDAO(dbConn,
-    							config.getBootstrapDBHostname(),
-    							config.getBootstrapDBUsername(),
-    							config.getBootstrapDBPassword(),
-    							config.getBootstrapDBName(),
-    							false);
-    
-    _maxRowsPerFetch = config.getBootstrapBatchSize();
+    							config.getDb().getBootstrapDBHostname(),
+    							config.getDb().getBootstrapDBUsername(),
+    							config.getDb().getBootstrapDBPassword(),
+    							config.getDb().getBootstrapDBName(),
+    							autoCommit);
+
+    _maxSnapshotRowsPerFetch = config.getDb().getBootstrapSnapshotBatchSize();
+    _maxCatchupRowsPerFetch = config.getDb().getBootstrapCatchupBatchSize();
+    _queryTimeInSec = config.getQueryTimeoutInSec();
     if (LOG.isDebugEnabled())
     {
     	LOG.debug("BootstrapProcessor: config=" + config + ", dbConn=" + dbConn);
@@ -103,16 +108,6 @@ public class BootstrapProcessor
     this.keyFilter = keyFilter;
   }
 
-  public boolean getPredicatePushDownOptimization()
-  {
-    return predicatePushDownOptimization;
-  }
-
-  public void setPredicatePushDownOptimization(boolean predicatePushDownOptimization)
-  {
-    this.predicatePushDownOptimization = predicatePushDownOptimization;
-  }
-
   // Get specified number of catchup rows
   public boolean streamCatchupRows(Checkpoint currState, BootstrapEventCallback callBack) throws SQLException,
   BootstrapProcessingException,
@@ -122,10 +117,10 @@ public class BootstrapProcessor
     boolean foundRows = false;
 
     BootstrapDBMetaDataDAO.SourceStatusInfo srcIdStatusPair = _dbDao.getSrcIdStatusFromDB(currState.getCatchupSource(),true);
-    
+
     if ( !srcIdStatusPair.isValidSource())
     	throw new BootstrapProcessingException("Bootstrap DB not servicing source :" + currState.getCatchupSource());
-    	
+
     int curSrcId = srcIdStatusPair.getSrcId();
 
     int curLogId = _dbDao.getLogIdToCatchup(curSrcId, currState.getWindowScn());
@@ -140,7 +135,7 @@ public class BootstrapProcessor
       while (!foundRows && curLogId <= targetLogId)
       {
         stmt = createCatchupStatement(curSrcId, curLogId, currState);
-        rs = stmt.executeQuery();
+        rs = new BootstrapDBTimedQuery(stmt,_queryTimeInSec).executeQuery();
 
         foundRows = rs.isBeforeFirst();
         if (!foundRows)
@@ -152,7 +147,7 @@ public class BootstrapProcessor
         }
       }
 
-      phaseCompleted = streamOutRows(currState, rs, callBack);
+      phaseCompleted = streamOutRows(currState, rs, callBack,_maxCatchupRowsPerFetch);
     }
     catch (SQLException e)
     {
@@ -186,7 +181,7 @@ public class BootstrapProcessor
       if( filterStringTemp != EMPTY_STRING)
         filterStrings.add(filterStringTemp);
     }
-    
+
     //check for none partitions - do we have any filters to apply ?
     if(filterStrings.size() == 0)
       return EMPTY_STRING;
@@ -205,39 +200,52 @@ public class BootstrapProcessor
     return filterSqlBuilder.toString();
   }
 
+
   public String getCatchupSQLString(String catchupTab)
+  {
+      return getCatchupSQLString(catchupTab, null);
+  }
+
+  public String getCatchupSQLString(String catchupTab, String source)
   {
     StringBuilder sql = new StringBuilder();
     String filterSql = getFilterSQL();
+    boolean predicatePushDown = config.isPredicatePushDownEnabled(source) && !filterSql.isEmpty() && filterSql != null;
     sql.append("Select ");
     sql.append("id, ");
     sql.append("scn, ");
     sql.append("windowscn, ");
     sql.append(EVENT_COLUMNS);
-    if (getPredicatePushDownOptimization() && !filterSql.isEmpty() && filterSql != null)
+    if (predicatePushDown)
       sql.append(", CAST(srckey as SIGNED) as srckey");
     sql.append(" from ");
     sql.append(catchupTab);
     sql.append(" where ");
     sql.append(" id > ? ");
  	sql.append(" and windowscn >= ? and windowscn <= ? ");
-    sql.append(" and windowscn >= ? ");    
-    if (getPredicatePushDownOptimization() && !filterSql.isEmpty() && filterSql !=null )
+    sql.append(" and windowscn >= ? ");
+    if (predicatePushDown)
       sql.append("AND " + filterSql);
     sql.append(" order by id limit ?");
-    
-    
+
+
     return sql.toString();
   }
 
   public String getSnapshotSQLString(String snapShotTable)
   {
-    StringBuilder sql = new StringBuilder();    
+       return getSnapshotSQLString(snapShotTable, null);
+  }
+
+    public String getSnapshotSQLString(String snapShotTable, String source)
+  {
+    StringBuilder sql = new StringBuilder();
     String filterSql = getFilterSQL();
+    boolean predicatePushDown = config.isPredicatePushDownEnabled(source) && !filterSql.isEmpty() && filterSql != null;
     sql.append("Select ");
     sql.append("id, ");
     sql.append("scn, ");
-    if (getPredicatePushDownOptimization() && !filterSql.isEmpty() && filterSql != null)
+    if (predicatePushDown)
       sql.append(" CAST(srckey as SIGNED) as srckey, ");
     else
       sql.append("srckey, ");
@@ -248,7 +256,7 @@ public class BootstrapProcessor
     sql.append(" id > ? ");
     sql.append(" and scn < ? ");
     sql.append(" and scn >= ? ");
-    if (getPredicatePushDownOptimization() && !filterSql.isEmpty() && filterSql != null)
+    if (predicatePushDown)
       sql.append("AND " + filterSql);
     sql.append(" order by id limit ?");
     return sql.toString();
@@ -258,12 +266,12 @@ public class BootstrapProcessor
   // servers are serving
   private PreparedStatement createCatchupStatement(int srcId,
                                                    int logId,
-                                                   Checkpoint currState) throws SQLException                
+                                                   Checkpoint currState) throws SQLException
   {
     Connection conn = _dbDao.getBootstrapConn().getDBConn();
     String catchupTab = "log_" + srcId + "_" + logId;
     PreparedStatement stmt = null;
-    String catchUpString = getCatchupSQLString(catchupTab);
+    String catchUpString = getCatchupSQLString(catchupTab, currState.getCatchupSource());
     long offset = -1;
     try
     {
@@ -274,24 +282,24 @@ public class BootstrapProcessor
     	stmt.setLong(i++, currState.getBootstrapStartScn());
     	stmt.setLong(i++, currState.getBootstrapTargetScn());
     	stmt.setLong(i++, currState.getBootstrapSinceScn());
-    	stmt.setLong(i++, _maxRowsPerFetch);
+    	stmt.setLong(i++, _maxCatchupRowsPerFetch);
     } catch (SQLException ex) {
     	DBHelper.close(stmt);
     }
-    
+
     LOG.info("Catchup SQL String: "
-                       + catchUpString 
-                       + ", " + offset 
-                       + ", " +  currState.getBootstrapStartScn() 
+                       + catchUpString
+                       + ", " + offset
+                       + ", " +  currState.getBootstrapStartScn()
                        + " , " + currState.getBootstrapTargetScn()
-                       + " , " + currState.getBootstrapSinceScn() 
-                       + " , " + _maxRowsPerFetch);
+                       + " , " + currState.getBootstrapSinceScn()
+                       + " , " + _maxCatchupRowsPerFetch);
     return stmt;
   }
 
   // Get specificed number of snapshot rows
-  public boolean streamSnapShotRows(Checkpoint currState, BootstrapEventCallback callBack) 
-		  throws SQLException, BootstrapProcessingException,BootstrapDatabaseTooOldException
+  public boolean streamSnapShotRows(Checkpoint currState, BootstrapEventCallback callBack)
+		  throws SQLException, BootstrapProcessingException,BootstrapDatabaseTooOldException,BootstrapDatabaseTooYoungException
   {
     assert (currState.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT);
 
@@ -318,30 +326,48 @@ public class BootstrapProcessor
     ResultSet rs = null;
     try
     {
-      String snapshotSQL = getSnapshotSQLString(_dbDao.getBootstrapConn().getSrcTableName(srcIdStatusPair.getSrcId()));
+      if (config.isEnableMinScnCheck())
+      {
+        long minScn = _dbDao.getMinScnOfSnapshots(srcIdStatusPair.getSrcId());
+        LOG.info("Min scn for tab tables is: " + minScn);
+        if (minScn == BootstrapDBMetaDataDAO.DEFAULT_WINDOWSCN)
+        {
+          throw new BootstrapDatabaseTooYoungException("BootstrapDB has no minScn for these sources, but minScn check is enabled! minScn=" + minScn);
+        }
+        //Note: The cleaner deletes rows less than or equal to scn. Rows with scn=minScn are not available
+        //sinceSCN should be greater than minScn, except when sinceSCN == minScn == 0.
+        if ((sinceSCN <= minScn) && !(sinceSCN==0 && minScn==0))
+        {
+          LOG.error("Bootstrap Snapshot doesn't have requested data . sinceScn too old! sinceScn is " + sinceSCN +  " but minScn available is " + minScn);
+          throw new BootstrapDatabaseTooYoungException("Min scn=" + minScn + " Since scn=" + sinceSCN);
+        }
+      }
+      else
+      {
+        LOG.debug("Bypassing minScn check!");
+      }
+      String snapshotSQL = getSnapshotSQLString(_dbDao.getBootstrapConn().getSrcTableName(srcIdStatusPair.getSrcId()), currState.getSnapshotSource());
       stmt =
           conn.prepareStatement(snapshotSQL);
       long offset = currState.getSnapshotOffset();
       int i = 1;
       stmt.setLong(i++, offset);
-      // stmt.setLong(i++, offset + numRows);
       stmt.setLong(i++, currState.getBootstrapStartScn());
       stmt.setLong(i++, currState.getBootstrapSinceScn());
-      stmt.setLong(i++, _maxRowsPerFetch);
-     
-      LOG.info("SnapshotSQL string: " 
+      stmt.setLong(i++, _maxSnapshotRowsPerFetch);
+      LOG.info("SnapshotSQL string: "
                + snapshotSQL
                + ", " + offset
                + ", " + currState.getBootstrapStartScn()
                + ", " + currState.getBootstrapSinceScn()
-               + ", "  + _maxRowsPerFetch);
-      
-      rs = stmt.executeQuery();
-      phaseCompleted = streamOutRows(currState, rs, callBack);
+               + ", "  + _maxSnapshotRowsPerFetch);
+
+      rs = new BootstrapDBTimedQuery(stmt,_queryTimeInSec).executeQuery();
+      phaseCompleted = streamOutRows(currState, rs, callBack,_maxSnapshotRowsPerFetch);
     }
     catch (SQLException e)
     {
-      DBHelper.close(rs, stmt, null);	
+      DBHelper.close(rs, stmt, null);
       LOG.error("Exception occurred when getting snapshot rows" + e);
       throw e;
     }
@@ -360,18 +386,20 @@ public class BootstrapProcessor
 
   private boolean streamOutRows(Checkpoint ckpt,
                                 ResultSet rs,
-                                BootstrapEventCallback callback) throws SQLException,
+                                BootstrapEventCallback callback,
+                                long maxRowsPerFetch) throws SQLException,
                                 BootstrapProcessingException
                                 {
     BootstrapEventProcessResult result = null;
     long windowScn = Long.MIN_VALUE;
-
+    long numRowsReadFromDb = 0;  // Number or rows returned in the result-set so far
     while (rs.next())
     {
+      numRowsReadFromDb++;
       long rid = rs.getLong(1);
 
       result = callback.onEvent(rs, _curStatsCollector);
-      if (result.isClientBufferLimitExceeded())
+      if ((result.isClientBufferLimitExceeded()) || (result.isError()))
       { // This break is important because we don't want to checkpoint the current
         // row if it is not sent due to client buffer space limitation.
         break;
@@ -388,25 +416,65 @@ public class BootstrapProcessor
       }
     }
 
-    if (null != result && result.getProcessedRowCount() > 0)
-    { // don't send checkpoint if nothing has been sent
+    boolean isPhaseCompleted = false;
+
+    /**
+     * Phase Completed logic :
+     *
+     * Snapshot Mode: ( All 3 cases : No Filtering, Push-Down Filter, User-Level Filter)
+     * Phase is said to be completed if (a) result == null (implies no rows were selected
+     * in the last chunked-select query in tab table) or (b) Number of rows read from the
+     * last select is less than limit and client buffer size is exceeded.
+     *
+     * Please note there could be error cases where numRowsReadFromDB is less than is less
+     * than maxRowsPerFetch ( and client buffer not exceeded). In this case, phase is not
+     * set to be completed.
+     *
+     * Catchup Mode:
+     *
+     * A single Select query will NOT span tables.So Client buffer not being exceeded and
+     * numRowsReadFromDB being less than the limit are not sufficient conditions for phase
+     * completed as this condition could be true when we are streaming out log tables that
+     * are older than the one containing targetSCN.
+     *
+     * There are 2 cases w.r.t to whether we saw events (from the select query) with
+     * windowSCN that matches targetSCN
+     *
+     * 1. Events will be seen (a) For the No filtering and User-level filtering case when
+     * there are atleast one event in the targetSCN window for the source (b) For the
+     * Push-Down Filter case, only if the window contains events that match the filter 2.
+     * Events will not be seen Otherwise
+     *
+     * Also, Please note a single window will not span multiple log tables.
+     *
+     * Hence, For (1), we will be able to detect the phase completion by also ensuring
+     * targetSCN matches windowSCN of the last event read. For (2), after streaming out
+     * the last chunk, phase completion will not be set immediately. It will be set only
+     * in next client bootstrap request when no more data has to be read and the case
+     * (null == result) will be true
+     */
+    if (null == result
+        || !result.isClientBufferLimitExceeded()
+        && (numRowsReadFromDb < maxRowsPerFetch)
+        && (DbusClientMode.BOOTSTRAP_SNAPSHOT == ckpt.getConsumptionMode() || 
+            (DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()
+              && ckpt.getBootstrapTargetScn() == windowScn)))
+    { // if we get here w/o having filled client buffer and the total
+      // rows processed is less than the max rows per fetch
+      // and the client is either in snapshot mode; or if in catchup mode we are up to the targetScn, 
+      isPhaseCompleted = true;
+    }
+
+    if ((null != result) && result.isError())
+    {
+      // If error, dont write checkpoint and dont write phase completed.
+      isPhaseCompleted = false;
+    } else if ((null != result) && (result.getNumRowsWritten() > 0)) {
+      // don't send checkpoint if nothing has been sent
       callback.onCheckpointEvent(ckpt, _curStatsCollector);
     }
 
     LOG.info("Terminating batch with result: " + result);
-
-    boolean isPhaseCompleted = false;
-    if (null == result
-        || !result.isClientBufferLimitExceeded()
-        && result.getProcessedRowCount() < _maxRowsPerFetch
-        && (DbusClientMode.BOOTSTRAP_SNAPSHOT == ckpt.getConsumptionMode() || DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()
-        && ckpt.getBootstrapTargetScn() == windowScn))
-    { // if we get here w/o having filled client buffer and the total
-      // rows processed is less than the max rows per fetch in snapshot mode;
-      // or in catchup mode we are up to the targetScn, we have
-      // finished the current phase (snapshot or catchup)
-      isPhaseCompleted = true;
-    }
 
     if (DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()
         && ckpt.getBootstrapTargetScn() < windowScn)
@@ -416,7 +484,7 @@ public class BootstrapProcessor
     }
 
     return isPhaseCompleted;
-                                }
+  }
 
   private void mergeAndResetStats()
   {

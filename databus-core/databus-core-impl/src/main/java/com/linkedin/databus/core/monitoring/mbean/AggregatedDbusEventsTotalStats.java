@@ -20,9 +20,11 @@ package com.linkedin.databus.core.monitoring.mbean;
 
 
 
-import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
 import java.util.concurrent.locks.Lock;
+
 import org.apache.log4j.Logger;
+
+import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
 
 
 /**
@@ -43,8 +45,9 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     _log = Logger.getLogger(MODULE + "." + dimension);
   }
 
-  
-  
+
+
+  @Override
   public AggregatedDbusEventsTotalStats clone(boolean threadSafe)
   {
 	  AggregatedDbusEventsTotalStats s = new AggregatedDbusEventsTotalStats(_event.ownerId, _dimension, _enabled.get(), threadSafe, null);
@@ -52,14 +55,18 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
 	  cloneData(s._event);
 	  return s;
   }
-  
+
+  @Override
   public long getMinTimeSinceLastAccess()
   {
     Lock readLock = acquireReadLock();
     long result = 0;
     try
     {
-      result = System.currentTimeMillis() - _event.maxTimestampAccessed;
+      if(_event.maxTimestampAccessed <= 0)  //not a valid timestamp
+        result = DEFAULT_MAX_LONG_VALUE;
+      else
+        result = System.currentTimeMillis() - _event.maxTimestampAccessed;
     }
     finally
     {
@@ -75,7 +82,10 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     long result = 0;
     try
     {
-      result = System.currentTimeMillis() - _event.minTimestampAccessed;
+      if(_event.minTimestampAccessed <= 0)//not a valid timestamp
+        result = DEFAULT_MIN_LONG_VALUE;
+      else
+        result = System.currentTimeMillis() - _event.minTimestampAccessed;
     }
     finally
     {
@@ -91,7 +101,10 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     long result = 0;
     try
     {
-      result = System.currentTimeMillis() - _event.maxTimestampMaxScnEvent;
+      if(_event.maxTimestampMaxScnEvent <= 0)//not a valid timestamp
+        result = DEFAULT_MAX_LONG_VALUE;
+      else
+        result = System.currentTimeMillis() - _event.maxTimestampMaxScnEvent;
     }
     finally
     {
@@ -107,7 +120,10 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     long result = 0;
     try
     {
-      result = System.currentTimeMillis() - _event.minTimestampMaxScnEvent;
+      if(_event.minTimestampMaxScnEvent <= 0) //not a valid timestamp
+        result = DEFAULT_MIN_LONG_VALUE;
+      else
+        result = System.currentTimeMillis() - _event.minTimestampMaxScnEvent;
     }
     finally
     {
@@ -233,8 +249,8 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     _event.numDataEventsFiltered += e.numDataEventsFiltered;
     _event.sizeDataEventsFiltered += e.sizeDataEventsFiltered;
     _event.sizeDataEventsPayloadFiltered += e.sizeDataEventsPayloadFiltered;
-    _event.maxSeenWinScn = Math.max(_event.maxSeenWinScn, e.maxSeenWinScn);
-    _event.minSeenWinScn = Math.min(_event.minSeenWinScn, e.minSeenWinScn);
+    _event.maxSeenWinScn = maxValue(_event.maxSeenWinScn, e.maxSeenWinScn);
+    _event.minSeenWinScn = minValue(_event.minSeenWinScn, e.minSeenWinScn);
     _event.numSysEvents += e.numSysEvents;
     _event.sizeSysEvents += e.sizeSysEvents;
     _event.numErrHeader += e.numErrHeader;
@@ -252,18 +268,20 @@ public class AggregatedDbusEventsTotalStats extends DbusEventsTotalStats
     _event.latencyEvent += e.latencyEvent;
     // numPeers cannot be merged
 
-    long msecs = e.timestampMaxScnEvent - e.timestampMinScnEvent;
-    _event.minTimeSpan = Math.min(msecs, _event.minTimeSpan);
-    _event.maxTimeSpan = Math.max(msecs, _event.maxTimeSpan);
+    if(e.timestampMaxScnEvent > 0 && e.timestampMinScnEvent > 0) { // only if these are valid timestamps
+      long msecs = e.timestampMaxScnEvent - e.timestampMinScnEvent;
+      _event.minTimeSpan = minValue(msecs, _event.minTimeSpan);
+      _event.maxTimeSpan = maxValue(msecs, _event.maxTimeSpan);
+    }
 
-    _event.minTimestampAccessed = Math.min(e.timestampAccessed, _event.minTimestampAccessed);
-    _event.maxTimestampAccessed = Math.max(e.timestampAccessed, _event.maxTimestampAccessed);
+    _event.minTimestampAccessed = minValue(e.timestampAccessed, _event.minTimestampAccessed);
+    _event.maxTimestampAccessed = maxValue(e.timestampAccessed, _event.maxTimestampAccessed);
 
-    _event.minTimestampMaxScnEvent = Math.min(e.timestampMaxScnEvent, _event.minTimestampMaxScnEvent);
-    _event.maxTimestampMaxScnEvent = Math.max(e.timestampMaxScnEvent, _event.maxTimestampMaxScnEvent);
+    _event.minTimestampMaxScnEvent = minValue(e.timestampMaxScnEvent, _event.minTimestampMaxScnEvent);
+    _event.maxTimestampMaxScnEvent = maxValue(e.timestampMaxScnEvent, _event.maxTimestampMaxScnEvent);
 
-    _event.minTimeLag = Math.min(e.timeLag, _event.minTimeLag);
-    _event.maxTimeLag = Math.max(e.timeLag, _event.maxTimeLag);
+    _event.minTimeLag = minValue(e.timeLag, _event.minTimeLag);
+    _event.maxTimeLag = maxValue(e.timeLag, _event.maxTimeLag);
   }
 
   /* If EspressoRelay, we would like to do the following, but we need to keep backward compat. */

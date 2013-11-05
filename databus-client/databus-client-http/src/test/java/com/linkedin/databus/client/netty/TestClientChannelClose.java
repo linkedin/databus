@@ -22,26 +22,20 @@ package com.linkedin.databus.client.netty;
 import java.io.StringWriter;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.log4j.Appender;
-import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
-import org.apache.log4j.SimpleLayout;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -52,11 +46,9 @@ import org.jboss.netty.channel.group.ChannelGroup;
 import org.jboss.netty.channel.group.DefaultChannelGroup;
 import org.jboss.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
 import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
 import org.jboss.netty.handler.codec.http.HttpContentCompressor;
 import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpRequestDecoder;
 import org.jboss.netty.handler.codec.http.HttpResponse;
@@ -71,52 +63,48 @@ import org.testng.annotations.Test;
 
 import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.BufferInfoResponse;
 import com.linkedin.databus.core.util.NamedThreadFactory;
 import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.core.container.ExtendedReadTimeoutHandler;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.test.TestUtil;
 
-public class TestClientChannelClose 
+public class TestClientChannelClose
 {
-    static Logger myLogger = Logger.getRootLogger();  
-    static Appender myAppender;  
-    
 	static
 	{
-		myLogger.setLevel(Level.OFF);              
-		myAppender = new ConsoleAppender(new SimpleLayout());
-		myLogger.addAppender(myAppender);  
+	  TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestClientChannelClose_", ".log", Level.ERROR);
 	}
-	
+
 	  public static enum MsgState
 	  {
 		  OPERATION_COMPLETE,
 		  CHANNEL_EXCEPTION_DECORATOR,
 		  CHANNEL_EXCEPTION_NO_DECORATOR,
 		  MSG_ENQUEUED,
+          REQUEST_FAILURE,
 		  RESPONSE_FAILURE,
 	  }
-	  
+
 	  @Test
 	  public void testTimeoutCase() throws Exception
-	  {	    
+	  {
 	    int port = Utils.getAvailablePort(27781);
 	    FakeRelay relay = new FakeRelay(port, 10, true , 100);
 	    TestClientConnectionFactory factory = null;
 	    try
-	    {	
+	    {
 	      relay.start();
 	      List<MsgState> msgList = new ArrayList<MsgState>();
 	      DatabusHttpClientImpl.Config conf = new DatabusHttpClientImpl.Config();
 	      conf.getContainer().setReadTimeoutMs(54);
 	      factory = new TestClientConnectionFactory(conf.build());
 	      ServerInfo relayInfo = new ServerInfo("dummy", "dummy", new InetSocketAddress(InetAddress.getLocalHost(), port), "dummy");
-	      TestClientConnection conn = factory.createConnection(relayInfo, msgList);
 	      for (int i = 0 ; i < 10 ; i++)
 	      {
+	          TestClientConnection conn = factory.createConnection(relayInfo, msgList);
 	    	  conn.requestCall();
 	    	  Thread.sleep(1000);
 	    	  System.out.println("MsgList is :" + msgList);
@@ -135,10 +123,10 @@ public class TestClientChannelClose
 	    		relay.shutdown();
 	    	if (null != factory)
 	    		factory.stop();
-	    }	    
+	    }
 	  }
-	  
-	  
+
+
 	  public static class TestClientConnectionFactory
 	  {
 		  private final ExecutorService _bossThreadPool;
@@ -147,7 +135,7 @@ public class TestClientChannelClose
 		  private final DatabusHttpClientImpl.StaticConfig _clientConfig;
 		  private final ChannelFactory _channelFactory;
 		  private final ChannelGroup _channelGroup; //provides automatic channel closure on shutdown
-		  
+
 		  public TestClientConnectionFactory(
 				  DatabusHttpClientImpl.StaticConfig clientConfig)
 		  {
@@ -158,12 +146,14 @@ public class TestClientChannelClose
 			  _channelFactory = new NioClientSocketChannelFactory(_bossThreadPool, _ioThreadPool);
 			  _channelGroup = new DefaultChannelGroup();;
 		  }
-		  
+
 		  public TestClientConnection createConnection(ServerInfo relay, List<MsgState> msgList)
 		  {
-			  return new TestClientConnection(relay, new ClientBootstrap(_channelFactory), null, _timeoutTimer, _clientConfig, _channelGroup, msgList);
+			  return new TestClientConnection(relay, new ClientBootstrap(_channelFactory), null, _timeoutTimer,
+			                                  _clientConfig, _channelGroup, msgList,
+			                                  15000, Logger.getLogger(TestClientConnectionFactory.class));
 		  }
-		  		  
+
 		  public void stop()
 		  	throws InterruptedException
 		  {
@@ -171,20 +161,20 @@ public class TestClientChannelClose
 			  _timeoutTimer.stop();
 		  }
 	  }
-	  	  
+
 	  public static class TestHttpResponseProcessor
-	  	extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>	  
+	  	extends AbstractHttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
 	  {
 		private List<MsgState> msgList;
 		private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-		public TestHttpResponseProcessor(List<MsgState> msgList, ExtendedReadTimeoutHandler readTimeOutHandler) 
+		public TestHttpResponseProcessor(List<MsgState> msgList, ExtendedReadTimeoutHandler readTimeOutHandler)
 		{
 			super(new ChunkedBodyReadableByteChannel());
 			this.msgList = msgList;
 			this._readTimeOutHandler = readTimeOutHandler;
 		}
-		
+
 		  @Override
 		  public void finishResponse() throws Exception
 		  {
@@ -192,7 +182,7 @@ public class TestClientChannelClose
 		    System.out.println("finished response for /test");
 		    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
 		  }
-		  
+
 		  @Override
 		  public  void startResponse(HttpResponse response) throws Exception
 		  {
@@ -204,7 +194,7 @@ public class TestClientChannelClose
     	      super.startResponse(response);
     	      msgList.add(MsgState.MSG_ENQUEUED);
 		  }
-		  
+
 		@Override
 		public void handleChannelException(Throwable cause)
 		{
@@ -225,73 +215,60 @@ public class TestClientChannelClose
 			}
 			else
 			{
-				msgList.add(MsgState.CHANNEL_EXCEPTION_NO_DECORATOR);	
+				msgList.add(MsgState.CHANNEL_EXCEPTION_NO_DECORATOR);
 				LOG.error("channel exception but no decorated object:" + cause.getClass() + ":" +
 						cause.getMessage());
 				if (LOG.isDebugEnabled()) LOG.error(cause);
 			}
-		}	
+		}
 	  }
-	  
-	  public static class TestClientConnection
-	  	implements ChannelFutureListener
+
+	  public static class TestClientConnection extends AbstractNettyHttpConnection
 	  {
-		  private final ServerInfo _relay;
-		  private final ClientBootstrap _bootstrap;
-		  private final GenericHttpClientPipelineFactory _pipelineFactory;
-		  private Channel _channel;
 		  private ExtendedReadTimeoutHandler _readTimeOutHandler;
 		  private final List<MsgState> _msgList;
-		  		  
-		  public static enum State
-		  {
-			  INITIAL,
-			  CONNECTED,
-			  REQUEST_SENT,
-			  OTHER
-		  };
-		  
-		  private State _state = State.INITIAL;
-		  
+
 		  public TestClientConnection(ServerInfo relay,
                   ClientBootstrap bootstrap,
                   ContainerStatisticsCollector containerStatsCollector,
                   Timer timeoutTimer,
                   DatabusHttpClientImpl.StaticConfig clientConfig,
                   ChannelGroup channelGroup,
-                  List<MsgState> msgList)
+                  List<MsgState> msgList,
+                  long timeoutMs,
+                  Logger log)
 		  {
-			  super();
-			  _relay = relay;
-			  _bootstrap = bootstrap;
-			  _bootstrap.setOption("connectTimeoutMillis", DatabusSourcesConnection.CONNECT_TIMEOUT_MS);
-
-			  _pipelineFactory = new GenericHttpClientPipelineFactory(
-					  null,
-					  GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE,
-					  containerStatsCollector,
-					  timeoutTimer,
-					  clientConfig.getContainer().getWriteTimeoutMs(),
-					  clientConfig.getContainer().getReadTimeoutMs(),
-					  channelGroup);
-			  _bootstrap.setPipelineFactory(_pipelineFactory);
-			  _channel = null;
+			  super(relay, bootstrap, null, timeoutTimer, timeoutMs, timeoutMs, channelGroup, 1, log);
 			  _msgList = msgList;
 		  }
-	
+
 		  public void requestCall()
 		  {
+		    final TestClientConnection me = this;
 		    if (null == _channel || ! _channel.isConnected())
 		    {
-		      connectRetry();
+		      connectWithListener(new ConnectResultListener()
+              {
+                @Override
+                public void onConnectSuccess(Channel channel)
+                {
+                  me.onConnected();
+                }
+
+                @Override
+                public void onConnectFailure(Throwable cause)
+                {
+                  _msgList.add(MsgState.REQUEST_FAILURE);
+                }
+              });
 		    }
 		    else
 		    {
-		      onConnectSuccess();
+		      onConnected();
 		    }
 		  }
-		  
-		  void onConnectSuccess()
+
+      void onConnected()
 		  {
 		    ChannelPipeline channelPipeline = _channel.getPipeline();
 		    _readTimeOutHandler = (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
@@ -299,60 +276,29 @@ public class TestClientChannelClose
 
 		    TestHttpResponseProcessor testResponseProcessor =
 		        new TestHttpResponseProcessor(_msgList,_readTimeOutHandler);
-		    
-		    channelPipeline.replace(
-		        "handler", "handler",
-		        new GenericHttpResponseHandler(testResponseProcessor,
-		                                       GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE));
 
-		    String uriString = "/test";
-		    _state = State.REQUEST_SENT;
-		    System.out.println("Sending " + uriString.toString());
+            String uriString = "/test";
+		    HttpRequest request = createEmptyRequest(uriString);
 
-		    // Prepare the HTTP request.
-		    HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uriString);
-		    request.setHeader(HttpHeaders.Names.HOST, _relay.getAddress().toString());
-		    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-		    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
+		    sendRequest(request, new AbstractNettyHttpConnection.SendRequestResultListener(){
+            @Override
+            public void onSendRequestSuccess(HttpRequest req)
+            {
+              _msgList.add(MsgState.REQUEST_FAILURE);
+            }
+            @Override
+            public void onSendRequestFailure(HttpRequest req, Throwable cause)
+            {
+              onResponseFailure(cause);
+            }
+		    }, testResponseProcessor);
+		  }
 
-		    ChannelFuture future = _channel.write(request);
-		    if (_channel.isConnected())
-		    {
-		      future.addListener(this);
-		      System.out.println("Wrote /sources request");
-		    }
-		    else
-		    {
-		      onResponseFailure(new ClosedChannelException());
-		      System.err.println("disconnect on /sources request");
-		    }
-		  }
-		  
-		  private void connectRetry()
-		  {
-		    System.out.println("connecting : " + _relay.toString());
-		    _state = State.CONNECTED;
-		    ChannelFuture future = _bootstrap.connect(_relay.getAddress());
-		    future.addListener(this);
-		  }
-		  
-		  @Override
-		  public void operationComplete(ChannelFuture future) throws Exception 
-		  {	
-			  if (_state == State.CONNECTED)
-			  {
-				  _msgList.add(MsgState.OPERATION_COMPLETE);
-				  _channel = future.getChannel();
-				  onConnectSuccess();
-			  }
-		  }
-		  
 		  private void onResponseFailure(Throwable cause)
 		  {
-			  _msgList.add(MsgState.RESPONSE_FAILURE);
-		  }		  
+		  }
 	  }
-	  
+
 	public static class FakeRelay extends Thread
 	{
 		int _port;
@@ -369,7 +315,8 @@ public class TestClientChannelClose
 			_timeout = timeout;
 		}
 
-		public void run()
+		@Override
+    public void run()
 		{
 			_bootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(
 					Executors.newCachedThreadPool(), Executors.newCachedThreadPool()));
@@ -391,7 +338,8 @@ public class TestClientChannelClose
 
 		class HttpServerPipelineFactory implements ChannelPipelineFactory
 		{
-			public ChannelPipeline getPipeline() throws Exception
+			@Override
+      public ChannelPipeline getPipeline() throws Exception
 			{
 				// Create a default pipeline implementation.
 				ChannelPipeline pipeline = new DefaultChannelPipeline();
@@ -405,7 +353,7 @@ public class TestClientChannelClose
 		class HttpRequestHandler extends SimpleChannelUpstreamHandler
 		{
 			@Override
-			public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception 
+			public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception
 			{
 				System.out.println("Server : Request received");
 				BufferInfoResponse bfResponse = new BufferInfoResponse();
@@ -431,9 +379,9 @@ public class TestClientChannelClose
 					e.getChannel().write(response);
 		  		    try
 		  		    {
-		  		    	Thread.sleep(_timeout);		    	
+		  		    	Thread.sleep(_timeout);
 		  		    } catch (InterruptedException ie) {
-		  		    	
+
 		  		    }
 					e.getChannel().close();
 				}
@@ -447,6 +395,6 @@ public class TestClientChannelClose
 				}
 			}
 		}
-	}	
+	}
 
 }

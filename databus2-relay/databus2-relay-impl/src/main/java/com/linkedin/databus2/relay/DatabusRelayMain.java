@@ -22,34 +22,24 @@ package com.linkedin.databus2.relay;
 */
 
 
-import java.io.File;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Properties;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
 import org.apache.log4j.Logger;
-import org.codehaus.jackson.map.ObjectMapper;
 
 import com.linkedin.databus.container.netty.HttpRelay;
 import com.linkedin.databus.container.request.ControlSourceEventsRequestProcessor;
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DbusEventBufferAppendable;
 import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
-import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.DatabusException;
-import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.container.request.ProcessorRegistrationConflictException;
 import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 import com.linkedin.databus2.core.seq.MaxSCNReaderWriter;
@@ -57,11 +47,12 @@ import com.linkedin.databus2.core.seq.MultiServerSequenceNumberHandler;
 import com.linkedin.databus2.core.seq.SequenceNumberHandlerFactory;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.EventProducer;
+import com.linkedin.databus2.producers.EventProducerServiceProvider;
 import com.linkedin.databus2.producers.RelayEventProducer;
+import com.linkedin.databus2.producers.RelayEventProducersRegistry;
 import com.linkedin.databus2.producers.db.OracleEventProducer;
-import com.linkedin.databus2.relay.config.LogicalSourceConfig;
-import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
+import com.linkedin.databus2.relay.config.ReplicationBitSetterStaticConfig.SourceType;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 
 /**
@@ -75,14 +66,13 @@ public class DatabusRelayMain extends HttpRelay {
 			.getName());
 	public static final String DB_RELAY_CONFIG_FILE_OPT_NAME = "db_relay_config";
 
-	protected static String[] _dbRelayConfigFiles = new String[] { "integration-test/config/sources-member2.json" };
 
+    private final RelayEventProducersRegistry _producersRegistry = RelayEventProducersRegistry.getInstance();
 	MultiServerSequenceNumberHandler _maxScnReaderWriters;
 	protected Map<PhysicalPartition, EventProducer> _producers;
 	Map<PhysicalPartition, MonitoringEventProducer> _monitoringProducers;
 	ControlSourceEventsRequestProcessor _csEventRequestProcessor;
-
-  private boolean _dbPullerStart = false;
+	private boolean _dbPullerStart = false;
 
 	public DatabusRelayMain() throws IOException, InvalidConfigException,
 			DatabusException {
@@ -176,8 +166,15 @@ public class DatabusRelayMain extends HttpRelay {
 
 		// Create the event producer
 		String uri = pConfig.getUri();
+    if(uri == null)
+      throw new DatabusException("Uri is required to start the relay");
+    uri = uri.trim();
 		EventProducer producer = null;
 		if (uri.startsWith("jdbc:")) {
+		  SourceType sourceType = pConfig.getReplBitSetter().getSourceType();
+          if (SourceType.TOKEN.equals(sourceType))
+            throw new DatabusException("Token Source-type for Replication bit setter config cannot be set for trigger-based Databus relay !!");
+
 			// if a buffer for this partiton exists - we are overwri
 			producer = new OracleEventProducerFactory().buildEventProducer(
 					pConfig, schemaRegistryService, dbusEventBuffer,
@@ -185,13 +182,29 @@ public class DatabusRelayMain extends HttpRelay {
 							.getStatsCollector(statsCollectorName),
 					maxScnReaderWriters);
 		} else if (uri.startsWith("mock")) {
-			// Get all relevant pConfig attributes
-			producer = new RelayEventGenerator(pConfig, schemaRegistryService,
-					dbusEventBuffer,
-					_inBoundStatsCollectors
-							.getStatsCollector(statsCollectorName),
-					maxScnReaderWriters);
-		} else {
+		  // Get all relevant pConfig attributes
+		  //TODO add real instantiation
+		  EventProducerServiceProvider mockProvider = _producersRegistry.getEventProducerServiceProvider("mock");
+		  if (null == mockProvider)
+		  {
+		    throw new DatabusRuntimeException("relay event producer not available: " + "mock");
+		  }
+		  producer = mockProvider.createProducer(pConfig, schemaRegistryService,
+		                                         dbusEventBuffer,
+		                                         _inBoundStatsCollectors
+		                                                 .getStatsCollector(statsCollectorName),
+		                                         maxScnReaderWriters);
+		} else if (uri.startsWith("gg:")){
+      producer = new GoldenGateEventProducer(pConfig,
+                                             schemaRegistryService,
+                                             dbusEventBuffer,
+                                             _inBoundStatsCollectors
+                                                 .getStatsCollector(statsCollectorName),
+                                             maxScnReaderWriters);
+
+
+    } else
+     {
 			// Get all relevant pConfig attributes and initialize the nettyThreadPool objects
 			RelayEventProducer.DatabusClientNettyThreadPools nettyThreadPools =
 						new RelayEventProducer.DatabusClientNettyThreadPools(0,getNetworkTimeoutTimer(),getBossExecutorService(),
@@ -211,7 +224,7 @@ public class DatabusRelayMain extends HttpRelay {
 			MonitoringEventProducer monitoringProducer = new MonitoringEventProducer(
 					"dbMonitor." + pPartition.toSimpleString(),
 					pConfig.getName(), pConfig.getUri(),
-					((OracleEventProducer) producer).getSources(),
+					((OracleEventProducer) producer).getMonitoredSourceInfos(),
 					getMbeanServer());
 			_monitoringProducers.put(pPartition, monitoringProducer);
 			plist.add(monitoringProducer);
@@ -257,78 +270,22 @@ public class DatabusRelayMain extends HttpRelay {
 		return null;
 	}
 
-	private static Options constructCommandLineOptions() {
-		Options options = new Options();
-		options.addOption(DB_RELAY_CONFIG_FILE_OPT_NAME, true,
-				"Db Relay Config File");
-		return options;
-	}
+  public static void main(String[] args) throws Exception
+  {
+    Cli cli = new Cli();
+    cli.processCommandLineArgs(args);
+    cli.parseRelayConfig();
+    // Process the startup properties and load configuration
+    PhysicalSourceStaticConfig[] pStaticConfigs = cli.getPhysicalSourceStaticConfigs();
+    HttpRelay.StaticConfig staticConfig = cli.getRelayConfigBuilder().build();
 
-	public static String[] processLocalArgs(String[] cliArgs)
-			throws IOException, ParseException {
-		CommandLineParser cliParser = new GnuParser();
-		Options cliOptions = constructCommandLineOptions();
+    // Create and initialize the server instance
+    DatabusRelayMain serverContainer = new DatabusRelayMain(staticConfig, pStaticConfigs);
 
-		CommandLine cmd = cliParser.parse(cliOptions, cliArgs, true);
-		// Options here has to be up front
-		if (cmd.hasOption(DB_RELAY_CONFIG_FILE_OPT_NAME)) {
-			String opt = cmd.getOptionValue(DB_RELAY_CONFIG_FILE_OPT_NAME);
-			LOG.info("DbConfig command line=" + opt);
-			_dbRelayConfigFiles = opt.split(",");
-			LOG.info("DB Relay Config File = "
-					+ Arrays.toString(_dbRelayConfigFiles));
-		}
-
-		// return what left over args
-		return cmd.getArgs();
-	}
-
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) throws Exception {
-		String[] leftOverArgs = processLocalArgs(args);
-
-		// Process the startup properties and load configuration
-		Properties startupProps = ServerContainer
-				.processCommandLineArgs(leftOverArgs);
-		Config config = new Config();
-		ConfigLoader<StaticConfig> staticConfigLoader = new ConfigLoader<StaticConfig>(
-				"databus.relay.", config);
-
-		// read physical config files
-		ObjectMapper mapper = new ObjectMapper();
-		PhysicalSourceConfig[] physicalSourceConfigs = new PhysicalSourceConfig[_dbRelayConfigFiles.length];
-		PhysicalSourceStaticConfig[] pStaticConfigs = new PhysicalSourceStaticConfig[physicalSourceConfigs.length];
-
-		int i = 0;
-		for (String file : _dbRelayConfigFiles) {
-			LOG.info("processing file: " + file);
-			File sourcesJson = new File(file);
-			PhysicalSourceConfig pConfig = mapper.readValue(sourcesJson,
-					PhysicalSourceConfig.class);
-			pConfig.checkForNulls();
-			physicalSourceConfigs[i] = pConfig;
-			pStaticConfigs[i] = pConfig.build();
-
-			// Register all sources with the static config
-			for (LogicalSourceConfig lsc : pConfig.getSources()) {
-				config.setSourceName("" + lsc.getId(), lsc.getName());
-			}
-			i++;
-		}
-
-		HttpRelay.StaticConfig staticConfig = staticConfigLoader
-				.loadConfig(startupProps);
-
-		// Create and initialize the server instance
-		DatabusRelayMain serverContainer = new DatabusRelayMain(staticConfig,
-				pStaticConfigs);
-
-		serverContainer.initProducers();
-		serverContainer.registerShutdownHook();
-		serverContainer.startAndBlock();
-	}
+    serverContainer.initProducers();
+    serverContainer.registerShutdownHook();
+    serverContainer.startAndBlock();
+  }
 
 	@Override
 	protected void doStart() {
@@ -385,7 +342,7 @@ public class DatabusRelayMain extends HttpRelay {
 			}
 		}
 	}
-	
+
 
 	@Override
 	protected void doShutdown() {

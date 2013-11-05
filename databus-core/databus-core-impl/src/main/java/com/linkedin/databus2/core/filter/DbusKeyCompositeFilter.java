@@ -27,6 +27,7 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalReadable;
 
 /**
  * @author bvaradar
@@ -81,7 +82,11 @@ public class DbusKeyCompositeFilter implements DbusFilter
 		if ( null != filter)
 		{
 			boolean allow = filter.allow(e);
-			LOG.debug("Filtered Response was :" + allow + " for key :" + e.key());
+
+			//TODO: DDSDBUS-3263
+			if ( LOG.isDebugEnabled() && e instanceof DbusEventInternalReadable)
+			  LOG.debug("Filtered Response was :" + allow + " for key :" + ((DbusEventInternalReadable)e).getDbusEventKey());
+
 			return allow;
 		}
 

@@ -21,7 +21,6 @@ package com.linkedin.databus.bootstrap.server;
  *
 */
 
-
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
@@ -35,6 +34,9 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.Encoding;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
+import com.linkedin.databus2.core.container.request.BootstrapDBException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
@@ -71,7 +73,7 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
                                    ClassNotFoundException,
                                    SQLException
                                    {
-	super(executorService,config,bootstrapServer);	
+	super(executorService,config,bootstrapServer);
     _componentStatus = bootstrapServer.getComponentStatus();
                                    }
 
@@ -99,17 +101,16 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
         DbusEventsStatisticsCollector threadCollector = _bootstrapServer.getOutBoundStatsCollectors().getStatsCollector(threadName);
         if (null == threadCollector)
         {
-          threadCollector = new DbusEventsStatisticsCollector(_bootstrapServer.getContainerStaticConfig().getId(),
-                                                              threadName,
-                                                              true,
-                                                              false,
-                                                              _bootstrapServer.getMbeanServer());
-          _bootstrapServer.getOutBoundStatsCollectors().addStatsCollector(threadName,
-                                                                          threadCollector);
+            threadCollector = new DbusEventsStatisticsCollector(_bootstrapServer.getContainerStaticConfig().getId(),
+                    threadName,
+                    true,
+                    false,
+                    _bootstrapServer.getMbeanServer());
+        	StatsCollectors<DbusEventsStatisticsCollector> ds = _bootstrapServer.getOutBoundStatsCollectors();
+            ds.addStatsCollector(threadName, threadCollector);
         }
-        processor = new BootstrapProcessor(_config.getDb(), threadCollector);
-        processor.setPredicatePushDownOptimization(_config.getPredicatePushDown());
-      }
+        processor = new BootstrapProcessor(_config, threadCollector);
+    }
       catch (Exception e)
       {
         if (null != bootstrapStatsCollector)
@@ -128,7 +129,7 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
 
    		throw new RequestProcessingException(componentStatus.getMessage());
     	}
-    
+
     	String partitionInfoString = request.getParams().getProperty(PARTITION_INFO_PARAM);
 
     	DbusKeyFilter keyFilter = null;
@@ -144,10 +145,10 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
     			throw new RequestProcessingException(msg,ex);
     		}
     	}
-    
+
     	String outputFormat = request.getParams().getProperty(OUTPUT_PARAM);
     	Encoding enc = Encoding.BINARY;
-    	
+
     	if ( null != outputFormat)
     	{
     		try
@@ -157,16 +158,16 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
     			LOG.error("Unable to find the output format for bootstrap request for " + outputFormat + ". Using Binary!!", ex);
     		}
     	}
-    	
+
       processor.setKeyFilter(keyFilter);
       String checkpointString = request.getRequiredStringParam(CHECKPOINT_PARAM);
-    	
+
     	int bufferMarginSpace = DEFAULT_BUFFER_MARGIN_SPACE;
     	if ( null != _serverHostPort)
     	{
     		bufferMarginSpace = Math.max(bufferMarginSpace, (_serverHostPort.length() + Checkpoint.BOOTSTRAP_SERVER_INFO.length() + DEFAULT_JSON_OVERHEAD_BYTES));
     	}
-    	
+
     	int clientFreeBufferSize = request.getRequiredIntParam(BATCHSIZE_PARAM) - checkpointString.length() - bufferMarginSpace;
 
         BootstrapEventWriter writer = null;
@@ -174,7 +175,7 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
           writer = createEventWriter(request, clientFreeBufferSize, null, enc);
         else
           writer = createEventWriter(request, clientFreeBufferSize, keyFilter, enc);
-          
+
         Checkpoint cp = new Checkpoint(checkpointString);
 
 
@@ -183,7 +184,9 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
       LOG.info("Bootstrap request received: " +
           "fetchSize=" + clientFreeBufferSize +
           ", consumptionMode=" + consumptionMode +
-          ", checkpoint=" + checkpointString);
+          ", checkpoint=" + checkpointString +
+          ", predicatePushDown=" + _config.getPredicatePushDown()
+          );
 
       try
       {
@@ -191,26 +194,38 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
         switch (consumptionMode)
         {
         case BOOTSTRAP_SNAPSHOT:
-          phaseCompleted =
-          processor.streamSnapShotRows(new Checkpoint(checkpointString), writer);
+          phaseCompleted = processor.streamSnapShotRows(new Checkpoint(
+              checkpointString), writer);
           break;
         case BOOTSTRAP_CATCHUP:
-          phaseCompleted =
-          processor.streamCatchupRows(new Checkpoint(checkpointString), writer);
+          phaseCompleted = processor.streamCatchupRows(new Checkpoint(
+              checkpointString), writer);
           break;
         default:
           if (null != bootstrapStatsCollector)
             bootstrapStatsCollector.registerErrBootstrap();
 
-          throw new RequestProcessingException("Unexpected mode: " + consumptionMode);
+          throw new RequestProcessingException("Unexpected mode: "
+              + consumptionMode);
         }
 
         if (null != bootstrapStatsCollector)
           bootstrapStatsCollector.registerBootStrapReq(cp, System.currentTimeMillis()-startTime, clientFreeBufferSize);
 
+        if (writer.getNumRowsWritten() == 0 && writer.getSizeOfPendingEvent() > 0)
+        {
+          // Append a header to indicate to the client that we do have at least one event to
+          // send, but it is too large to fit into client's offered buffer.
+          request.getResponseContent().addMetadata(DatabusHttpHeaders.DATABUS_PENDING_EVENT_SIZE,
+                                                   writer.getSizeOfPendingEvent());
+          if (isDebug)
+          {
+            LOG.debug("Returning 0 events but have pending event of size " + writer.getSizeOfPendingEvent());
+          }
+        }
         if (phaseCompleted)
         {
-          request.getResponseContent().setMetadata(BootstrapProcessor.PHASE_COMPLETED_HEADER_NAME, "TRUE");
+          request.getResponseContent().setMetadata(BootstrapProcessor.PHASE_COMPLETED_HEADER_NAME, BootstrapProcessor.PHASE_COMPLETED_HEADER_TRUE);
         }
 
       }
@@ -220,6 +235,12 @@ public class BootstrapRequestProcessor extends BootstrapRequestProcessorBase
           bootstrapStatsCollector.registerErrDatabaseTooOld();
 
         LOG.error("Bootstrap database is too old!", e);
+        throw new RequestProcessingException(e);
+      }
+      catch (BootstrapDBException e)
+      {
+        if (null != bootstrapStatsCollector)
+          bootstrapStatsCollector.registerErrBootstrap();
         throw new RequestProcessingException(e);
       }
       catch (SQLException e)

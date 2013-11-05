@@ -40,6 +40,7 @@ import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
 import com.linkedin.databus2.core.container.ExtendedReadTimeoutHandler;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 
@@ -51,9 +52,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 	public static final String MODULE = HttpRequestHandler.class.getName();
 	public static final Logger LOG = Logger.getLogger(MODULE);
 
-	public static final String DATABUS_HTTP_HEADER_PREFIX = "x-dbus-";
-
-	private final ServerContainer _serverContainer;
+  private final ServerContainer _serverContainer;
 	private final ExtendedReadTimeoutHandler _readTimeoutHandler;
 
     private HttpRequest request;
@@ -227,7 +226,11 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
             throws Exception
     {
       Throwable cause = e.getCause();
-      if (cause instanceof OutOfMemoryError) _serverContainer.shutdownAsynchronously();
+      if (cause instanceof OutOfMemoryError) 
+      {
+    	  LOG.error("Running out of memory. Initiating a shutdown on the server container");
+    	  _serverContainer.shutdownAsynchronously();
+      }
 
       boolean logError = true;
       if (cause instanceof ClosedChannelException)
@@ -266,9 +269,9 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     	String headerKey = h.getKey().toLowerCase();
         LOG.trace("HEADER: " + h.getKey() + " = " + h.getValue());
-        if (headerKey.startsWith(DATABUS_HTTP_HEADER_PREFIX))
+        if (headerKey.startsWith(DatabusHttpHeaders.DATABUS_HTTP_HEADER_PREFIX))
         {
-        	String headerParamName = headerKey.substring(DATABUS_HTTP_HEADER_PREFIX.length());
+        	String headerParamName = headerKey.substring(DatabusHttpHeaders.DATABUS_HTTP_HEADER_PREFIX.length());
         	requestProps.put(headerParamName, h.getValue());
         }
     }

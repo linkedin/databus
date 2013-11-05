@@ -252,29 +252,5 @@ public class TestSubscriptions
 
     DatabusSubscription sub2 = DatabusSubscription.createFromUri("table1");
     Assert.assertEquals(sub2, sub1);
-
-    //databus v3 conversion back and forth (table name)
-    DatabusSubscription sub3 = DatabusSubscription.createSimpleSourceSubscription("db.db.table:1");
-    String sub3Str = DatabusSubscription.getDefaultCodec().encode(sub3).toString();
-    Assert.assertEquals(sub3Str, "legacy:db.db.table:1");
-
-    DatabusSubscription sub4 = DatabusSubscription.createFromUri("db.db.table:1");
-    Assert.assertEquals(sub4, sub3);
-
-    //databus v3 conversion back and forth (logical wildcard)
-    DatabusSubscription sub5 = DatabusSubscription.createSimpleSourceSubscription("db.*:2");
-    String sub5Str = DatabusSubscription.getDefaultCodec().encode(sub5).toString();
-    Assert.assertEquals(sub5Str, "legacy:db.*:2");
-
-    DatabusSubscription sub6 = DatabusSubscription.createFromUri("db.*:2");
-    Assert.assertEquals(sub6, sub5);
-
-    String subListStr = "table1,db.db.table:1,db.*:2";
-    List<DatabusSubscription> subList = DatabusSubscription.createFromUriListString(subListStr);
-    Assert.assertEquals(subList, Arrays.asList(sub1, sub3, sub5));
-
-    subListStr = "table1,legacy:db.db.table:1,legacy:db.*:2";
-    subList = DatabusSubscription.createFromUriListString(subListStr);
-    Assert.assertEquals(subList, Arrays.asList(sub1, sub3, sub5));
   }
 }

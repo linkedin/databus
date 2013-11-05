@@ -20,7 +20,6 @@ package com.linkedin.databus.bootstrap.utils;
 
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 
 import org.apache.avro.Schema.Field;
@@ -34,25 +33,27 @@ import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.PartitionFunction;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
+import com.linkedin.databus2.relay.config.ReplicationBitSetterStaticConfig;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 public class BootstrapSeederOracleAvroGenericEventFactory extends
-		OracleAvroGenericEventFactory 
+		OracleAvroGenericEventFactory
 {
 	private final Logger _log = Logger.getLogger(getClass());
 
-	
+
 	// Key used by Chunk Query for seeding need not always be same as the Primary Key of the Source
-	// In this case, we want to use seederCHunkKey to track progress (in bootstrap_seeder_state table) 
+	// In this case, we want to use seederCHunkKey to track progress (in bootstrap_seeder_state table)
 	// but still want the original primary key to be stored in "srckey" column of tab table.
 	private String _seederChunkKeyName = null;
 
 	public BootstrapSeederOracleAvroGenericEventFactory(short sourceId,
 			short pSourceId, String eventSchema,
 			PartitionFunction partitionFunction,
-			String seederChunkKeyColumnName) throws EventCreationException,
+			String seederChunkKeyColumnName,
+			ReplicationBitSetterStaticConfig replSetterConfig) throws EventCreationException,
 			UnsupportedKeyException {
-		super(sourceId, pSourceId, eventSchema, partitionFunction);
+		super(sourceId, pSourceId, eventSchema, partitionFunction,replSetterConfig);
 	    List<Field> fields = _eventSchema.getFields();
 	    String avroFieldName = null;
 	    for (Field f : fields)
@@ -62,7 +63,7 @@ public class BootstrapSeederOracleAvroGenericEventFactory extends
 	        {
 	        	_seederChunkKeyName = f.name();
 	        	break;
-	        }	    
+	        }
 	    }
 	    _log.info("SeederChunkKey Field is :" + _seederChunkKeyName);
 	}
@@ -77,6 +78,7 @@ public class BootstrapSeederOracleAvroGenericEventFactory extends
 			ResultSet row,
 			DbusEventBufferAppendable eventBuffer,
 			boolean enableTracing,
+	        boolean isReplicated,
 			DbusEventsStatisticsCollector dbusEventsStatisticsCollector)
 					throws EventCreationException, UnsupportedKeyException
 	{
@@ -90,13 +92,13 @@ public class BootstrapSeederOracleAvroGenericEventFactory extends
 		// Append the event to the databus event buffer
 		//DbusEventKey eventKey = new DbusEventKey(record.get("key"));
 		DbusEventKey eventKey = new DbusEventKey(record.get(keyColumnName));
-		
+
 		DbusEventKey seederChunkKey = new DbusEventKey(record.get(_seederChunkKeyName));
 
 		short lPartitionId = _partitionFunction.getPartition(eventKey);
 		//short pPartitionId = PhysicalSourceConfig.DEFAULT_PHYSICAL_PARTITION.shortValue();
 		bEvb.appendEvent(eventKey, seederChunkKey,_pSourceId, lPartitionId, timestamp * 1000000, _sourceId,
-				_schemaId, serializedValue, enableTracing, dbusEventsStatisticsCollector);
+				_schemaId, serializedValue, enableTracing, isReplicated, dbusEventsStatisticsCollector);
 		return serializedValue.length;
 	}
 }

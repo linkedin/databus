@@ -23,6 +23,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.security.spec.InvalidParameterSpecException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -38,16 +40,16 @@ import com.linkedin.databus.core.data_model.PhysicalPartition;
 /**
  * Constructs a checkpoint for multiple buffers.
  * Essentially it is a list of single buffer checkpoints mapped by physical partition
- * 
+ *
  */
 public class CheckpointMult
 {
   public static final String MODULE = DbusEventBufferMult.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
-  private Map<PhysicalPartition, Checkpoint> _pPart2Checkpoint = new HashMap<PhysicalPartition, Checkpoint>();
-  private static ObjectMapper _mapper = new ObjectMapper();
-  private static String CURSOR_PARTITION_KEY = "cursorPartition";
+  private final Map<PhysicalPartition, Checkpoint> _pPart2Checkpoint = new HashMap<PhysicalPartition, Checkpoint>();
+  private static final ObjectMapper _mapper = new ObjectMapper();
+  private static final String CURSOR_PARTITION_KEY = "cursorPartition";
 
   /**
    * _cursorPartition has the last partition from which an event was sent (could be partial or full window)
@@ -56,25 +58,37 @@ public class CheckpointMult
    * To avoid upgrade problems, we do not serialize _cursorPartition in the map, but we deserialize it if
    * we see it.
    *
-   * The cursorPartition is only used as a hint, and its absense will not affect the correctness. Specifically,
+   * The cursorPartition is only used as a hint, and its absence will not affect the correctness. Specifically,
    * it is expected that the cursorPartition is ignored if any one of the checkpoints indicates that a partial
    * window was sent.
    */
-  private PhysicalPartition _cursorPartition;
+  private PhysicalPartition _cursorPartition = null;
+
+  public PhysicalPartition getPartialWindowPartition()
+  {
+    return _partialWindowPartition;
+  }
+
+  /**
+   * _partialWindowPartition has the partition that has a partial window consumed. If it is non-null, it means we need
+   * to start streaming from this partition.
+   *
+   * If _partialWindowPartition is null, then there was no partition in which a partial window was consumed and streaming
+   * can start from any partition.
+   */
+  private PhysicalPartition _partialWindowPartition = null;
 
   public CheckpointMult() {
-    _cursorPartition = null;
   }
   /**
    * reconstruct Mult checkpoint from a string representation
-   * @param Mult checkpoint serialization string
+   * @param checkpointString checkpoint serialization string
    * @return CheckpointMult object
    */
   @SuppressWarnings("unchecked")
   public CheckpointMult(String checkpointString)
-  throws JsonParseException, JsonMappingException, IOException
+  throws JsonParseException, JsonMappingException, InvalidParameterSpecException, IOException
   {
-    // TODO - catch specific exceptions, but what to return?? create an empty one??
     if (null != checkpointString) {
       // json returns Map between "pSrcId" and 'serialized string' of Checkpoint
       Map<String, String> map = _mapper.readValue(
@@ -97,6 +111,13 @@ public class CheckpointMult
         if(debugEnabled)
           LOG.debug("CPMULT constructor: pPart="+pPart + ";cp="+cp);
         _pPart2Checkpoint.put(pPart, cp);
+        if (cp.isPartialWindow()) {
+          if (_partialWindowPartition != null) {
+            throw new InvalidParameterSpecException("Multiple partitions with partial window:" +
+                  _partialWindowPartition.toSimpleString() + " and " + pPart.toSimpleString());
+          }
+          _partialWindowPartition = pPart;
+        }
       }
     }
   }
@@ -115,13 +136,28 @@ public class CheckpointMult
    * @param pPart
    * @param cp
    */
-  public void addCheckpoint(PhysicalPartition pPart, Checkpoint cp) {
+  public void addCheckpoint(PhysicalPartition pPart, Checkpoint cp)
+  {
+    if (cp.isPartialWindow()) {
+      if (_partialWindowPartition != null &&
+          !_partialWindowPartition.equals(pPart)) {
+        throw new DatabusRuntimeException("Existing partition with partial window:" +
+                                                  _partialWindowPartition.toSimpleString() +
+                                                  ",cannot allow partition " + pPart.toSimpleString());
+      }
+      _partialWindowPartition = pPart;
+    } else {
+      // We could be updating a checkpoint so that it is not partial window any more.
+      if (_partialWindowPartition != null && pPart.equals(_partialWindowPartition)) {
+        _partialWindowPartition = null;
+      }
+    }
     _pPart2Checkpoint.put(pPart, cp);
   }
 
   /**
    * serialize CheckpointMult into the stream
-   * @param stream
+   * @param outStream
    */
   void serialize(OutputStream outStream) throws JsonGenerationException,
   JsonMappingException,
@@ -152,7 +188,14 @@ public class CheckpointMult
     } catch (IOException e) {
       LOG.warn("toString failed", e);
     }
-    return bs.toString();
+    try
+    {
+      return bs.toString("UTF-8");
+    }
+    catch (UnsupportedEncodingException e)
+    {
+      return "InvalidSerialization";
+    }
   }
 
   public int getNumCheckponts() {
@@ -167,6 +210,25 @@ public class CheckpointMult
   public void setCursorPartition(PhysicalPartition cursorPartition)
   {
     _cursorPartition = cursorPartition;
+  }
+
+  @Override
+  public boolean equals(Object other)
+  {
+    if (null == other) return false;
+    if (this == other) return true;
+    if (!(other instanceof CheckpointMult)) return false;
+    CheckpointMult otherCp = (CheckpointMult)other;
+
+    boolean success = _pPart2Checkpoint.equals(otherCp._pPart2Checkpoint);
+    return success;
+  }
+
+  @Override
+  public int hashCode()
+  {
+    return _pPart2Checkpoint.hashCode();
+    //NOTE: _cursorPartition is ignored because it is optional
   }
 
 }

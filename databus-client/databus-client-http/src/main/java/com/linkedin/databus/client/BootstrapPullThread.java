@@ -18,12 +18,11 @@ package com.linkedin.databus.client;
  *
 */
 
-
-import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 
 import javax.management.MBeanServer;
 
@@ -39,14 +39,18 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.client.ConnectionState.StateId;
 import com.linkedin.databus.client.netty.RemoteExceptionHandler;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusConstants;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.InvalidCheckpointException;
 import com.linkedin.databus.core.InvalidEventException;
+import com.linkedin.databus.core.PendingEventTooLargeException;
 import com.linkedin.databus.core.async.LifecycleMessage;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.BackoffTimer;
@@ -62,10 +66,25 @@ public class BootstrapPullThread extends BasePullThread
   public static final String MODULE = BootstrapPullThread.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
-  public static final Short START_OF_SNAPSHOT_SRCID = (short)(DbusEvent.PRIVATE_RANGE_MAX_SRCID - 1);
-  public static final Short START_OF_CATCHUP_SRCID = (short)(DbusEvent.PRIVATE_RANGE_MAX_SRCID - 2);
-  public static final Short END_OF_BOOTSTRAP_SRCID = (short)(DbusEvent.PRIVATE_RANGE_MAX_SRCID - 3);
+  public static final Short START_OF_SNAPSHOT_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 1);
+  public static final Short START_OF_CATCHUP_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 2);
+  public static final Short END_OF_BOOTSTRAP_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 3);
 
+  private static final EnumSet<ConnectionState.StateId> SHOULD_TEAR_CONNECTION =
+      EnumSet.of(ConnectionState.StateId.START_SCN_REQUEST_SENT,
+                 ConnectionState.StateId.START_SCN_RESPONSE_SUCCESS,
+                 ConnectionState.StateId.START_SCN_REQUEST_ERROR,
+                 ConnectionState.StateId.START_SCN_RESPONSE_ERROR,
+                 ConnectionState.StateId.TARGET_SCN_REQUEST_SENT,
+                 ConnectionState.StateId.TARGET_SCN_RESPONSE_SUCCESS,
+                 ConnectionState.StateId.TARGET_SCN_REQUEST_ERROR,
+                 ConnectionState.StateId.TARGET_SCN_RESPONSE_ERROR,
+                 ConnectionState.StateId.STREAM_REQUEST_SENT,
+                 ConnectionState.StateId.STREAM_REQUEST_SUCCESS,
+                 ConnectionState.StateId.STREAM_REQUEST_ERROR,
+                 ConnectionState.StateId.STREAM_RESPONSE_ERROR,
+                 ConnectionState.StateId.BOOTSTRAP_DONE
+                 );
 
   private Checkpoint _resumeCkpt;
 
@@ -84,21 +103,40 @@ public class BootstrapPullThread extends BasePullThread
 
   private final BackoffTimer _retriesBeforeCkptCleanup;
 
+  private ReentrantLock _v3BootstrapLock = null;
+
+  public BootstrapPullThread(String name,
+      DatabusSourcesConnection sourcesConn,
+      DbusEventBuffer dbusEventBuffer,
+      ConnectionStateFactory connStateFactory,
+      Set<ServerInfo> bootstrapServers,
+      List<DbusKeyCompositeFilterConfig> bootstrapFilterConfigs,
+      double pullerBufferUtilPct,
+      MBeanServer mbeanServer,
+      DbusEventFactory eventFactory)
+  {
+    this(name, sourcesConn, dbusEventBuffer, connStateFactory, bootstrapServers, bootstrapFilterConfigs, pullerBufferUtilPct, mbeanServer, eventFactory, null);
+  }
+
   public BootstrapPullThread(String name,
                              DatabusSourcesConnection sourcesConn,
-                             DbusEventBuffer bootstrapEventsBuffer,
+                             DbusEventBuffer dbusEventBuffer,
+                             ConnectionStateFactory connStateFactory,
                              Set<ServerInfo> bootstrapServers,
                              List<DbusKeyCompositeFilterConfig> bootstrapFilterConfigs,
                              double pullerBufferUtilPct,
-                             MBeanServer mbeanServer)
+                             MBeanServer mbeanServer,
+                             DbusEventFactory eventFactory,
+                             ReentrantLock v3BootstrapLock)
   {
-    super(name, sourcesConn, bootstrapEventsBuffer,bootstrapServers,mbeanServer);
+    super(name, sourcesConn.getConnectionConfig().getBstPullerRetries(), sourcesConn, dbusEventBuffer, connStateFactory,bootstrapServers,mbeanServer, eventFactory);
 
     _retriesBeforeCkptCleanup = new BackoffTimer("BSPullerRetriesBeforeCkptCleanup",
 										 sourcesConn.getConnectionConfig().getBsPullerRetriesBeforeCkptCleanup());
     _bootstrapFilterConfigs = bootstrapFilterConfigs;
-    _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, bootstrapEventsBuffer);
+    _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, dbusEventBuffer, eventFactory);
     _pullerBufferUtilizationPct = pullerBufferUtilPct;
+    _v3BootstrapLock = v3BootstrapLock;
 
     // TODO (DDSDBUS-84): if resumeCkpt is not empty, i.e. we are starting fresh, make sure the
     // sources passed in are exactly the same as what's stored in the checkpoint -
@@ -113,43 +151,9 @@ public class BootstrapPullThread extends BasePullThread
   }
 
   @Override
-  public void shutdown()
-  {
-    _log.info("shutting down");
-    if (null != _lastOpenConnection)
-    {
-      _log.info("closing open connection");
-      _lastOpenConnection.close();
-      _lastOpenConnection = null;
-    }
-
-    super.shutdown();
-    _log.info("shut down comple");
-  }
-
-  @Override
   protected boolean shouldDelayTearConnection(StateId stateId)
   {
-	  boolean delayTear = false;
-	  switch(stateId)
-	  {
-	  	case START_SCN_REQUEST_SENT:
-	  	case START_SCN_RESPONSE_SUCCESS:
-	  	case START_SCN_REQUEST_ERROR:
-	  	case START_SCN_RESPONSE_ERROR:
-	  	case TARGET_SCN_REQUEST_SENT :
-	  	case TARGET_SCN_RESPONSE_SUCCESS:
-	  	case TARGET_SCN_REQUEST_ERROR:
-	  	case TARGET_SCN_RESPONSE_ERROR:
-	  	case STREAM_REQUEST_SENT:
-	  	case STREAM_REQUEST_SUCCESS:
-	  	case STREAM_REQUEST_ERROR:
-	  	case STREAM_RESPONSE_ERROR:
-	  	case BOOTSTRAP_DONE:
-	  			delayTear = true;
-	  			break;
-	  }
-
+	  boolean delayTear = SHOULD_TEAR_CONNECTION.contains(stateId);
 	  return delayTear;
   }
 
@@ -173,6 +177,7 @@ public class BootstrapPullThread extends BasePullThread
         switch (stateMsg.getStateId())
         {
           case INITIAL: break;
+          case BOOTSTRAP_DONE: break; //bootstrap is done -- wait for the next message
           case CLOSED: shutdown(); break;
           case BOOTSTRAP:
           case PICK_SERVER: doPickBootstrapServer(currentState); break;
@@ -192,7 +197,7 @@ public class BootstrapPullThread extends BasePullThread
           case TARGET_SCN_RESPONSE_ERROR: processTargetScnResponseError(currentState); break;
           default:
           {
-            _log.error("Unkown state in BootstrapPullThread: " + currentState.getStateId());
+            _log.error("Unknown state in BootstrapPullThread: " + currentState.getStateId());
             success = false;
             break;
           }
@@ -240,36 +245,71 @@ public class BootstrapPullThread extends BasePullThread
 
   private void doSetSourcesSchemas(SourcesMessage sourcesMessage)
   {
-    _currentState.setSourcesSchemas(sourcesMessage.getSourcesSchemas());
+    if (null != _currentState.getSourcesSchemas())
+    {
+      final Set<Long> newIds = sourcesMessage.getSourcesSchemas().keySet();
+      final Set<Long> curIds = _currentState.getSourcesSchemas().keySet();
 
-    _sourcesConn.getBootstrapDispatcher().enqueueMessage(
-                               DispatcherState.create().switchToStartDispatchEvents(
-                                   _currentState.getSourceIdMap(),
-                                   _currentState.getSourcesSchemas(),
-                                   _currentState.getDataEventsBuffer()));
+      if (! newIds.containsAll(curIds))
+      {
+          String msg = "Expected schemas for sources " + curIds + "; got: " + newIds;
+          _log.error(msg);
+          _currentState.switchToClosed();
+          enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new DatabusException(msg)));
+          return;
+      }
+    }
+    _currentState.setSourcesSchemas(sourcesMessage.getSourcesSchemas());
+    _sourcesConn.getBootstrapDispatcher().enqueueMessage(sourcesMessage);
   }
 
   private void doSetSourcesIds(SourcesMessage sourcesMessage)
   {
+    // sourcesMessage.getSources() has the sources that the relay returned. The sources call response handler
+    // in the relay puller has already verified that all the subscriptions are covered by the list of sources
+    // returned from the relay (see RelayPullThread.buildSubsList()
     _currentState.setSourcesIds(sourcesMessage.getSources());
     _currentState.setSourcesIdListString(sourcesMessage.getSourcesIdListString());
+    _sourcesConn.getBootstrapDispatcher().enqueueMessage(sourcesMessage);
   }
 
   private void doSetResumeCheckpoint(CheckpointMessage cpMessage)
   {
     _resumeCkpt = cpMessage.getCheckpoint();
+    if (null != _resumeCkpt)
+    {
+      DbusEventInternalReadable cpEvent = getEventFactory().createCheckpointEvent(_resumeCkpt);
+      boolean success;
+      try
+      {
+        success = _currentState.getDataEventsBuffer().injectEvent(cpEvent);
+      }
+      catch (InvalidEventException e)
+      {
+        _log.error("unable to create checkpoint event for checkpoint " + _resumeCkpt + "; error: "  + e, e);
+        success = false;
+      }
+      if (!success)
+      {
+        _log.error("Unable to write bootstrap phase marker");
+      }
+    }
 
     _log.info("resume checkpoint: " + _resumeCkpt.toString());
   }
 
+  /**
+   * Invoked when a LifeCycle message of type "START" is received by bootstrap puller thread
+   * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
+   *
+   * 1. Acquire lock for Databus V3 bootstrap
+   * 2. Invoke same method on super class
+   * 3. Clear and switch state-machine to start choosing a server(relay) to connected to
+   */
   @Override
   protected void doStart(LifecycleMessage lcMessage)
   {
-    /*if (_currentState.getStateId() != ConnectionState.StateId.INITIAL)
-    {
-      return;
-    }*/
-
+    lockV3Bootstrap();
     super.doStart(lcMessage);
 
     _currentState.clearBootstrapState();
@@ -278,7 +318,92 @@ public class BootstrapPullThread extends BasePullThread
     enqueueMessage(_currentState);
   }
 
+  /**
+   * Invoked when a LifeCycle message of type "RESUME" is received by bootstrap puller thread
+   * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
+   *
+   * 1. Acquire lock for Databus V3 bootstrap
+   * 2. Invoke same method in super class
+   */
+  @Override
+  protected void doResume(LifecycleMessage lcMessage)
+  {
+    lockV3Bootstrap();
+    super.doResume(lcMessage);
+  }
 
+  /**
+   * Invoked when a LifeCycle message of type "SHUTDOWN" is received by bootstrap puller thread
+   * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
+   *
+   * 1. Release lock for Databus V3 bootstrap
+   * 2. Invoke same method in super class
+   * 3. The currently open connection to server (relay) is tracked as we want "sticky" behavior, meaning
+   *    the ability to be able to connect to the previously connected server. Close the connection if open.
+   */
+  @Override
+  protected void onShutdown()
+  {
+    try
+    {
+      if (null != _lastOpenConnection)
+      {
+        _log.info("closing open connection");
+        _lastOpenConnection.close();
+        _lastOpenConnection = null;
+      }
+    }
+    finally
+    {
+      unlockV3Bootstrap(true);
+    }
+    _log.info("shutdown complete.");
+  }
+
+  /**
+   * Invoked when a LifeCycle message of type "PAUSE" is received by bootstrap puller thread
+   * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
+   *
+   * 1. Release lock for Databus V3 bootstrap
+   * 2. Invoke same method in super class
+   */
+  @Override
+  protected void doPause(LifecycleMessage lcMessage)
+  {
+    try
+    {
+      super.doPause(lcMessage);
+    }
+    finally
+    {
+      unlockV3Bootstrap();
+    }
+  }
+
+  /**
+   * Invoked when a LifeCycle message of type "SUSPEND_ON_ERROR" is received by bootstrap puller thread
+   * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
+   *
+   * 1. Release lock for Databus V3 bootstrap
+   * 2. Invoke same method in super class
+   */
+  @Override
+  protected void doSuspendOnError(LifecycleMessage lcMessage)
+  {
+    try
+    {
+      super.doSuspendOnError(lcMessage);
+    }
+    finally {
+      unlockV3Bootstrap();
+    }
+  }
+
+  /**
+   * This method is not to be confused with the doResume method. The latter is invoked
+   * on a LifeCycleMessage. This method is invoked when a RESUME message is received in
+   * one of the inner workflows.
+   */
   @Override
   protected void onResume()
   {
@@ -326,13 +451,16 @@ public class BootstrapPullThread extends BasePullThread
     ServerInfo serverInfo = lastReadBS;
     if ( !restartBootstrap )
     {
+        //attempt to reconnect to the last used bootstrap server
         while (null == bootstrapConn && (retriesLeft = _retriesBeforeCkptCleanup.getRemainingRetriesNum()) >= 0
                && !checkForShutdownRequest())
         {
-        	if (lastReadBS.equals(_curServer) )
-        		_retriesBeforeCkptCleanup.backoffAndSleep();
 
-        	_log.info("Retry picking last used bootstrap server :" + serverInfo + "; retries left:" + retriesLeft);
+        	_log.info("Retry picking last used bootstrap server :" + serverInfo + "; retries left:" +
+        	retriesLeft);
+
+            if (null == bootstrapConn && lastReadBS.equals(_curServer) ) // if it is new server do not sleep?
+              _retriesBeforeCkptCleanup.backoffAndSleep();
 
         	try
             {
@@ -351,17 +479,20 @@ public class BootstrapPullThread extends BasePullThread
         }
     }
 
-    if(checkForShutdownRequest()) return;
+    if(checkForShutdownRequest()) {
+      _log.info("Shutting down bootstrap");
+      return;
+    }
 
     Random rng = new Random();
 
     if ( null == bootstrapConn)
     {
-    	_log.info("Restarting bootstrap as client might be getting bootstrap data from different server instance !!");
-    	_log.info("Old Checkpoint :" + _resumeCkpt);
-    	_resumeCkpt.resetBSServerGeneratedState();
-    	_log.info("New Checkpoint :" + _resumeCkpt);
-    	_retriesBeforeCkptCleanup.reset();
+      _log.info("Restarting bootstrap as client might be getting bootstrap data from different server instance !!");
+      _log.info("Old Checkpoint :" + _resumeCkpt);
+      curState.getBstCheckpointHandler().resetForServerChange(_resumeCkpt);
+      _log.info("New Checkpoint :" + _resumeCkpt);
+      _retriesBeforeCkptCleanup.reset();
     }  else {
         _curServer = serverInfo;
     }
@@ -384,7 +515,7 @@ public class BootstrapPullThread extends BasePullThread
       try
       {
         bootstrapConn = _sourcesConn.getBootstrapConnFactory().createConnection(serverInfo, this, _remoteExceptionHandler);
-        _log.info("picked a bootstrap server:" + serverInfo);
+        _log.info("picked a bootstrap server:" + serverInfo.toSimpleString());
       }
       catch (Exception e)
       {
@@ -393,7 +524,7 @@ public class BootstrapPullThread extends BasePullThread
     }
 
     /*
-     * Close the old bootstrap COnnection
+     * Close the old bootstrap Connection
      */
      DatabusBootstrapConnection oldBootstrapConn = curState.getBootstrapConnection();
 
@@ -403,40 +534,42 @@ public class BootstrapPullThread extends BasePullThread
 
     if (checkForShutdownRequest()) return;
 
-    if (!_resumeCkpt.isBootstrapStartScnSet())
+    if (null == bootstrapConn)
     {
-      _resumeCkpt = initCheckpointForSnapshot(_resumeCkpt,
-                                              _resumeCkpt.getBootstrapSinceScn());
+      _log.error("bootstrap server retries exhausted");
+      enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new DatabusException("bootstrap server retries exhausted")));
+      return;
+    }
 
-      if (null == bootstrapConn)
-      {
-        _log.error("Unable to connect to a bootstrap server");
-        enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new DatabusException("Bootstrap server retries exhausted")));
-      }
-      else
-      {
+    curState.bootstrapServerSelected(serverInfo.getAddress(), bootstrapConn, _curServer);
 
-        curState.switchToRequestStartScn(serverInfo.getAddress(),
-                                         curState.getSourceIdMap(),
-                                         curState.getSourcesSchemas(),
-                                         _resumeCkpt,
-                                         bootstrapConn,
-                                         _curServer);
+    //determine what to do next based on the current checkpoint
+    _log.info("resuming bootstrap from checkpoint: " + _resumeCkpt);
+    curState.setCheckpoint(_resumeCkpt);
+    determineNextStateFromCheckpoint(curState);
+    enqueueMessage(curState);
+
+    /*if (!_resumeCkpt.isBootstrapStartScnSet())
+    {
+      _resumeCkpt = curState.getBstCheckpointHandler().startBootstrap(
+          _resumeCkpt,_resumeCkpt.getBootstrapSinceScn());
+      _log.info("starting bootstrap from checkpoint: " + _resumeCkpt);
+
+        curState.switchToRequestStartScn(_resumeCkpt);
         enqueueMessage(curState);
-      }
+    }
+    else if (_resumeCkpt.isBootstrapTargetScnSet())
+    {
+      _log.info("resuming bootstrap from checkpoint: " + _resumeCkpt);
+  	  curState.switchToStartScnSuccess(_resumeCkpt, bootstrapConn, _curServer);
+  	  enqueueMessage(curState);
     }
     else
     {
-      if (null == bootstrapConn)
-      {
-    	  _log.error("Unable to connect to a bootstrap server");
-          enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new DatabusException("Bootstrap server retries exhausted")));
-      } else {
-    	  curState.switchToStartScnSuccess(_resumeCkpt, bootstrapConn, _curServer);
-    	  enqueueMessage(curState);
-          _lastOpenConnection = bootstrapConn;
-      }
-    }
+      _log.info("resuming bootstrap after snapshot from checkpoint: " + _resumeCkpt);
+      curState.switchToRequestTargetScn(_resumeCkpt);
+      enqueueMessage(curState);
+    }*/
 
   }
 
@@ -447,30 +580,20 @@ public class BootstrapPullThread extends BasePullThread
     curState.getBootstrapConnection().requestTargetScn(curState.getCheckpoint(), curState);
   }
 
-  private void doTargetScnResponseSuccess(ConnectionState curState)
+  protected void doTargetScnResponseSuccess(ConnectionState curState)
   {
-	boolean enqueueMessage = true;
-    if (curState.getSourcesSchemas().size() != _sourcesConn.getSourcesNames().size())
+    if (toTearConnAfterHandlingResponse())
     {
-    	String msg = "Expected " + _sourcesConn.getSourcesNames().size() + " schemas, got: " +
-                curState.getSourcesSchemas().size();
-        _log.error(msg);
-        curState.switchToTargetScnResponseError();
-        enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new Exception(msg)));
-        enqueueMessage = false;
+      tearConnectionAndEnqueuePickServer();
     }
     else
     {
-      if (toTearConnAfterHandlingResponse())
-      {
-    	enqueueMessage = false;
-        tearConnectionAndEnqueuePickServer();
-      }
+      final Checkpoint cp = curState.getCheckpoint();
+      curState.getBstCheckpointHandler().advanceAfterSnapshotPhase(cp);
+      curState.getBstCheckpointHandler().advanceAfterTargetScn(cp);
       curState.switchToRequestStream(curState.getCheckpoint());
-    }
-
-    if ( enqueueMessage )
       enqueueMessage(curState);
+    }
   }
 
   private void doRequestStartScn(ConnectionState curState)
@@ -483,47 +606,37 @@ public class BootstrapPullThread extends BasePullThread
 
   private void doStartScnResponseSuccess(ConnectionState curState)
   {
-	boolean enqueueMessage = true;
-    if (curState.getSourcesSchemas().size() != _sourcesConn.getSourcesNames().size())
+    if (toTearConnAfterHandlingResponse())
     {
-    	String msg = "Expected " + _sourcesConn.getSourcesNames().size() + " schemas, got: " +
-                curState.getSourcesSchemas().size();
-        _log.error(msg);
-        curState.switchToStartScnResponseError();
-        enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new Exception(msg)));
-        enqueueMessage = false;
+      tearConnectionAndEnqueuePickServer();
     }
     else
     {
-      if (toTearConnAfterHandlingResponse())
-      {
-        tearConnectionAndEnqueuePickServer();
-        enqueueMessage = false;
-      } else {
-    	  ServerInfo bsServerInfo = curState.getCurrentBSServerInfo();
-    	  if ( null == bsServerInfo)
-    	  {
-    		  String msg = "Bootstrap Server did not provide its server info in StartSCN !! Switching to PICK_SERVER. CurrentServer :" + _curServer;
-    		  _log.error(msg);
-    	      curState.switchToStartScnResponseError();
-    	  } else if (! bsServerInfo.equals(_curServer)){
-    		  // Possible for VIP case
-    		  _log.info("Bootstrap server responded and current server does not match. Switching to Pick Server !!  curServer: "
-    		                  + _curServer + ", Responded Server :" + bsServerInfo);
-    		  _log.info("Checkpoint before clearing :" + _resumeCkpt);
-    		  String bsServerInfoStr = _resumeCkpt.getBootstrapServerInfo();
-    		  _resumeCkpt.resetBSServerGeneratedState();
-    		  _resumeCkpt.setBootstrapServerInfo(bsServerInfoStr);
-    		  _log.info("Checkpoint after clearing :" + _resumeCkpt);
-    		  curState.switchToPickServer();
-    	  } else {
-    		  curState.switchToRequestStream(curState.getCheckpoint());
-    	  }
-      }
-    }
+  	  ServerInfo bsServerInfo = curState.getCurrentBSServerInfo();
+  	  if ( null == bsServerInfo)
+  	  {
+  		  String msg = "Bootstrap Server did not provide its server info in StartSCN !! Switching to PICK_SERVER. CurrentServer :" + _curServer;
+  		  _log.error(msg);
+  	      curState.switchToStartScnResponseError();
+  	  }
+  	  else if (! bsServerInfo.equals(_curServer)){
+  		  // Possible for VIP case
+  		  _log.info("Bootstrap server responded and current server does not match. Switching to Pick Server !!  curServer: "
+  		                  + _curServer + ", Responded Server :" + bsServerInfo);
+  		  _log.info("Checkpoint before clearing :" + _resumeCkpt);
+  		  String bsServerInfoStr = _resumeCkpt.getBootstrapServerInfo();
+  		  final Long startScn = _resumeCkpt.getBootstrapStartScn();
+  		  curState.getBstCheckpointHandler().resetForServerChange(_resumeCkpt);
+  		  _resumeCkpt.setBootstrapStartScn(startScn);
+  		  _resumeCkpt.setBootstrapServerInfo(bsServerInfoStr);
+  		  _log.info("Checkpoint after clearing :" + _resumeCkpt);
+  		  curState.switchToPickServer();
+  	  } else {
+  		  curState.switchToRequestStream(curState.getCheckpoint());
+  	  }
 
-    if ( enqueueMessage)
-    	enqueueMessage(curState);
+      enqueueMessage(curState);
+    }
   }
 
   protected void doRequestBootstrapStream(ConnectionState curState)
@@ -626,8 +739,8 @@ public class BootstrapPullThread extends BasePullThread
       if (debugEnabled) _log.debug("Sending bootstrap events to buffer");
 
       //eventBuffer.startEvents();
-      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
-      byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
+      DbusEventInternalReadable cpEvent = getEventFactory().createCheckpointEvent(cp);
+      byte[] cpEventBytes = new byte[cpEvent.size()];
 
       if (debugEnabled)
       {
@@ -666,49 +779,64 @@ public class BootstrapPullThread extends BasePullThread
         }
         else
         {
-          resetServerRetries();
-
-          if (debugEnabled) _log.debug("Sending events to buffer");
-
           int eventsNum = eventBuffer.readEvents(readChannel, curState.getListeners(),
                                                  _sourcesConn.getBootstrapEventsStatsCollector());
 
-          numEventsInCurrentState += eventsNum;
-
-          _log.info("Bootstrap events read so far:" + numEventsInCurrentState);
-
-          String status = readChannel.getMetadata("PhaseCompleted");
-
-          if (status != null)
-          { // set status in checkpoint to indicate that we are done with the current source
-            if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_CATCHUP)
-            {
-              cp.endCatchupSource();
-            }
-            else if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT)
-            {
-              cp.endSnapShotSource();
-            }
-            else
-            {
-              throw new RuntimeException("Invalid bootstrap phase: " + cp.getConsumptionMode());
-            }
-
-            _log.info("Bootstrap events read :" + numEventsInCurrentState + " during phase:"
-                    + cp.getConsumptionMode() + " [" + cp.getBootstrapSnapshotSourceIndex()
-                    + "," + cp.getBootstrapCatchupSourceIndex() + "]");
-            numEventsInCurrentState = 0;
+          if (eventsNum == 0 &&
+              _remoteExceptionHandler.getPendingEventSize(readChannel) > eventBuffer.getMaxReadBufferCapacity())
+          {
+            String err = "ReadBuffer max capacity(" + eventBuffer.getMaxReadBufferCapacity() +
+                         ") is less than event size(" +
+                         _remoteExceptionHandler.getPendingEventSize(readChannel) +
+                         "). Increase databus.client.connectionDefaults.bstEventBuffer.maxEventSize and restart.";
+            _log.fatal(err);
+            enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(new PendingEventTooLargeException(err)));
+            return;
           }
           else
-          { // keep on reading more for the given snapshot
-            // question: how is snapshotOffset maintained in ckpt
-            if (eventsNum > 0)
-            {
-              cp.bootstrapCheckPoint();
-            }
-          }
+          {
+            resetServerRetries();
 
-          curState.switchToStreamResponseDone();
+            if (debugEnabled) _log.debug("Sending events to buffer");
+
+            numEventsInCurrentState += eventsNum;
+
+            _log.info("Bootstrap events read so far:" + numEventsInCurrentState);
+
+            String status = readChannel.getMetadata("PhaseCompleted");
+
+            final BootstrapCheckpointHandler ckptHandler = curState.getBstCheckpointHandler();
+            if (status != null)
+            { // set status in checkpoint to indicate that we are done with the current source
+              if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_CATCHUP)
+              {
+                ckptHandler.finalizeCatchupPhase(cp);
+              }
+              else if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT)
+              {
+                ckptHandler.finalizeSnapshotPhase(cp);
+              }
+              else
+              {
+                 throw new RuntimeException("Invalid bootstrap phase: " + cp.getConsumptionMode());
+              }
+
+              _log.info("Bootstrap events read :" + numEventsInCurrentState + " during phase:"
+                      + cp.getConsumptionMode() + " [" + cp.getBootstrapSnapshotSourceIndex()
+                      + "," + cp.getBootstrapCatchupSourceIndex() + "]");
+              numEventsInCurrentState = 0;
+            }
+            else
+            { // keep on reading more for the given snapshot
+              // question: how is snapshotOffset maintained in ckpt
+              if (eventsNum > 0)
+              {
+                cp.bootstrapCheckPoint();
+              }
+            }
+
+            curState.switchToStreamResponseDone();
+          }
         }
       }
     }
@@ -743,78 +871,15 @@ public class BootstrapPullThread extends BasePullThread
   protected void doStreamResponseDone(ConnectionState curState)
   {
     boolean debugEnabled = _log.isDebugEnabled();
-    boolean bootstrapDone = false;
 
     Checkpoint cp = curState.getCheckpoint();
-    if (debugEnabled) _log.debug("Checkpoint at EventsDone: " + cp.toString());
+    if (debugEnabled) _log.debug("Checkpoint at EventsDone: " + cp);
 
-    if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT &&
-        cp.isSnapShotSourceCompleted())
-    {
-      logBootstrapPhase(DbusClientMode.BOOTSTRAP_SNAPSHOT, cp.getBootstrapSnapshotSourceIndex(), cp.getBootstrapCatchupSourceIndex());
+    determineNextStateFromCheckpoint(curState);
+    // if we successfully got some data - reset retries counter.
+    _retriesBeforeCkptCleanup.reset();
 
-      cp.incrementBootstrapSnapshotSourceIndex();
-
-      cp = initCheckpointForCatchup(cp);
-      // this allows us to get the target scn for catch up
-      // we need this at the beginning of each catchup phase
-      curState.switchToRequestTargetScn(curState.getServerInetAddress(),
-                                        curState.getSourceIdMap(),
-                                        curState.getSourcesSchemas(),
-                                        cp,
-                                        curState.getBootstrapConnection());
-    }
-    else if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_CATCHUP &&
-             cp.isCatchupCompleted())
-    {
-      logBootstrapPhase(DbusClientMode.BOOTSTRAP_CATCHUP, cp.getBootstrapSnapshotSourceIndex(), cp.getBootstrapCatchupSourceIndex());
-
-      cp.incrementBootstrapCatchupSourceIndex();
-      if (cp.getBootstrapCatchupSourceIndex() < cp.getBootstrapSnapshotSourceIndex())
-      {
-        // move to next source for catchup source
-        cp = initCheckpointForCatchup(cp);
-        curState.switchToRequestStream(cp);
-      }
-      else if (cp.getBootstrapSnapshotSourceIndex() < curState.getSourcesNames().size())
-      {
-        // move to next snapshot
-        cp = initCheckpointForSnapshot(cp, cp.getBootstrapSinceScn());
-        curState.switchToRequestStream(cp);
-
-        // need to reset _catchupSource to 0 because we need to do catchup
-        // for all sources from the first source to the current snapshot source
-        cp.setBootstrapCatchupSourceIndex(0);
-      }
-      else
-      { // we are done
-        logBootstrapPhase(DbusClientMode.BOOTSTRAP_CATCHUP, cp.getBootstrapSnapshotSourceIndex(), cp.getBootstrapCatchupSourceIndex());
-
-        // write endOfPeriodMarker to trigger end sequence callback for bootstrap
-        curState.getDataEventsBuffer().endEvents(false, cp.getBootstrapTargetScn(), false, false,null);
-
-        // persist the checkpoint so BootstrapPullThread will get it and continue streaming
-        try
-        {
-          processBootstrapComplete(cp, curState);
-          bootstrapDone = true;
-          _currentState.switchToBootstrapDone();
-        }
-        catch (IOException e)
-        {
-          throw new RuntimeException("Unable to persist checkpoint at the end of bootstrap", e);
-        }
-        //waitForEventsConsumption(curState.getDataEventsBuffer());
-        //curState.switchToClosed();
-      }
-    }
-    else
-    {
-      // nothing needs to be changed, keep on reading data from server
-      curState.switchToRequestStream(cp);
-    }
-
-    if (!bootstrapDone) enqueueMessage(curState);
+    enqueueMessage(curState);
   }
 
   /**
@@ -823,10 +888,11 @@ public class BootstrapPullThread extends BasePullThread
    * @param cp
    * @throws IOException
    */
-  private void processBootstrapComplete(Checkpoint cp, ConnectionState curState)
-    throws IOException
+  protected void processBootstrapComplete(Checkpoint cp, ConnectionState curState)
+      throws IOException, DatabusException
   {
-	_log.info("Bootstrap got completed !! Checkpoint is :" + cp.toString());
+    logBootstrapPhase(DbusClientMode.BOOTSTRAP_CATCHUP, cp.getBootstrapSnapshotSourceIndex(), cp.getBootstrapCatchupSourceIndex());
+    _log.info("Bootstrap got completed !! Checkpoint is :" + cp.toString());
 
     /*
      * DDS-989
@@ -844,37 +910,34 @@ public class BootstrapPullThread extends BasePullThread
 
     try
     {
-      //eventBuffer.startEvents();
-      DbusEventInternalWritable cpEvent =  DbusEventV1.createCheckpointEvent(cp);
-      byte[] cpEventBytes = new byte[cpEvent.getRawBytes().limit()];
-      cpEvent.getRawBytes().get(cpEventBytes);
-      ByteArrayInputStream cpIs = new ByteArrayInputStream(cpEventBytes);
-      ReadableByteChannel cpRbc = Channels.newChannel(cpIs);
-
-      int ecnt = eventBuffer.readEvents(cpRbc);
-
-      boolean success = (ecnt > 0);
-
+      DbusEventInternalReadable cpEvent = getEventFactory().createCheckpointEvent(cp);
+      boolean success = eventBuffer.injectEvent(cpEvent);
       if (!success)
       {
         _log.error("Unable to write bootstrap phase marker");
+      }
+      else
+      {
+        //TODO need real partition for partitioned bootstrap
+        DbusEventInternalReadable eopEvent = curState.createEopEvent(cp, getEventFactory());
+        success = eventBuffer.injectEvent(eopEvent);
+        if (! success)
+        {
+          _log.error("Unable to write bootstrap EOP marker");
+        }
       }
     }
     catch (InvalidEventException iee)
     {
       _log.error("Unable to write bootstrap phase marker", iee);
     }
-
-    eventBuffer.endEvents(false, cp.getWindowScn(), false, false,null);
-
+    unlockV3Bootstrap();
   }
 
-  // TODO (DDSDBUS-85): For now, we use the same startScn, min(windowscn) from bootstrap_applier_state,
-  // for snapshot all sources. It makes catchup inefficient. We need to optimize it later.
-  private Checkpoint initCheckpointForSnapshot(Checkpoint ckpt,
-                                               Long sinceScn)
+  //TODO REMOVE ME
+  /*
+  private Checkpoint initCheckpointForSnapshot(Checkpoint ckpt, Long sinceScn)
   {
-
     String source = _currentState.getSourcesNames().get(ckpt.getBootstrapSnapshotSourceIndex());
     if (null == source)
     {
@@ -893,11 +956,9 @@ public class BootstrapPullThread extends BasePullThread
 
     return ckpt;
   }
+  */
 
-  // TODO (DDSDBUS-86): For catchup of sources already made consistent prior to snapshotting the current
-  // source, we could have used the scn on which they are consistent of. But for simplicity
-  // for now, we are using the startScn. Optimization will be needed later for more efficient
-  // catchup
+  /*
   private Checkpoint initCheckpointForCatchup(Checkpoint ckpt)
   {
     String source = _currentState.getSourcesNames().get(ckpt.getBootstrapCatchupSourceIndex());
@@ -912,6 +973,7 @@ public class BootstrapPullThread extends BasePullThread
     ckpt.setWindowScn(ckpt.getBootstrapStartScn());
     return ckpt;
   }
+  */
 
 
   protected void sendErrorEventToDispatcher(ConnectionState curState)
@@ -1015,6 +1077,230 @@ public class BootstrapPullThread extends BasePullThread
   protected BackoffTimer getRetriesBeforeCkptCleanup()
   {
 	  return _retriesBeforeCkptCleanup;
+  }
+
+  /**
+   * Determines the next state based on the checkpoint. The idea is to determine where we are in the bootstrap flow and
+   * move to the next state.
+   *
+   *  <pre>
+   *    1. Request startSCN (State=REQUEST_START_SCN, SNAPSHOT, !cp.isBootstrapStartScnSet())
+   *    2. For each snapshot source:
+   *       2.1. Start snapshot (State=REQUEST_STREAM, SNAPSHOT, cp.isBootstrapStartScnSet() &&
+   *                            0 == cp.getSnapshotOffset())
+   *       2.2. While (! cp.isSnapShotSourceCompleted())
+   *          2.2.1. Continue snapshot (State=REQUEST_STREAM, SNAPSHOT, cp.isBootstrapStartScnSet() &&
+   *                                    0 < cp.getSnapshotOffset())
+   *       2.3. Request targetSCN (State=REQUEST_TARGET_SCN, SNAPSHOT, cp.isBootstrapStartScnSet() &&
+   *                               cp.isSnapShotSourceCompleted() && 0 == cp.getWindowOffset())
+   *       2.4. For each catchup source <= the snapshot source:
+   *          2.4.1. Start catchup (State=REQUEST_STREAM, CATCHUP, 0==cp.getWindowOffset() && handler.needsMoreCatchup())
+   *          2.4.2. While (! cp.isCatchupSourceCompleted())
+   *             2.4.2.1. Continue catchup (State=REQUEST_STREAM, CATCHUP, ! cp.isCatchupSourceCompleted())
+   *  </pre>
+   * @param curState        the bootstrap checkpoint
+   */
+  private void determineNextStateFromCheckpoint(ConnectionState curState)
+  {
+    try
+    {
+      final Checkpoint cp = curState.getCheckpoint();
+      final BootstrapCheckpointHandler cpHandler = curState.getBstCheckpointHandler();
+      cpHandler.assertBootstrapCheckpoint(cp);
+      switch (cp.getConsumptionMode())
+      {
+      case BOOTSTRAP_SNAPSHOT:
+        determineNextStateFromSnapshotCheckpoint(cp, cpHandler, curState);
+        break;
+      case BOOTSTRAP_CATCHUP:
+        determineNextStateFromCatchupCheckpoint(cp, cpHandler, curState);
+        break;
+      default:
+        _log.fatal("unexpected bootstrap checkpoint type: " + cp + "; shutting down");
+        curState.switchToClosed();
+      }
+    }
+    catch (InvalidCheckpointException e)
+    {
+      _log.fatal("invalid bootstrap checkpoint:", e);
+      curState.switchToClosed();
+    }
+  }
+
+  /**
+   * Determines the next state based on snapshot the checkpoint. See comments for
+   * {@link #determineNextStateFromCatchupCheckpoint(Checkpoint, BootstrapCheckpointHandler, ConnectionState)
+   *
+   * @param cp          the checkpoint
+   * @param cpHandler   the handler to modify the checkpoint
+   * @param curState    the state to modify
+   */
+  private void determineNextStateFromSnapshotCheckpoint(Checkpoint cp,
+                                                        BootstrapCheckpointHandler cpHandler,
+                                                        ConnectionState curState)
+  {
+    if (!cp.isBootstrapStartScnSet())
+    {
+      //(*, !cp.isBootstrapStartScnSet()) --> (REQUEST_START_SCN)
+      curState.switchToRequestStartScn(cp);
+    }
+    else if (!cp.isSnapShotSourceCompleted())
+    {
+      //(*, cp.isBootstrapStartScnSet() && ! cp.isSnapShotSourceCompleted()) --> (REQUEST_STREAM)
+      curState.switchToRequestStream(cp);
+    }
+    else
+    {
+      //Snapshot complete -- send /targetSCN
+      logBootstrapPhase(DbusClientMode.BOOTSTRAP_SNAPSHOT, cp.getBootstrapSnapshotSourceIndex(),
+                        cp.getBootstrapCatchupSourceIndex());
+
+      //cpHandler.advanceAfterSnapshotPhase(cp);
+      curState.switchToRequestTargetScn(cp);
+    }
+  }
+
+  /**
+   * Determines the next state based on catchup the checkpoint. See comments for
+   * {@link #determineNextStateFromCatchupCheckpoint(Checkpoint, BootstrapCheckpointHandler, ConnectionState)
+   * @param cp          the checkpoint
+   * @param cpHandler   the handler to modify the checkpoint
+   * @param curState    the state to modify
+   */
+  private void determineNextStateFromCatchupCheckpoint(Checkpoint cp,
+                                                       BootstrapCheckpointHandler cpHandler,
+                                                       ConnectionState curState)
+  {
+    if (!cp.isCatchupSourceCompleted())
+    {
+      //Finish current catchup source
+      curState.switchToRequestStream(cp);
+    }
+    else
+    {
+      logBootstrapPhase(DbusClientMode.BOOTSTRAP_CATCHUP, cp.getBootstrapSnapshotSourceIndex(), cp.getBootstrapCatchupSourceIndex());
+      cpHandler.advanceAfterCatchupPhase(cp);
+
+      if (cpHandler.needsMoreCatchup(cp))
+      {
+        //Current catchup source is done but there are more
+        curState.switchToRequestStream(cp);
+      }
+      else if (cpHandler.needsMoreSnapshot(cp))
+      {
+        //All catchup sources are done, try next snapshot source
+        curState.switchToRequestStream(cp);
+      }
+      else
+      {
+        //no snapshot or catchup source left -- bootstrap complete
+        // write endOfPeriodMarker to trigger end sequence callback for bootstrap
+        DbusEventInternalReadable eopEvent =
+            getEventFactory().createLongKeyEOPEvent(cp.getBootstrapTargetScn(), (short) 0);
+        try
+        {
+          boolean success = curState.getDataEventsBuffer().injectEvent(eopEvent);
+          if (success)
+          {
+            // persist the checkpoint so BootstrapPullThread will get it and continue streaming
+            try
+            {
+              processBootstrapComplete(cp, curState);
+              curState.switchToBootstrapDone();
+            }
+            catch (IOException e)
+            {
+              _log.error("Unable to persist checkpoint at the end of bootstrap", e);
+              curState.switchToPickServer();
+            }
+            catch (DatabusException e)
+            {
+              _log.error("Unable to complete bootstrap", e);
+              curState.switchToPickServer();
+            }
+          }
+          else
+          {
+            _log.error("Unable to write bootstrap EOP marker");
+            curState.switchToPickServer();
+          }
+        }
+        catch (InvalidEventException e1)
+        {
+          _log.error("Unable to write bootstrap EOP marker", e1);
+        }
+      }
+    }
+
+  }
+
+  /**
+   * A method to safely acquire a lock on underlying re-entrant lock to serialize bootstrap
+   * across partitions
+   * The method is a no-op is the lock has *already* been acquired by current thread
+   */
+  private void lockV3Bootstrap()
+  {
+    if (null != _v3BootstrapLock)
+    {
+      if (_v3BootstrapLock.isHeldByCurrentThread())
+      {
+        _log.warn("lockV3Bootstrap is a no-op as the thread is already owner of bootstrap lock. Lock state = " + _v3BootstrapLock.toString());
+        return;
+      }
+      _log.info("Waiting for bootstrap lock " + toString());
+      _v3BootstrapLock.lock();
+      _log.info("Obtained the bootstrap lock " + toString());
+    }
+  }
+
+  /**
+   * A method to safely release a lock on underlying re-entrant lock to serialize bootstrap
+   * across partitions.
+   * The method is a no-op is the lock has *not* been acquired by current thread
+   *
+   * The shutdown flag is used to determine if not possessing the lock should be logged as a warning (rather than info)
+   * This is because in normal processing:
+   * Lock is acquired in doStart(), and relinquished in processBootstrapComplete(). By the time, shutdown is invoked,
+   * the lock is not owned by current thread.
+   *
+   */
+  private void unlockV3Bootstrap(boolean shutdownCase)
+  {
+    if (null != _v3BootstrapLock)
+    {
+      // If the lock is not held, invoking an unlock throws an IllegalStateMonitorException
+      // Check for this case
+      if (! _v3BootstrapLock.isHeldByCurrentThread())
+      {
+        String errMsg = "unlockV3Bootstrap is a no-op as current thread is NOT owner of bootstrap lock. Lock state = " + _v3BootstrapLock.toString();
+        if (shutdownCase)
+        {
+          _log.info(errMsg);
+        }
+        else
+        {
+          _log.warn(errMsg);
+        }
+
+        return;
+      }
+      _v3BootstrapLock.unlock();
+      _log.info("Unlocked BootstrapPuller " + this.toString());
+    }
+  }
+
+  /**
+   * This unlock method is normally invoked, except in case of shutdown when we want some variation in how we log messages
+   */
+  private void unlockV3Bootstrap()
+  {
+    unlockV3Bootstrap(false);
+  }
+
+  protected ReentrantLock getV3BootstrapLock()
+  {
+    return _v3BootstrapLock;
   }
 
 }

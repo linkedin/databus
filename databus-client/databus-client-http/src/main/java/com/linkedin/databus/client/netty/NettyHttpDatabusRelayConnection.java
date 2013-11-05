@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
-import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
@@ -35,37 +34,35 @@ import org.codehaus.jackson.type.TypeReference;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.jboss.netty.util.Timer;
 
 import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusRelayConnection;
 import com.linkedin.databus.client.DatabusRelayConnectionStateMessage;
-import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.client.DatabusStreamConnectionStateMessage;
+import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.BaseHttpResponseProcessor;
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.CheckpointMult;
+import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.async.ActorMessageQueue;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus.core.util.Range;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
 import com.linkedin.databus2.core.container.ExtendedReadTimeoutHandler;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilter;
 import com.linkedin.databus2.core.filter.DbusKeyFilter;
 
 public class NettyHttpDatabusRelayConnection
-             implements DatabusRelayConnection, ChannelFutureListener
+             extends AbstractNettyHttpConnection
+             implements DatabusRelayConnection
 {
   public static final String MODULE = NettyHttpDatabusRelayConnection.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
@@ -80,22 +77,19 @@ public class NettyHttpDatabusRelayConnection
     STREAM_REQUEST_WRITE
   }
 
-  private final ServerInfo _relay;
   private final ActorMessageQueue _callback;
-  private final ClientBootstrap _bootstrap;
-  private final GenericHttpClientPipelineFactory _pipelineFactory;
   private DatabusRelayConnectionStateMessage _callbackStateReuse;
-  Channel _channel;
   private ExtendedReadTimeoutHandler _readTimeOutHandler;
   private CheckpointMult _checkpoint;
   private State _curState;
-  private int _connectRetriesLeft;
-  private String _sourcesSubsList;
+  private String _sourcesSubsList;  // comma-separated list of source IDs (integers)
   private int _freeBufferSpace;
   private DbusKeyCompositeFilter _filter;
   private boolean _enableReadFromLatestSCN = false;
-  private final int _version;
-  private GenericHttpResponseHandler _handler;
+
+  //private MyConnectListener _connectListener;
+
+  final int _maxEventVersion; // max version of DbusEvent this client can understand
 
   public NettyHttpDatabusRelayConnection(ServerInfo relay,
                                          ActorMessageQueue callback,
@@ -105,32 +99,18 @@ public class NettyHttpDatabusRelayConnection
                                          Timer timeoutTimer,
                                          long writeTimeoutMs,
                                          long readTimeoutMs,
-                                         int version,
+                                         int protocolVersion,
+                                         int maxEventVersion,
                                          ChannelGroup channelGroup)
   {
-    super();
-    _relay = relay;
+
+    super(relay, bootstrap, containerStatsCollector, timeoutTimer, writeTimeoutMs, readTimeoutMs,
+          channelGroup, protocolVersion, LOG);
     _callback = callback;
-    _bootstrap = bootstrap;
-    //FIXME Use a config for the retries and timeout (DDSDBUS-97)
-    _bootstrap.setOption("connectTimeoutMillis", DatabusSourcesConnection.CONNECT_TIMEOUT_MS);
+    _maxEventVersion = maxEventVersion;
 
-    _pipelineFactory = new GenericHttpClientPipelineFactory(
-        null,
-        GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE,
-        containerStatsCollector,
-        timeoutTimer,
-        writeTimeoutMs,
-        readTimeoutMs,
-        channelGroup);
-    _bootstrap.setPipelineFactory(_pipelineFactory);
-    _channel = null;
-    _version = version;
-  }
-
-  @Override
-  public int getVersion() {
-    return _version;
+    //_connectListener = new MyConnectListener();
+    //setConnectListener(_connectListener);
   }
 
   public NettyHttpDatabusRelayConnection(ServerInfo relay,
@@ -141,36 +121,27 @@ public class NettyHttpDatabusRelayConnection
                                          Timer timeoutTimer,
                                          long writeTimeoutMs,
                                          long readTimeoutMs,
-                                         int version,
+                                         int protocolVersion,
+                                         int maxEventVersion,
                                          ChannelGroup channelGroup)
   {
     this(relay,
          callback,
          new ClientBootstrap(channelFactory), containerStatsCollector, remoteExceptionHandler,
-                             timeoutTimer, writeTimeoutMs, readTimeoutMs, version,
-                             channelGroup);
+                             timeoutTimer, writeTimeoutMs, readTimeoutMs, protocolVersion,
+                             maxEventVersion, channelGroup);
   }
 
+  public boolean isEnableReadFromLatestSCN()
+  {
+    return _enableReadFromLatestSCN;
+  }
 
   @Override
-  public void close()
-  {
-	  if ( (null != _channel) && _channel.isConnected() )
-	  {
-		  ChannelFuture res = _channel.close();
-		  res.awaitUninterruptibly();
-	  }
-  }
-
-  public boolean isEnableReadFromLatestSCN() {
-	return _enableReadFromLatestSCN;
-  }
-
-@Override
   public void requestSources(DatabusRelayConnectionStateMessage stateReuse)
   {
     _callbackStateReuse = stateReuse;
-    _handler = null;
+
     if (null == _channel || ! _channel.isConnected())
     {
       connect(State.SOURCES_REQUEST_CONNECT);
@@ -186,38 +157,21 @@ public class NettyHttpDatabusRelayConnection
     _curState = State.SOURCES_REQUEST_WRITE;
 
     ChannelPipeline channelPipeline = _channel.getPipeline();
-    _readTimeOutHandler = (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
+    _readTimeOutHandler =
+        (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
     SourcesHttpResponseProcessor<DatabusRelayConnectionStateMessage> sourcesResponseProcessor =
-        new SourcesHttpResponseProcessor<DatabusRelayConnectionStateMessage>(_callback,
+        new SourcesHttpResponseProcessor<DatabusRelayConnectionStateMessage>(this, _callback,
             _callbackStateReuse, _readTimeOutHandler);
-    _handler = new GenericHttpResponseHandler(sourcesResponseProcessor,
-            GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
-    channelPipeline.replace(
-        "handler", "handler", _handler);
 
-    String uriString = "/sources";
+    String uriString = "/sources?" + DatabusHttpHeaders.PROTOCOL_VERSION_PARAM + "=" + getProtocolVersion();
 
     LOG.info("Sending " + uriString);
 
     // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, uriString);
-    request.setHeader(HttpHeaders.Names.HOST, _relay.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
-
-    if (_channel.isConnected())
-    {
-      ChannelFuture future = _channel.write(request);
-      future.addListener(this);
-      LOG.debug("Wrote /sources request");
-    }
-    else
-    {
-      onRequestFailure(new ClosedChannelException());
-      LOG.error("disconnect on /sources request");
-    }
+    HttpRequest request = createEmptyRequest(uriString);
+    sendRequest(request, new SourcesRequestResultListener(), sourcesResponseProcessor);
   }
 
   @Override
@@ -225,14 +179,13 @@ public class NettyHttpDatabusRelayConnection
   {
     _sourcesSubsList = sourcesIdList;
     _callbackStateReuse = stateReuse;
-    _handler = null;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (null == _channel || !_channel.isConnected())
     {
       _curState = State.REGISTER_REQUEST_CONNECT;
       //we've lost our connection to the relay; it's best to signal an error to the puller so that
       //the client can go through the whole registration process again
-      onRequestFailure(new ClosedChannelException());
+      onRequestFailure((String)null, new ClosedChannelException());
     }
     else
     {
@@ -245,58 +198,60 @@ public class NettyHttpDatabusRelayConnection
     _curState = State.REGISTER_REQUEST_WRITE;
 
     ChannelPipeline channelPipeline = _channel.getPipeline();
-    _readTimeOutHandler = (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
+    _readTimeOutHandler =
+        (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
     RegisterHttpResponseProcessor registerResponseProcessor =
-        new RegisterHttpResponseProcessor(_callback, _callbackStateReuse, _readTimeOutHandler);
-    _handler =  new GenericHttpResponseHandler(registerResponseProcessor,
-    									GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
+        new RegisterHttpResponseProcessor(this, _callback, _callbackStateReuse, _readTimeOutHandler);
 
-    channelPipeline.replace(
-        "handler", "handler",_handler);
+    final String url = createRegisterUrl();
 
-    StringBuilder uriString = new StringBuilder(1024);
-    if(3 != getVersion()) {
-      uriString.append("/register?sources=");
-      uriString.append(_sourcesSubsList);
-    } else {
-      uriString.append("/register");
-    }
-
-    LOG.info("Sending " + uriString.toString());
+    LOG.info("Sending " + url);
 
     // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(
-            HttpVersion.HTTP_1_1, HttpMethod.GET, uriString.toString());
-    request.setHeader(HttpHeaders.Names.HOST, _relay.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
+    HttpRequest request = createEmptyRequest(url);
+    sendRequest(request, new RegisterRequestResultListener(), registerResponseProcessor);
+  }
 
+  private String createRegisterUrl()
+  {
+    StringBuilder uriString = new StringBuilder(1024);
 
-    if (_channel.isConnected())
+    // Technically, "/register" should be "/getschemas" or similar; there's no actual registration
+    // going on, just retrieval of the schemas we (the client) think we're going to need in order
+    // to decode our events.  The relay doesn't store any state based on this call.
+    //
+    // DDSDBUS-2009, DDSDBUS-2175:  Always specify the protocol version, and if it's >= 4, its a
+    // request for an extended response (metadata and/or key schemas in addition to source/payload/
+    // document schemas) for the /register request.  Wiki reference:  Databus+v2.0++Protocol
+    uriString.append("/register?")
+             .append(DatabusHttpHeaders.PROTOCOL_VERSION_PARAM)
+             .append("=")
+             .append(getProtocolVersion());
+    if (getProtocolVersion() < 3) // protocol v2
     {
-      ChannelFuture future = _channel.write(request);
-      //not enough info to pass the list of source names
-      future.addListener(this);
+      // Older clients send the list of source IDs because they know them in advance; newer
+      // clients don't necessarily.  If the parameter is omitted, all schemas are returned.
+      // (Always omitting this should be fine, but there's no real need to make such a change
+      // right now.)
+      uriString.append("&sources=")
+               .append(_sourcesSubsList);
     }
-    else
-    {
-      onRequestFailure(new ClosedChannelException());
-      LOG.error("disconnect on /register request");
-    }
+
+    final String url = uriString.toString();
+    return url;
   }
 
   @Override
   public void requestStream(String sourcesSubsList, DbusKeyCompositeFilter filter,
-		  					int freeBufferSpace, CheckpointMult cp, Range keyRange,
+                            int freeBufferSpace, CheckpointMult cp, Range keyRange,
                             DatabusRelayConnectionStateMessage stateReuse)
   {
     _checkpoint = cp;
     _callbackStateReuse = stateReuse;
     _sourcesSubsList = sourcesSubsList;
     _freeBufferSpace = freeBufferSpace;
-    _handler = null;
 
     _filter = filter;
 
@@ -305,7 +260,7 @@ public class NettyHttpDatabusRelayConnection
       _curState = State.STREAM_REQUEST_CONNECT;
       //we've lost our connection to the relay; it's best to signal an error to the puller so that
       //the client can go through the whole registration process again
-      onRequestFailure(new ClosedChannelException());
+      onRequestFailure("/stream", new ClosedChannelException());
     }
     else
     {
@@ -313,22 +268,41 @@ public class NettyHttpDatabusRelayConnection
     }
   }
 
-  void formRequest(Formatter formatter, String filtersStr) {
-    String checkpointParam = (_version >= 3)? "checkPointMult" : "checkPoint";
-    String fmtString =
-      "/stream?" + ((_version >= 3)? "subs" : "sources") +
-      "=%s&streamFromLatestScn=%s&" + checkpointParam + "=%s&output=binary&size=%d";
-    if(filtersStr != null)
-      fmtString =  fmtString + "&filters=" + filtersStr;
+  void formRequest(Formatter formatter, String filtersStr)
+  {
+    StringBuilder fmtString = new StringBuilder(1024);
 
-    formatter.format(fmtString, _sourcesSubsList, Boolean.toString(_enableReadFromLatestSCN),
-                     (_version >= 3) ?
-                    	   _checkpoint.toString() :
-                    		 _checkpoint.getCheckpoint(PhysicalPartition.ANY_PHYSICAL_PARTITION),
+    fmtString.append("/stream?")
+             .append(DatabusHttpHeaders.PROTOCOL_VERSION_PARAM)
+             .append("=")
+             .append(getProtocolVersion())
+             .append((getProtocolVersion() >= 3)? "&subs" : "&sources")
+             .append("=%s&streamFromLatestScn=%s&")
+             .append((getProtocolVersion() >= 3)? "checkPointMult" : "checkPoint")
+             .append("=%s&output=binary&size=%d");
+    if (filtersStr != null)
+    {
+      fmtString.append("&filters=")
+               .append(filtersStr);
+    }
+    if (_maxEventVersion > 0)
+    {
+      fmtString.append("&")
+               .append(DatabusHttpHeaders.MAX_EVENT_VERSION)
+               .append("=")
+               .append(_maxEventVersion);
+    }
+
+    formatter.format(fmtString.toString(), _sourcesSubsList, Boolean.toString(_enableReadFromLatestSCN),
+                     (getProtocolVersion() >= 3) ?
+                         _checkpoint.toString() :
+                         _checkpoint.getCheckpoint(PhysicalPartition.ANY_PHYSICAL_PARTITION),
                      _freeBufferSpace);
 
-    if(LOG.isDebugEnabled())
-      LOG.debug("request string for stream (v=" + _version + "):" + formatter.toString());
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("request string for stream (protocolVersion=" + getProtocolVersion() + "):" + formatter.toString());
+    }
   }
 
   void onStreamConnectSuccess()
@@ -342,251 +316,309 @@ public class NettyHttpDatabusRelayConnection
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
     StreamHttpResponseProcessor streamResponseProcessor =
-        new StreamHttpResponseProcessor(_callback, _callbackStateReuse, _readTimeOutHandler);
-
-    _handler = new GenericHttpResponseHandler(streamResponseProcessor,
-    										GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
-
-    channelPipeline.replace(
-        "handler", "handler", _handler);
+        new StreamHttpResponseProcessor(this, _callback, _callbackStateReuse, _readTimeOutHandler);
 
     StringBuilder uriString = new StringBuilder(1024);
-    Formatter uriFmt = new Formatter(uriString);
 
-    ObjectMapper objMapper = new ObjectMapper();
-    String filtersStr = null;
-    if ( null != _filter)
+    boolean error = populateStreamRequestUrl(uriString);
+
+    if (error)
     {
-    	try
-    	{
-    		Map<Long, DbusKeyFilter> fMap = _filter.getFilterMap();
-    		if ( null != fMap && fMap.size()>0)
-    			filtersStr = objMapper.writeValueAsString(fMap);
-    	} catch( IOException ex) {
-    		LOG.error("Got exception while serializing Filters. Filter Map was : " + _filter, ex);
-    		onRequestFailure(ex);
-    	}
-    	catch( RuntimeException ex) {
-    		LOG.error("Got exception while serializing Filters. Filter Map was : " + _filter, ex);
-    		onRequestFailure(ex);
-    	}
+      return;
+    }
+    final String url = uriString.toString();
+
+    if (debugEnabled) LOG.debug("Sending " + url);
+
+    // Prepare the HTTP request.
+    HttpRequest request = createEmptyRequest(url);
+    sendRequest(request, new StreamRequestResultListener(), streamResponseProcessor);
+  }
+
+  private boolean populateStreamRequestUrl(StringBuilder uriString)
+  {
+    ObjectMapper objMapper = new ObjectMapper();
+    Formatter uriFmt = new Formatter(uriString);
+    String filtersStr = null;
+    boolean error = false;
+    if (null != _filter)
+    {
+      try
+      {
+        Map<Long, DbusKeyFilter> fMap = _filter.getFilterMap();
+        if (null != fMap && fMap.size() > 0)
+          filtersStr = objMapper.writeValueAsString(fMap);
+      }
+      catch (IOException ex)
+      {
+        LOG.error("Got exception while serializing Filters. Filter Map was : " + _filter, ex);
+        error = true;
+        onRequestFailure(uriString.toString(), ex);
+      }
+      catch (RuntimeException ex)
+      {
+        LOG.error("Got exception while serializing Filters. Filter Map was : " + _filter, ex);
+        error = true;
+        onRequestFailure(uriString.toString(), ex);
+      }
     }
 
     formRequest(uriFmt, filtersStr);
-
-    if (debugEnabled) LOG.debug("Sending " + uriString.toString());
-
-    // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(
-            HttpVersion.HTTP_1_1, HttpMethod.GET, uriString.toString());
-    request.setHeader(HttpHeaders.Names.HOST, _relay.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
-
-    // Send the HTTP request.
-    if (_channel.isConnected())
-    {
-      ChannelFuture future = _channel.write(request);
-      future.addListener(this);
-    }
-    else
-    {
-      onRequestFailure(new ClosedChannelException());
-      LOG.error("disconnect on /stream request");
-    }
+    return error;
   }
 
 
   private void connect(State connectState)
   {
     _curState = connectState;
-    //FIXME Use a config for the retries and timeout (DDSDBUS-98)
-    _connectRetriesLeft = DatabusSourcesConnection.MAX_CONNECT_RETRY_NUM;
-    connectRetry();
-  }
-
-  private void connectRetry()
-  {
-    LOG.info("connecting : " + _relay.toString());
-    ChannelFuture future = _bootstrap.connect(_relay.getAddress());
-    future.addListener(this);
+    connectWithListener(new MyConnectListener());
   }
 
   @Override
-  public synchronized void operationComplete(ChannelFuture future) throws Exception
+  public void enableReadFromLatestScn(boolean enable)
   {
+    _enableReadFromLatestSCN  = enable;
+  }
+
+  private void onConnectSuccess(Channel channel)
+  {
+
     switch (_curState)
     {
       case SOURCES_REQUEST_CONNECT:
+        onSourcesConnectSuccess();
+        break;
       case REGISTER_REQUEST_CONNECT:
+        onRegisterConnectSuccess();
+        break;
       case STREAM_REQUEST_CONNECT:
-      {
-        onConnectComplete(future);
+        onStreamConnectSuccess();
         break;
-      }
-      case SOURCES_REQUEST_WRITE:
-      case REGISTER_REQUEST_WRITE:
-      case STREAM_REQUEST_WRITE:
-      {
-        onWriteComplete(future);
-        break;
-      }
-      default: throw new RuntimeException("don't know what to do in state:" + _curState);
+      default:
+        throw new RuntimeException("don't know what to do in state:" + _curState);
     }
   }
 
-  private void onConnectComplete(ChannelFuture future) throws Exception
+  private void onRequestFailure(HttpRequest req, Throwable cause)
   {
-    if (future.isCancelled())
-    {
-      LOG.error("Connect cancelled");
-      onRequestFailure(future.getCause());
-    }
-    else if (future.isSuccess())
-    {
-      onConnectSuccess(future.getChannel());
-    }
-    else if (_connectRetriesLeft > 0)
-    {
-      -- _connectRetriesLeft;
-      LOG.warn("connect failed: retries left " + _connectRetriesLeft + ": " + _relay.toString(),
-               future.getCause());
-      connectRetry();
-    }
-    else
-    {
-      LOG.error("connect failed; giving up:" + _relay.toString(), future.getCause());
-      onRequestFailure(future.getCause());
-    }
+    onRequestFailure(null == req ? (String)null : req.getUri(), cause);
   }
 
-  private void onConnectSuccess(Channel channel) throws Exception
+  private void onRequestFailure(String req, Throwable cause)
   {
-    LOG.info("connected: " + _relay.toString());
-    _channel = channel;
+    LOG.info("request failure: req=" + req + "  cause=" + cause);
 
-    switch (_curState)
+    // special case - DDSDBUS-1497
+    // in case of WriteTimeoutException we will get close channel exception.
+    // Since the timeout exception comes from a different thread (timer) we
+    // may end up informing PullerThread twice - and causing it to create two new connections
+    // Instead we just drop this exception and just react to close channel
+    if (shouldIgnoreWriteTimeoutException(cause))
     {
-      case SOURCES_REQUEST_CONNECT: onSourcesConnectSuccess(); break;
-      case REGISTER_REQUEST_CONNECT: onRegisterConnectSuccess(); break;
-      case STREAM_REQUEST_CONNECT: onStreamConnectSuccess(); break;
-      default: throw new RuntimeException("don't know what to do in state:" + _curState);
+      LOG.error("got RequestFailure because of WriteTimeoutException");
+      return;
     }
-  }
-
-  private void onWriteComplete(ChannelFuture future) throws Exception
-  {
-    if (future.isCancelled())
-    {
-      LOG.error("Write cancelled !!");
-      onRequestFailure(future.getCause());
-    }
-    else if (! future.isSuccess())
-    {
-      LOG.error("Write failed", future.getCause());
-      onRequestFailure(future.getCause());
-    } else {
-    	//reset readFromLatestSCN
-    	_enableReadFromLatestSCN = false;
-    }
-  }
-
-  private void onRequestFailure(Throwable cause)
-  {
     switch (_curState)
     {
       case SOURCES_REQUEST_CONNECT:
       case SOURCES_REQUEST_WRITE:
       {
-        _callbackStateReuse.switchToSourcesRequestError(); break;
+        _callbackStateReuse.switchToSourcesRequestError();
+        break;
       }
       case REGISTER_REQUEST_CONNECT:
       case REGISTER_REQUEST_WRITE:
       {
-        _callbackStateReuse.switchToRegisterRequestError(); break;
+        _callbackStateReuse.switchToRegisterRequestError();
+        break;
       }
       case STREAM_REQUEST_CONNECT:
       case STREAM_REQUEST_WRITE:
       {
-        _callbackStateReuse.switchToStreamRequestError(); break;
+        _callbackStateReuse.switchToStreamRequestError();
+        break;
       }
-      default: throw new RuntimeException("don't know what to do in state:" + _curState);
+      default:
+        throw new RuntimeException("don't know what to do in state:" + _curState);
     }
 
     _callback.enqueueMessage(_callbackStateReuse);
   }
 
+  private class MyConnectListener implements ConnectResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ConnectResultListener#onConnectSuccess(org.jboss.netty.channel.Channel)
+     */
+    @Override
+    public void onConnectSuccess(Channel channel)
+    {
+      NettyHttpDatabusRelayConnection.this.onConnectSuccess(channel);
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ConnectResultListener#onConnectFailure(java.lang.Throwable)
+     */
+    @Override
+    public void onConnectFailure(Throwable cause)
+    {
+      NettyHttpDatabusRelayConnection.this.onRequestFailure((String)null, cause);
+    }
+  }
+
+  /** Callback for /sources request result */
+  private class SourcesRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      _enableReadFromLatestSCN = false;
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
+  }
+
+  /** Callback for /register request result */
+  private class RegisterRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      _enableReadFromLatestSCN = false;
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
+  }
+
+  /** Callback for /sources request result */
+  private class StreamRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      _enableReadFromLatestSCN = false;
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
+  }
+
   @Override
-  public void enableReadFromLatestScn(boolean enable) {
-	  _enableReadFromLatestSCN  = enable;
+  public int getMaxEventVersion()
+  {
+    return _maxEventVersion;
   }
 
 }
 
-//FIXME HIGH add handling of server disconnects before response is ready (DDSDBUS-99)
 class SourcesHttpResponseProcessor<M extends DatabusRelayConnectionStateMessage>
-    extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
+    extends BaseHttpResponseProcessor
 {
   public static final String MODULE = SourcesHttpResponseProcessor.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
   private final ActorMessageQueue _callback;
   private final DatabusRelayConnectionStateMessage _stateReuse;
-  private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-  public SourcesHttpResponseProcessor(ActorMessageQueue callback, M stateReuse,
+  /**
+   * Constructor
+   * @param parent                the AbstractNettyHttpConnection object that instantiated this
+   *                              response processor
+   * @param callback              callback to send the processed response or errors to
+   * @param stateReuse            a message object to reuse for the callback
+   *                              (TODO remove that: premature GC optimization)
+   * @param readTimeOutHandler    the ReadTimeoutHandler for the connection handled by this
+   *                              response handler.
+   */
+  public SourcesHttpResponseProcessor(AbstractNettyHttpConnection parent,
+                                      ActorMessageQueue callback, M stateReuse,
                                       ExtendedReadTimeoutHandler readTimeOutHandler)
   {
-    super(null);
+    super(parent, readTimeOutHandler);
     _callback = callback;
     _stateReuse = stateReuse;
-    _readTimeOutHandler = readTimeOutHandler;
   }
 
   @Override
   public void finishResponse() throws Exception
   {
     super.finishResponse();
+    if (_errorHandled)
+    {
+        return;
+    }
 
-	if (_errorHandled)
-	{
-	    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
-		return;
-	}
-
+    final String sourcesResponseError = "/sources response error: ";
     try
     {
       String exceptionName = RemoteExceptionHandler.getExceptionName(_decorated);
       if (null != exceptionName)
       {
-        LOG.error("/sources response error: " + RemoteExceptionHandler.getExceptionMessage(_decorated));
+        LOG.error(sourcesResponseError + RemoteExceptionHandler.getExceptionMessage(_decorated));
         _stateReuse.switchToSourcesResponseError();
       }
       else
       {
-      InputStream bodyStream = Channels.newInputStream(_decorated);
-      ObjectMapper mapper = new ObjectMapper();
+        String hostHdr = DbusConstants.UNKNOWN_HOST;
+        String svcHdr = DbusConstants.UNKNOWN_SERVICE_ID;
+        if (null != getParent())
+        {
+          hostHdr = getParent().getRemoteHost();
+          svcHdr = getParent().getRemoteService();
+          LOG.info("initiated sesssion to host " + hostHdr + " service " + svcHdr);
+        }
+
+        InputStream bodyStream = Channels.newInputStream(_decorated);
+        ObjectMapper mapper = new ObjectMapper();
 
         List<IdNamePair> sources =
             mapper.readValue(bodyStream,
                              new TypeReference<List<IdNamePair>>()
                                  {});
-        _stateReuse.switchToSourcesSuccess(sources);
+       _stateReuse.switchToSourcesSuccess(sources, hostHdr, svcHdr);
       }
     }
     catch (IOException ex)
     {
-      LOG.error("/sources response error: ", ex);
+      LOG.error(sourcesResponseError, ex);
       _stateReuse.switchToSourcesResponseError();
     }
     catch (RuntimeException ex)
     {
-      LOG.error("/sources response error: ", ex);
+      LOG.error(sourcesResponseError, ex);
       _stateReuse.switchToSourcesResponseError();
-    }
-    finally
-    {
-      if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
     }
 
     _callback.enqueueMessage(_stateReuse);
@@ -602,147 +634,198 @@ class SourcesHttpResponseProcessor<M extends DatabusRelayConnectionStateMessage>
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("channel exception: " + cause.getMessage(), cause);
+    LOG.error("exception during /sources response: ", cause);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
-    	LOG.info("Enqueueing Register Response Error State to Puller Queue");
-    	_stateReuse.switchToSourcesResponseError();
-    	_callback.enqueueMessage(_stateReuse);
-    } else {
-    	LOG.info("Skipping Enqueueing Sources Response Error State to Puller Queue");
+      LOG.info("Enqueueing /sources response error state to puller queue");
+      _stateReuse.switchToSourcesResponseError();
+      _callback.enqueueMessage(_stateReuse);
+    }
+    else
+    {
+      LOG.info("Skipping enqueueing /sources response error state to puller queue");
     }
     super.handleChannelException(cause);
   }
-}
+} // end class SourcesHttpResponseProcessor
 
-class RegisterHttpResponseProcessor
-    extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
+
+class RegisterHttpResponseProcessor extends BaseHttpResponseProcessor
 {
   public static final String MODULE = RegisterHttpResponseProcessor.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
   private final ActorMessageQueue _callback;
   private final DatabusRelayConnectionStateMessage _stateReuse;
-  private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-  public RegisterHttpResponseProcessor(ActorMessageQueue relayThread,
+  private String _registerResponseVersionHdr;  // version of relay-client protocol used by relay for this response
+
+  /**
+   * Constructor
+   * @param parent                the AbstractNettyHttpConnection object that instantiated this
+   *                              response processor
+   * @param relayThread           callback to send the processed response or errors to
+   * @param stateReuse            a message object to reuse for the callback
+   *                              (TODO remove that: premature GC optimization)
+   * @param readTimeOutHandler    the ReadTimeoutHandler for the connection handled by this
+   *                              response handler.
+   */
+  public RegisterHttpResponseProcessor(AbstractNettyHttpConnection parent,
+                                       ActorMessageQueue relayThread,
                                        DatabusRelayConnectionStateMessage stateReuse,
                                        ExtendedReadTimeoutHandler readTimeOutHandler)
   {
-    super(null);
+    super(parent, readTimeOutHandler);
     _callback = relayThread;
     _stateReuse = stateReuse;
-    _readTimeOutHandler = readTimeOutHandler;
-  }
-
-  @Override
-  public void finishResponse() throws Exception
-  {
-    super.finishResponse();
-
-	if (_errorHandled)
-	{
-	    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
-		return;
-	}
-
-	try
-    {
-      String exceptionName = RemoteExceptionHandler.getExceptionName(_decorated);
-      if (null != exceptionName)
-      {
-        LOG.error("/register response error: " + RemoteExceptionHandler.getExceptionMessage(_decorated));
-        _stateReuse.switchToRegisterResponseError();
-      }
-      else
-      {
-        InputStream bodyStream = Channels.newInputStream(_decorated);
-        ObjectMapper mapper = new ObjectMapper();
-
-        List<RegisterResponseEntry> schemas =
-            mapper.readValue(bodyStream,
-                             new TypeReference<List<RegisterResponseEntry>>()
-                                 {});
-
-        HashMap<Long, List<RegisterResponseEntry>> sourcesSchemas =
-            new HashMap<Long, List<RegisterResponseEntry>>(schemas.size() * 2);
-        for (RegisterResponseEntry entry: schemas)
-        {
-          List<RegisterResponseEntry> val = sourcesSchemas.get(entry.getId());
-          if ( null == val)
-          {
-        	  val = new ArrayList<RegisterResponseEntry>();
-        	  val.add(entry);
-        	  sourcesSchemas.put(entry.getId(), val);
-          } else {
-        	  val.add(entry);
-          }
-        }
-
-        _stateReuse.switchToRegisterSuccess(sourcesSchemas);
-      }
-    }
-    catch (IOException ex)
-    {
-      LOG.error("/register response error:", ex);
-      _stateReuse.switchToRegisterResponseError();
-    }
-    catch (RuntimeException ex)
-    {
-      LOG.error("/register response error:", ex);
-      _stateReuse.switchToRegisterResponseError();
-    }
-    finally
-    {
-      if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
-    }
-
-    _callback.enqueueMessage(_stateReuse);
   }
 
   @Override
   public void startResponse(HttpResponse response) throws Exception
   {
     _decorated = new ChunkedBodyReadableByteChannel();
+    _registerResponseVersionHdr = response.getHeader(DatabusHttpHeaders.DBUS_CLIENT_RELAY_PROTOCOL_VERSION_HDR);
     super.startResponse(response);
+  }
+
+  @Override
+  public void finishResponse() throws Exception
+  {
+    super.finishResponse();
+    if (_errorHandled)
+    {
+        return;
+    }
+
+    final String registerResponseError = "/register response error: ";
+    try
+    {
+      String exceptionName = RemoteExceptionHandler.getExceptionName(_decorated);
+      if (null != exceptionName)
+      {
+        LOG.error(registerResponseError + RemoteExceptionHandler.getExceptionMessage(_decorated));
+        _stateReuse.switchToRegisterResponseError();
+      }
+      else
+      {
+        InputStream bodyStream = Channels.newInputStream(_decorated);
+        ObjectMapper mapper = new ObjectMapper();
+        int registerResponseVersion = 3;  // either 2 or 3 would suffice here; we care only about 4
+
+        if (_registerResponseVersionHdr != null)
+        {
+          try
+          {
+            registerResponseVersion = Integer.parseInt(_registerResponseVersionHdr);
+          }
+          catch (NumberFormatException e)
+          {
+            throw new RuntimeException("Could not parse /register response protocol version: " +
+                                       _registerResponseVersionHdr);
+          }
+          if (registerResponseVersion < 2 || registerResponseVersion > 4)
+          {
+            throw new RuntimeException("Out-of-range /register response protocol version: " +
+                                       _registerResponseVersionHdr);
+          }
+        }
+
+        if (registerResponseVersion == 4)  // DDSDBUS-2009
+        {
+          HashMap<String, List<Object>> responseMap =
+              mapper.readValue(bodyStream, new TypeReference<HashMap<String, List<Object>>>() {});
+
+          // Look for mandatory SOURCE_SCHEMAS_KEY.
+          Map<Long, List<RegisterResponseEntry>> sourcesSchemasMap = RegisterResponseEntry.createFromResponse(responseMap,
+                                                                                                              RegisterResponseEntry.SOURCE_SCHEMAS_KEY,
+                                                                                                              false);
+          // Look for optional KEY_SCHEMAS_KEY
+          // Key schemas, if they exist, should correspond to source schemas, but it's not
+          // a one-to-one mapping.  The same version of a key schema may be used for several
+          // versions of a source schema, or vice versa.  (The IDs must correspond.)
+          //
+          // TODO (DDSDBUS-xxx):  support key schemas on the relay side, too
+          Map<Long, List<RegisterResponseEntry>> keysSchemasMap = RegisterResponseEntry.createFromResponse(responseMap,
+                                                                                                           RegisterResponseEntry.KEY_SCHEMAS_KEY,
+                                                                                                           true);
+
+          // Look for optional METADATA_SCHEMAS_KEY
+          List<RegisterResponseMetadataEntry> metadataSchemasList = RegisterResponseMetadataEntry.createFromResponse(responseMap,
+                                                                                                                     RegisterResponseMetadataEntry.METADATA_SCHEMAS_KEY,
+                                                                                                                     true);
+
+          _stateReuse.switchToRegisterSuccess(sourcesSchemasMap, keysSchemasMap, metadataSchemasList);
+        }
+        else // version 2 or 3
+        {
+          List<RegisterResponseEntry> schemasList =
+              mapper.readValue(bodyStream, new TypeReference<List<RegisterResponseEntry>>() {});
+
+          Map<Long, List<RegisterResponseEntry>> sourcesSchemasMap = RegisterResponseEntry.convertSchemaListToMap(schemasList);
+
+          _stateReuse.switchToRegisterSuccess(sourcesSchemasMap, null, null);
+        }
+      }
+    }
+    catch (IOException ex)
+    {
+      LOG.error(registerResponseError, ex);
+      _stateReuse.switchToRegisterResponseError();
+    }
+    catch (RuntimeException ex)
+    {
+      LOG.error(registerResponseError, ex);
+      _stateReuse.switchToRegisterResponseError();
+    }
+
+    _callback.enqueueMessage(_stateReuse);
   }
 
   @Override
   public void handleChannelException(Throwable cause)
   {
-	LOG.error("channel exception(" + cause.getClass().getSimpleName() + ") during register response. Cause: " + cause.getMessage(),
-	              cause);
+    LOG.error("exception during /register response: ", cause);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
-    	LOG.info("Enqueueing Register Response Error State to Puller Queue");
-    	_stateReuse.switchToRegisterResponseError();
-    	_callback.enqueueMessage(_stateReuse);
-    } else {
-    	LOG.info("Skipping Enqueueing Register Response Error State to Puller Queue");
+      LOG.debug("Enqueueing /register response error state to puller queue");
+      _stateReuse.switchToRegisterResponseError();
+      _callback.enqueueMessage(_stateReuse);
+    }
+    else
+    {
+      LOG.debug("Skipping enqueueing /register response error state to puller queue");
     }
     super.handleChannelException(cause);
   }
-}
+} // end class RegisterHttpResponseProcessor
 
 
-class StreamHttpResponseProcessor
-      extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
+class StreamHttpResponseProcessor extends BaseHttpResponseProcessor
 {
   public static final String MODULE = StreamHttpResponseProcessor.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
   private final DatabusStreamConnectionStateMessage _stateReuse;
   private final ActorMessageQueue _callback;
-  private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-  public StreamHttpResponseProcessor(ActorMessageQueue callback,
+  /**
+   * Constructor
+   * @param parent                the AbstractNettyHttpConnection object that instantiated this
+   *                              response processor
+   * @param callback              callback to send the processed response or errors to
+   * @param stateReuse            a message object to reuse for the callback
+   *                              (TODO remove that: premature GC optimization)
+   * @param readTimeOutHandler    the ReadTimeoutHandler for the connection handled by this
+   *                              response handler.
+   */
+  public StreamHttpResponseProcessor(AbstractNettyHttpConnection parent,
+                                     ActorMessageQueue callback,
                                      DatabusStreamConnectionStateMessage stateReuse,
                                      ExtendedReadTimeoutHandler readTimeOutHandler)
   {
-    super(null);
+    super(parent, readTimeOutHandler);
     _stateReuse = stateReuse;
     _callback = callback;
-    _readTimeOutHandler = readTimeOutHandler;
   }
 
   @Override
@@ -750,48 +833,48 @@ class StreamHttpResponseProcessor
   {
     super.finishResponse();
     if (LOG.isTraceEnabled()) LOG.trace("finished response for /stream");
-    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
   }
 
   @Override
   public void startResponse(HttpResponse response) throws Exception
   {
-	  try
-	  {
-		  if (LOG.isTraceEnabled()) LOG.trace("started response for /stream");
-		  _decorated = new ChunkedBodyReadableByteChannel();
-		  super.startResponse(response);
-		  if ( !_errorHandled)
-		  {
-			  _stateReuse.switchToStreamSuccess(_decorated);
-			  _callback.enqueueMessage(_stateReuse);
-		  }
-	  }
-	  catch (Exception e)
-	  {
-		  LOG.error("Error reading events from server", e);
-		  if ( ! _errorHandled)
-		  {
-			  _stateReuse.switchToStreamResponseError();
-			  _callback.enqueueMessage(_stateReuse);
-		  }
-	  }
+    try
+    {
+      if (LOG.isTraceEnabled()) LOG.trace("started response for /stream");
+      _decorated = new ChunkedBodyReadableByteChannel();
+      super.startResponse(response);
+      if (!_errorHandled)
+      {
+        _stateReuse.switchToStreamSuccess(_decorated);
+        _callback.enqueueMessage(_stateReuse);
+      }
+    }
+    catch (Exception e)
+    {
+      LOG.error("Error reading events from server", e);
+      if (!_errorHandled)
+      {
+        _stateReuse.switchToStreamResponseError();
+        _callback.enqueueMessage(_stateReuse);
+      }
+    }
   }
 
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("channel exception(" + cause.getClass().getSimpleName() +
-              ") during stream response. Cause: " + cause.getClass() + ":" + cause.getMessage());
+    LOG.error("exception during /stream response: ", cause);
     if ((_responseStatus != ResponseStatus.CHUNKS_SEEN) &&
-    		(_responseStatus != ResponseStatus.CHUNKS_FINISHED))
+        (_responseStatus != ResponseStatus.CHUNKS_FINISHED))
     {
-    	LOG.info("Enqueueing Stream Response Error State to Puller Queue");
-    	_stateReuse.switchToStreamResponseError();
-    	_callback.enqueueMessage(_stateReuse);
-    } else {
-    	LOG.info("Skipping Enqueueing Stream Response Error State to Puller Queue");
+      LOG.debug("Enqueueing /stream response error state to puller queue");
+      _stateReuse.switchToStreamResponseError();
+      _callback.enqueueMessage(_stateReuse);
+    }
+    else
+    {
+      LOG.debug("Skipping enqueueing /stream response error state to puller queue");
     }
     super.handleChannelException(cause);
   }
-}
+} // end class StreamHttpResponseProcessor

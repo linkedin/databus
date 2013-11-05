@@ -8,7 +8,7 @@ import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 public class PhysicalSourceStaticConfig
 {
   private final String _name;
-  private int _id;
+  private final int _id;
   private final PhysicalPartition _partiton;
   private final String _uri;
   private final PhysicalSource _source;
@@ -20,15 +20,21 @@ public class PhysicalSourceStaticConfig
   private final String _role;
   private final DbusEventBuffer.StaticConfig _dbusEventBuffer;
   private final long _eventRatePerSec;
-  
+  // Applicable only for GG relays
+  private final long _maxThrottleDurationInSecs;
+
   private final ChunkingType _chunkingType;
-  private final long _txnsPerChunk;  
+  private final long _txnsPerChunk;
   private final long _scnChunkSize;
   private final long _chunkedScnThreshold;
   private final long _maxScnDelayMs;
-  
+
   private final int _largestEventSizeInBytes;
   private final long _largestWindowSizeInBytes;
+  private final boolean _errorOnMissingFields;
+  private final String _xmlVersion;
+  private final String _xmlEncoding;
+  private final ReplicationBitSetterStaticConfig _replBitSetter;
 
   /////////// DEFAULT VALUES ////////////////////
   private static final PhysicalSource _defaultSource;
@@ -38,26 +44,26 @@ public class PhysicalSourceStaticConfig
     _defaultPartition = new PhysicalPartition(PhysicalSourceConfig.DEFAULT_PHYSICAL_PARTITION,
                                               PhysicalSourceConfig.DEFAULT_PHYSICAL_PARTITION_NAME);
   };
-  
+
   /**
-   * 
+   *
    * NO_CHUNKING     => Use regular query to fetch delta changes.
    * TXN_CHUNKING    => Use txn based chunk query to fetch delta changes.
    * SCN_CHUNKING    => Use scn based chunk query to fetch delta changes.
-   *    
+   *
    */
   public enum ChunkingType
   {
 	  NO_CHUNKING,
 	  TXN_CHUNKING,
 	  SCN_CHUNKING;
-	  
+
 	  public boolean isChunkingEnabled()
 	  {
 		  return (! (this.equals(NO_CHUNKING)));
 	  }
   };
-  
+
   public static PhysicalSource getDefaultPhysicalSource() {
     return _defaultSource;
   }
@@ -65,6 +71,7 @@ public class PhysicalSourceStaticConfig
     return _defaultPartition;
   }
   /////////////////////////////////////////////////
+
 
   public PhysicalSourceStaticConfig(String name,
   	                                int id,
@@ -81,9 +88,14 @@ public class PhysicalSourceStaticConfig
                                     long chunkedScnThreshold,
                                     long maxScnDelayMs,
                                     long eventRatePerSec,
+                                    long maxThrottleDurationInSecs,
                                     DbusEventBuffer.StaticConfig dbusEventBuffer,
                                     int largestEventSizeInBytes,
-                                    long largestWindowSizeInBytes)
+                                    long largestWindowSizeInBytes,
+                                    boolean errorOnMissingFields,
+                                    String xmlVersion,
+                                    String xmlEncoding,
+                                    ReplicationBitSetterStaticConfig replicationBitSetter)
   {
     super();
     _name = name;
@@ -103,21 +115,26 @@ public class PhysicalSourceStaticConfig
     _chunkedScnThreshold = chunkedScnThreshold;
     _maxScnDelayMs = maxScnDelayMs;
     _eventRatePerSec=eventRatePerSec;
+    _maxThrottleDurationInSecs=maxThrottleDurationInSecs;
     _dbusEventBuffer = dbusEventBuffer;
     _largestEventSizeInBytes = largestEventSizeInBytes;
     _largestWindowSizeInBytes = largestWindowSizeInBytes;
+    _errorOnMissingFields = errorOnMissingFields;
+    _xmlEncoding = xmlEncoding;
+    _xmlVersion = xmlVersion;
+    _replBitSetter = replicationBitSetter;
   }
 
   /** role, if any */
   public String getRole() {
     return _role;
   }
-  
+
   /** resource key used to create the buffer, if any */
   public String getResourceKey() {
     return _resourceKey;
   }
-  
+
   /** The unique name of the source */
   public String getName()
   {
@@ -180,19 +197,19 @@ public class PhysicalSourceStaticConfig
   public ChunkingType getChunkingType() {
 	  return _chunkingType;
   }
-  
+
   public long getTxnsPerChunk() {
 	  return _txnsPerChunk;
   }
-  
+
   public long getScnChunkSize() {
 	  return _scnChunkSize;
   }
-  
+
   public long getChunkedScnThreshold() {
 	  return _chunkedScnThreshold;
   }
-  
+
   public long getMaxScnDelayMs() {
 	return _maxScnDelayMs;
   }
@@ -205,10 +222,13 @@ public class PhysicalSourceStaticConfig
 
     return sb.toString();
   }
-  
+
   /** Return expected event rate per sec */
   public long getEventRatePerSec() {
 	  return _eventRatePerSec;
+  }
+  public long getMaxThrottleDurationInSecs() {
+    return _maxThrottleDurationInSecs;
   }
   public int getLargestEventSizeInBytes() {
 	  return _largestEventSizeInBytes;
@@ -216,14 +236,33 @@ public class PhysicalSourceStaticConfig
   public long getLargestWindowSizeInBytes() {
 	  return _largestWindowSizeInBytes;
   }
-  
+
   public DbusEventBuffer.StaticConfig getDbusEventBuffer() {
 	  return _dbusEventBuffer;
-  }  
+  }
 
   public boolean isDbusEventBufferSet()
   {
 	  return _dbusEventBuffer != null? true: false;
   }
 
+  public boolean getErrorOnMissingFields()
+  {
+    return _errorOnMissingFields;
+  }
+
+  public String getXmlVersion()
+  {
+    return _xmlVersion;
+  }
+
+  public String getXmlEncoding()
+  {
+    return _xmlEncoding;
+  }
+
+  public ReplicationBitSetterStaticConfig getReplBitSetter()
+  {
+    return _replBitSetter;
+  }
 }

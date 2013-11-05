@@ -34,7 +34,18 @@ public class SimpleTypeInfo
     {
       if(scale > 0)
       {
-        _type = AvroPrimitiveTypes.FLOAT;
+        if (scale <= 6)
+        {
+          _type = AvroPrimitiveTypes.FLOAT;
+        }
+        else if (scale <= 17)
+        {
+          _type = AvroPrimitiveTypes.DOUBLE;
+        }
+        else
+        {
+          throw new RuntimeException("Cannot handle scale of greater than 17");
+        }
       }
       else if((precision > 9) || (precision==0))
       {

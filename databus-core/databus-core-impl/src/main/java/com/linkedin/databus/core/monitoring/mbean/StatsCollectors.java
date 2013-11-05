@@ -138,8 +138,8 @@ public class StatsCollectors<T extends StatsCollectorMergeable<T>>
 	public void mergeStatsCollectors()
 	{
 		ArrayList<T> stats = getStatsCollectors();
-        _lastMergeTstamp = System.currentTimeMillis();
-		if (_statsCollector != null && null != stats && stats.size() > 0)
+    _lastMergeTstamp = System.currentTimeMillis();
+		if (_statsCollector != null && null != stats)
 		{
 			//_statsCollector thread safety assumed : but reset and merge should be atomic
 			_statsCollector.resetAndMerge(stats);

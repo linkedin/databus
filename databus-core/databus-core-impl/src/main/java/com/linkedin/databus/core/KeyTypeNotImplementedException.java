@@ -22,8 +22,14 @@ package com.linkedin.databus.core;
 public class KeyTypeNotImplementedException extends Exception
 {
 
+  public KeyTypeNotImplementedException() {
+    super();
+  }
+  public KeyTypeNotImplementedException(String msg) {
+    super(msg);
+  }
   /**
-   * 
+   *
    */
   private static final long serialVersionUID = 7002776328296500896L;
 

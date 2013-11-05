@@ -19,11 +19,14 @@ package com.linkedin.databus.client;
 */
 
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus.core.util.IdNamePair;
+import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
 
 /**
  * A message class for dealing with databus sources.
@@ -50,17 +53,28 @@ public class SourcesMessage
   private List<IdNamePair> _sources;
   private String _sourcesIdListString;
   private Map<Long, List<RegisterResponseEntry>> _sourcesSchemas;
+  private final List<RegisterResponseMetadataEntry> _metadataSchemas;
 
   private SourcesMessage(TypeId typeId,
                          List<IdNamePair> sources,
                          String sourcesIdListString,
                          Map<Long, List<RegisterResponseEntry>> sourcesSchemas)
   {
-    super();
-    _typeId = typeId;
-    _sources = sources;
-    _sourcesIdListString = sourcesIdListString;
-    _sourcesSchemas = sourcesSchemas;
+    this(typeId,sources,sourcesIdListString,sourcesSchemas,null);
+  }
+
+  private SourcesMessage(TypeId typeId,
+          List<IdNamePair> sources,
+          String sourcesIdListString,
+          Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
+          List<RegisterResponseMetadataEntry> metadataSchemas)
+  {
+      super();
+      _typeId = typeId;
+      _sources = sources;
+      _sourcesIdListString = sourcesIdListString;
+      _sourcesSchemas = sourcesSchemas;
+      _metadataSchemas = metadataSchemas;
   }
 
   /**
@@ -77,12 +91,25 @@ public class SourcesMessage
   /**
    * Creates a new SET_SOURCES_SCHEMAS message
    * @param  sourcesSchemas            the sources schemas maps
+   * @param  metadataSchemas           the schemas describing metadata carried in the event; can be null
+   * @return the new message object
+   */
+  public static SourcesMessage createSetSourcesSchemasMessage(
+      Map<Long, List<RegisterResponseEntry>> sourcesSchemas,
+      List<RegisterResponseMetadataEntry> metadataSchemas)
+  {
+    return new SourcesMessage(TypeId.SET_SOURCES_SCHEMAS, null, null, sourcesSchemas,metadataSchemas);
+  }
+
+  /**
+   * Creates a new SET_SOURCES_SCHEMAS message
+   * @param  sourcesSchemas            the sources schemas maps
    * @return the new message object
    */
   public static SourcesMessage createSetSourcesSchemasMessage(
       Map<Long, List<RegisterResponseEntry>> sourcesSchemas)
   {
-    return new SourcesMessage(TypeId.SET_SOURCES_SCHEMAS, null, null, sourcesSchemas);
+    return new SourcesMessage(TypeId.SET_SOURCES_SCHEMAS, null, null, sourcesSchemas,null);
   }
 
   /**
@@ -98,6 +125,31 @@ public class SourcesMessage
     _sourcesSchemas = null;
 
     return this;
+  }
+
+  public static SourcesMessage createSetSourcesIdsMessage(Collection<IdNamePair> sources)
+  {
+    return new SourcesMessage(TypeId.SET_SOURCES_IDS,
+                              new ArrayList<IdNamePair>(sources),
+                              calcSourcesIdListString(sources),
+                              null);
+  }
+
+  private static String calcSourcesIdListString(Collection<IdNamePair> sources)
+  {
+    StringBuilder sb = new StringBuilder();
+    boolean first = true;
+    for (IdNamePair pair: sources)
+    {
+      if (!first)
+      {
+        sb.append(",");
+      }
+      sb.append(pair.getId());
+      first = false;
+    }
+    return sb.toString();
+
   }
 
   /**
@@ -136,6 +188,13 @@ public class SourcesMessage
   public Map<Long, List<RegisterResponseEntry>> getSourcesSchemas()
   {
     return _sourcesSchemas;
+  }
+
+
+  /** Returns list of metadata schemas ; meaningful only for SET_SOURCES_SCHEMAS messages */
+  public List<RegisterResponseMetadataEntry> getMetadataSchemas()
+  {
+    return _metadataSchemas;
   }
 
   @Override

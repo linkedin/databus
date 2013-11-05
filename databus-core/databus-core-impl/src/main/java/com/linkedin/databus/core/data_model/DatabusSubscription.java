@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.ServiceLoader;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
@@ -47,7 +48,73 @@ public class DatabusSubscription
   private static volatile SubscriptionUriCodec _defaultCodec = LegacySubscriptionUriCodec.getInstance();
   private static final Map<String, SubscriptionUriCodec> _uriCodecs
       = new ConcurrentHashMap<String, SubscriptionUriCodec>(3);
+  private  static ServiceLoader<SubscriptionUriCodec> _codecSetLoader = ServiceLoader.load(SubscriptionUriCodec.class);
 
+  static
+  {
+    loadAndRegisterCodecs();
+  }
+
+  /**
+   * An API method for use by external clients to create a subscription object from a URI string
+   * The format of the URI string is described below
+   *
+   * @param subUriString : A string of the form
+   *                       espresso://[MASTER|SLAVE|ANY]/EspressoDBName/PartitionNumber/TableName
+   *                       It is possible to specify a wildcard(*) for Partition number and tableName
+   *
+   * @return A DatabusSubscription object that may be used to register a databus consumer to a DatabusV3 Client
+   * @throws DatabusException
+   * @throws URISyntaxException
+   */
+  public static DatabusSubscription createFromUri(String subUriString)
+         throws DatabusException, URISyntaxException
+  {
+    //a hack for the default URI decoder where there may be a colon as a partition separator
+    //this will make the URI parser try to decoded it as a scheme separator
+    int colonIdx = subUriString.indexOf(':');
+    if (colonIdx >= 0)
+    {
+      String prefix = subUriString.substring(0, colonIdx);
+      if (! _uriCodecs.containsKey(prefix) && !_defaultCodec.getScheme().equals(prefix))
+        subUriString = _defaultCodec.getScheme() + ":" + subUriString;
+    }
+    URI subUri = new URI(subUriString);
+    return createFromUri(subUri);
+  }
+
+  /**
+   * Given a list of subscription strings, creates a list of DatabusSubscription objects
+   *
+   * @param subUriStringList : Decodes a list of subscription URIs
+   * @return List<DatabusSubscription> : List of associated subscription objects in the corresponding order
+   */
+  public static List<DatabusSubscription> createFromUriList(Collection<String> subUriStringList)
+      throws DatabusException, URISyntaxException
+  {
+    List<DatabusSubscription> subList = new ArrayList<DatabusSubscription>(subUriStringList.size());
+    for (String subUriString: subUriStringList)
+    {
+      subList.add(createFromUri(subUriString));
+    }
+    return subList;
+  }
+
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage. Please use {@link createFromUri(String)}
+   * instead.
+   * @see <a href="https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Databus+2.0+and+Databus+3.0+Data+Model"/>
+   *
+   * A DatabusSubscription object is represents the smallest unit of subscription in Databus client.
+   * @param physicalSource - Describes the server which physically stores co-located logical sources.
+   *                         Typically this is a Oracle or MySQL server instance
+   * @param physicalPartition - In Databus 2.0, it represents the database instance. When it is "master"
+   *                            it repsents database instance in our primary colo.
+   *                            In Databus 3.0, it represents the instance to which all updates (writes)
+   *                            are routed to
+   * @param logicalPartition- Represents a logical source ( and its representation with an id ). It is a
+   *                          collection of data records with the same record schema.
+   */
   public DatabusSubscription(PhysicalSource physicalSource,
                              PhysicalPartition physicalPartition,
                              LogicalSourceId logicalPartition)
@@ -61,6 +128,12 @@ public class DatabusSubscription
     _logicalPartition = logicalPartition;
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * This may be removed in a future release
+   * @deprecated
+   */
+  @Deprecated
   public static DatabusSubscription createSubscription(IdNamePair pair, short lPartitionId)
   {
     LogicalSource ls = new LogicalSource(pair);
@@ -94,6 +167,12 @@ public class DatabusSubscription
                                    LogicalSourceId.createAllPartitionsWildcard(source));
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * This may be removed in a future release
+   * @deprecated
+   */
+  @Deprecated
   public static DatabusSubscription createSimpleSourceSubscription(LogicalSource source)
   {
     return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
@@ -101,6 +180,12 @@ public class DatabusSubscription
                                    LogicalSourceId.createAllPartitionsWildcard(source));
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * The behavior of this method will be altered in the future.
+   * @deprecated will be removed in 2.13
+   */
+  @Deprecated
   public static DatabusSubscription createSimpleSourceSubscriptionV3(String source)
   {
     PhysicalPartition pPart = PhysicalPartition.createAnyPartitionWildcard();
@@ -124,9 +209,16 @@ public class DatabusSubscription
         ls);
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * This may be removed in a future release
+   * TODO Make private and/or change name when we are sure nobody is using these.
+   */
+  @Deprecated
   public static DatabusSubscription createSimpleSourceSubscription(String source)
   {
     int idx = source.indexOf(':');
+    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
     if(idx != -1)
       return createSimpleSourceSubscriptionV3(source);
     LogicalSource ls = new LogicalSource(source);
@@ -135,9 +227,16 @@ public class DatabusSubscription
                                LogicalSourceId.createAllPartitionsWildcard(ls));
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * This may be removed in a future release
+   * TODO Make private and/or change name when we are sure nobody is using these.
+   */
+  @Deprecated
   public static DatabusSubscription createSimpleSourceSubscription(String dbName, String source)
   {
     int idx = source.indexOf(':');
+    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
     if(idx != -1)
       return createSimpleSourceSubscriptionV3(source);
     LogicalSource ls = new LogicalSource(source);
@@ -145,8 +244,10 @@ public class DatabusSubscription
                                PhysicalPartition.createAnyPartitionWildcard(dbName),
                                LogicalSourceId.createAllPartitionsWildcard(ls));
   }
+
   /**
    * A method to convert from a subscription to a string representation of a source
+   * TODO Look like this method also uses old-style epsresso subscriptions strings?
    */
   public static String createStringFromSubscription(DatabusSubscription sub)
   {
@@ -158,6 +259,11 @@ public class DatabusSubscription
 		  return name;
 
 	  // v3 case
+    SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
+	  URI u = codec.encode(sub);
+	  return u.toString();
+
+	  /*
 	  String ppName = sub.getPhysicalPartition().getName();
 	  String lpName = name;
 	  String s = ppName + "." + lpName;
@@ -167,8 +273,13 @@ public class DatabusSubscription
 		  s += ":" + pp.intValue();
 	  }
 	  return s;
+	  */
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   * This may be removed in a future release
+   */
   public static DatabusSubscription createPhysicalPartitionReplicationSubscription
       (PhysicalPartition physicalPartition)
   {
@@ -179,6 +290,7 @@ public class DatabusSubscription
   }
 
   /**
+   * DO NOT USE externally. This is meant for internal databus usage
    * Convert a list of sources specified in V2 format (String) to V3 format (DatabusSubscription)
    */
   public static List<DatabusSubscription> createSubscriptionList(List<String> sources)
@@ -186,13 +298,25 @@ public class DatabusSubscription
 	  List<DatabusSubscription> subsSources = new ArrayList<DatabusSubscription>();
 	  for (String s : sources)
 	  {
-		  DatabusSubscription sub = DatabusSubscription.createSimpleSourceSubscription(s);
-		  subsSources.add(sub);
+      DatabusSubscription sub = null;
+      try
+      {
+        sub = DatabusSubscription.createFromUri(s);
+        subsSources.add(sub);
+      } catch (DatabusException d)
+      {
+        LOG.error("Error processing subscription " + sub + " with exception "
+            + d);
+      } catch (URISyntaxException e)
+      {
+        LOG.error(e);
+      }
 	  }
 	  return subsSources;
   }
 
   /**
+   * DO NOT USE externally. This is meant for internal databus usage
    * Convert a list of sources specified in V3 format (DatabusSubscription) to V2 format (String)
    */
   public static List<String> getStrList(List<DatabusSubscription> sources)
@@ -315,42 +439,12 @@ public class DatabusSubscription
   }
 
   /**
-   * 
-   * @param subUriString : A string of the form espresso://[MASTER|SLAVE|ANY]/EspressoDBName/PartitionNumber/TableName
-   * It is possible to specify a wildcard(*) for Partition number and tableName
-   * @return A DatabusSubscription object that may be used to register a databus consumer to a DatabusV3 Client
-   * @throws DatabusException
-   * @throws URISyntaxException
+   * Given a comma-separated list of subscription URIs specified as strings, returns a list of
+   * DatabusSubscription objects
+   *
+   * @param subUriListString : Comma-separated list of subscription URIs
+   * @return List<DatabusSubscription> : List of associated subscription objects in the corresponding order
    */
-  public static DatabusSubscription createFromUri(String subUriString)
-         throws DatabusException, URISyntaxException
-  {
-    //a hack for the default URI decoder where there may be a colon as a partition separator
-    //this will make the URI parser try to decoded it as a scheme separator
-    int colonIdx = subUriString.indexOf(':');
-    if (colonIdx >= 0)
-    {
-      String prefix = subUriString.substring(0, colonIdx);
-      if (! _uriCodecs.containsKey(prefix) && !_defaultCodec.getScheme().equals(prefix))
-        subUriString = _defaultCodec.getScheme() + ":" + subUriString;
-    }
-    URI subUri = new URI(subUriString);
-    return createFromUri(subUri);
-  }
-
-  /** Decodes a list of subscription URIs*/
-  public static List<DatabusSubscription> createFromUriList(Collection<String> subUriStringList)
-		  throws DatabusException, URISyntaxException
-  {
-    List<DatabusSubscription> subList = new ArrayList<DatabusSubscription>(subUriStringList.size());
-    for (String subUriString: subUriStringList)
-    {
-      subList.add(createFromUri(subUriString));
-    }
-    return subList;
-  }
-
-  /** Decodes a comma-separated list of subscription URIs*/
   public static List<DatabusSubscription> createFromUriListString(String subUriListString)
           throws DatabusException, URISyntaxException
   {
@@ -363,6 +457,9 @@ public class DatabusSubscription
     return subList;
   }
 
+  /**
+   * DO NOT USE externally. This is meant for internal databus usage
+   */
   public static List<String> createUriStringList(Collection<DatabusSubscription> subs,
                                            SubscriptionUriCodec codec)
   {
@@ -374,6 +471,19 @@ public class DatabusSubscription
     }
 
     return result;
+  }
+
+  /**
+   * loads and registers codecs
+   */
+  public static void loadAndRegisterCodecs()
+  {
+    LOG.info("Registering URI codecs.");
+    for (SubscriptionUriCodec codec: _codecSetLoader)
+    {
+        LOG.info("Registering URI codec:" + codec.getScheme());
+        registerUriCodec(codec);
+    }
   }
 
   /**
@@ -425,6 +535,25 @@ public class DatabusSubscription
   public String toString()
   {
     return toJsonString();
+  }
+
+  public StringBuilder toSimpleString(StringBuilder sb)
+  {
+    if (null == sb)
+    {
+      sb = new StringBuilder(100);
+    }
+    sb.append("[ps=");
+    _physicalSource.toSimpleString(sb).append(", pp=");
+    _physicalPartition.toSimpleString(sb).append(", ls=");
+    _logicalPartition.getSource().toSimpleString(sb).append("]");
+
+    return sb;
+  }
+
+  public String toSimpleString()
+  {
+    return toSimpleString(null).toString();
   }
 
   public static class Builder

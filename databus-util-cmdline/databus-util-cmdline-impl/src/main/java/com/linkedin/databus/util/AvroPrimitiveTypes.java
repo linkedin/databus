@@ -32,7 +32,7 @@ public enum AvroPrimitiveTypes
   LONG("long"),
   RAW("bytes"),
   FLOAT("float"),
-  DOUBLE("float"),
+  DOUBLE("double"),
   CLOB("string"),
   VARCHAR("string"),
   VARCHAR2("string"),
@@ -42,7 +42,7 @@ public enum AvroPrimitiveTypes
   CHAR("string"),
   DATE("long"),
   BLOB("bytes"),
-  ARRAY("array"), 
+  ARRAY("array"),
   TABLE("record"),
   XMLTYPE("string");
 

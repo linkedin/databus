@@ -19,6 +19,8 @@ package com.linkedin.databus2.core.container.request;
 */
 
 
+import java.nio.ByteOrder;
+
 import org.apache.log4j.Logger;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -48,16 +50,19 @@ public class SimpleBinaryDatabusRequestDecoder extends FrameDecoder
 
   private final CommandsRegistry _commandsRegistry;
   private final ExtendedReadTimeoutHandler _readTimeoutHandler;
+  private final ByteOrder _byteOrder;
   private State _state;
   private int _curOpcode = -1;
   private BinaryCommandParser _currentParser;
 
   public SimpleBinaryDatabusRequestDecoder(CommandsRegistry commandsRegistry,
-                                           ExtendedReadTimeoutHandler readTimeoutHandler)
+                                           ExtendedReadTimeoutHandler readTimeoutHandler,
+                                           ByteOrder byteOrder)
   {
     _state = State.EXPECT_COMMAND;
     _commandsRegistry = commandsRegistry;
     _readTimeoutHandler = readTimeoutHandler;
+    _byteOrder = byteOrder;
   }
 
   private void returnError(Channel responseChannel, ErrorResponse errResponse, ChannelBuffer buf,
@@ -79,11 +84,18 @@ public class SimpleBinaryDatabusRequestDecoder extends FrameDecoder
   {
     if (logError || LOG.isDebugEnabled())
     {
-      LOG.error("error " + errResponse.getErrorCode(), errResponse.getCause());
-      if (null != buf && logBuffer)
+      if (errResponse.isExpected())
       {
-        buf.readerIndex(0);
-        LOG.error("buffer contents:" + ChannelBuffers.hexDump(buf));
+        LOG.info("Returning expected error response:" + errResponse.getErrorCode());
+      }
+      else
+      {
+        LOG.error("error " + errResponse.getErrorCode(), errResponse.getCause());
+        if (null != buf && logBuffer)
+        {
+          buf.readerIndex(0);
+          LOG.error("buffer contents:" + ChannelBuffers.hexDump(buf));
+        }
       }
     }
 
@@ -114,7 +126,7 @@ public class SimpleBinaryDatabusRequestDecoder extends FrameDecoder
 //                                      Integer.toHexString((opcode) & 0xFF));
           if ( opcode != _curOpcode || -1 == _curOpcode)
           {
-            _currentParser = _commandsRegistry.createParser(opcode, ctx.getChannel());
+            _currentParser = _commandsRegistry.createParser(opcode, ctx.getChannel(), _byteOrder);
             if (null == _currentParser)
             {
               _curOpcode = -1;
@@ -243,5 +255,4 @@ public class SimpleBinaryDatabusRequestDecoder extends FrameDecoder
 
     return result;
   }
-
 }

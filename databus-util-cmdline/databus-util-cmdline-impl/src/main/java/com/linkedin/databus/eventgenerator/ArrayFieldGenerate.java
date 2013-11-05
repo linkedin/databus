@@ -27,7 +27,7 @@ import org.apache.avro.generic.GenericRecord;
 public class ArrayFieldGenerate extends SchemaFiller {
 
   
-  public static int maxArrayLength = 10;
+  private static int maxArrayLength = 10;
 
   public ArrayFieldGenerate(Field field) {
     super(field);

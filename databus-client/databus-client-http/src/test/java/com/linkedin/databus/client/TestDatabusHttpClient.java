@@ -19,41 +19,9 @@ package com.linkedin.databus.client;
 */
 
 
-import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
-import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
-import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnection;
-import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnectionInspector;
-import com.linkedin.databus.client.netty.NettyTestUtils;
-import com.linkedin.databus.client.pub.ConsumerCallbackResult;
-import com.linkedin.databus.client.pub.DatabusClientException;
-import com.linkedin.databus.client.pub.DatabusStreamConsumer;
-import com.linkedin.databus.client.pub.DbusEventDecoder;
-import com.linkedin.databus.client.pub.SCN;
-import com.linkedin.databus.client.pub.ServerInfo;
-import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
-import com.linkedin.databus.core.Checkpoint;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventBuffer;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventInfo;
-import com.linkedin.databus.core.DbusEventInternalWritable;
-import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.DbusEventV1;
-import com.linkedin.databus.core.DbusOpcode;
-import com.linkedin.databus.core.InternalDatabusEventsListener;
-import com.linkedin.databus.core.data_model.DatabusSubscription;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.util.IdNamePair;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
-import com.linkedin.databus.core.util.RngUtils;
-import com.linkedin.databus.core.util.Utils;
-import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
-import com.linkedin.databus2.schemas.utils.SchemaHelper;
-import com.linkedin.databus2.test.ConditionCheck;
-import com.linkedin.databus2.test.TestUtil;
-import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
-import com.linkedin.databus2.test.container.SimpleTestServerConnection;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertTrue;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -73,6 +41,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericDatumWriter;
@@ -80,9 +50,12 @@ import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.io.BinaryEncoder;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonGenerationException;
+import org.codehaus.jackson.map.JsonMappingException;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
 import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelHandler;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
 import org.jboss.netty.channel.Channels;
@@ -106,8 +79,43 @@ import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertTrue;
+import com.linkedin.databus.client.DatabusHttpClientImpl.RuntimeConfigBuilder;
+import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
+import com.linkedin.databus.client.consumer.LoggingConsumer;
+import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnection;
+import com.linkedin.databus.client.netty.NettyHttpDatabusRelayConnectionInspector;
+import com.linkedin.databus.client.netty.NettyTestUtils;
+import com.linkedin.databus.client.pub.ConsumerCallbackResult;
+import com.linkedin.databus.client.pub.DatabusClientException;
+import com.linkedin.databus.client.pub.DatabusStreamConsumer;
+import com.linkedin.databus.client.pub.DbusEventDecoder;
+import com.linkedin.databus.client.pub.SCN;
+import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
+import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventInfo;
+import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusEventV1Factory;
+import com.linkedin.databus.core.DbusOpcode;
+import com.linkedin.databus.core.InternalDatabusEventsListener;
+import com.linkedin.databus.core.data_model.DatabusSubscription;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.util.IdNamePair;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.RngUtils;
+import com.linkedin.databus.core.util.Utils;
+import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
+import com.linkedin.databus2.schemas.utils.SchemaHelper;
+import com.linkedin.databus2.test.ConditionCheck;
+import com.linkedin.databus2.test.TestUtil;
+import com.linkedin.databus2.test.container.MockServerChannelHandler;
+import com.linkedin.databus2.test.container.SimpleObjectCaptureHandler;
+import com.linkedin.databus2.test.container.SimpleTestServerConnection;
 
 public class TestDatabusHttpClient
 {
@@ -119,29 +127,30 @@ public class TestDatabusHttpClient
   static final ExecutorService BOSS_POOL = Executors.newCachedThreadPool();
   static final ExecutorService IO_POOL = Executors.newCachedThreadPool();
   static final int[] RELAY_PORT = {14467, 14468, 14469};
-  static final int CLIENT_PORT = 15500;
   static final Timer NETWORK_TIMER = new HashedWheelTimer(10, TimeUnit.MILLISECONDS);
   static final ChannelGroup TEST_CHANNELS_GROUP = new DefaultChannelGroup();
   static final long DEFAULT_READ_TIMEOUT_MS = 10000;
   static final long DEFAULT_WRITE_TIMEOUT_MS = 10000;
   static final String SOURCE1_NAME = "test.event.source1";
+  static final String SOURCES_REQUEST_REGEX = "^/sources[?]protocolVersion=[0-9]";
   static SimpleTestServerConnection[] _dummyServer = new SimpleTestServerConnection[RELAY_PORT.length];
   static DbusEventBuffer.StaticConfig _bufCfg;
   static DatabusHttpClientImpl.StaticConfig _stdClientCfg;
   static DatabusHttpClientImpl.Config _stdClientCfgBuilder;
+  static final DbusEventFactory _eventFactory = new DbusEventV1Factory();
 
   @BeforeClass
   public void setUpClass() throws InvalidConfigException
   {
-    //setup logging
-    TestUtil.setupLogging(true, null, Level.ERROR);
+    //set up logging
+    TestUtil.setupLoggingWithTimestampedFile(true,  "/tmp/TestDatabusHttpClient_", ".log", Level.INFO);
     InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
 
     //initialize relays
     for (int relayN = 0; relayN < RELAY_PORT.length; ++relayN)
     {
-      _dummyServer[relayN] = new SimpleTestServerConnection(DbusEventV1.byteOrder,
-                                                    SimpleTestServerConnection.ServerType.NIO);
+      _dummyServer[relayN] = new SimpleTestServerConnection(_eventFactory.getByteOrder(),
+                                                            SimpleTestServerConnection.ServerType.NIO);
       _dummyServer[relayN].setPipelineFactory(new ChannelPipelineFactory() {
           @Override
           public ChannelPipeline getPipeline() throws Exception {
@@ -156,7 +165,7 @@ public class TestDatabusHttpClient
 
     //create standard client config
     DatabusHttpClientImpl.Config clientCfgBuilder = new DatabusHttpClientImpl.Config();
-    clientCfgBuilder.getContainer().setHttpPort(CLIENT_PORT);
+    clientCfgBuilder.getContainer().setHttpPort(0);
     clientCfgBuilder.getContainer().getJmx().setRmiEnabled(false);
     clientCfgBuilder.getContainer().setReadTimeoutMs(10000000);
     clientCfgBuilder.getConnectionDefaults().getPullerRetries().setInitSleep(10);
@@ -177,7 +186,7 @@ public class TestDatabusHttpClient
     bufCfgBuilder.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
     bufCfgBuilder.setMaxSize(100000);
     bufCfgBuilder.setScnIndexSize(128);
-    bufCfgBuilder.setReadBufferSize(1);
+    bufCfgBuilder.setAverageEventSize(1);
 
     _bufCfg = bufCfgBuilder.build();
   }
@@ -247,7 +256,7 @@ public class TestDatabusHttpClient
       assertTrue("two consumers + 1-2 logging consumer  in (S1,S2) or (S1,S3)", 3 <= consumersNum
                  && consumersNum <= 4);
 
-      DatabusStreamConsumer listener3 = client.getLoggingListener();
+      DatabusStreamConsumer listener3 = new LoggingConsumer(clientConfig.getLoggingListener());
       client.registerDatabusStreamListener(listener3, null, "S5");
       assertEquals("one consumers in (S3,S4,S5)", 1,
                    safeListSize(client.getRelayGroupStreamConsumers().get(ls3)));
@@ -417,6 +426,8 @@ public class TestDatabusHttpClient
 	@Test
 	public void testPullerRetriesExhausted() throws Exception
 	{
+	    final Logger log = Logger.getLogger("TestDatabusHttpClient.testPullerRetriesExhausted");
+	    log.info("start");
 		DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
 		clientConfig.getConnectionDefaults().getPullerRetries().setMaxRetryNum(1);
 		clientConfig.getContainer().getJmx().setRmiEnabled(false);
@@ -426,7 +437,8 @@ public class TestDatabusHttpClient
 		int port = Utils.getAvailablePort(8888);
 		@SuppressWarnings("unused")
 		ServerInfo s1 = registerRelay(1, "relay1", new InetSocketAddress("localhost", port), "S1", client);
-		DummySuccessfulErrorCountingConsumer listener1 = new DummySuccessfulErrorCountingConsumer("consumer1", false);
+		final DummySuccessfulErrorCountingConsumer listener1 =
+		    new DummySuccessfulErrorCountingConsumer("consumer1", false);
 		client.registerDatabusStreamListener(listener1 , null, "S1");
 
 		Thread startThread = new Thread(new Runnable()
@@ -438,14 +450,14 @@ public class TestDatabusHttpClient
 			}
 		}, "client start thread");
 		startThread.start();
-		int count = 0;
-		while (client.getRelayConnections().size() == 0 && count < 10)
-		{
-			Thread.sleep(500);
-			count++;
-		}
-		if ( count >= 10)
-			throw new Exception("Client did not start up in 10 iterations");
+		TestUtil.assertWithBackoff(new ConditionCheck()
+        {
+          @Override
+          public boolean check()
+          {
+            return client.getRelayConnections().size() == 1;
+          }
+        }, "waiting for client to start", 1000, log);
 
 		DatabusSourcesConnection dsc = client.getRelayConnections().get(0);
 
@@ -480,38 +492,40 @@ public class TestDatabusHttpClient
 		schemaMap.put(2L, l2);
 		schemaMap.put(3L, l3);
 
-		rd.enqueueMessage(DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-				schemaMap,
-				dsc.getDataEventsBuffer()));
+        rd.enqueueMessage(SourcesMessage.createSetSourcesIdsMessage(sourcesMap.values()));
+        rd.enqueueMessage(SourcesMessage.createSetSourcesSchemasMessage(schemaMap));
 
-		try
-		{
-			Thread.currentThread();
-      Thread.sleep(1000);
-		}
-		catch (InterruptedException e)
-		{
-			LOG.warn("interrupted");
-		}
-		Assert.assertEquals(listener1._errorCount, 1);
+        TestUtil.assertWithBackoff(new ConditionCheck()
+        {
+          @Override
+          public boolean check()
+          {
+            return listener1._errorCount == 1;
+          }
+        }, "wait for error", 1000, log);
 		client.shutdown();
+		log.info("done");
 	}
 
 	@Test
 	public void testDispatcherRetriesExhausted() throws Exception
 	{
+	    final Logger log = Logger.getLogger("TestDatabusHttpClientImpl.testDispatcherRetriesExhausted");
+	    log.info("start");
 		DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
+		clientConfig.getConnectionDefaults().getPullerRetries().setMaxRetryNum(3);
 		clientConfig.getConnectionDefaults().getDispatcherRetries().setMaxRetryNum(1);
 		clientConfig.getContainer().getJmx().setRmiEnabled(false);
 		int port = Utils.getAvailablePort(10100);
-		clientConfig.getContainer().setHttpPort(port);
+		clientConfig.getContainer().setHttpPort(0);
 		final DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
 
-		port = Utils.getAvailablePort(8888);
+		port = Utils.getAvailablePort(8898);
 		@SuppressWarnings("unused")
 		ServerInfo s1 = registerRelay(1, "relay1", new InetSocketAddress("localhost", port), "S1", client);
 		//DummyStreamConsumer listener1 = new DummyStreamConsumer("consumer1");
-		DummySuccessfulErrorCountingConsumer listener1 = new DummySuccessfulErrorCountingConsumer("consumer1", true);
+		final DummySuccessfulErrorCountingConsumer listener1 =
+		    new DummySuccessfulErrorCountingConsumer("consumer1", true);
 		client.registerDatabusStreamListener(listener1 , null, "S1");
 
 		Thread startThread = new Thread(new Runnable()
@@ -523,14 +537,15 @@ public class TestDatabusHttpClient
 			}
 		}, "client start thread");
 		startThread.start();
-		int count = 0;
-		while (client.getRelayConnections().size() == 0 && count < 10)
-		{
-		  Thread.sleep(500);
-		  count++;
-		}
-		if ( count >= 10)
-			throw new Exception("Client did not start up in 10 iterations");
+
+		TestUtil.assertWithBackoff(new ConditionCheck()
+        {
+          @Override
+          public boolean check()
+          {
+            return client.getRelayConnections().size() == 1;
+          }
+        }, "client started", 1000, log);
 
 		DatabusSourcesConnection dsc = client.getRelayConnections().get(0);
 
@@ -579,20 +594,19 @@ public class TestDatabusHttpClient
         initBufferWithEvents(eventsBuf, 1 + source1EventsNum, source2EventsNum, (short)2, keyCounts, srcidCounts);
         eventsBuf.endEvents(100L,null);
 
-        rd.enqueueMessage(DispatcherState.create().switchToStartDispatchEvents(sourcesMap,
-				schemaMap,
-				dsc.getDataEventsBuffer()));
+        rd.enqueueMessage(SourcesMessage.createSetSourcesIdsMessage(sourcesMap.values()));
+        rd.enqueueMessage(SourcesMessage.createSetSourcesSchemasMessage(schemaMap));
 
-		try
-		{
-		  Thread.sleep(1000);
-		}
-		catch (InterruptedException e)
-		{
-			LOG.warn("interrupted");
-		}
-		Assert.assertEquals(listener1._errorCount, 1);
+        TestUtil.assertWithBackoff(new ConditionCheck()
+        {
+          @Override
+          public boolean check()
+          {
+            return listener1._errorCount == 1;
+          }
+        }, "error callback", 1000, log);
 		client.shutdown();
+        log.info("done");
 	}
 
     private void initBufferWithEvents(DbusEventBuffer eventsBuf,
@@ -623,14 +637,14 @@ public class TestDatabusHttpClient
     public void testInStreamError() throws Exception
     {
         final Logger log = Logger.getLogger("TestDatabusHttpClient.testInStreamError");
-        log.setLevel(Level.DEBUG);
+        //log.setLevel(Level.DEBUG);
         final int eventsNum = 20;
-        DbusEventInfo[] events = createSampleSchema1Events(eventsNum);
+        DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
 
         //simulate relay buffers
         DbusEventBuffer relayBuffer = new DbusEventBuffer(_bufCfg);
         relayBuffer.start(0);
-        writeEventsToBuffer(relayBuffer, events, 4);
+        writeEventsToBuffer(relayBuffer, eventInfos, 4);
 
         //prepare stream response
         Checkpoint cp = Checkpoint.createFlexibleCheckpoint();
@@ -721,7 +735,7 @@ public class TestDatabusHttpClient
           SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
           //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
           //send back the /sources response
@@ -851,7 +865,7 @@ public class TestDatabusHttpClient
           objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
           //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
           //send back the /sources response
@@ -895,9 +909,9 @@ public class TestDatabusHttpClient
               NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*checkPoint=([^&]*)&.*",
                                                 1000);
           String cpString = streamMatcher.group(1);
+          log.debug("/stream checkpoint: " + cpString);
           objCapture.clear();
 
-          cp = new Checkpoint(cpString);
           NettyTestUtils.sendServerResponses(relay, clientAddr, streamResp,
                                              new DefaultHttpChunk(streamResPrefix));
 
@@ -910,7 +924,7 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn());
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 20;
             }
-          }, "client receieves /stream response", 1100, log);
+          }, "client receives /stream response", 1100, log);
 
 
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -922,6 +936,823 @@ public class TestDatabusHttpClient
               return stats.getTotalStats().getNumDataEvents() == consumer.getEventNum();
             }
           }, "client processes /stream response", 11000, log);
+        }
+        finally {
+          client.shutdown();
+        }
+    }
+
+    /**
+     * Tests the logic of the client to handle Timeout that comes while processing stream request.
+     *  the script:
+     *     setup client and connect to one of the servers
+     *     wait for /sources and register call and replay
+     *     save the 'future' of the write operation for the /stream call. Replace this future down the stream with the fake one,
+     *       so the notification of write completion will never come
+     *     make server send only headers info first
+     *     make server send data, but intercept the message before it reaches the client. At this moment fire WriteTimeout
+     *        exception from a separate thread.
+     *     Make sure PullerThread doesn't get two error messages (and as a result tries to setup up two new connections)
+     */
+    @Test
+    public void testInStreamTimeOut() throws Exception
+    {
+        final Logger log = Logger.getLogger("TestDatabusHttpClient.testInStreamTimeout");
+        //log.setLevel(Level.DEBUG);
+        final int eventsNum = 20;
+        DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
+
+        //simulate relay buffers
+        DbusEventBuffer relayBuffer = new DbusEventBuffer(_bufCfg);
+        relayBuffer.start(0);
+        writeEventsToBuffer(relayBuffer, eventInfos, 4);
+
+        //prepare stream response
+        Checkpoint cp = Checkpoint.createFlexibleCheckpoint();
+        final DbusEventsStatisticsCollector stats =
+            new DbusEventsStatisticsCollector(1, "test1", true, false, null);
+
+        // create ChunnelBuffer and fill it with events from relayBuffer
+        ChannelBuffer streamResPrefix =
+            NettyTestUtils.streamToChannelBuffer(relayBuffer, cp, 20000, stats);
+
+        //create client
+        _stdClientCfgBuilder.getContainer().setReadTimeoutMs(DEFAULT_READ_TIMEOUT_MS);
+
+        final DatabusHttpClientImpl client = new DatabusHttpClientImpl(_stdClientCfgBuilder.build());
+
+        final TestConsumer consumer = new TestConsumer();
+        client.registerDatabusStreamListener(consumer, null, SOURCE1_NAME);
+
+        client.start(); // connect to a relay created in SetupClass (one out of three)
+
+        // wait until a connection made
+        try
+        {
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return client._relayConnections.size() == 1;
+            }
+          }, "sources connection present", 100, log);
+
+          //get the connection
+          final DatabusSourcesConnection clientConn = client._relayConnections.get(0);
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != clientConn.getRelayPullThread().getLastOpenConnection();
+            }
+          }, "relay connection present", 100, log);
+
+          // figure out connection details
+          final NettyHttpDatabusRelayConnection relayConn =
+              (NettyHttpDatabusRelayConnection)clientConn.getRelayPullThread().getLastOpenConnection();
+          final NettyHttpDatabusRelayConnectionInspector relayConnInsp =
+              new NettyHttpDatabusRelayConnectionInspector(relayConn);
+
+          // wait until client is connected
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != relayConnInsp.getChannel() && relayConnInsp.getChannel().isConnected();
+            }
+          }, "client connected", 200, log);
+
+          //figure out which port we got connected to on the server side
+          Channel clientChannel = relayConnInsp.getChannel();
+          InetSocketAddress relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
+          int relayPort = relayAddr.getPort();
+          log.info("relay selected: " + relayPort);
+
+          // add our handler to the client's pipeline which will generate the timeout
+          MockServerChannelHandler mock = new MockServerChannelHandler();
+          clientChannel.getPipeline().addBefore("inflater", "mockServer", mock);
+          Map<String, ChannelHandler> map = clientChannel.getPipeline().toMap();
+          boolean handlerFound = false;
+          for(Map.Entry<String, ChannelHandler> m : map.entrySet()) {
+            if(LOG.isDebugEnabled())
+              LOG.debug(m.getKey() + "=>" + m.getValue());
+            if(m.getKey().equals("mockServer"))
+              handlerFound = true;
+          }
+          Assert.assertTrue(handlerFound, "handler added");
+
+          SimpleTestServerConnection relay = null;
+          // Find the relay's object
+          for (int i = 0; i < RELAY_PORT.length; ++i)
+          {
+            if (relayPort == RELAY_PORT[i]) relay = _dummyServer[i];
+          }
+          assertTrue(null != relay);
+
+          SocketAddress clientAddr = clientChannel.getLocalAddress();
+          final SocketAddress testClientAddr = clientAddr;
+
+          final SimpleTestServerConnection testRelay = relay;
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != testRelay.getChildChannel(testClientAddr);
+            }
+          }, "relay detects new connection", 1000, log);
+
+          Channel serverChannel = relay.getChildChannel(clientAddr);
+          assertTrue(null != serverChannel);
+          ChannelPipeline serverPipeline = serverChannel.getPipeline();
+          SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
+
+          //process the /sources request
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
+          objCapture.clear();
+
+          //send back the /sources response
+          HttpResponse sourcesResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
+                                                             HttpResponseStatus.OK);
+          sourcesResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+          sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+          HttpChunk body =
+              new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
+                                   SOURCE1_NAME + "\"}]").getBytes()));
+          NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
+
+          //make sure the client processes the response correctly
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              String idListString = clientConn.getRelayPullThread()._currentState.getSourcesIdListString();
+              return "1".equals(idListString);
+            }
+          }, "client processes /sources response", 100, log);
+
+          log.debug("process the /register request");
+          NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
+          objCapture.clear();
+
+          String msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog();
+          log.debug("MSG HISTORY before: " + msgHistory);
+
+          // make sure our handler will save the 'future' of the next write operation - 'stream'
+          mock.enableSaveTheFuture(true);
+
+          log.debug("send back the /register response");
+          RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
+          String responseStr = NettyTestUtils.generateRegisterResponse(entry);
+          body = new DefaultHttpChunk(
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+          NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
+
+          log.debug("make sure the client processes the response /register correctly");
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              DispatcherState dispState = clientConn.getRelayDispatcher().getDispatcherState();
+              return null != dispState.getSchemaMap() && 1 == dispState.getSchemaMap().size();
+            }
+          }, "client processes /register response", 100, log);
+
+          log.debug("process /stream call and return a response");
+          NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*", 1000);
+          objCapture.clear();
+
+          //disable save future as it should be saved by now
+          mock.enableSaveTheFuture(false);
+
+          final HttpResponse streamResp =
+              new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+          streamResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+          streamResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+
+          // timeout for local netty calls (in test only)
+          int timeout = 1000;
+          // send header info
+          relay.sendServerResponse(clientAddr, sourcesResp, timeout);
+          TestUtil.sleep(1000);
+
+          // when write data arrives from the server - we want to simulate/throw WriteTimeoutException
+          mock.enableThrowWTOException(true);
+
+          // send data
+          relay.sendServerResponse(clientAddr, new DefaultHttpChunk(streamResPrefix), timeout);
+          relay.sendServerResponse(clientAddr, HttpChunk.LAST_CHUNK, timeout);
+
+          // make sure close channel event and future failure are propagated
+          TestUtil.sleep(3000);
+          // get the history and validate it
+          String expectedHistory =  "[START, PICK_SERVER, REQUEST_SOURCES, SOURCES_RESPONSE_SUCCESS, REQUEST_REGISTER, REGISTER_RESPONSE_SUCCESS, REQUEST_STREAM, STREAM_REQUEST_SUCCESS, STREAM_RESPONSE_DONE, REQUEST_STREAM, STREAM_REQUEST_ERROR, PICK_SERVER, REQUEST_SOURCES]".trim();
+          msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog().trim();
+          LOG.info("MSG HISTORY: " + msgHistory);
+          Assert.assertEquals(msgHistory, expectedHistory, "Puller thread message history doesn't match");
+
+        }
+        finally {
+          client.shutdown();
+        }
+    }
+
+    /**
+     * same as above, but server doesn't send any data, and WriteComplete comes between WriteTimeout
+     * and channel close
+     * @throws Exception
+     */
+    @Test
+    public void testInStreamTimeOut3() throws Exception
+    {
+        final Logger log = Logger.getLogger("TestDatabusHttpClient.testInStreamTimeout3");
+        Level debugLevel = Level.DEBUG;
+        log.setLevel(debugLevel);
+        //Logger.getRootLogger().setLevel(Level.DEBUG);
+        MockServerChannelHandler.LOG.setLevel(debugLevel);
+        final int eventsNum = 20;
+        DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
+
+        //simulate relay buffers
+        DbusEventBuffer relayBuffer = new DbusEventBuffer(_bufCfg);
+        relayBuffer.start(0);
+        writeEventsToBuffer(relayBuffer, eventInfos, 4);
+
+        //prepare stream response ??????????????//
+        Checkpoint cp = Checkpoint.createFlexibleCheckpoint();
+        final DbusEventsStatisticsCollector stats =
+            new DbusEventsStatisticsCollector(1, "test1", true, false, null);
+
+        // create ChunnelBuffer and fill it with events from relayBuffer
+        ChannelBuffer streamResPrefix =
+            NettyTestUtils.streamToChannelBuffer(relayBuffer, cp, 20000, stats);
+
+        //create client
+        _stdClientCfgBuilder.getContainer().setReadTimeoutMs(DEFAULT_READ_TIMEOUT_MS);
+
+        final DatabusHttpClientImpl client = new DatabusHttpClientImpl(_stdClientCfgBuilder.build());
+
+        final TestConsumer consumer = new TestConsumer();
+        client.registerDatabusStreamListener(consumer, null, SOURCE1_NAME);
+
+        client.start(); // connect to a relay created in SetupClass (one out of three)
+
+        // wait until a connection made
+        try
+        {
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return client._relayConnections.size() == 1;
+            }
+          }, "sources connection present", 100, log);
+
+          //get the connection
+          final DatabusSourcesConnection clientConn = client._relayConnections.get(0);
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != clientConn.getRelayPullThread().getLastOpenConnection();
+            }
+          }, "relay connection present", 100, log);
+
+          // figure out connection details
+          final NettyHttpDatabusRelayConnection relayConn =
+              (NettyHttpDatabusRelayConnection)clientConn.getRelayPullThread().getLastOpenConnection();
+          final NettyHttpDatabusRelayConnectionInspector relayConnInsp =
+              new NettyHttpDatabusRelayConnectionInspector(relayConn);
+          relayConnInsp.getHandler().getLog().setLevel(debugLevel);
+
+          // wait until client is connected
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != relayConnInsp.getChannel() && relayConnInsp.getChannel().isConnected();
+            }
+          }, "client connected", 200, log);
+
+          //figure out which port we got connected to on the server side
+          Channel clientChannel = relayConnInsp.getChannel();
+          InetSocketAddress relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
+          int relayPort = relayAddr.getPort();
+          log.info("relay selected: " + relayPort);
+
+          // add our handler to the client's pipeline which will generate the timeout
+          MockServerChannelHandler mock = new MockServerChannelHandler();
+          clientChannel.getPipeline().addBefore("inflater", "mockServer", mock);
+          // verify it is there
+          Map<String, ChannelHandler> map = clientChannel.getPipeline().toMap();
+          boolean handlerFound = false;
+          for(Map.Entry<String, ChannelHandler> m : map.entrySet()) {
+            if(LOG.isDebugEnabled())
+              LOG.debug(m.getKey() + "=>" + m.getValue());
+            if(m.getKey().equals("mockServer"))
+              handlerFound = true;
+          }
+          Assert.assertTrue(handlerFound, "handler added");
+
+          SimpleTestServerConnection relay = null;
+          // Find the relay's object
+          for (int i = 0; i < RELAY_PORT.length; ++i)
+          {
+            if (relayPort == RELAY_PORT[i]) relay = _dummyServer[i];
+          }
+          assertTrue(null != relay);
+
+          SocketAddress clientAddr = clientChannel.getLocalAddress();
+          final SocketAddress testClientAddr = clientAddr;
+
+          final SimpleTestServerConnection testRelay = relay;
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != testRelay.getChildChannel(testClientAddr);
+            }
+          }, "relay detects new connection", 1000, log);
+
+          Channel serverChannel = relay.getChildChannel(clientAddr);
+          assertTrue(null != serverChannel);
+          ChannelPipeline serverPipeline = serverChannel.getPipeline();
+          SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
+
+          //process the /sources request
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
+          objCapture.clear();
+
+          //send back the /sources response
+          HttpResponse httpResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
+                                                             HttpResponseStatus.OK);
+          httpResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+          httpResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+          HttpChunk body =
+              new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
+                                   SOURCE1_NAME + "\"}]").getBytes()));
+          NettyTestUtils.sendServerResponses(relay, clientAddr, httpResp, body);
+
+          //make sure the client processes the response correctly
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              String idListString = clientConn.getRelayPullThread()._currentState.getSourcesIdListString();
+              return "1".equals(idListString);
+            }
+          }, "client processes /sources response", 100, log);
+
+          log.debug("process the /register request");
+          NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
+          objCapture.clear();
+
+          String msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog();
+          log.debug("MSG HISTORY before: " + msgHistory);
+
+          // make sure our handler will save the 'future' of the next write operation - 'stream'
+          mock.enableSaveTheFuture(true);
+          // delay write complete. insert Timeout exception before that
+          mock.delayWriteComplete(true);
+
+          log.debug("send back the /register response");
+          RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
+          String responseStr = NettyTestUtils.generateRegisterResponse(entry);
+          body = new DefaultHttpChunk(
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+
+          NettyTestUtils.sendServerResponses(relay, clientAddr, httpResp, body);
+
+          log.debug("make sure the client processes the response /register correctly");
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              DispatcherState dispState = clientConn.getRelayDispatcher().getDispatcherState();
+              return null != dispState.getSchemaMap() && 1 == dispState.getSchemaMap().size();
+            }
+          }, "client processes /register response", 100, log);
+
+          LOG.info("*************>Message state after write complete is " + relayConnInsp.getResponseHandlerMessageState().toString());
+          msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog();
+          log.debug("MSG HISTORY after: " + msgHistory);
+          Assert.assertEquals(countOccurencesOfWord(msgHistory, "_ERROR"), 1); //should be one error only
+//////////////////////////////////////////////////////////////////////////////////////////////////
+          /*
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return client._relayConnections.size() == 1;
+            }
+          }, "sources connection present", 100, log);
+
+          //get the connection
+          final DatabusSourcesConnection clientConn1 = client._relayConnections.get(0);
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != clientConn1.getRelayPullThread().getLastOpenConnection();
+            }
+          }, "relay connection1 present", 100, log);
+
+          // figure out connection details
+          final NettyHttpDatabusRelayConnection relayConn1 =
+              (NettyHttpDatabusRelayConnection)clientConn1.getRelayPullThread().getLastOpenConnection();
+          final NettyHttpDatabusRelayConnectionInspector relayConnInsp1 =
+              new NettyHttpDatabusRelayConnectionInspector(relayConn1);
+          relayConnInsp1.getHandler().getLog().setLevel(debugLevel);
+
+          // wait until client is connected
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != relayConnInsp1.getChannel() && relayConnInsp1.getChannel().isConnected();
+            }
+          }, "client connected", 200, log);
+
+          //figure out which port we got connected to on the server side
+          Channel clientChannel1 = relayConnInsp1.getChannel();
+          InetSocketAddress relayAddr1 = (InetSocketAddress)clientChannel1.getRemoteAddress();
+          relayPort = relayAddr1.getPort();
+          log.info("relay selected: " + relayPort);
+
+
+          // do it again - no errors
+          //  process the /sources request
+          captureAndReplySourcesRequest(objCapture, relay, clientAddr, clientConn1, log);
+
+          captureAndReplyRegisterRequest(objCapture, relay, clientAddr, clientConn1, log);
+
+          log.debug("process /stream call and return a response");
+          captureAndReplyStreamRequest(objCapture, relay, clientAddr, clientConn1, streamResPrefix, log);
+
+
+          LOG.info("*************>Message state after write complete is " + relayConnInsp1.getResponseHandlerMessageState().toString());
+          msgHistory = clientConn1.getRelayPullThread().getMessageHistoryLog();
+          log.debug("MSG HISTORY after: " + msgHistory);
+          Assert.assertEquals(countOccurencesOfWord(msgHistory, "_ERROR"), 1); //should be one error only
+
+
+
+          // make sure close channel event and future failure are propagated
+          TestUtil.sleep(3000);
+          // get the history and validate it
+          String expectedHistory =  "[START, PICK_SERVER, REQUEST_SOURCES, SOURCES_RESPONSE_SUCCESS, REQUEST_REGISTER, REGISTER_RESPONSE_SUCCESS, REQUEST_STREAM, STREAM_REQUEST_SUCCESS, STREAM_RESPONSE_DONE, REQUEST_STREAM, STREAM_REQUEST_ERROR, PICK_SERVER, REQUEST_SOURCES]".trim();
+          msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog().trim();
+          LOG.info("MSG HISTORY: " + msgHistory);
+          Assert.assertEquals(msgHistory, expectedHistory, "Puller thread message history doesn't match");
+*/
+        }
+        finally {
+          client.shutdown();
+        }
+    }
+
+    private void captureAndReplySourcesRequest(SimpleObjectCaptureHandler objCapture,
+                                                SimpleTestServerConnection relay,
+                                                SocketAddress clientAddr,
+                                                final DatabusSourcesConnection clientConn,
+                                                final Logger log) {
+      NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
+      objCapture.clear();
+
+      //send back the /sources response
+      HttpResponse sourcesResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
+                                                         HttpResponseStatus.OK);
+      sourcesResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+      sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+      HttpChunk body =
+          new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
+                               SOURCE1_NAME + "\"}]").getBytes()));
+      NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
+
+    //make sure the client processes the response correctly
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+        @Override
+        public boolean check()
+        {
+          String idListString = clientConn.getRelayPullThread()._currentState.getSourcesIdListString();
+          return "1".equals(idListString);
+        }
+      }, "client processes /sources response", 100, log);
+    }
+
+    private void captureAndReplyRegisterRequest(SimpleObjectCaptureHandler objCapture,
+                                            SimpleTestServerConnection relay,
+                                            SocketAddress clientAddr,
+                                            final DatabusSourcesConnection clientConn,
+                                            Logger log)
+      throws JsonGenerationException, JsonMappingException, IOException {
+
+      log.debug("process the /register request");
+      NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
+      objCapture.clear();
+
+      log.debug("send back the /register response");
+      RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
+      String responseStr = NettyTestUtils.generateRegisterResponse(entry);
+      HttpResponse registerResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
+                                                         HttpResponseStatus.OK);
+      HttpChunk body = new DefaultHttpChunk(
+                                  ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+      NettyTestUtils.sendServerResponses(relay, clientAddr, registerResp, body);
+
+      log.debug("make sure the client processes the response /register correctly");
+      TestUtil.assertWithBackoff(new ConditionCheck()
+      {
+        @Override
+        public boolean check()
+        {
+          DispatcherState dispState = clientConn.getRelayDispatcher().getDispatcherState();
+          return null != dispState.getSchemaMap() && 1 == dispState.getSchemaMap().size();
+        }
+      }, "client processes /register response", 100, log);
+    }
+
+    private void captureAndReplyStreamRequest(SimpleObjectCaptureHandler objCapture,
+                                                SimpleTestServerConnection relay,
+                                                SocketAddress clientAddr,
+                                                final DatabusSourcesConnection clientConn,
+                                                ChannelBuffer streamResPrefix,
+                                                Logger log) {
+      NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*", 1000);
+      objCapture.clear();
+
+      final HttpResponse streamResp =
+          new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+      streamResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+      streamResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+
+      // timeout for local netty calls (in test only)
+      int timeout = 1000;
+      // send header info
+      relay.sendServerResponse(clientAddr, streamResp, timeout);
+      TestUtil.sleep(1000);
+
+      // send data
+      relay.sendServerResponse(clientAddr, new DefaultHttpChunk(streamResPrefix), timeout);
+      relay.sendServerResponse(clientAddr, HttpChunk.LAST_CHUNK, timeout);
+
+    }
+
+    @Test
+    public void testCountOccurnces() {
+      String hay =  "[STARTSTARTT, START, PICK_SERVER, REQUEST_SOURCES, SOURCES_RESPONSE_SUCCESS, REQUEST_REGISTER, REGISTER_RESPONSE_SUCCESS, REQUEST_STREAM, STREAM_REQUEST_SUCCESS, STREAM_RESPONSE_DONE, REQUEST_STREAM, STREAM_REQUEST_ERROR, PICK_SERVER, REQUEST_SOURCES]";
+      Assert.assertEquals(countOccurencesOfWord(hay, "START"), 1);
+      Assert.assertEquals(countOccurencesOfWord(hay, "STARTING"), 0);
+      Assert.assertEquals(countOccurencesOfWord(hay, "REQUEST_STREAM"), 2);
+      Assert.assertEquals(countOccurencesOfWord(hay, "REQUEST_SOURCES"), 2);
+
+    }
+    private int countOccurencesOfWord(String hay, String needle) {
+      Pattern pattern = Pattern.compile(needle+"[,?|\\]]");
+      Matcher m = pattern.matcher(hay);
+      int count = 0;
+
+      while(m.find()) {
+        count ++;
+      }
+      return count;
+    }
+
+    /**
+     * Tests the logic of the client to handle Timeout that comes while processing stream request.
+     *  the script:
+     *     setup client and connect to one of the servers
+     *     wait for /sources and register call and replay
+     *     save the 'future' of the write operation for the /stream call. Replace this future down the stream with the fake one,
+     *       so the notification of write completion will never come
+     *     make server send only headers info first
+     *     make server send data, but intercept the message before it reaches the client. At this moment fire WriteTimeout
+     *        exception from a separate thread.
+     *     Make sure PullerThread doesn't get two error messages (and as a result tries to setup up two new connections)
+     */
+    @Test
+    public void testInStreamTimeOut2() throws Exception
+    {
+        final Logger log = Logger.getLogger("TestDatabusHttpClient.testInStreamTimeout2");
+        MockServerChannelHandler.LOG.setLevel(Level.DEBUG);
+        //log.setLevel(Level.);
+        final int eventsNum = 20;
+        DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
+
+        //simulate relay buffers
+        DbusEventBuffer relayBuffer = new DbusEventBuffer(_bufCfg);
+        relayBuffer.start(0);
+        writeEventsToBuffer(relayBuffer, eventInfos, 4);
+
+        //prepare stream response
+        Checkpoint cp = Checkpoint.createFlexibleCheckpoint();
+        final DbusEventsStatisticsCollector stats =
+            new DbusEventsStatisticsCollector(1, "test1", true, false, null);
+
+        // create ChunnelBuffer and fill it with events from relayBuffer
+        ChannelBuffer streamResPrefix =
+            NettyTestUtils.streamToChannelBuffer(relayBuffer, cp, 20000, stats);
+
+        //create client
+        _stdClientCfgBuilder.getContainer().setReadTimeoutMs(DEFAULT_READ_TIMEOUT_MS);
+
+        final DatabusHttpClientImpl client = new DatabusHttpClientImpl(_stdClientCfgBuilder.build());
+
+        final TestConsumer consumer = new TestConsumer();
+        client.registerDatabusStreamListener(consumer, null, SOURCE1_NAME);
+
+        client.start(); // connect to a relay created in SetupClass (one out of three)
+
+        // wait until a connection made
+        try
+        {
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return client._relayConnections.size() == 1;
+            }
+          }, "sources connection present", 100, log);
+
+          //get the connection
+          final DatabusSourcesConnection clientConn = client._relayConnections.get(0);
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != clientConn.getRelayPullThread().getLastOpenConnection();
+            }
+          }, "relay connection present", 100, log);
+
+          // figure out connection details
+          final NettyHttpDatabusRelayConnection relayConn =
+              (NettyHttpDatabusRelayConnection)clientConn.getRelayPullThread().getLastOpenConnection();
+          final NettyHttpDatabusRelayConnectionInspector relayConnInsp =
+              new NettyHttpDatabusRelayConnectionInspector(relayConn);
+
+          // wait until client is connected
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != relayConnInsp.getChannel() && relayConnInsp.getChannel().isConnected();
+            }
+          }, "client connected", 200, log);
+
+          //figure out which port we got connected to on the server side
+          Channel clientChannel = relayConnInsp.getChannel();
+          InetSocketAddress relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
+          int relayPort = relayAddr.getPort();
+          log.info("relay selected: " + relayPort);
+
+          // add our handler to the client's pipeline which will generate the timeout
+          MockServerChannelHandler mock = new MockServerChannelHandler();
+          clientChannel.getPipeline().addBefore("inflater", "mockServer", mock);
+          Map<String, ChannelHandler> map = clientChannel.getPipeline().toMap();
+          boolean handlerFound = false;
+          for(Map.Entry<String, ChannelHandler> m : map.entrySet()) {
+            if(LOG.isDebugEnabled())
+              LOG.debug(m.getKey() + "=>" + m.getValue());
+            if(m.getKey().equals("mockServer"))
+              handlerFound = true;
+          }
+          Assert.assertTrue(handlerFound, "handler added");
+
+          SimpleTestServerConnection relay = null;
+          // Find the relay's object
+          for (int i = 0; i < RELAY_PORT.length; ++i)
+          {
+            if (relayPort == RELAY_PORT[i]) relay = _dummyServer[i];
+          }
+          assertTrue(null != relay);
+
+          SocketAddress clientAddr = clientChannel.getLocalAddress();
+          final SocketAddress testClientAddr = clientAddr;
+
+          final SimpleTestServerConnection testRelay = relay;
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              return null != testRelay.getChildChannel(testClientAddr);
+            }
+          }, "relay detects new connection", 1000, log);
+
+          Channel serverChannel = relay.getChildChannel(clientAddr);
+          assertTrue(null != serverChannel);
+          ChannelPipeline serverPipeline = serverChannel.getPipeline();
+          SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
+
+          //process the /sources request
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
+          objCapture.clear();
+
+          //send back the /sources response
+          HttpResponse sourcesResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
+                                                             HttpResponseStatus.OK);
+          sourcesResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+          sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+          HttpChunk body =
+              new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
+                                   SOURCE1_NAME + "\"}]").getBytes()));
+          NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
+
+          //make sure the client processes the response correctly
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              String idListString = clientConn.getRelayPullThread()._currentState.getSourcesIdListString();
+              return "1".equals(idListString);
+            }
+          }, "client processes /sources response", 100, log);
+
+          log.info("process the /register request");
+          NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
+          objCapture.clear();
+
+          String msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog();
+          log.info("MSG HISTORY before: " + msgHistory);
+
+          // make sure our handler will save the 'future' of the next write operation - 'stream'
+          mock.enableSaveTheFuture(true);
+
+          log.info("send back the /register response");
+          RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
+          String responseStr = NettyTestUtils.generateRegisterResponse(entry);
+          body = new DefaultHttpChunk(
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+          NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
+
+          log.info("make sure the client processes the response /register correctly");
+          TestUtil.assertWithBackoff(new ConditionCheck()
+          {
+            @Override
+            public boolean check()
+            {
+              DispatcherState dispState = clientConn.getRelayDispatcher().getDispatcherState();
+              return null != dispState.getSchemaMap() && 1 == dispState.getSchemaMap().size();
+            }
+          }, "client processes /register response", 100, log);
+          mock.disableWriteComplete(true);
+          log.info("process /stream call and return a response");
+          NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*", 1000);
+          objCapture.clear();
+          log.info("***1");
+          //disable save future as it should be saved by now
+          mock.enableSaveTheFuture(false);
+          log.info("***2");
+          final HttpResponse streamResp =
+              new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK);
+          streamResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
+          streamResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
+          log.info("***3");
+          // timeout for local netty calls (in test only)
+          int timeout = 1000;
+          // send header info
+          relay.sendServerResponse(clientAddr, sourcesResp, timeout);
+          TestUtil.sleep(1000);
+          log.info("***4");
+          // when write data arrives from the server - we want to simulate/throw WriteTimeoutException
+          mock.enableThrowWTOException(true);
+
+          // send data
+          relay.sendServerResponse(clientAddr, new DefaultHttpChunk(streamResPrefix), timeout);
+          relay.sendServerResponse(clientAddr, HttpChunk.LAST_CHUNK, timeout);
+          log.info("***5");
+          // make sure close channel event and future failure are propagated
+          TestUtil.sleep(3000);
+          // get the history and validate it
+          String expectedHistory =  "[START, PICK_SERVER, REQUEST_SOURCES, SOURCES_RESPONSE_SUCCESS, REQUEST_REGISTER, REGISTER_RESPONSE_SUCCESS, REQUEST_STREAM, STREAM_REQUEST_SUCCESS, STREAM_RESPONSE_DONE, REQUEST_STREAM, STREAM_REQUEST_ERROR, PICK_SERVER, REQUEST_SOURCES]".trim();
+          msgHistory = clientConn.getRelayPullThread().getMessageHistoryLog().trim();
+          log.info("***6");
+          LOG.info("MSG HISTORY: " + msgHistory);
+          Assert.assertEquals(msgHistory, expectedHistory, "Puller thread message history doesn't match");
+          log.info("***7");
+
+        }
+        catch (Exception e2){
+          log.info("Got exception" + e2 );
         }
         finally {
           client.shutdown();
@@ -954,7 +1785,7 @@ public class TestDatabusHttpClient
 	    final Logger log = Logger.getLogger("TestDatabusHttpClient.testRelayFailoverPartialWindow2");
 	    //log.setLevel(Level.DEBUG);
 	    final int eventsNum = 200;
-	    DbusEventInfo[] events = createSampleSchema1Events(eventsNum);
+	    DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
 
 	    //simulate relay buffers
 	    DbusEventBuffer[] relayBuffer = new DbusEventBuffer[RELAY_PORT.length];
@@ -965,7 +1796,7 @@ public class TestDatabusHttpClient
 	    {
 	      relayBuffer[i] = new DbusEventBuffer(_bufCfg);
 	      relayBuffer[i].start(0);
-	      WriteEventsResult wrRes= writeEventsToBuffer(relayBuffer[i], events, (RELAY_PORT.length - i) * 10);
+	      WriteEventsResult wrRes = writeEventsToBuffer(relayBuffer[i], eventInfos, (RELAY_PORT.length - i) * 10);
 	      List<Integer> ofs = wrRes.getOffsets();
 	      eventOfs.add(ofs);
 	      eventKeys.add(wrRes.getKeys());
@@ -1054,8 +1885,8 @@ public class TestDatabusHttpClient
 	      ChannelPipeline serverPipeline = serverChannel.getPipeline();
 	      SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
-          //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+	      //process the /sources request
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
 	      objCapture.clear();
 
 	      //send back the /sources response
@@ -1124,10 +1955,10 @@ public class TestDatabusHttpClient
             @Override
             public boolean check()
             {
-              LOG.debug("LastWritten SCN:" + clientConn.getDataEventsBuffer().lastWrittenScn() );
+              log.debug("LastWritten SCN:" + clientConn.getDataEventsBuffer().lastWrittenScn() );
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 30;
             }
-          }, "client receieves /stream response", 1100, log);
+          }, "client receives /stream response", 1100, log);
 
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
@@ -1216,7 +2047,7 @@ public class TestDatabusHttpClient
           objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
           //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
           //send back the /sources response
@@ -1282,7 +2113,7 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn());
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 40;
             }
-          }, "client receieves /stream response", 1100, log);
+          }, "client receives /stream response", 1100, log);
 
 
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -1378,7 +2209,7 @@ public class TestDatabusHttpClient
           objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
           //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
           //send back the /sources response
@@ -1449,7 +2280,7 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn());
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 90;
             }
-          }, "client receieves /stream response, Sequence :" + consumer.getSequences(), 10100, log);
+          }, "client receives /stream response, Sequence :" + consumer.getSequences(), 10100, log);
 
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
@@ -1535,10 +2366,10 @@ public class TestDatabusHttpClient
 	    final Logger log = Logger.getLogger("TestDatabusHttpClient.testRelayFailoverPartialWindow1");
 	    log.setLevel(Level.INFO);
 	    final int eventsNum = 200;
-	    DbusEventInfo[] events = createSampleSchema1Events(eventsNum);
+	    DbusEventInfo[] eventInfos = createSampleSchema1Events(eventsNum);
 	    final long timeoutMult = debugOn ? 100000 : 1;
 
-	    //simulate relay buffers
+	    log.info("simulate relay buffers");
 	    DbusEventBuffer[] relayBuffer = new DbusEventBuffer[RELAY_PORT.length];
 	    List<List<Integer>> eventOfs = new ArrayList<List<Integer>>(3);
 	    List<List<DbusEventKey>> eventKeys = new ArrayList<List<DbusEventKey>>(3);
@@ -1547,7 +2378,7 @@ public class TestDatabusHttpClient
 	    {
 	      relayBuffer[i] = new DbusEventBuffer(_bufCfg);
 	      relayBuffer[i].start(0);
-	      WriteEventsResult wrRes = writeEventsToBuffer(relayBuffer[i], events, (i + 1) * 10);
+	      WriteEventsResult wrRes = writeEventsToBuffer(relayBuffer[i], eventInfos, (i + 1) * 10);
 	      List<Integer> ofs = wrRes.getOffsets();
 	      eventOfs.add(ofs);
 	      eventKeys.add(wrRes.getKeys());
@@ -1561,10 +2392,10 @@ public class TestDatabusHttpClient
 	    	key = eventKeys.get(i);
 	    }
 
-	    //figure out an event offset inside a window
 	    int resp1EnfOfs = eventOfs.get(0).get(8);
+        log.info("figure out an event offset inside a window:" + resp1EnfOfs);
 
-	    //create client
+	    log.info("create client");
 	    _stdClientCfgBuilder.getContainer().setReadTimeoutMs(DEFAULT_READ_TIMEOUT_MS);
 
 	    final DatabusHttpClientImpl client = new DatabusHttpClientImpl(_stdClientCfgBuilder.build());
@@ -1608,7 +2439,7 @@ public class TestDatabusHttpClient
             }
           }, "client connected", 200, log);
 
-	      //figure out the connection to the relay
+	      log.info("figure out the connection to the relay");
 	      Channel clientChannel = relayConnInsp.getChannel();
 	      InetSocketAddress relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
 	      SocketAddress clientAddr = clientChannel.getLocalAddress();
@@ -1638,11 +2469,11 @@ public class TestDatabusHttpClient
 	      ChannelPipeline serverPipeline = serverChannel.getPipeline();
 	      SimpleObjectCaptureHandler objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
-          //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          log.info("process the /sources request");
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
 	      objCapture.clear();
 
-	      //send back the /sources response
+	      log.info("send back the /sources response");
 	      HttpResponse sourcesResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
 	                                                         HttpResponseStatus.OK);
 	      sourcesResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
@@ -1652,7 +2483,7 @@ public class TestDatabusHttpClient
 	                               SOURCE1_NAME + "\"}]").getBytes()));
 	      NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-	      //make sure the client processes the response correctly
+	      log.info("make sure the client processes the response correctly");
 	      TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1663,18 +2494,18 @@ public class TestDatabusHttpClient
             }
           }, "client processes /sources response", 100, log);
 
-          //process the /register request
+	      log.info("process the /register request");
 	      NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
           objCapture.clear();
 
-          //send back the /register response
+          log.info("send back the /register response");
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
               ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1685,11 +2516,11 @@ public class TestDatabusHttpClient
             }
           }, "client processes /register response", 100, log);
 
-          //process /stream call and return a partial window
+          log.info("process /stream call and return a partial window");
           NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*", 1000);
           objCapture.clear();
 
-          //send back the /stream response
+          log.info("send back the /stream response");
           final DbusEventsStatisticsCollector stats =
               new DbusEventsStatisticsCollector(1, "test1", true, false, null);
           Checkpoint cp = Checkpoint.createFlexibleCheckpoint();
@@ -1702,16 +2533,16 @@ public class TestDatabusHttpClient
           NettyTestUtils.sendServerResponses(relay, clientAddr, streamResp,
                                              new DefaultHttpChunk(streamRes));
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the /stream response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
             public boolean check()
             {
-              LOG.debug("LastWritten SCN:" + clientConn.getDataEventsBuffer().lastWrittenScn() );
+              log.debug("LastWritten SCN:" + clientConn.getDataEventsBuffer().lastWrittenScn() );
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 10;
             }
-          }, "client receieves /stream response", 1100, log);
+          }, "client receives /stream response", 1100, log);
 
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
@@ -1736,7 +2567,7 @@ public class TestDatabusHttpClient
           assertEquals("Keys", expKeys, consumer.getKeys());
           assertEquals("Sequences", expSeqs, consumer.getSequences());
 
-          //now kill the relay and wait for a failover
+          log.info("now kill the relay and wait for a failover");
           serverChannel.close();
 
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -1757,7 +2588,7 @@ public class TestDatabusHttpClient
             }
           }, "new netty connection", 200, log);
 
-          /////////// FAKING CONNECTION TO NEW RELAY
+          log.info("/////////// FAKING CONNECTION TO NEW RELAY //////////////");
 
           final NettyHttpDatabusRelayConnection newRelayConn =
               (NettyHttpDatabusRelayConnection)clientConn.getRelayPullThread().getLastOpenConnection();
@@ -1773,7 +2604,7 @@ public class TestDatabusHttpClient
             }
           }, "client connected to new relay", 200, log);
 
-          //figure out the connection to the relay
+          log.info("figure out the connection to the relay");
           clientChannel = newRelayConnInsp.getChannel();
           relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
           clientAddr = clientChannel.getLocalAddress();
@@ -1793,16 +2624,16 @@ public class TestDatabusHttpClient
           serverPipeline = serverChannel.getPipeline();
           objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
-          //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          log.info("process the /sources request");
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
-          //send back the /sources response
+          log.info("send back the /sources response");
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
                                       SOURCE1_NAME + "\"}]").getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1813,16 +2644,16 @@ public class TestDatabusHttpClient
             }
           }, "client processes /sources response", 100, log);
 
-          //process the /register request
+          log.info("process the /register request");
           NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
           objCapture.clear();
 
-          //send back the /register response
+          log.info("send back the /register response");
           body = new DefaultHttpChunk(
               ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the /register response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1833,7 +2664,7 @@ public class TestDatabusHttpClient
             }
           }, "client processes /register response", 100, log);
 
-          //process /stream call and return a partial window
+          log.info("process /stream call and return a partial window");
           Matcher streamMatcher =
               NettyTestUtils.waitForHttpRequest(objCapture, "/stream.*checkPoint=([^&]*)&.*",
                                                 1000);
@@ -1851,7 +2682,7 @@ public class TestDatabusHttpClient
           NettyTestUtils.sendServerResponses(relay, clientAddr, streamResp,
                                              new DefaultHttpChunk(streamRes));
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1860,7 +2691,7 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn());
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 40;
             }
-          }, "client receieves /stream response", 1100, log);
+          }, "client receives /stream response", 1100, log);
 
 
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -1873,7 +2704,8 @@ public class TestDatabusHttpClient
             }
           }, "client processes /stream response", 11000, log);
           assertEquals(20, consumer.getRollbackScn());
-          //one more onStartDataEventSequence because of the rolback
+
+          log.info("one more onStartDataEventSequence because of the rolback");
           ++rollbackNum;
           assertEquals(stats.getTotalStats().getNumSysEvents() + 1 + rollbackNum, consumer.getWinNum());
 
@@ -1923,7 +2755,7 @@ public class TestDatabusHttpClient
             }
           }, "client connected to third relay", 200, log);
 
-          //figure out the connection to the relay
+          log.info("figure out the connection to the relay");
           clientChannel = new2RelayConnInsp.getChannel();
           relayAddr = (InetSocketAddress)clientChannel.getRemoteAddress();
           clientAddr = clientChannel.getLocalAddress();
@@ -1944,16 +2776,16 @@ public class TestDatabusHttpClient
           serverPipeline = serverChannel.getPipeline();
           objCapture = (SimpleObjectCaptureHandler)serverPipeline.get("3");
 
-          //process the /sources request
-          NettyTestUtils.waitForHttpRequest(objCapture, "^/sources", 1000);
+          log.info("process the /sources request");
+          NettyTestUtils.waitForHttpRequest(objCapture, SOURCES_REQUEST_REGEX, 1000);
           objCapture.clear();
 
-          //send back the /sources response
+          log.info("send back the /sources response");
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
                                       SOURCE1_NAME + "\"}]").getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1964,18 +2796,18 @@ public class TestDatabusHttpClient
             }
           }, "client processes /sources response", 100, log);
 
-          //process the /register request
+          log.info("process the /register request");
           NettyTestUtils.waitForHttpRequest(objCapture, "/register.*", 1000);
           objCapture.clear();
 
           log.info("SEND BACK THE /register RESPONSE");
-          clientConn.getRelayDispatcher().getLog().setLevel(Level.DEBUG);
-          RangeBasedReaderWriterLock.LOG.setLevel(Level.DEBUG);
+          //clientConn.getRelayDispatcher().getLog().setLevel(Level.DEBUG);
+          //RangeBasedReaderWriterLock.LOG.setLevel(Level.DEBUG);
           body = new DefaultHttpChunk(
               ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -1999,7 +2831,7 @@ public class TestDatabusHttpClient
           log.debug("Checkpoint String is :" + cpString);
 
           cp = new Checkpoint(cpString);
-          //last window read was partial. So the client would have reset the windowOffset
+          log.info("last window read was partial. So the client would have reset the windowOffset");
           assertTrue("Is WindowOffset Cleared",cp.getWindowOffset() == -1);
           assertEquals( "WindowSCN == PrevSCN. Ckpt :" + cp, cp.getWindowScn(), cp.getPrevScn());
           streamRes = NettyTestUtils.streamToChannelBuffer(relayBuffer[2], cp,
@@ -2010,7 +2842,7 @@ public class TestDatabusHttpClient
 
           log.debug("NumEvents already seen :" + numEvents);
 
-          //make sure the client processes the response correctly
+          log.info("make sure the client processes the response correctly");
           TestUtil.assertWithBackoff(new ConditionCheck()
           {
             @Override
@@ -2019,7 +2851,7 @@ public class TestDatabusHttpClient
               log.debug("lastWrittenScn=" + clientConn.getDataEventsBuffer().lastWrittenScn() + ", NumEvents :" + stats.getTotalStats().getNumDataEvents() );
               return clientConn.getDataEventsBuffer().lastWrittenScn() == 90;
             }
-          }, "client receieves /stream response, Sequences :" + consumer.getSequences(),
+          }, "client receives /stream response, Sequences :" + consumer.getSequences(),
              timeoutMult * 1100, log);
 
           TestUtil.assertWithBackoff(new ConditionCheck()
@@ -2032,7 +2864,7 @@ public class TestDatabusHttpClient
             }
           }, "client processes /stream response", timeoutMult * 1100, log);
 
-          //one more onStartDataEventSequence because of the rolback
+          log.info("one more onStartDataEventSequence because of the rollback");
           assertEquals(30, consumer.getRollbackScn());
           ++rollbackNum;
           assertEquals(stats.getTotalStats().getNumSysEvents() + 1 + rollbackNum, consumer.getWinNum());
@@ -2111,6 +2943,7 @@ public class TestDatabusHttpClient
                                       System.nanoTime(),
                                       (short)1, SOURCE1_SCHEMAID,
                                       baos.toByteArray(), false, true);
+        result[i].setEventSerializationVersion(_eventFactory.getVersion());
       }
       finally
       {
@@ -2141,13 +2974,12 @@ public class TestDatabusHttpClient
 	  }
   }
 
-  static WriteEventsResult writeEventsToBuffer(DbusEventBuffer buf, DbusEventInfo[] events,
-                                               int winSize)
+  static WriteEventsResult writeEventsToBuffer(DbusEventBuffer buf, DbusEventInfo[] eventInfos, int winSize)
          throws UnsupportedEncodingException
   {
     Random rng = new Random(100);
-    final List<Integer> eventOfs = new ArrayList<Integer>(events.length);
-    final List<DbusEventKey> eventKeys = new ArrayList<DbusEventKey>(events.length);
+    final List<Integer> eventOfs = new ArrayList<Integer>(eventInfos.length);
+    final List<DbusEventKey> eventKeys = new ArrayList<DbusEventKey>(eventInfos.length);
 
     InternalDatabusEventsListener ofsTracker = new InternalDatabusEventsListener()
     {
@@ -2158,12 +2990,14 @@ public class TestDatabusHttpClient
       public void onEvent(DbusEvent event, long offset, int size)
       {
         DbusEventInternalWritable e = (DbusEventInternalWritable)event;
-        eventOfs.add(e.getRawBytes().position() - e.size());
+        assertTrue("endEvents() gave us an invalid event! (offset = " + offset + ", size = " + size + ")",
+                   e.isValid(true));
+        eventOfs.add(e.getRawBytes().position() - e.size());  // FIXME: is this correct?  position() == offset; why subtract size?
       }
     };
     buf.addInternalListener(ofsTracker);
 
-    for (int i = 0; i < events.length; ++i)
+    for (int i = 0; i < eventInfos.length; ++i)
     {
       if (i % winSize == 0)
       {
@@ -2172,10 +3006,10 @@ public class TestDatabusHttpClient
       }
       DbusEventKey key =
           new DbusEventKey(RngUtils.randomString(rng, rng.nextInt(50)).getBytes("UTF-8"));
-      buf.appendEvent(key, events[i], null);
+      buf.appendEvent(key, eventInfos[i], null);
       eventKeys.add(key);
     }
-    buf.endEvents(events.length);
+    buf.endEvents(eventInfos.length);
 
     buf.removeInternalListener(ofsTracker);
 

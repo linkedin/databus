@@ -18,8 +18,6 @@ package com.linkedin.databus.client.netty;
  *
 */
 
-
-import com.linkedin.databus.core.DbusEventInternalWritable;
 import java.io.ByteArrayInputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -29,14 +27,16 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.core.DbusErrorEvent;
-import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
 import com.linkedin.databus.core.ScnNotFoundException;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
-import com.linkedin.databus2.core.container.request.DatabusRequest;
+
 
 public class RemoteExceptionHandler
 {
@@ -45,17 +45,39 @@ public class RemoteExceptionHandler
 
   private final DatabusSourcesConnection _sourcesConn;
   private final DbusEventBuffer _dbusEventBuffer;
+  private final DbusEventFactory _eventFactory;
 
   public RemoteExceptionHandler(DatabusSourcesConnection sourcesConn,
-                                DbusEventBuffer dataEventsBuffer)
+                                DbusEventBuffer dataEventsBuffer,
+                                DbusEventFactory eventFactory)
   {
     _sourcesConn = sourcesConn;
     _dbusEventBuffer = dataEventsBuffer;
+    _eventFactory = eventFactory;
+  }
+
+  public int getPendingEventSize(ChunkedBodyReadableByteChannel readChannel)
+  {
+    String result = readChannel.getMetadata(DatabusHttpHeaders.DATABUS_PENDING_EVENT_SIZE);
+    if (result == null)
+    {
+      // There was no such header.
+      return 0;
+    }
+    try
+    {
+      return Integer.parseInt(result);
+    }
+    catch(NumberFormatException e)
+    {
+      LOG.error("Could not parse pending event size:" + result);
+      return 0;
+    }
   }
 
   public static String getExceptionName(ChunkedBodyReadableByteChannel readChannel)
   {
-    String result = readChannel.getMetadata(DatabusRequest.DATABUS_ERROR_CAUSE_CLASS_HEADER);
+    String result = readChannel.getMetadata(DatabusHttpHeaders.DATABUS_ERROR_CAUSE_CLASS_HEADER);
     return result;
   }
 
@@ -66,7 +88,7 @@ public class RemoteExceptionHandler
 
     StringBuilder result = new StringBuilder(exceptionName.length() + 100);
     result.append("Remote exception");
-    String reqId = readChannel.getMetadata(DatabusRequest.DATABUS_REQUEST_ID_HEADER);
+    String reqId = readChannel.getMetadata(DatabusHttpHeaders.DATABUS_REQUEST_ID_HEADER);
     if (null != reqId) result.append(" for request id");
     result.append(":");
     result.append(exceptionName);
@@ -123,15 +145,21 @@ public class RemoteExceptionHandler
 
     // send an error event to dispatcher through dbusEventBuffer
 
-    DbusEventInternalWritable errorEvent = null;
+    DbusEventInternalReadable errorEvent = null;
     if (exception instanceof BootstrapDatabaseTooOldException)
     {
-    	errorEvent =  DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID));
+      errorEvent = _eventFactory.createErrorEvent(
+          new DbusErrorEvent(exception, DbusEventInternalWritable.BOOTSTRAPTOOOLD_ERROR_SRCID));
     }
     else if (exception instanceof PullerRetriesExhaustedException)
-    	errorEvent = DbusEventV1.createErrorEvent(new DbusErrorEvent(exception, DbusEvent.PULLER_RETRIES_EXPIRED));
+    {
+      errorEvent = _eventFactory.createErrorEvent(
+          new DbusErrorEvent(exception, DbusEventInternalWritable.PULLER_RETRIES_EXPIRED));
+    }
     else
+    {
     	throw new InvalidEventException("Got an unrecognizable exception ");
+    }
     byte[] errorEventBytes = new byte[errorEvent.getRawBytes().limit()];
 
     if (LOG.isDebugEnabled())

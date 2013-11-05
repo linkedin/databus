@@ -22,6 +22,7 @@ dependencies {
 
   testCompile externalDependency.testng
   testCompile externalDependency.easymock
+  testCompile project(':databus-core:databus-core-fwk-test')
 }
 
 test.useTestNG()

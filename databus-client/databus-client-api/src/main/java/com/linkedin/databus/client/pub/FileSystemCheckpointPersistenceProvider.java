@@ -81,21 +81,20 @@ public class FileSystemCheckpointPersistenceProvider extends CheckpointPersisten
     this (new Config(), 2);
   }
 
-  public FileSystemCheckpointPersistenceProvider(Config config, int version) throws InvalidConfigException
+  public FileSystemCheckpointPersistenceProvider(Config config, int protocolVersion) throws InvalidConfigException
   {
-    this(config.build(), version);
+    this(config.build(), protocolVersion);
   }
 
-  public FileSystemCheckpointPersistenceProvider(StaticConfig config, int version) throws InvalidConfigException
+  public FileSystemCheckpointPersistenceProvider(StaticConfig config, int protocolVersion) throws InvalidConfigException
   {
-    super(version);
+    super(protocolVersion);
     _staticConfig = config;
     _cache = new HashMap<String, CacheEntry>(100);
 
     _staticConfig.getRuntime().setManagedInstance(this);
     _configManager = new ConfigManager<RuntimeConfig>(_staticConfig.getRuntimeConfigPrefix(),
                                                       _staticConfig.getRuntime());
-
   }
 
   public StaticConfig getStaticConfig()
@@ -104,8 +103,7 @@ public class FileSystemCheckpointPersistenceProvider extends CheckpointPersisten
   }
 
   @Override
-  public Checkpoint loadCheckpointV3(List<DatabusSubscription> subs,
-		  							 RegistrationId registrationId)
+  public Checkpoint loadCheckpointV3(List<DatabusSubscription> subs, RegistrationId registrationId)
   {
     return loadCheckpointInternal(convertSubsToListOfStrings(subs), registrationId);
   }
@@ -119,8 +117,7 @@ public class FileSystemCheckpointPersistenceProvider extends CheckpointPersisten
   }
 
   @Override
-  public void removeCheckpointV3(List<DatabusSubscription> subs,
-		  						 RegistrationId registrationId)
+  public void removeCheckpointV3(List<DatabusSubscription> subs, RegistrationId registrationId)
   {
    removeCheckpointInternal(convertSubsToListOfStrings(subs), registrationId);
   }
@@ -128,19 +125,19 @@ public class FileSystemCheckpointPersistenceProvider extends CheckpointPersisten
   @Override
   public Checkpoint loadCheckpoint(List<String> sourceNames)
   {
-	  return loadCheckpointInternal(sourceNames, null);
+    return loadCheckpointInternal(sourceNames, null);
   }
 
   @Override
   public void storeCheckpoint(List<String> sourceNames, Checkpoint checkpoint) throws IOException
   {
-	  storeCheckpointInternal(sourceNames, checkpoint, null);
+    storeCheckpointInternal(sourceNames, checkpoint, null);
   }
 
   @Override
   public void removeCheckpoint(List<String> sourceNames)
   {
-	  removeCheckpointInternal(sourceNames, null);
+    removeCheckpointInternal(sourceNames, null);
   }
 
   private Checkpoint loadCheckpointInternal(List<String> sourceNames, RegistrationId registrationId)
@@ -324,7 +321,7 @@ public class FileSystemCheckpointPersistenceProvider extends CheckpointPersisten
     	  _rootDirectory = _staticConfig.getRootDirectory();
       else
     	  _rootDirectory = new File (_staticConfig.getRootDirectory(), _registrationId.getId());
-      boolean success = _rootDirectory.mkdirs();
+      boolean success = _rootDirectory.exists() || _rootDirectory.mkdirs();
 
       if ( ! success )
       {

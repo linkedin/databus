@@ -47,8 +47,10 @@ public class NettyHttpConnectionFactory
   private final ChannelFactory _channelFactory;
   private final long _writeTimeoutMs;
   private final long _readTimeoutMs;
-  private final int _version;
+  private final long _bstReadTimeoutMs;
+  private final int _protocolVersion;
   private final ChannelGroup _channelGroup; //provides automatic channel closure on shutdown
+  private final int _maxEventVersion;
 
   public NettyHttpConnectionFactory(ExecutorService bossThreadPool,
                                     ExecutorService ioThreadPool,
@@ -56,7 +58,9 @@ public class NettyHttpConnectionFactory
                                     Timer timeoutTimer,
                                     long writeTimeoutMs,
                                     long readTimeoutMs,
-                                    int version,
+                                    long bstReadTimeoutMs,
+                                    int protocolVersion,
+                                    int maxEventVersion,
                                     ChannelGroup channelGroup)
   {
     super();
@@ -66,16 +70,18 @@ public class NettyHttpConnectionFactory
     _timeoutTimer = timeoutTimer;
     _writeTimeoutMs = writeTimeoutMs;
     _readTimeoutMs = readTimeoutMs;
-    _version = version;
+    _bstReadTimeoutMs = bstReadTimeoutMs;
+    _protocolVersion = protocolVersion;
     _channelFactory = new NioClientSocketChannelFactory(_bossThreadPool, _ioThreadPool);
     _channelGroup = channelGroup;
+    _maxEventVersion = maxEventVersion;
   }
 
   @Override
   public DatabusRelayConnection createRelayConnection(ServerInfo relay,
                                                       ActorMessageQueue callback,
                                                       RemoteExceptionHandler remoteExceptionHandler)
-    throws IOException
+  throws IOException
   {
     return new NettyHttpDatabusRelayConnection(relay,
                                                callback,
@@ -85,7 +91,8 @@ public class NettyHttpConnectionFactory
                                                _timeoutTimer,
                                                _writeTimeoutMs,
                                                _readTimeoutMs,
-                                               _version,
+                                               _protocolVersion,
+                                               _maxEventVersion,
                                                _channelGroup);
   }
 
@@ -93,7 +100,7 @@ public class NettyHttpConnectionFactory
   public DatabusBootstrapConnection createConnection(ServerInfo relay,
                                                      ActorMessageQueue callback,
                                                      RemoteExceptionHandler remoteExceptionHandler)
-    throws IOException
+  throws IOException
   {
     return new NettyHttpDatabusBootstrapConnection(relay,
                                                    callback,
@@ -102,8 +109,8 @@ public class NettyHttpConnectionFactory
                                                    remoteExceptionHandler,
                                                    _timeoutTimer,
                                                    _writeTimeoutMs,
-                                                   _readTimeoutMs,
-                                                   _version,
+                                                   _bstReadTimeoutMs,
+                                                   _protocolVersion,  // not used?
                                                    _channelGroup);
   }
 

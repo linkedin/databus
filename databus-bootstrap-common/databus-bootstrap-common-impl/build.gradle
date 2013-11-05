@@ -13,4 +13,5 @@ dependencies {
   compile externalDependency.avro
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
+  
 }

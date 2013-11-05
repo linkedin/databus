@@ -19,6 +19,7 @@ package com.linkedin.databus2.core.container.request;
 */
 
 
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -87,10 +88,10 @@ public class CommandsRegistry
    * @param opcode          the TCP command opcode
    * @return the parser or null if no such command has been registered.
    */
-  public BinaryCommandParser createParser(byte opcode, Channel channel)
+  public BinaryCommandParser createParser(byte opcode, Channel channel, ByteOrder byteOrder)
   {
     BinaryCommandParserFactory factory = _binaryParsers.get(opcode);
-    return (null != factory) ? factory.createParser(channel) : null;
+    return (null != factory) ? factory.createParser(channel, byteOrder) : null;
   }
 
   /**

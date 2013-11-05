@@ -25,6 +25,7 @@ package com.linkedin.databus.client.pub;
  * <ul>
  *  <li>SUCCESS - callback finished successfully</li>
  *  <li>CHECKPOINT - callback finished successfully and consumer is ready for a checkpoint</li>
+ *  <li>SKIP_CHECKPOINT - onCheckpoint callback finished without error but consumer hasn't saved interim work and doesn't want current checkpoint to be persisted </li>
  *  <li>ERROR - callback finished unsuccessfully; the Databus library should retry the call</li>
  *  <li>ERROR_FATAL - callback finished unsuccessfully with an unrecoverable error</li>
  * </ul>
@@ -33,6 +34,7 @@ public enum ConsumerCallbackResult
 {
   SUCCESS(0),
   CHECKPOINT(100),
+  SKIP_CHECKPOINT(150),
   ERROR(200),
   ERROR_FATAL(300);
 
@@ -50,12 +52,17 @@ public enum ConsumerCallbackResult
 
   public static boolean isSuccess(ConsumerCallbackResult resultCode)
   {
-    return SUCCESS == resultCode || CHECKPOINT == resultCode;
+    return SUCCESS == resultCode || CHECKPOINT == resultCode || SKIP_CHECKPOINT==resultCode;
   }
 
   public static boolean isFailure(ConsumerCallbackResult resultCode)
   {
     return ERROR == resultCode || ERROR_FATAL == resultCode;
+  }
+
+  public static boolean isSkipCheckpoint(ConsumerCallbackResult resultCode)
+  {
+    return SKIP_CHECKPOINT == resultCode;
   }
 
   /** Returns the more severe result code */

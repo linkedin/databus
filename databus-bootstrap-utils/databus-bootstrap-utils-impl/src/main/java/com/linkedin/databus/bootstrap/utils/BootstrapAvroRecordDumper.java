@@ -37,7 +37,7 @@ import org.apache.log4j.Logger;
 
 import com.linkedin.databus.core.DbusEvent;
 
-public class BootstrapAvroRecordDumper 
+public class BootstrapAvroRecordDumper
 {
 	public static final String MODULE = BootstrapAvroRecordDumper.class.getName();
 	public static final Logger LOG = Logger.getLogger(MODULE);
@@ -46,7 +46,7 @@ public class BootstrapAvroRecordDumper
 	public static final char   OUTPUT_DIR_OPT_CHAR = 'o';
 
 	public static String outputDir = null;
-	
+
 	public static void main(String[] args)
 			throws Exception
 	{
@@ -79,7 +79,7 @@ public class BootstrapAvroRecordDumper
 			LOG.fatal("Bootstrap Avro Record Dumper: failed to parse command-line options.", pe);
 			throw new RuntimeException("Bootstrap Avro Record Dumper: failed to parse command-line options.", pe);
 		}
-		
+
 		if (cmd.hasOption(OUTPUT_DIR_OPT_CHAR))
 		{
 			outputDir = cmd.getOptionValue(OUTPUT_DIR_OPT_CHAR);
@@ -109,7 +109,7 @@ public class BootstrapAvroRecordDumper
 		}
 
 		@Override
-		public void onRecord(DbusEvent event, GenericRecord record) 
+		public void onRecord(DbusEvent event, GenericRecord record)
 		{
 			try {
 				writer.append(record);
@@ -120,13 +120,13 @@ public class BootstrapAvroRecordDumper
 		}
 
 		@Override
-		public void onStart(String query) 
+		public void onStart(String query)
 		{
 			_query = query;
 		}
 
 		@Override
-		public void onEnd(int count) 
+		public void onEnd(int count)
 		{
 			System.out.println("Read " + count + " records by executing query :( " + _query + ")");
 		}

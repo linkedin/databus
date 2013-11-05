@@ -21,24 +21,20 @@ package com.linkedin.databus.client.consumer;
 
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 
+import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 
 /**
- *
- * @author pganti
- *
- * A class that describes the registration of a consumer or a group of consumers
- * to a list of sources
+ * A class that describes the registration of a consumer or a group of consumers to a list of sources
  */
-public class ConsumerRegistration<C>
+public class ConsumerRegistration
 {
-  protected final List<C> _consumers;
-  protected final List<DatabusSubscription> _sources;
+  protected final List<DatabusCombinedConsumer> _consumers;
+  protected final List<DatabusSubscription> _subs;
   protected final Random _rng;
   protected  final DbusKeyCompositeFilterConfig _filterConfig;
 
@@ -46,24 +42,15 @@ public class ConsumerRegistration<C>
    * Keep the ConsumerRegistration with List<String> sources interface around for backward
    * compatibility
    */
-  public ConsumerRegistration(C consumer, List<String> sources, DbusKeyCompositeFilterConfig filterConfig)
+  public ConsumerRegistration(DatabusCombinedConsumer consumer, List<String> sources, DbusKeyCompositeFilterConfig filterConfig)
   {
     this(consumer, null, DatabusSubscription.createSubscriptionList(sources), filterConfig);
   }
 
   /**
-   *
    * Registration for a group of consumers to a list of sources
    */
-  public ConsumerRegistration(C[] consumers, List<String> sources, DbusKeyCompositeFilterConfig filterConfig)
-  {
-    this(null, Arrays.asList(consumers), DatabusSubscription.createSubscriptionList(sources), filterConfig );
-  }
-
-  /**
-   * Registration for a group of consumers to a list of sources
-   */
-  public ConsumerRegistration(List<C> consumers, List<String> sources, DbusKeyCompositeFilterConfig filterConfig)
+  public ConsumerRegistration(List<DatabusCombinedConsumer> consumers, List<String> sources, DbusKeyCompositeFilterConfig filterConfig)
   {
     this(null, consumers, DatabusSubscription.createSubscriptionList(sources), filterConfig);
   }
@@ -72,7 +59,7 @@ public class ConsumerRegistration<C>
    * For single-consumer registrations, returns the consumer. For multi-consumer registration,
    * returns a random consumer from the group (for load balancing purposes).
    */
-  public C getConsumer()
+  public DatabusCombinedConsumer getConsumer()
   {
 	  /**
 	   * A single consumer is a trivial case of a multi-consumer with num consumers = 1
@@ -85,7 +72,7 @@ public class ConsumerRegistration<C>
    * Returns the group of consumers for multi-consumer registrations or a singleton list for
    * single-consumer registrations.
    */
-  public List<C> getConsumers()
+  public List<DatabusCombinedConsumer> getConsumers()
   {
     return _consumers;
   }
@@ -95,7 +82,7 @@ public class ConsumerRegistration<C>
    */
   public List<String> getSources()
   {
-    return DatabusSubscription.getStrList(_sources);
+    return DatabusSubscription.getStrList(_subs);
   }
 
   /**
@@ -103,16 +90,16 @@ public class ConsumerRegistration<C>
    */
   public List<DatabusSubscription> getSubscriptions()
   {
-    return _sources;
+    return _subs;
   }
 
   /**
    * Checks if the registration covers a given source
    */
-  public boolean checkSourceSubscription(DatabusSubscription sourceName)
+  public boolean checkSourceSubscription(DatabusSubscription sub)
   {
-    for(DatabusSubscription dSub : _sources) {
-      if(dSub.equals(sourceName))
+    for(DatabusSubscription dSub : _subs) {
+      if(dSub.equals(sub))
         return true;
     }
     return false;
@@ -122,8 +109,8 @@ public class ConsumerRegistration<C>
 	return _filterConfig;
   }
 
-  protected ConsumerRegistration(C consumer, List<C> consumers,
-		  List<DatabusSubscription> sources,
+  protected ConsumerRegistration(DatabusCombinedConsumer consumer, List<DatabusCombinedConsumer> consumers,
+		  List<DatabusSubscription> subs,
 		  DbusKeyCompositeFilterConfig filterConfig)
   {
 	  super();
@@ -140,7 +127,7 @@ public class ConsumerRegistration<C>
 
 	  if (null == consumers)
 	  {
-		  _consumers = new ArrayList<C>();
+		  _consumers = new ArrayList<DatabusCombinedConsumer>();
 		  _consumers.add(consumer);
 	  }
 	  else
@@ -148,13 +135,13 @@ public class ConsumerRegistration<C>
 		  _consumers = consumers;
 	  }
 
-	  _sources = sources;
+	  _subs = new ArrayList<DatabusSubscription>(subs);
 	  _filterConfig = filterConfig;
 	  _rng = new Random();
   }
 
 
-  public static List<String> createStringFromAllSubscriptionFromRegistration(ConsumerRegistration<?> reg)
+  public static List<String> createStringFromAllSubscriptionFromRegistration(ConsumerRegistration reg)
   {
 	  List<DatabusSubscription> subscriptions = reg.getSubscriptions();
 

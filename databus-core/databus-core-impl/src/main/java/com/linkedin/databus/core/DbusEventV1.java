@@ -18,28 +18,15 @@ package com.linkedin.databus.core;
  *
 */
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.channels.WritableByteChannel;
-import java.util.Map;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParseException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
 
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.util.Base64;
-import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.util.ByteBufferCRC32;
+import com.linkedin.databus.core.util.StringUtils;
+import com.linkedin.databus.core.util.TimeUtils;
 import com.linkedin.databus.core.util.Utils;
 
 /**
@@ -55,8 +42,8 @@ import com.linkedin.databus.core.util.Utils;
  * <tr>
  *    <th colspan="5">Header (61 bytes for events with long keys, 57 bytes + key length)</th>
  * </tr>
- * <tr> <td>MagicByte</td> <td>0</td> <td>byte</td> <td>1</td> <td> A special value denoting the
- * beginning of a message </td> </tr>
+ * <tr> <td>Version</td> <td>0</td> <td>byte</td> <td>1</td> <td> A value denoting the
+ * version of the message format</td> </tr>
  * <tr> <td>HeaderCrc</td> <td>1</td> <td>int</td> <td>4</td> <td>CRC computed over the header</td> </tr>
  * <tr> <td>Length</td> <td>5</td> <td>int</td> <td>4</td> <td>Total length of the event in bytes
  * (fixed-length header + variable-length payload) </td> </tr>
@@ -155,13 +142,13 @@ import com.linkedin.databus.core.util.Utils;
  * <li> [1, {@link java.lang.Short.MAX_VALUE}] - data source ids</li>
  * <li> [{@link java.lang.Short.MIN_VALUE}, 0] - system source ids
  *   <ul>
- *   <li> [{@link #PRIVATE_RANGE_MAX_SRCID} + 1, 0] - global system source ids. These control
+ *   <li> [{@link com.linkedin.databus.core.DbusEventInternalWritable#PRIVATE_RANGE_MAX_SRCID} + 1, 0] - global system source ids. These control
  *   messages will be transmitted to other Databus components over the network
  *     <ul>
  *     <li>-3 - Checkpoint event</li>
  *     </ul>
  *   </li>
- *   <li> [{@link java.lang.Short.MIN_VALUE}, {@link #PRIVATE_RANGE_MAX_SRCID}] - private system
+ *   <li> [{@link java.lang.Short.MIN_VALUE}, {@link com.linkedin.databus.core.DbusEventInternalWritable#PRIVATE_RANGE_MAX_SRCID}] - private system
  *   source ids. These messages are used for internal communication inside a Databus component and
  *   are not transmitted to other Databus components.
  *   </ul>
@@ -170,53 +157,51 @@ import com.linkedin.databus.core.util.Utils;
  *
  * </table>
  */
-public class DbusEventV1
-implements DbusEventInternalWritable, Cloneable
+public class DbusEventV1 extends DbusEventSerializable
+implements Cloneable
 {
   public static final String MODULE = DbusEventV1.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
 
-
-  public static volatile ByteOrder byteOrder = ByteOrder.BIG_ENDIAN;
-
   /** Serialization Format is :
-   * MagicByte (1 byte)
-   * HeaderCrc (4 bytes) // Crc to protect the header from being corrupted
-   * Length (4 bytes)
-   * Attributes (2 byte)  // Key-type, Trace marker, Event-opcode
-   * Sequence (8 bytes)  // Sequence number for the event window in which this event was generated
-   * Physical PartitionId (2 byte) // Short physical partition-id -> represents a sequence generator
-   * Logical PartitionId (2 byte) // Short logical partition-id -> represents a logical partition of the physical stream
-   * NanoTimestamp (8 bytes)  // Time (in nanoseconds) at which the event was generated
-   * SrcId (short) // SourceId for the event
-   * SchemaId (short) // 16-byte hash for the schema used to generate the event
-   * ValueCrc (4 bytes)   // Crc to protect the value from being corrupted
-   * Key (8 bytes long key)  or KeySize (4 bytes for byte[] key)
-   * Key Bytes (k bytes for byte[] key)
-   * Value (N bytes)      // Serialized Event
+   * <pre>
+   *   Version (1 byte)               // 0 for DbusEventV1 (historical), 2 for DbusEventV2
+   *   HeaderCrc (4 bytes)            // CRC to protect the header from being corrupted
+   *   Length (4 bytes)
+   *   Attributes (2 bytes)           // Key-type, Trace marker, Event-opcode
+   *   Sequence (8 bytes)             // Sequence number for the event window in which this event was generated
+   *   Physical PartitionId (2 bytes) // Short physical partition-id -> represents a sequence generator
+   *   Logical PartitionId (2 bytes)  // Short logical partition-id -> represents a logical partition of the physical stream
+   *   NanoTimestamp (8 bytes)        // Time (in nanoseconds) at which the event was generated
+   *   SrcId (short)                  // SourceId for the event
+   *   SchemaId (16 bytes)            // 16-byte hash (digest) of the schema used to generate the event
+   *   ValueCrc (4 bytes)             // CRC to protect the value from being corrupted
+   *   Key (8 bytes long key)  or KeySize (4 bytes for byte[] key)
+   *   Key Bytes (k bytes for byte[] key)
+   *   Value (N bytes)                // Serialized Event
+   * </pre>
    */
 
-  public static final Byte CurrentMagicValue = 0;
-  private static final int MagicOffset = 0;
-  public static final int MagicLength = 1;
-  private static final int HeaderCrcOffset = MagicOffset + MagicLength;
+  private static final int VersionOffset = 0;
+  private static final int VersionLength = 1;
+  private static final int HeaderCrcOffset = VersionOffset + VersionLength;
   private static final int HeaderCrcLength = 4;
   private static final int HeaderCrcDefault = 0;
   //used by the SendEvents command to determine the size of the incoming event
-  public static final int LengthOffset = HeaderCrcOffset + HeaderCrcLength;
-  public static final int LengthLength = 4;
+  private static final int LengthOffset = HeaderCrcOffset + HeaderCrcLength;
+  private static final int LengthLength = 4;
   private static final int AttributesOffset = LengthOffset + LengthLength;
   private static final int AttributesLength = 2;
-  public static final int SequenceOffset = AttributesOffset + AttributesLength;
-  public static final int SequenceLength = 8;
-  public static final int PhysicalPartitionIdOffset = SequenceOffset + SequenceLength;
-  public static final int PhysicalPartitionIdLength = 2;
-  public static final int LogicalPartitionIdOffset = PhysicalPartitionIdOffset + PhysicalPartitionIdLength;
-  public static final int LogicalPartitionIdLength = 2;
-  public static final int TimestampOffset = LogicalPartitionIdOffset + LogicalPartitionIdLength;
-  public static final int TimestampLength = 8;
-  public static final int SrcIdOffset = TimestampOffset + TimestampLength;
-  public static final int SrcIdLength = 2;
+  private static final int SequenceOffset = AttributesOffset + AttributesLength;
+  private static final int SequenceLength = 8;
+  private static final int PhysicalPartitionIdOffset = SequenceOffset + SequenceLength;
+  private static final int PhysicalPartitionIdLength = 2;
+  private static final int LogicalPartitionIdOffset = PhysicalPartitionIdOffset + PhysicalPartitionIdLength;
+  private static final int LogicalPartitionIdLength = 2;
+  private static final int TimestampOffset = LogicalPartitionIdOffset + LogicalPartitionIdLength;
+  private static final int TimestampLength = 8;
+  private static final int SrcIdOffset = TimestampOffset + TimestampLength;
+  private static final int SrcIdLength = 2;
   private static final int SchemaIdOffset = SrcIdOffset + SrcIdLength;
   private static final int SchemaIdLength = 16;
   private static final int ValueCrcOffset = SchemaIdOffset + SchemaIdLength;
@@ -228,191 +213,123 @@ implements DbusEventInternalWritable, Cloneable
   private static final int StringKeyLengthLength = 4;
   private static final int StringKeyOffset = StringKeyLengthOffset + StringKeyLengthLength;
 
-
-  private static int KeyLength(byte[] key) { return (key.length + StringKeyLengthLength); } // length of the string + 4 bytes to write the length}
-  private static int LongKeyValueOffset() { return (LongKeyOffset + LongKeyLength); }
-
-  private static int StringValueOffset(int keyLength) { return (StringKeyOffset + keyLength); }
   private static int LongKeyHeaderSize = LongKeyValueOffset - LengthOffset;
   private static int StringKeyHeaderSize = StringKeyOffset - LengthOffset;    // everything until the key length field is part of the header, for byte[] keys, we crc the key and value blobs together as part of the value crc
 
-  // Attribute masks follow
-  private static final int UPSERT_MASK = 0x01;
-  private static final int DELETE_MASK = 0x02;
-  private static final int TRACE_FLAG_MASK = 0x04;
-  private static final int KEY_TYPE_MASK = 0x08;
-  private static final int EXT_REPLICATED_EVENT_MASK = 0x0100;
-  private static final int MinHeaderSize = LongKeyOffset  ;
-  private static final int MaxHeaderSize = Math.max(LongKeyValueOffset,StringKeyOffset);
+  // Attribute masks follow.  Note that AttributesLength forever limits us to 16 bits for V1 events.
+  private static final int UPSERT_MASK               = 0x0001;
+  private static final int DELETE_MASK               = 0x0002;
+  private static final int TRACE_FLAG_MASK           = 0x0004;
+  private static final int KEY_TYPE_MASK             = 0x0008;
+  private static final int EXT_REPLICATED_EVENT_MASK = 0x0100; // why is this not 0x0010?  (DbusEvent.pdf concurs, sigh)
 
-  private int serializedKeyLength() { if (isKeyString()) { return (StringKeyLengthLength + buf.getInt(position+StringKeyLengthOffset)); } else { return LongKeyLength; } }
+  private static final int MinHeaderSize = LongKeyOffset;
+  private static final int MaxHeaderSize = Math.max(LongKeyValueOffset, StringKeyOffset);
 
-  private boolean inited;
+  private static final byte[] EmptyAttributesBigEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] UpsertLongKeyAttributesBigEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] UpsertStringKeyAttributesBigEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] DeleteLongKeyAttributesBigEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] DeleteStringKeyAttributesBigEndian = new byte[DbusEventV1.AttributesLength];
 
-
-  private static final TypeReference<Map<String, Object>> JSON_GENERIC_MAP_TYPEREF = new TypeReference<Map<String, Object>>(){};
-
-  private static byte[] emptyValue = "".getBytes();
-  public static byte[] emptymd5 = new byte[16];
-  static final DbusEventKey EOPMarkerKey = new DbusEventKey(0L);
-  public static final byte[] EOPMarkerValue = emptyValue;
-  static final byte[] EmptyAttributes = new byte[DbusEventV1.AttributesLength];
-  static final byte[] UpsertLongKeyAttributes = new byte[DbusEventV1.AttributesLength];
-  static final byte[] UpsertStringKeyAttributes = new byte[DbusEventV1.AttributesLength];
-
+  private static final byte[] EmptyAttributesLittleEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] UpsertLongKeyAttributesLittleEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] UpsertStringKeyAttributesLittleEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] DeleteLongKeyAttributesLittleEndian = new byte[DbusEventV1.AttributesLength];
+  private static final byte[] DeleteStringKeyAttributesLittleEndian = new byte[DbusEventV1.AttributesLength];
 
   static
   {
-    for (int i=0; i< DbusEventV1.AttributesLength;++i)
-    {
-      EmptyAttributes[i] = 0;
-      UpsertLongKeyAttributes[i] = 0;
-      UpsertStringKeyAttributes[i] = 0;
-    }
+    // array elements automatically initialized to default value for type (byte:  0)
 
-    setOpcode(UpsertLongKeyAttributes, DbusOpcode.UPSERT);
-    setOpcode(UpsertStringKeyAttributes, DbusOpcode.UPSERT);
-    setKeyTypeString(UpsertStringKeyAttributes);
-  }
+    setOpcode(UpsertLongKeyAttributesBigEndian, DbusOpcode.UPSERT, ByteOrder.BIG_ENDIAN);
+    setOpcode(UpsertStringKeyAttributesBigEndian, DbusOpcode.UPSERT, ByteOrder.BIG_ENDIAN);
+    setKeyTypeString(UpsertStringKeyAttributesBigEndian, ByteOrder.BIG_ENDIAN);
 
-  // Making this internal writable since RemoteExcveptionHandler wants raw bytes out of it.
-  // TODO Make it readable.
-  public static DbusEventInternalWritable createErrorEvent(DbusErrorEvent errorEvent)
-  {
-    byte[] serializedErrorEvent = errorEvent.toString().getBytes();
-    ByteBuffer tmpBuffer = ByteBuffer.allocate(serializedErrorEvent.length + LongKeyValueOffset).order(DbusEventV1.byteOrder);
-    byte[] attributes = EmptyAttributes;
-    DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT,
-                                                0L,
-                                                (short)-1,
-                                                (short) 0,
-                                                System.nanoTime(),
-                                                errorEvent.getErrorId(),
-                                                emptymd5,
-                                                serializedErrorEvent,
-                                                false, //enable tracing
-                                                true // autocommit
-                                                );
-    serializeFullEvent(0L, tmpBuffer, eventInfo, attributes);
-    DbusEventV1 event = new DbusEventV1(tmpBuffer, 0);
-    return event;
-  }
+    setOpcode(DeleteLongKeyAttributesBigEndian, DbusOpcode.DELETE, ByteOrder.BIG_ENDIAN);
+    setOpcode(DeleteStringKeyAttributesBigEndian, DbusOpcode.DELETE, ByteOrder.BIG_ENDIAN);
+    setKeyTypeString(DeleteStringKeyAttributesBigEndian, ByteOrder.BIG_ENDIAN);
 
-  public static DbusErrorEvent getErrorEventFromDbusEvent(DbusEventInternalReadable event)
-  {
-    if (!event.isErrorEvent())
-    {
-      throw new RuntimeException("Event is expected to be an error event: " + event);
-    }
+    setOpcode(UpsertLongKeyAttributesLittleEndian, DbusOpcode.UPSERT, ByteOrder.LITTLE_ENDIAN);
+    setOpcode(UpsertStringKeyAttributesLittleEndian, DbusOpcode.UPSERT, ByteOrder.LITTLE_ENDIAN);
+    setKeyTypeString(UpsertStringKeyAttributesLittleEndian, ByteOrder.LITTLE_ENDIAN);
 
-    ByteBuffer valueBuffer = event.value();
-    byte[] valueBytes = new byte[valueBuffer.limit()];
-    valueBuffer.get(valueBytes);
-    try
-    {
-      DbusErrorEvent errorEvent = DbusErrorEvent.createDbusErrorEvent(new String(valueBytes));
-      return errorEvent;
-    }
-    catch (JsonParseException e)
-    {
-      throw new RuntimeException(e);
-    }
-    catch (JsonMappingException e)
-    {
-      throw new RuntimeException(e);
-    }
-    catch (IOException e)
-    {
-      throw new RuntimeException(e);
-    }
-
+    setOpcode(DeleteLongKeyAttributesLittleEndian, DbusOpcode.DELETE, ByteOrder.LITTLE_ENDIAN);
+    setOpcode(DeleteStringKeyAttributesLittleEndian, DbusOpcode.DELETE, ByteOrder.LITTLE_ENDIAN);
+    setKeyTypeString(DeleteStringKeyAttributesLittleEndian, ByteOrder.LITTLE_ENDIAN);
   }
 
 
-  /**
-   * Utility method to create a DbusEvent with a SCNRegress message in it.
-   * @param message
-   * @return
-   */
-  public static DbusEvent createSCNRegressEvent(SCNRegressMessage message)
+  // near-empty constructor that doesn't create a useful event
+  public DbusEventV1()
   {
-	String regressMsg =   SCNRegressMessage.toJSONString(message);
-
-	if ( null == regressMsg)
-		return null;
-
-    byte[] serializedMsg = regressMsg.getBytes();
-    ByteBuffer tmpBuffer = ByteBuffer.allocate(serializedMsg.length + LongKeyValueOffset).order(DbusEventV1.byteOrder);
-    byte[] attributes = EmptyAttributes;
-    DbusEventInfo eventInfo = new DbusEventInfo(null,
-                                                message.getCheckpoint().getWindowScn(),
-                                                (short)-1,
-                                                (short) 0,
-                                                System.nanoTime(),
-                                                SCN_REGRESS,
-                                                emptymd5,
-                                                serializedMsg,
-                                                false, //enable tracing
-                                                true // autocommit
-                                                );
-    serializeFullEvent(0L, tmpBuffer, eventInfo, attributes);
-    DbusEventV1 event = new DbusEventV1(tmpBuffer, 0);
-    return event;
+    _inited = false;
   }
 
-
-  /**
-   * Utility method to create a DbusEvent with an embedded checkpoint in it.
-   * @param checkpoint
-   * @return
-   * TODO Make this some form of readable event since BootstrapPulleraThread calls it and wants raw bytes out of it.
-   */
-  public static DbusEventInternalWritable createCheckpointEvent(Checkpoint checkpoint)
+  public DbusEventV1(ByteBuffer buf, int position)
   {
-    byte[] serializedCheckpoint = checkpoint.toString().getBytes();
-    ByteBuffer tmpBuffer = ByteBuffer.allocate(serializedCheckpoint.length + LongKeyValueOffset).order(DbusEventV1.byteOrder);
-    byte[] attributes = EmptyAttributes;
-    DbusEventInfo eventInfo = new DbusEventInfo(null,
-                                                0L,
-                                                (short)-1,
-                                                (short) 0,
-                                                System.nanoTime(),
-                                                CHECKPOINT_SRCID,
-                                                emptymd5,
-                                                serializedCheckpoint,
-                                                false, //enable tracing
-                                                true // autocommit
-                                                );
-    serializeFullEvent(0L, tmpBuffer, eventInfo, attributes);
-    DbusEventV1 event = new DbusEventV1(tmpBuffer, 0);
-    return event;
+    resetInternal(buf, position);
+  }
+
+  private int serializedKeyLength()
+  {
+    if (isKeyString())
+    {
+      return (StringKeyLengthLength + _buf.getInt(_position+StringKeyLengthOffset));
+    }
+    else
+    {
+      return LongKeyLength;
+    }
+  }
+
+  private static int KeyLength(byte[] key) { return (key.length + StringKeyLengthLength); } // length of the string + 4 bytes to write the length
+  private static int LongKeyValueOffset() { return (LongKeyOffset + LongKeyLength); }
+
+  private static int StringValueOffset(int keyLength) { return (StringKeyOffset + keyLength); }
+
+  public static int getLengthOffset()
+  {
+    return LengthOffset;
+  }
+
+  public static int getLengthLength()
+  {
+    return LengthLength;
   }
 
   /**
    * Serializes an End-Of-Period Marker onto the ByteBuffer passed in.
-   * @param eventInfo - The timestamp to use for the EOP marker
    * @param serializationBuffer - The ByteBuffer to serialize the event in. The buffer must have enough space to accommodate
    *                              the event. (76 bytes)
+   * @param eventInfo - The timestamp to use for the EOP marker
    * @return the number of bytes written
    */
-  //public static int serializeEndOfPeriodMarker(long sequence, long timeStamp, ByteBuffer serializationBuffer,
-  //short pPartitionId, short lPartitionId)
   public static int serializeEndOfPeriodMarker(ByteBuffer serializationBuffer, DbusEventInfo eventInfo)
   {
-    byte[] attributes = EmptyAttributes;
-    return serializeFullEvent(EOPMarkerKey.getLongKey(), serializationBuffer, eventInfo, attributes);
+    byte[] attributes = (serializationBuffer.order() == ByteOrder.BIG_ENDIAN)?
+                        EmptyAttributesBigEndian : EmptyAttributesLittleEndian;
+    return serializeFullEvent(DbusEventInternalWritable.EOPMarkerKey.getLongKey(), serializationBuffer, eventInfo, attributes);
+  }
+
+  /**
+   * Creates an EOP event with a given sequence and partition number
+   * @return a ByteBuffer containing the event
+   */
+  public static ByteBuffer serializeEndOfPeriodMarker(long seq, short partN, ByteOrder byteOrder)
+  {
+    DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, seq, partN, partN,
+                                                TimeUtils.currentNanoTime(),
+                                                DbusEventInternalWritable.EOPMarkerSrcId,
+                                                new byte[16],
+                                                new byte[0], false, true);
+    ByteBuffer buf = ByteBuffer.allocate(DbusEventV1.MaxHeaderSize).order(byteOrder);
+    DbusEventV1.serializeEndOfPeriodMarker(buf, eventInfo);
+    return buf;
   }
 
   /**
    * non-threadsafe : serializationBuffer needs to be protected if multiple threads are writing to it concurrently
-   * @param key
-   * @param logicalPartitionId
-   * @param timeStampInNanos
-   * @param srcId
-   * @param schemaId
-   * @param value
-   * @param enableTracing
-   * @param serializationByteBuffer
    */
   public static int serializeEvent(DbusEventKey key,
                                    short pPartitionId,
@@ -423,7 +340,8 @@ implements DbusEventInternalWritable, Cloneable
                                    byte[] value,
                                    boolean enableTracing,
                                    ByteBuffer serializationBuffer)
-  throws KeyTypeNotImplementedException  {
+  throws KeyTypeNotImplementedException
+  {
     DbusEventInfo dbusEventInfo = new DbusEventInfo(DbusOpcode.UPSERT,
                                                     0L,
                                                     pPartitionId,
@@ -434,15 +352,14 @@ implements DbusEventInternalWritable, Cloneable
                                                     value,
                                                     enableTracing,
                                                     false /*autocommit*/);
-
     return serializeEvent(key, serializationBuffer, dbusEventInfo);
   }
 
   public static int serializeEvent(DbusEventKey key,
                                    ByteBuffer serializationBuffer,
                                    DbusEventInfo dbusEventInfo)
-  throws KeyTypeNotImplementedException {
-
+  throws KeyTypeNotImplementedException
+  {
     switch (key.getKeyType())
     {
     case LONG:
@@ -452,42 +369,52 @@ implements DbusEventInternalWritable, Cloneable
     default:
       throw new KeyTypeNotImplementedException();
     }
-                                   }
-
-  public static int serializeFullEvent(DbusEventKey key,
-                                       ByteBuffer serializationBuffer,
-                                       DbusEventInfo eventInfo)
-  {
-    int numBytes = 0;
-    switch (key.getKeyType())
-    {
-    case LONG:
-        numBytes = serializeLongKeyEvent(key.getLongKey(), serializationBuffer,eventInfo);
-        break;
-    case STRING:
-        numBytes = serializeStringKeyEvent(key.getStringKeyInBytes(), serializationBuffer, eventInfo);
-        break;
-    }
-
-    return numBytes;
   }
 
   private static int serializeLongKeyEvent(long key,
                                            ByteBuffer serializationBuffer,
-                                           DbusEventInfo eventInfo)  {
-    byte[] attributes = UpsertLongKeyAttributes.clone();
-    if(eventInfo.getOpCode() != null)
-      setOpcode(attributes, eventInfo.getOpCode());
+                                           DbusEventInfo eventInfo)
+  {
+    byte[] attributes = null;
+
+    // Event without explicit opcode specified should always be considered UPSERT or existing code will break
+    if (eventInfo.getOpCode() == DbusOpcode.DELETE) {
+      if (serializationBuffer.order() == ByteOrder.BIG_ENDIAN)
+        attributes = DeleteLongKeyAttributesBigEndian.clone();
+      else
+        attributes = DeleteLongKeyAttributesLittleEndian.clone();
+    } else {
+      if (serializationBuffer.order() == ByteOrder.BIG_ENDIAN)
+        attributes = UpsertLongKeyAttributesBigEndian.clone();
+      else
+        attributes = UpsertLongKeyAttributesLittleEndian.clone();
+    }
+
     if (eventInfo.isEnableTracing())
     {
-      setTraceFlag(attributes);
+      setTraceFlag(attributes, serializationBuffer.order());
     }
-    return (serializeFullEvent(key,
-                               serializationBuffer,
-                               eventInfo,
-                               attributes));
+    if (eventInfo.isReplicated())
+      setExtReplicationFlag(attributes, serializationBuffer.order());
+
+    return serializeFullEvent(key,
+                              serializationBuffer,
+                              eventInfo,
+                              attributes);
   }
 
+  /**
+   * Exposing this method only until we fix DDSDBUS-2282 is fixed.
+   * DO NOT USE THIS METHOD EVEN IN TESTS.
+   */
+  protected static int serializeFullEventWithEmptyAttributes(long key,
+                                                             ByteBuffer buf,
+                                                             DbusEventInfo eventInfo)
+  {
+    return serializeFullEvent(key, buf, eventInfo,
+                              (buf.order() == ByteOrder.BIG_ENDIAN)?
+                              EmptyAttributesBigEndian : EmptyAttributesLittleEndian);
+  }
 
   private static int serializeFullEvent(long key,
                                         ByteBuffer serializationBuffer,
@@ -495,25 +422,33 @@ implements DbusEventInternalWritable, Cloneable
                                         byte[] attributes)
   {
 
+    ByteBuffer valueBuffer = eventInfo.getValueByteBuffer();
+    int payloadLen = (valueBuffer == null) ? eventInfo.getValueLength() : valueBuffer.remaining();
+
     int startPosition = serializationBuffer.position();
-    serializationBuffer.put(CurrentMagicValue)
-    .putInt(HeaderCrcDefault)
-    .putInt(LongKeyValueOffset + eventInfo.getValue().length)
-    .put(attributes)
-    .putLong(eventInfo.getSequenceId())
-    .putShort(eventInfo.getpPartitionId())
-    .putShort(eventInfo.getlPartitionId())
-    .putLong(eventInfo.getTimeStampInNanos())
-    .putShort(eventInfo.getSrcId())
-    .put(eventInfo.getSchemaId(),0,16)
-    .putInt(HeaderCrcDefault)
-    .putLong(key)
-    .put(eventInfo.getValue());
+    serializationBuffer.put(DbusEventFactory.DBUS_EVENT_V1)
+                       .putInt(HeaderCrcDefault)
+                       .putInt(LongKeyValueOffset + payloadLen)
+                       .put(attributes)
+                       .putLong(eventInfo.getSequenceId())
+                       .putShort(eventInfo.getpPartitionId())
+                       .putShort(eventInfo.getlPartitionId())
+                       .putLong(eventInfo.getTimeStampInNanos())
+                       .putShort(eventInfo.getSrcId())
+                       .put(eventInfo.getSchemaId(),0,16)
+                       .putInt(HeaderCrcDefault)
+                       .putLong(key);
+    if(valueBuffer != null) {
+      // note. put will advance position. In the case of wrapped byte[] it is ok, in the case of
+      // ByteBuffer this is actually a read only copy of the buffer passed in.
+      serializationBuffer.put(valueBuffer);
+    }
+
     int stopPosition = serializationBuffer.position();
 
     long valueCrc = ByteBufferCRC32.getChecksum(serializationBuffer,
                                                 startPosition+LongKeyValueOffset,
-                                                eventInfo.getValue().length);
+                                                payloadLen);
     Utils.putUnsignedInt(serializationBuffer, startPosition+ValueCrcOffset, valueCrc);
 
     if (eventInfo.isAutocommit())
@@ -527,35 +462,58 @@ implements DbusEventInternalWritable, Cloneable
     return (stopPosition - startPosition);
   }
 
-
   private static int serializeStringKeyEvent(byte[] key,
                                              ByteBuffer serializationBuffer,
                                              DbusEventInfo eventInfo)
   {
+    ByteBuffer valueBuffer = eventInfo.getValueByteBuffer();
+    int payloadLen = (valueBuffer == null) ? eventInfo.getValueLength() : valueBuffer.remaining();
+
     int startPosition = serializationBuffer.position();
-    byte[] attributes = UpsertStringKeyAttributes.clone();
-    if(eventInfo.getOpCode() != null)
-      setOpcode(attributes, eventInfo.getOpCode());
-    if (eventInfo.isEnableTracing()) {
-      setTraceFlag(attributes);
+    byte[] attributes = null;
+
+    // Event without explicit opcode specified should always be considered UPSERT or existing code will break
+    if (eventInfo.getOpCode() == DbusOpcode.DELETE) {
+      if (serializationBuffer.order() == ByteOrder.BIG_ENDIAN)
+        attributes = DeleteStringKeyAttributesBigEndian.clone();
+      else
+        attributes = DeleteStringKeyAttributesLittleEndian.clone();
+    } else {
+      if (serializationBuffer.order() == ByteOrder.BIG_ENDIAN)
+        attributes = UpsertStringKeyAttributesBigEndian.clone();
+      else
+        attributes = UpsertStringKeyAttributesLittleEndian.clone();
     }
-    serializationBuffer.put(CurrentMagicValue)
-    .putInt(HeaderCrcDefault)
-    .putInt(StringValueOffset(key.length) + eventInfo.getValue().length)
-    .put(attributes)
-    .putLong(eventInfo.getSequenceId())
-    .putShort(eventInfo.getpPartitionId())
-    .putShort(eventInfo.getlPartitionId())
-    .putLong(eventInfo.getTimeStampInNanos())
-    .putShort(eventInfo.getSrcId())
-    .put(eventInfo.getSchemaId(),0,16)
-    .putInt(HeaderCrcDefault)
-    .putInt(key.length)
-    .put(key)
-    .put(eventInfo.getValue());
+
+    if (eventInfo.isEnableTracing()) {
+      setTraceFlag(attributes, serializationBuffer.order());
+    }
+
+    if (eventInfo.isReplicated())
+      setExtReplicationFlag(attributes, serializationBuffer.order());
+
+    serializationBuffer.put(DbusEventFactory.DBUS_EVENT_V1)
+                       .putInt(HeaderCrcDefault)
+                       .putInt(StringValueOffset(key.length) + payloadLen)
+                       .put(attributes)
+                       .putLong(eventInfo.getSequenceId())
+                       .putShort(eventInfo.getpPartitionId())
+                       .putShort(eventInfo.getlPartitionId())
+                       .putLong(eventInfo.getTimeStampInNanos())
+                       .putShort(eventInfo.getSrcId())
+                       .put(eventInfo.getSchemaId(),0,16)
+                       .putInt(HeaderCrcDefault)
+                       .putInt(key.length)
+                       .put(key);
+    if(valueBuffer != null){
+      // note. put will advance position. In the case of wrapped byte[] it is ok, in the case of
+      // ByteBuffer this is actually a read only copy of the buffer passed in.
+      serializationBuffer.put(valueBuffer);
+    }
+
     int stopPosition = serializationBuffer.position();
     long valueCrc = ByteBufferCRC32.getChecksum(serializationBuffer, startPosition+StringKeyOffset,
-                                                key.length+eventInfo.getValue().length);
+                                                key.length+payloadLen);
     Utils.putUnsignedInt(serializationBuffer, startPosition + ValueCrcOffset, valueCrc);
     if (eventInfo.isAutocommit())
     {
@@ -568,43 +526,12 @@ implements DbusEventInternalWritable, Cloneable
     return (stopPosition - startPosition);
   }
 
-
-  private boolean isAttributeBitSet(int mask) {
-    return ((buf.getShort(position+AttributesOffset) & mask) == mask);
-  }
-
-  private static void setOpcode(byte[] attribute, DbusOpcode opcode)
+  private static void setAttributeBit(byte[] attribute, int mask, ByteOrder byteOrder)
   {
-    switch (opcode)
+    if (mask > 0xffff)  // constrained by AttributesLength, which is exactly 2 for V1 events
     {
-    case UPSERT:
-        setAttributeBit(attribute, UPSERT_MASK);
-        break;
-    case DELETE:
-        setAttributeBit(attribute, DELETE_MASK);
-        break;
-    default:
-        throw new RuntimeException("Unknown DbusOpcode " + opcode.name());
+      throw new DatabusRuntimeException("attribute mask exceeds max size of attributes");  // or EventCreationException?  InvalidConfigException?
     }
-
-  }
-
-  @Override
-  public DbusOpcode getOpcode()
-  {
-    if (isAttributeBitSet(UPSERT_MASK))
-    {
-      return DbusOpcode.UPSERT;
-    }
-
-    if (isAttributeBitSet(DELETE_MASK))
-    {
-      return DbusOpcode.DELETE;
-    }
-    return null;
-  }
-
-  private static void setAttributeBit(byte[] attribute, int mask) {
     byte msByte = (byte)((mask & 0xff00) >> 8);
     byte lsByte = (byte)(mask & 0xff);
     if (byteOrder == ByteOrder.BIG_ENDIAN) {
@@ -616,63 +543,77 @@ implements DbusEventInternalWritable, Cloneable
     }
   }
 
-  public static void setTraceFlag(byte[] attribute) {
-    setAttributeBit(attribute, TRACE_FLAG_MASK);
+  private boolean isAttributeBitSet(int mask)
+  {
+    return ((_buf.getShort(_position+AttributesOffset) & mask) == mask);
+  }
+
+  private static void setOpcode(byte[] attribute, DbusOpcode opcode, ByteOrder byteOrder)
+  {
+    switch (opcode)
+    {
+      case UPSERT:
+        setAttributeBit(attribute, UPSERT_MASK, byteOrder);
+        break;
+      case DELETE:
+        setAttributeBit(attribute, DELETE_MASK, byteOrder);
+        break;
+      default:
+        throw new RuntimeException("Unknown DbusOpcode " + opcode.name());
+    }
   }
 
   @Override
-  public boolean isTraceEnabled() {
+  public DbusOpcode getOpcode()
+  {
+    if (isAttributeBitSet(UPSERT_MASK))
+    {
+      return DbusOpcode.UPSERT;
+    }
+    if (isAttributeBitSet(DELETE_MASK))
+    {
+      return DbusOpcode.DELETE;
+    }
+    return null;
+  }
+
+  private static void setTraceFlag(byte[] attribute, ByteOrder byteOrder)
+  {
+    setAttributeBit(attribute, TRACE_FLAG_MASK, byteOrder);
+  }
+
+  @Override
+  public boolean isTraceEnabled()
+  {
     return isAttributeBitSet(TRACE_FLAG_MASK);
   }
 
-  private static void setKeyTypeString(byte[] attributes) {
-    setAttributeBit(attributes, KEY_TYPE_MASK);
+  private static void setKeyTypeString(byte[] attributes, ByteOrder byteOrder)
+  {
+    setAttributeBit(attributes, KEY_TYPE_MASK, byteOrder);
   }
 
   @Override
-  public boolean isKeyString() {
+  public boolean isKeyString()
+  {
     return isAttributeBitSet(KEY_TYPE_MASK);
   }
 
   @Override
-  public boolean isKeyNumber() {
+  public boolean isKeySchema()
+  {
+    return false;
+  }
+
+  @Override
+  public boolean isKeyNumber()
+  {
     return !isAttributeBitSet(KEY_TYPE_MASK);
   }
 
-  @Override
-  public boolean isControlMessage() {
-    return DbusEventUtils.isControlSrcId(srcId());
-  }
-
-  @Override
-  public boolean isEndOfPeriodMarker() {
-    return (srcId() == EOPMarkerSrcId);
-  }
-
-  @Override
-  public boolean isPrivateControlMessage()
+  public static void setExtReplicationFlag(byte[] attribute, ByteOrder byteOrder)
   {
-    return (srcId() <= PRIVATE_RANGE_MAX_SRCID);
-  }
-
-  @Override
-  public boolean isCheckpointMessage()
-  {
-    return (srcId() == CHECKPOINT_SRCID);
-  }
-
-  @Override
-  public boolean isSCNRegressMessage()
-  {
-    return (srcId() == SCN_REGRESS);
-  }
-
-
-  @Override
-  public boolean isErrorEvent()
-  {
-    return (srcId() > PRIVATE_RANGE_MIN_ERROR_SRCID &&
-            srcId() < PRIVATE_RANGE_MAX_ERROR_SRCID);
+    setAttributeBit(attribute, EXT_REPLICATED_EVENT_MASK, byteOrder);
   }
 
   @Override
@@ -681,65 +622,45 @@ implements DbusEventInternalWritable, Cloneable
     return isAttributeBitSet(EXT_REPLICATED_EVENT_MASK);
   }
 
-  public static void setExtReplicationFlag(byte[] attribute)
-  {
-    setAttributeBit(attribute, EXT_REPLICATED_EVENT_MASK);
-  }
-
-  public DbusEventV1(ByteBuffer buf, int position) {
-    reset(buf, position);
-  }
-
-  public DbusEventV1()
-  {
-    // empty constructor that doesn't do anything useful.
-    inited = false;
-  }
-
-  private int position;
-  private ByteBuffer buf;
-
 
   @Override
-  public void reset(ByteBuffer buf, int position) {
-    inited = true;
-    this.buf = buf;
-    this.position = position;
-  }
-
-
-  public static int length(DbusEventKey key, byte[] value) throws KeyTypeNotImplementedException {
-
-    switch(key.getKeyType())
+  public DbusEventInternalReadable reset(ByteBuffer buf, int position)
+  {
+    if (buf.get(position) != DbusEventFactory.DBUS_EVENT_V1)
     {
-    case LONG: {
-      return (LongKeyOffset + LongKeyLength + value.length);
+      verifyByteOrderConsistency(buf, "DbusEventV1.reset()");
+      return DbusEventV2Factory.createReadOnlyDbusEventFromBufferUnchecked(buf, position);
     }
-    case STRING: {
-      return (StringKeyOffset + key.getStringKeyInBytes().length + value.length);
-    }
-    default: {
-      throw new KeyTypeNotImplementedException();
-    }
-    }
-
+    resetInternal(buf, position);  // could optionally add "where" arg here, too
+    return this;
   }
 
-  @Override
-  public void unsetInited()
+  public static int length(DbusEventKey key, int valueLen) throws KeyTypeNotImplementedException
   {
-    inited = false;
+    switch (key.getKeyType())
+    {
+      case LONG:
+        return (LongKeyOffset + LongKeyLength + valueLen);
+      case STRING:
+        return (StringKeyOffset + key.getStringKeyInBytes().length + valueLen);
+      default:
+        throw new KeyTypeNotImplementedException();
+    }
   }
 
   @Override
   public void applyCrc()  {
     //Re-compute the header crc
     int headerLength = headerLength();
-    long headerCrc = ByteBufferCRC32.getChecksum(buf, position+LengthOffset, headerLength);
-    Utils.putUnsignedInt(buf, position + HeaderCrcOffset, headerCrc);
+    long headerCrc = ByteBufferCRC32.getChecksum(_buf, _position+LengthOffset, headerLength);
+    Utils.putUnsignedInt(_buf, _position + HeaderCrcOffset, headerCrc);
   }
 
-  public int headerLength()  {
+  // Returns the number of bytes over which the HeaderCRC should be computed.
+  // For string keys, the Header CRC includes bytes starting with 'Length' field and up to the string-key-size field (inclusive),
+  // but not the string key itself. The string key is included in the body CRC.
+  // For long keys, the Header CRC includes bytes starting with 'Length' field and up to the long key value (inclusive).
+  protected int headerLength()  {
     if (!isKeyString()) {
       return LongKeyHeaderSize;
     }
@@ -749,6 +670,7 @@ implements DbusEventInternalWritable, Cloneable
   }
 
   @Override
+  // this is different from valueLength because it includes key length for string key
   public int payloadLength() {
     int overhead = LengthOffset;
     return (size() - headerLength() - overhead);
@@ -756,21 +678,22 @@ implements DbusEventInternalWritable, Cloneable
 
   @Override
   public void setSequence(long sequence) {
-    buf.putLong(position +SequenceOffset, sequence);
+    _buf.putLong(_position + SequenceOffset, sequence);
   }
 
   @Override
   public long sequence()
   {
-    return (buf.getLong(position + SequenceOffset));
+    return (_buf.getLong(_position + SequenceOffset));
   }
 
+  // If string key, returns the length of the key + 4. If long key, returns 8.
   @Override
   public int keyLength()
   {
     if (isKeyString())
     {
-      return (StringKeyLengthLength + buf.getInt(position+StringKeyLengthOffset));
+      return (StringKeyLengthLength + _buf.getInt(_position+StringKeyLengthOffset));
     }
     else
     {
@@ -778,46 +701,33 @@ implements DbusEventInternalWritable, Cloneable
     }
   }
 
+  @Override
+  public int keyBytesLength() {
+    assert isKeyString() : "Key type = " + _buf.getShort(_position + AttributesOffset);
+    return _buf.getInt(_position+StringKeyLengthOffset);
+  }
 
+  // Always returns the size of the payload.
   @Override
   public int valueLength()
   {
     return (size() - (LongKeyOffset + keyLength()));
   }
 
-
   @Override
-  public boolean isValid()
-  {
-    return isValid(true);
-  }
-
-  @Override
-  public boolean isPartial() {
+  protected boolean isPartial() {
 	  return isPartial(true);
   }
 
-  @Override
-  public HeaderScanStatus scanHeader() {
-	  return scanHeader(true);
-  }
-
-  @Override
-  public EventScanStatus scanEvent() {
-	  return scanEvent(true);
-  }
-
-
   /**
-   *
-   * @param logErrors
-   * @return PARTIAL if the event appears to be a partial event; ERR if the header is corrupt; OK if the event header is intact and the event appears to be complete
+   * @return PARTIAL if the event appears to be a partial event; ERR if the header is corrupted;
+   *         OK if the event header is intact and the event appears to be complete
    */
-
+  @Override
   protected HeaderScanStatus scanHeader(boolean logErrors) {
-	  if (!magic().equals(CurrentMagicValue)) {
+	  if (getVersion() != DbusEventFactory.DBUS_EVENT_V1) {
 	      if (logErrors) {
-	        LOG.error("unknown magic byte in header: " + magic());
+	        LOG.error("unknown version byte in header: " + getVersion());
 	      }
 		  return HeaderScanStatus.ERR;
 	  }
@@ -835,13 +745,13 @@ implements DbusEventInternalWritable, Cloneable
 		  return HeaderScanStatus.ERR;
 	  }
 	  int headerLength = headerLength();
-	  long calculatedHeaderCrc = ByteBufferCRC32.getChecksum(buf, position+LengthOffset, headerLength);
-	  if(calculatedHeaderCrc != this.headerCrc())
+	  long calculatedHeaderCrc = ByteBufferCRC32.getChecksum(_buf, _position+LengthOffset, headerLength);
+	  if(calculatedHeaderCrc != headerCrc())
 	  {
 		  if (logErrors)
 		  {
 		      LOG.error("Header CRC mismatch: ");
-			  LOG.error("headerCrc() = "+ this.headerCrc());
+			  LOG.error("headerCrc() = "+ headerCrc());
 			  LOG.error("calculatedCrc = "+ calculatedHeaderCrc);
 		  }
 		  return HeaderScanStatus.ERR;
@@ -851,12 +761,12 @@ implements DbusEventInternalWritable, Cloneable
 
 
   /**
+   * @return one of ERR / OK / PARTIAL
    *
-   * @param logErrors
-   * @return one of ERR/ OK / PARTIAL
+   * TODO:  should this also check _inited?  if _inited == false, presumably we should return ERR
    */
   @Override
-  public EventScanStatus scanEvent(boolean logErrors) {
+  protected EventScanStatus scanEvent(boolean logErrors) {
 	  HeaderScanStatus h = scanHeader(logErrors);
 
 	  if (h != HeaderScanStatus.OK)  {
@@ -872,18 +782,19 @@ implements DbusEventInternalWritable, Cloneable
 	  }
 
 	  int payloadLength = payloadLength();
-	  long calculatedValueCrc = ByteBufferCRC32.getChecksum(buf,
-			  isKeyNumber()?position+LongKeyValueOffset:position+StringKeyOffset,
-					  payloadLength);
+	  long calculatedValueCrc = getCalculatedValueCrc();
 
-	  if (calculatedValueCrc != this.valueCrc())
+	  long bodyCrc = bodyCrc();
+	  if (calculatedValueCrc != bodyCrc)
 	  {
 		  if (logErrors)
 		  {
-			  LOG.error("valueCrc() = "+ this.valueCrc());
-			  LOG.error("crc.getValue() = "+ calculatedValueCrc);
-			  LOG.error("crc-ed block size = "+ payloadLength);
-			  LOG.error("event sequence = " + this.sequence());
+			  LOG.error("_buf.order() = "+ _buf.order() +
+			            ", bodyCrc() = "+ bodyCrc +
+			            ", crc.getValue() = "+ calculatedValueCrc +
+			            ", crc-ed block size = "+ payloadLength +
+			            ", event sequence = " + sequence() +
+			            ", timestamp = " + timestampInNanos());
 		  }
 		  return EventScanStatus.ERR;
 	  }
@@ -892,26 +803,24 @@ implements DbusEventInternalWritable, Cloneable
   }
 
   /**
-   *
-   * @param logErrors
    * @return true if the event appears to be partially read ; does not perform any header checks
    */
-  @Override
-  public boolean isPartial (boolean logErrors) {
+  private boolean isPartial (boolean logErrors) {
 	  int size = size();
-	  if (size > (this.buf.limit()-position)) {
+	  if (size > (_buf.limit()-_position)) {
 		  if (logErrors)
-			  LOG.error("partial event: size() = " + size + " buf_position=" + position +
-			            " limit = " + buf.limit() +
-			            " (this.buf.limit()-position) = "+ (this.buf.limit()-position));
+			  LOG.error("partial event: size() = " + size + " buf_position=" + _position +
+			            " limit = " + _buf.limit() +
+			            " (_buf.limit()-_position) = "+ (_buf.limit()-_position));
 		  return true;
 	  }
 	  return false;
   }
 
-  protected boolean isHeaderPartial(boolean logErrors) {
-    int limit = this.buf.limit();
-    int bufHeaderLen = limit - position; // what we have in buffer
+  private boolean isHeaderPartial(boolean logErrors)
+  {
+    int limit = _buf.limit();
+    int bufHeaderLen = limit - _position; // what we have in buffer
 
     // make sure we can at least read attributes
     if (bufHeaderLen < (AttributesOffset + AttributesLength))
@@ -933,36 +842,12 @@ implements DbusEventInternalWritable, Cloneable
     return false;
   }
 
-  /**
-   * Checks if the event header - containing length is vsalid
-   * @param logErrors
-   * @return true iff header is devoid of errors; the length field can be trusted.
-   */
-  protected boolean isHeaderValid(boolean logErrors) {
-	  return scanHeader(logErrors) == HeaderScanStatus.OK;
-  }
-
-
-
-  /**
-   *
-   * @param logErrors : whether to emit LOG.error messages for invalid results
-   * @return true if event is not partial and event is valid; Note that a partial event is deemed invalid;
-   */
-  @Override
-  public boolean isValid(boolean logErrors) {
-	  return null != buf && scanEvent(logErrors) == EventScanStatus.OK;
-  }
-
-
-
-
   @Override
   public String toString()
   {
-	if ( null == buf)
+	if ( null == _buf)
 	{
-		return "buf=null";
+		return "_buf=null";
 	}
 
 	boolean valid = true;
@@ -978,18 +863,13 @@ implements DbusEventInternalWritable, Cloneable
 	if ( !valid )
 	{
 		StringBuilder sb = new StringBuilder("Position: ");
-		sb.append(position);
-		sb.append(", buf: ");
-		sb.append(null != buf ? buf.toString(): "null");
+		sb.append(_position);
+		sb.append(", _buf: ");
+		sb.append(null != _buf ? _buf.toString(): "null");
 		sb.append(", validity: false; hexDump:");
-		if (null != buf && position >= 0)
+		if (null != _buf && _position >= 0)
 		{
-			int dumpEndPos = Math.min(position + 61, buf.limit());
-			for (int i = position; i < dumpEndPos; ++i)
-			{
-				sb.append(Integer.toHexString(buf.get(i)));
-				sb.append(' ');
-			}
+		  sb.append(StringUtils.hexdumpByteBufferContents(_buf, _position, 100));
 		}
 
 		return sb.toString();
@@ -997,39 +877,39 @@ implements DbusEventInternalWritable, Cloneable
 
     StringBuilder sb = new StringBuilder(200);
     sb.append("Position=")
-    .append(position)
-    .append(";Magic = ")
-    .append(magic())
-    .append("isEndOfPeriodMarker=")
+    .append(_position)
+    .append(";Version=")
+    .append(getVersion())
+    .append(";isEndOfPeriodMarker=")
     .append(isEndOfPeriodMarker())
-    .append(";HeaderCrc = ")
+    .append(";HeaderCrc=")
     .append(headerCrc())
-    .append(";Length = ")
+    .append(";Length=")
     .append(size())
-    .append(";Key = ");
+    .append(";Key=");
     if (isKeyString())
     {
-      sb.append(new String(this.keyBytes()));
+      sb.append(new String(keyBytes()));
     }
     else
     {
       sb.append(key());
     }
 
-    sb.append(";Sequence = ")
+    sb.append(";Sequence=")
     .append(sequence())
-    .append(";LogicalPartitionId = ")
+    .append(";LogicalPartitionId=")
     .append(logicalPartitionId())
-    .append(";PhysicalPartitionId = ")
+    .append(";PhysicalPartitionId=")
     .append(physicalPartitionId())
-    .append(";Timestamp = ")
+    .append(";Timestamp=")
     .append(timestampInNanos())
-    .append(";SrcId = ")
+    .append(";SrcId=")
     .append(srcId())
-    .append(";SchemaId = ")
+    .append(";SchemaId=")
     .append(Hex.encodeHex(schemaId()))
-    .append(";Value Crc =")
-    .append(valueCrc());
+    .append(";ValueCrc=")
+    .append(bodyCrc());
     //Do not output value - as it's too long.
     /*
     .append(";Value = ");
@@ -1044,57 +924,55 @@ implements DbusEventInternalWritable, Cloneable
 
   }
 
-
-  public Byte magic()
+  @Override
+  public byte getVersion()
   {
-    return (this.buf.get(position+MagicOffset));
+    return (_buf.get(_position+ VersionOffset));
   }
 
   @Override
   public int size()
   {
-    //    int size = this.buf.getInt(position+LengthOffset);
-    return (this.buf.getInt(position+LengthOffset)); // length bytes
+    //    int size = _buf.getInt(_position+LengthOffset);
+    return (_buf.getInt(_position+LengthOffset)); // length bytes
   }
 
   /**
    * Setter for size
-   * @param sz
    */
   @Override
-  public void setSize(int sz) {
-
-	  this.buf.putInt(position + LengthOffset, sz);
+  public void setSize(int sz)
+  {
+    _buf.putInt(_position + LengthOffset, sz);
   }
 
   @Override
   public long headerCrc()
   {
-    return Utils.getUnsignedInt(buf, position+HeaderCrcOffset);
+    return Utils.getUnsignedInt(_buf, _position+HeaderCrcOffset);
   }
 
   @Override
   public void setHeaderCrc(long crc) {
-	  Utils.putUnsignedInt(buf, position+HeaderCrcOffset, crc);
+    Utils.putUnsignedInt(_buf, _position+HeaderCrcOffset, crc);
   }
-
 
   @Override
   public long key()
   {
     assert isKeyNumber();
-    return this.buf.getLong(position+LongKeyOffset);
+    return _buf.getLong(_position+LongKeyOffset);
   }
 
   @Override
   public byte[] keyBytes()
   {
     assert isKeyString();
-    int keyLength = buf.getInt(position + LongKeyOffset);
+    int keyLength = _buf.getInt(_position + LongKeyOffset);
     byte[] dst = new byte[keyLength];
     for (int i=0; i< keyLength; ++i)
     {
-      dst[i] = buf.get(position+LongKeyOffset+4+i);
+      dst[i] = _buf.get(_position+LongKeyOffset+4+i);
     }
     return dst;
   }
@@ -1102,58 +980,59 @@ implements DbusEventInternalWritable, Cloneable
   @Override
   public short physicalPartitionId()
   {
-    return this.buf.getShort(position + PhysicalPartitionIdOffset);
+    return _buf.getShort(_position + PhysicalPartitionIdOffset);
   }
 
   @Override
   public short logicalPartitionId()
   {
-    return this.buf.getShort(position + LogicalPartitionIdOffset);
+    return _buf.getShort(_position + LogicalPartitionIdOffset);
   }
-
-  /**public void setScn(long scn)
-  {
-    buf.putLong(position+ScnOffset, scn);
-  }
-  **/
-
-  /**
-  @Override
-  public long scn()
-  {
-    return this.buf.getLong(position+ScnOffset);
-  }
-  **/
 
   @Override
+  public short getPartitionId()
+  {
+    return _buf.getShort(_position + PhysicalPartitionIdOffset);
+  }
 
+  @Override
   public long timestampInNanos()
   {
-    return this.buf.getLong(position+TimestampOffset);
+    return _buf.getLong(_position+TimestampOffset);
   }
 
   // two temp method to pass schema version from RPL_DBUS
   public void setSchemaVersion(short schemaVersion)
   {
-    buf.putShort(position+SchemaIdOffset, schemaVersion);
+    _buf.putShort(_position+SchemaIdOffset, schemaVersion);
   }
 
   @Override
   public short schemaVersion()
   {
-    return this.buf.getShort(position+SchemaIdOffset);
+    return _buf.getShort(_position+SchemaIdOffset);
   }
 
   @Override
-  public void setSrcId(short srcId)
+  public void setSrcId(int srcId)
   {
-    buf.putShort(position+SrcIdOffset, srcId);
+    if (srcId > Short.MAX_VALUE)
+    {
+      throw new DatabusRuntimeException("Unsupported source Id in DbusEvent V1:" + srcId);
+    }
+    _buf.putShort(_position+SrcIdOffset, (short)srcId);
   }
 
   @Override
   public short srcId()
   {
-    return this.buf.getShort(position+SrcIdOffset);
+    return _buf.getShort(_position+SrcIdOffset);
+  }
+
+  @Override
+  public int getSourceId()
+  {
+    return srcId();
   }
 
   /** put a byte[] schemaId into the buffer .
@@ -1162,10 +1041,15 @@ implements DbusEventInternalWritable, Cloneable
   @Override
   public void setSchemaId(byte[] schemaId) {
     for(int i=0; i<16; i++) {
-      buf.put(position+SchemaIdOffset+i, schemaId[i]);
+      _buf.put(_position+SchemaIdOffset+i, schemaId[i]);
     }
   }
 
+  @Override
+  public void recomputeCrcsAfterEspressoRewrite()
+  {
+    applyCrc();
+  }
 
   @Override
   public byte[] schemaId()
@@ -1173,7 +1057,7 @@ implements DbusEventInternalWritable, Cloneable
     byte[] md5 = new byte[16];
     for (int i = 0; i < 16; i++)
     {
-      md5[i] = buf.get(position+SchemaIdOffset+i);
+      md5[i] = _buf.get(_position+SchemaIdOffset+i);
     }
     return md5;
   }
@@ -1183,26 +1067,33 @@ implements DbusEventInternalWritable, Cloneable
   {
     for (int i = 0; i < 16; i++)
     {
-      md5[i] = buf.get(position+SchemaIdOffset+i);
+      md5[i] = _buf.get(_position+SchemaIdOffset+i);
     }
 
   }
 
   @Override
-  public long valueCrc() {
-    return Utils.getUnsignedInt(buf, position+ValueCrcOffset);
+  public long getCalculatedValueCrc() {
+    long calcValueCrc = ByteBufferCRC32.getChecksum(_buf, isKeyNumber()?_position+LongKeyValueOffset:_position+StringKeyOffset, payloadLength());
+    return calcValueCrc;
+  }
+
+  @Override
+  public long bodyCrc() {
+    return Utils.getUnsignedInt(_buf, _position+ValueCrcOffset);
   }
 
   @Override
   public void setValueCrc(long crc) {
-	  Utils.putUnsignedInt(buf, position+ValueCrcOffset, crc);
+	  Utils.putUnsignedInt(_buf, _position+ValueCrcOffset, crc);
   }
 
   @Override
-  public ByteBuffer value() {
-    ByteBuffer value = this.buf.asReadOnlyBuffer().order(DbusEventV1.byteOrder);
-    value.position(position+LongKeyOffset + keyLength());
-    value = value.slice().order(DbusEventV1.byteOrder);
+  public ByteBuffer value()
+  {
+    ByteBuffer value = _buf.asReadOnlyBuffer().order(_buf.order());
+    value.position(_position+LongKeyOffset + keyLength());
+    value = value.slice().order(_buf.order());
     int valueSize = valueLength();
     value.limit(valueSize);
     value.rewind();
@@ -1211,328 +1102,37 @@ implements DbusEventInternalWritable, Cloneable
 
   @Override
   public void setValue(byte[] bytes) {
-    int offset = position+LongKeyOffset+serializedKeyLength();
+    int offset = _position+LongKeyOffset+serializedKeyLength();
     for (int i=0;i< bytes.length;++i) {
-      this.buf.put(offset+i,bytes[i]);
+      _buf.put(offset+i,bytes[i]);
     }
-  }
-
-
-  @Override
-  public ByteBuffer getRawBytes()
-  {
-    ByteBuffer buffer = this.buf.asReadOnlyBuffer().order(DbusEventV1.byteOrder);
-    buffer.position(position);
-    buffer.limit(position + size());
-    return buffer;
   }
 
   @Override
-  public DbusEventInternalWritable createCopy() {
-	  ByteBuffer cloned = ByteBuffer.allocate(size()).order(DbusEventV1.byteOrder);
-	  cloned.put(getRawBytes());
-	  DbusEventV1 c = new DbusEventV1(cloned,0);
-	  return c;
+  public DbusEventPart getPayloadPart()
+  {
+    return null;
   }
 
-/**
- * Serializes the event to a channel using the specified encoding
- * @param  writeChannel           the channel to write to
- * @param  encoding               the serialization encoding
- * @return the number of bytes written to the channel
- */
-@Override
-  public int writeTo(WritableByteChannel writeChannel, Encoding encoding)
+  @Override
+  public DbusEventPart getPayloadMetadataPart()
   {
-    int bytesWritten = 0;
-    switch (encoding)
-    {
-    case BINARY:
-    {
-      //TODO (DDSDBUS-62): writeBuffer can be cached
-      ByteBuffer writeBuffer = this.buf.duplicate().order(DbusEventV1.byteOrder);
-      writeBuffer.position(position);
-      writeBuffer.limit(position+size());
-      try
-      {
-        bytesWritten = writeChannel.write(writeBuffer);
-      }
-      catch (IOException e)
-      {
-        // TODO (medium) (DDSDBUS-63) Handle IOException correctly
-        LOG.error("binary write error: " + e.getMessage(), e);
-      }
-      break;
-    }
-    case JSON_PLAIN_VALUE:
-    case JSON: {
-      ByteArrayOutputStream baos = new ByteArrayOutputStream();
-      JsonFactory f = new JsonFactory();
-      try {
-        JsonGenerator g = f.createJsonGenerator(baos, JsonEncoding.UTF8);
-        g.writeStartObject();
-
-        DbusOpcode opcode = getOpcode();
-        if (null != opcode)
-        {
-          g.writeStringField("opcode", opcode.toString());
-        }
-
-        if (isKeyString())
-        {
-          g.writeStringField("keyBytes", Base64.encodeBytes(keyBytes()));
-        }
-        else
-        {
-          g.writeNumberField("key", key());
-        }
-        g.writeNumberField("sequence", sequence());
-        g.writeNumberField("logicalPartitionId", logicalPartitionId());
-        g.writeNumberField("physicalPartitionId", physicalPartitionId());
-        g.writeNumberField("timestampInNanos", timestampInNanos());
-        g.writeNumberField("srcId", srcId());
-        g.writeStringField("schemaId", Base64.encodeBytes(schemaId()));
-        g.writeStringField("valueEnc", encoding.toString());
-        if (isEndOfPeriodMarker())
-        {
-          g.writeBooleanField("endOfPeriod", true);
-        }
-
-        if (isTraceEnabled())
-        {
-          g.writeBooleanField("traceEnabled", true);
-        }
-
-        if (encoding.equals(Encoding.JSON))
-        {
-          g.writeStringField("value", Base64.encodeBytes(Utils.byteBufferToBytes(value())));
-        }
-        else
-        {
-          g.writeStringField("value", Utils.byteBufferToString(value()));
-        }
-        g.writeEndObject();
-        g.flush();
-        baos.write("\n".getBytes());
-      } catch (IOException e) {
-        LOG.error("JSON write error: " + e.getMessage(), e);
-      }
-      ByteBuffer writeBuffer = ByteBuffer.wrap(baos.toByteArray()).order(DbusEventV1.byteOrder);
-      try {
-        bytesWritten = writeChannel.write(writeBuffer);
-      } catch (IOException e) {
-        LOG.error("JSON write error: " + e.getMessage(), e);
-      }
-      break;
-    }
-    }
-
-    return bytesWritten;
-
+    return null;
   }
 
-  /**
-   * Appends a single event to the buffer. The event is
-   * @param jsonString
-   * @param eventBuffer
-   * @return
-   * @throws IOException
-   * @throws JsonParseException
-   * @throws InvalidEventException
-   * @throws KeyTypeNotImplementedException
-   */
-  public static int appendToEventBuffer(String jsonString, DbusEventBufferAppendable eventBuffer,
-                                            DbusEventsStatisticsCollector statsCollector,
-                                            boolean startWindow)
-                                            throws IOException, JsonParseException,
-                                                   InvalidEventException,
-                                                   KeyTypeNotImplementedException
+  @Override
+  public DbusEventPart getKeyPart()
   {
-    int numEvents = appendToEventBuffer(jsonString, eventBuffer, null, statsCollector, startWindow);
-    return numEvents;
+    throw new DatabusRuntimeException("V1 event does not support schema keys");
   }
 
-  public static int appendToEventBuffer(BufferedReader jsonStream, DbusEventBufferAppendable eventBuffer,
-                                            DbusEventsStatisticsCollector statsCollector,
-                                            boolean startWindow)
-                                            throws IOException, JsonParseException,
-                                                   InvalidEventException
+  @Override
+  public DbusEventInternalWritable createCopy()
   {
-    ObjectMapper objectMapper = new ObjectMapper();
-    String jsonString;
-    int numEvents = 0;
-    boolean endOfPeriod = startWindow;
-    try
-    {
-      boolean success = true;
-      while (success && null != (jsonString = jsonStream.readLine()))
-      {
-        int appendResult = appendToEventBuffer(jsonString, eventBuffer, objectMapper, statsCollector,
-                                               endOfPeriod);
-        success = (appendResult > 0);
-        endOfPeriod = (2 == appendResult);
-        ++numEvents;
-      }
-    }
-    catch (KeyTypeNotImplementedException e)
-    {
-      LOG.error("append error: " + e.getMessage(), e);
-      numEvents = -1;
-    }
-
-    return numEvents;
-  }
-
-  /**
-   * Appends a single JSON-serialized event to the buffer
-   * @return 0 if add failed, 1 if a regular event has been added, 2 if EOP has been added
-   * */
-  static int appendToEventBuffer(String jsonString, DbusEventBufferAppendable eventBuffer,
-                                     ObjectMapper objectMapper,
-                                     DbusEventsStatisticsCollector statsCollector,
-                                     boolean startWindow)
-                                     throws IOException, JsonParseException, InvalidEventException,
-                                            KeyTypeNotImplementedException
-  {
-    if (null == objectMapper)
-    {
-      objectMapper = new ObjectMapper();
-    }
-
-    Map<String, Object> jsonObj = objectMapper.readValue(jsonString, JSON_GENERIC_MAP_TYPEREF);
-    Object tmpObject;
-
-    tmpObject = jsonObj.get("timestampInNanos");
-    if (null == tmpObject || ! (tmpObject instanceof Number))
-    {
-      throw new InvalidEventException("timestampInNanos expected");
-    }
-    long timestamp = ((Number)tmpObject).longValue();
-
-    tmpObject = jsonObj.get("sequence");
-    if (null == tmpObject || ! (tmpObject instanceof Number))
-    {
-      throw new InvalidEventException("sequence expected");
-    }
-    long windowScn = ((Number)tmpObject).longValue();
-
-
-
-    boolean endOfPeriod = false;
-    boolean result = false;
-    tmpObject = jsonObj.get("endOfPeriod");
-    if (null != tmpObject)
-    {
-      if (! (tmpObject instanceof String) && ! (tmpObject instanceof Boolean))
-      {
-        throw new InvalidEventException("invalid endOfPeriod");
-      }
-
-      if (((tmpObject instanceof Boolean) && ((Boolean)tmpObject).booleanValue()) ||
-          ((tmpObject instanceof String) && Boolean.parseBoolean((String)tmpObject)))
-      {
-        eventBuffer.endEvents(windowScn,statsCollector);
-
-        endOfPeriod = true;
-        result = true;
-      }
-    }
-
-    if (!endOfPeriod)
-    {
-      tmpObject = jsonObj.get("key");
-      if (null == tmpObject || ! (tmpObject instanceof Number))
-      {
-        throw new InvalidEventException("key expected");
-      }
-      DbusEventKey key = new DbusEventKey(((Number)tmpObject).longValue());
-
-      tmpObject = jsonObj.get("logicalPartitionId");
-      if (null == tmpObject || ! (tmpObject instanceof Number))
-      {
-        throw new InvalidEventException("logicalPartitionId expected");
-      }
-      short lPartitionId = ((Number)tmpObject).shortValue();
-
-      tmpObject = jsonObj.get("physicalPartitionId");
-      if (null == tmpObject || ! (tmpObject instanceof Number))
-      {
-        throw new InvalidEventException("logicalPartitionId expected");
-      }
-      short pPartitionId = ((Number)tmpObject).shortValue();
-
-      tmpObject = jsonObj.get("srcId");
-      if (null == tmpObject || ! (tmpObject instanceof Number))
-      {
-        throw new InvalidEventException("srcId expected");
-      }
-      short srcId = ((Number)tmpObject).shortValue();
-
-      tmpObject = jsonObj.get("schemaId");
-      if (null == tmpObject || ! (tmpObject instanceof String))
-      {
-        throw new InvalidEventException("schemaId expected");
-      }
-      String base64String = (String)tmpObject;
-      byte[] schemaId = Base64.decode(base64String);
-
-      tmpObject = jsonObj.get("valueEnc");
-      if (null == tmpObject || ! (tmpObject instanceof String))
-      {
-        throw new InvalidEventException("valueEnc expected");
-      }
-      String valueEncString = (String)tmpObject;
-
-      tmpObject = jsonObj.get("value");
-      if (null == tmpObject || ! (tmpObject instanceof String))
-      {
-        throw new InvalidEventException("value expected");
-      }
-      base64String = (String)tmpObject;
-      byte[] value;
-      if (valueEncString.equals(Encoding.JSON.toString()))
-      {
-        value = Base64.decode(base64String);
-      }
-      else if (valueEncString.equals(Encoding.JSON_PLAIN_VALUE.toString()))
-      {
-        value = base64String.getBytes();
-      }
-      else
-      {
-        throw new InvalidEventException("Unknown value encoding: " + valueEncString);
-      }
-
-      if (startWindow)
-      {
-        eventBuffer.startEvents();
-      }
-
-      boolean traceEnabled = false;
-      tmpObject = jsonObj.get("traceEnabled");
-      if (null != tmpObject)
-      {
-        if(! (tmpObject instanceof Boolean)) throw new InvalidEventException("traceEnabled must be boolean");
-        traceEnabled = (Boolean)tmpObject;
-      }
-
-      result = eventBuffer.appendEvent(key, pPartitionId, lPartitionId, timestamp, srcId, schemaId, value,
-                                       traceEnabled, statsCollector);
-    }
-
-    if (result)
-    {
-      return endOfPeriod ? 2 : 1;
-    }
-    else
-    {
-      return 0;
-    }
-  }
-
-  public boolean inited()
-  {
-    return inited;
+    ByteBuffer cloned = ByteBuffer.allocate(size()).order(_buf.order());
+    cloned.put(getRawBytes());
+    DbusEventV1 c = new DbusEventV1(cloned, 0);
+    return c;
   }
 
   @Override
@@ -1546,23 +1146,20 @@ implements DbusEventInternalWritable, Cloneable
     if (obj instanceof DbusEventV1)
     {
       DbusEventV1 objEvent = (DbusEventV1) obj;
-      return (this.headerCrc() == objEvent.headerCrc()
-            && this.valueCrc() == objEvent.valueCrc()
-            );
+      return (headerCrc() == objEvent.headerCrc() &&
+              bodyCrc() == objEvent.bodyCrc());
     }
     else
     {
       return false;
     }
-
   }
 
   @Override
   public int hashCode()
   {
-    return ((int)this.headerCrc() ^ (int)this.valueCrc());
+    return ((int)headerCrc() ^ (int)bodyCrc());
   }
-
 
   @Override
   public DbusEvent clone(DbusEvent e)
@@ -1570,17 +1167,25 @@ implements DbusEventInternalWritable, Cloneable
     DbusEventV1 reuse = (DbusEventV1)e;
     if (null == reuse)
     {
-      reuse = new DbusEventV1(buf, position);
+      reuse = new DbusEventV1(_buf, _position);
     }
     else
     {
+      // TODO:  option to convert (via reset()) instead of throw exception?
       if (!(e instanceof DbusEventV1))
       {
         throw new UnsupportedClassVersionError("Unsupported class:" + e.getClass().getSimpleName());
       }
-      reuse.reset(buf, position);
+      reuse.resetInternal(_buf, _position);
     }
 
     return reuse;
   }
+
+  @Override
+  public int getMagic()
+  {
+    return 0;
+  }
+
 }

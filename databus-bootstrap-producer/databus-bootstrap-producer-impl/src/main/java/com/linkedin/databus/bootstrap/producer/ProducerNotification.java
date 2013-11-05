@@ -1,4 +1,5 @@
 package com.linkedin.databus.bootstrap.producer;
+
 /*
  *
  * Copyright 2013 LinkedIn Corp. All rights reserved
@@ -16,8 +17,7 @@ package com.linkedin.databus.bootstrap.producer;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
-
+ */
 
 import java.sql.SQLException;
 
@@ -29,26 +29,27 @@ public class ProducerNotification
 {
   public static final String MODULE = ProducerNotification.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
-  
+
   private boolean _waiting = false;
-    
-  public synchronized void startWaiting(sourcePositions pos) throws InterruptedException, SQLException
+
+  public synchronized void startWaiting(sourcePositions pos)
+      throws InterruptedException, SQLException
   {
     _waiting = true;
 
     pos.refresh();
-    
+
     LOG.info("Entering wait for more events from DatabusBootstrapProducer");
-    
+
     while (_waiting)
     {
       wait();
     }
-    
+
     LOG.info("Leaving wait to apply more events from DatabusBootstrapProducer");
     _waiting = false;
   }
-  
+
   public synchronized void stopWaiting()
   {
     if (_waiting)

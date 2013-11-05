@@ -59,17 +59,24 @@ public interface DbusEventDecoder
    * necessary schema conversions if the serialization and deserialization schemas
    * differ.
    *
-   * @param e       the Databus event envelope object
+   * @param e       the Databus event whose payload is to be decoded
    * @param reuse   an existing {@link org.apache.avro.specific.SpecificRecord} object where the
-   *                deserialized values will be written to. The object can be <b>null</b> in which
-   *                case a new object will be allocated.
+   *                deserialized values will be written to. The object can be <b>null</b> in
+   *                which case a new object will be allocated.
    * @return the {@link org.apache.avro.generic.GenericRecord} implementation object with the
    *         deserialized data; this will be either <b>reuse</b> or the newly allocated object.
    */
   public GenericRecord getGenericRecord(DbusEvent e, GenericRecord reuse);
 
+  /**
+   * @param e DbusEvent
+   * @return VersionedSchema object that can be used to look up the Avro Schema, sourceName, or version
+   * of the schema with which the payload in the event has been encoded.
+   * @see VersionedSchema
+   */
+  public VersionedSchema getPayloadSchema(DbusEvent e);
+
   /** Converts the event payload to a JSON format */
   void dumpEventValueInJSON(DbusEvent e, WritableByteChannel writeChannel);
-  
-  public VersionedSchema getPayloadSchema(DbusEvent e);
+
 }

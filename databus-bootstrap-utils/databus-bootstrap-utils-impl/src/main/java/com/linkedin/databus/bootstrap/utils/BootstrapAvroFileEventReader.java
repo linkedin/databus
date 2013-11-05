@@ -37,7 +37,7 @@ import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.producers.db.ReadEventCycleSummary;
 import com.linkedin.databus2.producers.db.SourceDBEventReader;
 import com.linkedin.databus.core.util.ConfigBuilder;
@@ -53,12 +53,12 @@ implements SourceDBEventReader
 	
 	private StaticConfig _config;
 	private BootstrapEventBuffer _bootstrapEventBuffer;
-    private List<MonitoredSourceInfo> _sources;
+    private List<OracleTriggerMonitoredSourceInfo> _sources;
 	private final Map<String, Long> _lastRows;
 
 
 	public BootstrapAvroFileEventReader(StaticConfig config, 
-				                        List<MonitoredSourceInfo> sources,
+				                        List<OracleTriggerMonitoredSourceInfo> sources,
 				                         Map<String, Long> lastRows,
                                         BootstrapEventBuffer bootstrapEventBuffer) {
 		super("BootstrapAvroFileEventReader");
@@ -93,7 +93,7 @@ implements SourceDBEventReader
 	  long minScn = Long.MAX_VALUE;
 	  try
 	  {
-    	for ( MonitoredSourceInfo sourceInfo : _sources)
+    	for ( OracleTriggerMonitoredSourceInfo sourceInfo : _sources)
     	{
           endScn = _config.getSeedWindowSCNMap().get(sourceInfo.getEventView());
           minScn = Math.min(endScn,minScn);
@@ -133,7 +133,7 @@ implements SourceDBEventReader
 	  return cycleSummary;
 	}
 
-	private EventReaderSummary readEventsFromHadoopFiles(MonitoredSourceInfo sourceInfo, File avroSeedDir, Long windowSCN)
+	private EventReaderSummary readEventsFromHadoopFiles(OracleTriggerMonitoredSourceInfo sourceInfo, File avroSeedDir, Long windowSCN)
 	{
 	    DataFileReader<GenericRecord> reader = null;
 	    
@@ -259,7 +259,7 @@ implements SourceDBEventReader
 	}
 	
 	@Override
-	public List<MonitoredSourceInfo> getSources() {
+	public List<OracleTriggerMonitoredSourceInfo> getSources() {
 		return _sources;
 	}
 	

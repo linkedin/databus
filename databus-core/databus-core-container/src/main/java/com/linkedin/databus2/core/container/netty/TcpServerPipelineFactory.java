@@ -21,6 +21,8 @@ package com.linkedin.databus2.core.container.netty;
 
 import static org.jboss.netty.channel.Channels.pipeline;
 
+import java.nio.ByteOrder;
+
 import org.apache.log4j.Logger;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
@@ -37,11 +39,13 @@ public class TcpServerPipelineFactory implements ChannelPipelineFactory
 {
 
   private final ServerContainer _serverContainer;
+  private final ByteOrder _byteOrder;
 
-  public TcpServerPipelineFactory(ServerContainer serverContainer)
+  public TcpServerPipelineFactory(ServerContainer serverContainer, ByteOrder byteOrder)
   {
     super();
     _serverContainer = serverContainer;
+    _byteOrder = byteOrder;
   }
 
   @Override
@@ -83,7 +87,8 @@ public class TcpServerPipelineFactory implements ChannelPipelineFactory
 
     pipeline.addLast("decoder",
                      new SimpleBinaryDatabusRequestDecoder(_serverContainer.getCommandsRegistry(),
-                                                           readTimeoutHandler));
+                                                           readTimeoutHandler,
+                                                           _byteOrder));
     pipeline.addLast("encoder", new SimpleBinaryDatabusResponseEncoder());
 
     // Fix for DDSDBUS-1000

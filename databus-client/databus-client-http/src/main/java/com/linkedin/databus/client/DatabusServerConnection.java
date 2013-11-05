@@ -19,11 +19,20 @@ package com.linkedin.databus.client;
 */
 
 
-public interface DatabusServerConnection 
+public interface DatabusServerConnection
 {
-	  /* Close the Connection */
-	  void close();
-	  
-	  /* Protocol Version */
-	  int getVersion();
+  /* Close the Connection */
+  void close();
+
+  /** Client-relay protocol version */
+  int getProtocolVersion();
+
+  /** The host name or ip address of the remote server */
+  String getRemoteHost();
+
+  /** Get a service name identifying the remote server */
+  String getRemoteService();
+
+  /** max event version client understands */
+  int getMaxEventVersion();
 }

@@ -19,6 +19,7 @@ package com.linkedin.databus2.schemas;
 */
 
 
+import java.util.Map;
 import java.util.SortedMap;
 
 import org.apache.avro.Schema;
@@ -45,7 +46,7 @@ public class TestVersionedSchemaSet
   {
     VersionedSchemaSet schemaSet = new VersionedSchemaSet();
     Schema schema1 = Schema.parse(TEST_SCHEMA1_TEXT);
-    VersionedSchema vs1 = new VersionedSchema("testSchema", (short)1, schema1);
+    VersionedSchema vs1 = new VersionedSchema("testSchema", (short)1, schema1, null);
 
     Assert.assertTrue(schemaSet.add(vs1));
 
@@ -54,7 +55,7 @@ public class TestVersionedSchemaSet
     Assert.assertEquals(test1.getVersion(), (short)1, "version correct");
     Assert.assertEquals(test1.getSchemaBaseName(), "testSchema");
 
-    SchemaId vs1Id = SchemaId.forSchema(schema1);
+    SchemaId vs1Id = SchemaId.createWithMd5(schema1);
     VersionedSchema test2 = schemaSet.getById(vs1Id);
     Assert.assertNotNull(test2, "schema present");
     Assert.assertEquals(test2, vs1, "schema id correct");
@@ -76,6 +77,22 @@ public class TestVersionedSchemaSet
     Assert.assertTrue(!schemaSet.add("testSchema", (short)1, TEST_SCHEMA2_TEXT));
     Assert.assertEquals(schemaSet.getSchema(new VersionedSchemaId("testSchema", (short)1)),
                         vs1);
+
+  }
+
+  @Test
+  public void testExternalSchemaIdAdd() throws Exception
+  {
+      VersionedSchemaSet schemaSet = new VersionedSchemaSet();
+      byte[] crc32 = {0x01,0x02,0x03,0x04};
+      String sourceName = "test_schema";
+      boolean added = schemaSet.add(sourceName,(short) 1,new SchemaId(crc32),TEST_SCHEMA1_TEXT);
+      Assert.assertTrue(added);
+      SchemaId fetchId = new SchemaId(crc32);
+      VersionedSchema vs = schemaSet.getById(fetchId);
+      Assert.assertTrue(vs != null);
+      Assert.assertEquals(vs.getVersion() , 1);
+      Assert.assertEquals(sourceName,vs.getSchemaBaseName());
   }
 
   @Test
@@ -84,18 +101,18 @@ public class TestVersionedSchemaSet
     VersionedSchemaSet schemaSet = new VersionedSchemaSet();
 
     Schema schema1 = Schema.parse(TEST_SCHEMA1_TEXT);
-    SchemaId vs1Id = SchemaId.forSchema(schema1);
-    VersionedSchema vs1 = new VersionedSchema("testSchema", (short)1, schema1);
+    SchemaId vs1Id = SchemaId.createWithMd5(schema1);
+    VersionedSchema vs1 = new VersionedSchema("testSchema", (short)1, schema1, null);
     schemaSet.add(vs1);
 
     Schema schema2 = Schema.parse(TEST_SCHEMA2_TEXT);
-    SchemaId vs2Id = SchemaId.forSchema(schema2);
-    VersionedSchema vs2 = new VersionedSchema("testSchema", (short)2, schema2);
+    SchemaId vs2Id = SchemaId.createWithMd5(schema2);
+    VersionedSchema vs2 = new VersionedSchema("testSchema", (short)2, schema2, null);
     schemaSet.add(vs2);
 
     Schema schema3 = Schema.parse(TEST_SCHEMA3_TEXT);
-    SchemaId vs3Id = SchemaId.forSchema(schema3);
-    VersionedSchema vs3 = new VersionedSchema("anotherSchema", (short)3, schema3);
+    SchemaId vs3Id = SchemaId.createWithMd5(schema3);
+    VersionedSchema vs3 = new VersionedSchema("anotherSchema", (short)3, schema3, null);
     schemaSet.add(vs3);
 
     VersionedSchema test1 = schemaSet.getLatestVersionByName("testSchema");
@@ -133,6 +150,7 @@ public class TestVersionedSchemaSet
     Assert.assertEquals(schemaSet.getLatestVersionByName("testSchema").getSchema().getName(),
                         "AnotherSchema1");
   }
+
 
   @Test
   public void testConcurrentAdd() throws InterruptedException
@@ -183,6 +201,26 @@ public class TestVersionedSchemaSet
         Assert.assertEquals(vschema.getVersion(), vIdx);
       }
     }
+  }
 
+  @Test
+  /** Test that schemas which don't have stable reparsing, we add all MD5's */
+  public void testUpdateMd5Index()
+  {
+    final String schemaStr = "{\"type\":\"record\",\"name\":\"A\",\"fields\":[" +
+        "{\"name\":\"J\",\"type\":\"string\",\"J1\":\"V1\",\"indexType\":\"V2\",\"d\":" +
+        "\"V3\",\"J3\":\"10000\"}]}";
+
+    VersionedSchemaSet vschemaSet = new VersionedSchemaSet(true);
+    vschemaSet.add("testSchema", (short)1, schemaStr);
+    Assert.assertEquals(vschemaSet.getIdToSchema().size(), 2);
+
+    vschemaSet.add("TestSchema", (short)3, TEST_SCHEMA3_TEXT);
+    Assert.assertEquals(vschemaSet.getIdToSchema().size(), 3);
+    for (Map.Entry<SchemaId, VersionedSchema> e: vschemaSet.getIdToSchema().entrySet())
+    {
+      System.out.println(String.format("ids[%s] -> %s.%d", e.getKey(), e.getValue().getSchemaBaseName(),
+                                       e.getValue().getVersion()));
+    }
   }
 }

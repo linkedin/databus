@@ -45,11 +45,15 @@ import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceSt
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfigBuilder;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
 import com.linkedin.databus.client.pub.FileSystemCheckpointPersistenceProvider;
+import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.util.ConfigLoader;
 
 /** Utility that can be used to serialize a checkpoint to a file */
+//TODO We have to rethink this class and see if it is needed anymore. We also have to figure out what is the right level
+//of abstraction as currently it is too low level and needs access to internal checkpoint methods.
 public class CheckpointSerializerMain
 {
   public static final String MODULE = CheckpointSerializerMain.class.getSimpleName();
@@ -362,11 +366,6 @@ public class CheckpointSerializerMain
       }
     }
 
-    if (null != _sinceScn)
-    {
-      cpNew.setBootstrapSinceScn(_sinceScn);
-    }
-
     if (null != _startScn)
     {
       cpNew.setBootstrapStartScn(_startScn);
@@ -383,18 +382,27 @@ public class CheckpointSerializerMain
       switch (_cpType)
       {
         case ONLINE_CONSUMPTION: cpNew.setWindowOffset(0); break;
+        /*
+         * TODO Disabling as the bootstrap checkpoint creation leaves out important
+         * information (e.g. catchup/snashot source index) out of the checkpoint
+         * and thus is incorrect. We have to figure out what types of bootstrap
+         * checkpoints it makes sense to create.
         case BOOTSTRAP_CATCHUP:
         {
           if (null != _bootstrapSource) cpNew.setCatchupSource(_bootstrapSource);
           cpNew.setCatchupOffset(-1);
           break;
-        }
+        }*/
         case BOOTSTRAP_SNAPSHOT:
         {
-          if (null != _bootstrapSource) cpNew.setSnapshotSource(_bootstrapSource);
+          BootstrapCheckpointHandler handler = new BootstrapCheckpointHandler(_sources);
+          cpNew = handler.createInitialBootstrapCheckpoint(cpNew, _sinceScn);
+          //if (null != _bootstrapSource) cpNew.setSnapshotSource(_bootstrapSource);
           cpNew.setSnapshotOffset(-1);
           break;
         }
+        default:
+          throw new DatabusRuntimeException("unsupported checkpoint type: " + _cpType);
       }
     }
 

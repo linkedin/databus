@@ -24,6 +24,5 @@ dependencies {
 
 test {
   useTestNG()
-  options.suites(file('testng.xml'))
   systemProperties.put('test.datadir', 'databus-core/databus-core-impl/test_data')
 }

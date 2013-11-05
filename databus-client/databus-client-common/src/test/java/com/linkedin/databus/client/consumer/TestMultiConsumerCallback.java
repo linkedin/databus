@@ -18,7 +18,6 @@ package com.linkedin.databus.client.consumer;
  *
 */
 
-
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,8 +28,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.easymock.EasyMock;
@@ -45,7 +44,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
-
 import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -116,6 +114,49 @@ public class TestMultiConsumerCallback
      EasyMock.replay(mockConsumer);
   }
 
+  private void initMockExceptionStreamConsumer3EventFullLifecycle(
+      DatabusStreamConsumer mockConsumer,
+      DbusEvent event1,
+      DbusEvent event2,
+      DbusEvent event3,
+      Hashtable<Long, AtomicInteger> keyCounts,
+      Throwable exception)
+  {
+    EasyMock.makeThreadSafe(mockConsumer, true);
+    EasyMock.expect(mockConsumer.onStartConsumption()).andAnswer(new LoggedAnswer<ConsumerCallbackResult>(
+        ConsumerCallbackResult.SUCCESS,
+        LOG,
+        Level.DEBUG,
+        "startConsumption() called"));
+    EasyMock.expect(mockConsumer.onStartDataEventSequence(null)).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startDataEventSequence() called"));
+    EasyMock.expect(mockConsumer.onStartSource("source1", null)).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startSource() called"));
+//    EasyMock.expect(mockConsumer.onDataEvent(event1, null)).andAnswer(
+//        new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.ERROR, keyCounts.get(1L)));
+    EasyMock.expect(mockConsumer.onDataEvent(event1, null)).andAnswer(new ExceptionAnswer<ConsumerCallbackResult>(exception));
+//        new ExceptionAnswer<ConsumerCallbackResult>(new LoggedAnswer<ConsumerCallbackResult>(
+//            ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "onEvent() called")));
+    EasyMock.expect(mockConsumer.onEndSource("source1", null)).andAnswer(new LoggedAnswer<ConsumerCallbackResult>(
+        ConsumerCallbackResult.SUCCESS,
+        LOG,
+        Level.DEBUG,
+        "endSource() called")).times(0, 1);
+    EasyMock.expect(mockConsumer.onStartSource("source3", null)).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startSource() called"));
+    EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(
+        new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, keyCounts.get(2L)));
+    EasyMock.expect(mockConsumer.onDataEvent(event3, null)).andAnswer(
+        new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, keyCounts.get(3L)));
+    EasyMock.expect(mockConsumer.onEndSource("source3", null)).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "endSource() called"));
+    EasyMock.expect(mockConsumer.onEndDataEventSequence(null)).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "endDataEventSequence() called"));
+    EasyMock.expect(mockConsumer.onStopConsumption()).andAnswer(
+        new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "stopConsumption() called"));
+    EasyMock.replay(mockConsumer);
+  }
+
   private void initMockFailingStreamConsumer3EventFullLifecycle(
       DatabusStreamConsumer mockConsumer,
       DbusEvent event1,
@@ -136,8 +177,9 @@ public class TestMultiConsumerCallback
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "endDataEventSequence() called")).times(0, 1);
      EasyMock.expect(mockConsumer.onStartSource("source3", null)).andAnswer(
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startDataEventSequence() called"));
-     EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(
-         new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, keyCounts.get(2L)));
+     EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(new EventCountingAnswer<ConsumerCallbackResult>(
+         ConsumerCallbackResult.SUCCESS,
+         keyCounts.get(2L)));
      EasyMock.expect(mockConsumer.onDataEvent(event3, null)).andAnswer(
          new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, keyCounts.get(3L)));
      EasyMock.expect(mockConsumer.onEndSource("source3", null)).andAnswer(
@@ -165,17 +207,20 @@ public class TestMultiConsumerCallback
      EasyMock.expect(mockConsumer.onStartSource("source1", null)).andAnswer(
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG,
              "startDataEventSequence() called"));
-     EasyMock.expect(mockConsumer.onDataEvent(event1, null)).andAnswer(
-         new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, keyCounts.get(1L))).anyTimes();
-     EasyMock.expect(mockConsumer.onEndSource("source1", null)).andAnswer(
-         new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG,
-             "endDataEventSequence() called"));
+     EasyMock.expect(mockConsumer.onDataEvent(event1, null)).andAnswer(new EventCountingAnswer<ConsumerCallbackResult>(
+         ConsumerCallbackResult.SUCCESS,
+         keyCounts.get(1L))).anyTimes();
+     EasyMock.expect(mockConsumer.onEndSource("source1", null)).andAnswer(new LoggedAnswer<ConsumerCallbackResult>(
+         ConsumerCallbackResult.SUCCESS,
+         LOG,
+         Level.DEBUG,
+         "endDataEventSequence() called"));
      EasyMock.expect(mockConsumer.onStartSource("source3", null)).andAnswer(
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG,
              "startDataEventSequence() called"));
-     EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(
-         new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS,
-             keyCounts.get(2L))).anyTimes();
+     EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(new EventCountingAnswer<ConsumerCallbackResult>(
+         ConsumerCallbackResult.SUCCESS,
+         keyCounts.get(2L))).anyTimes();
      /*EasyMock.expect(mockConsumer.dataEvent(event3, null)).andAnswer(
          new EventCountingAnswer<Boolean>(true, keyCounts.get(3L))).anyTimes();*/
      EasyMock.expect(mockConsumer.onEndSource("source3", null)).andAnswer(
@@ -206,8 +251,11 @@ public class TestMultiConsumerCallback
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startDataEventSequence() called"));
      EasyMock.expect(mockConsumer.onDataEvent(event1, null)).andAnswer(
          new EventCountingAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.ERROR, keyCounts.get(1L))).anyTimes();
-     EasyMock.expect(mockConsumer.onEndSource("source1", null)).andAnswer(
-         new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "endDataEventSequence() called")).times(0, 1);
+     EasyMock.expect(mockConsumer.onEndSource("source1", null)).andAnswer(new LoggedAnswer<ConsumerCallbackResult>(
+         ConsumerCallbackResult.SUCCESS,
+         LOG,
+         Level.DEBUG,
+         "endDataEventSequence() called")).times(0, 1);
      EasyMock.expect(mockConsumer.onStartSource("source3", null)).andAnswer(
          new LoggedAnswer<ConsumerCallbackResult>(ConsumerCallbackResult.SUCCESS, LOG, Level.DEBUG, "startDataEventSequence() called"));
      EasyMock.expect(mockConsumer.onDataEvent(event2, null)).andAnswer(
@@ -232,16 +280,16 @@ public class TestMultiConsumerCallback
     for (long i = 0; i < numEvents; ++i)
     {
       try {
-		eventsBuf.appendEvent(new DbusEventKey(keyBase + i), (short) 0, (short)1, (short)0, srcId,
-		                        new byte[16], "value1".getBytes("UTF-8"), false);
-	} catch (UnsupportedEncodingException e) {
-		//ignore
-	}
+        eventsBuf.appendEvent(new DbusEventKey(keyBase + i), (short) 0, (short)1, (short)0, srcId,
+                              new byte[16], "value1".getBytes("UTF-8"), false);
+      } catch (UnsupportedEncodingException e) {
+        //ignore
+      }
       keyCounts.put(keyBase + i, new AtomicInteger(0));
     }
   }
 
-  private void assert3EventFullLifecycle(MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback,
+  private void assert3EventFullLifecycle(MultiConsumerCallback callback,
                                          DbusEvent event1, DbusEvent event2, DbusEvent event3)
   {
     assert ConsumerCallbackResult.isSuccess(callback.onStartConsumption()) : "startConsumption() failed";
@@ -258,7 +306,7 @@ public class TestMultiConsumerCallback
   }
 
   private void assert3EventFullLifecycleWithFailure(
-      MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback,
+      MultiConsumerCallback callback,
       DbusEvent event1, DbusEvent event2, DbusEvent event3)
   {
     assert ConsumerCallbackResult.isSuccess(callback.onStartConsumption()) : "startConsumption() failed";
@@ -314,8 +362,8 @@ public class TestMultiConsumerCallback
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
     ThreadPoolExecutor executor = (ThreadPoolExecutor)Executors.newCachedThreadPool();
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             executor,
             60000,
@@ -334,9 +382,9 @@ public class TestMultiConsumerCallback
 
     System.out.println("max threads=" + executor.getLargestPoolSize() + " task count=" + executor.getTaskCount());
     System.out.println("dataEventsReceived=" + statsCollector.getNumDataEventsReceived() +
-	    	" sysEventsReceived=" + statsCollector.getNumSysEventsReceived()  +
-	    	" dataEventsProcessed=" + statsCollector.getNumDataEventsProcessed() +
-	    	" latencyEventsProcessed=" + statsCollector.getLatencyEventsProcessed());
+                       " sysEventsReceived=" + statsCollector.getNumSysEventsReceived()  +
+                       " dataEventsProcessed=" + statsCollector.getNumDataEventsProcessed() +
+                       " latencyEventsProcessed=" + statsCollector.getLatencyEventsProcessed());
     long dataEvents = statsCollector.getNumDataEventsReceived();
     assert(statsCollector.getNumDataEventsProcessed()==dataEvents);
 
@@ -351,7 +399,7 @@ public class TestMultiConsumerCallback
     eventsBuf.start(0);
     eventsBuf.startEvents();
     initBufferWithEvents(eventsBuf, 1, 1, (short)1, keyCounts);
-    initBufferWithEvents(eventsBuf, 2, 2, (short)3, keyCounts);
+    initBufferWithEvents(eventsBuf, 2, 2, (short) 3, keyCounts);
     eventsBuf.endEvents(100L);
 
     DatabusStreamConsumer mockConsumer = EasyMock.createStrictMock(DatabusStreamConsumer.class);
@@ -371,8 +419,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             60000,
@@ -426,8 +474,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
@@ -449,6 +497,70 @@ public class TestMultiConsumerCallback
 
     EasyMock.verify(mockConsumer);
     assert keyCounts.get(1L).get() == 1 : "invalid number of event(1) calls: " + keyCounts.get(1L).get();
+    assert keyCounts.get(2L).get() == 1 : "invalid number of event(2) calls:" + keyCounts.get(2L).get();
+    assert keyCounts.get(3L).get() == 1 : "invalid number of event(3) calls:" + keyCounts.get(3L).get();
+  }
+
+  // Test the cases where the application throws some random exception (or times out), and make
+  // sure we field it correctly and return ERROR.
+  @Test(groups = {"small", "functional"})
+  public void testConsumersWithException()
+  {
+    testConsumersWithException(new SomeApplicationException());
+    testConsumersWithException(new TimeoutException("Application timed out processing some call but refused to field it"));
+  }
+
+  private void testConsumersWithException(Throwable exception)
+  {
+    Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
+
+    DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
+    eventsBuf.start(0);
+    eventsBuf.startEvents();
+    initBufferWithEvents(eventsBuf, 1, 1, (short)1, keyCounts);
+    initBufferWithEvents(eventsBuf, 2, 2, (short)3, keyCounts);
+    eventsBuf.endEvents(100L);
+
+    DatabusStreamConsumer mockConsumer = EasyMock.createStrictMock(DatabusStreamConsumer.class);
+    SelectingDatabusCombinedConsumer sdccMockConsumer = new SelectingDatabusCombinedConsumer(mockConsumer);
+
+    List<String> sources = new ArrayList<String>();
+    Map<Long, IdNamePair> sourcesMap = new HashMap<Long, IdNamePair>();
+    for (int i = 1; i <= 3; ++i)
+    {
+      IdNamePair sourcePair = new IdNamePair((long)i, "source" + i);
+      sources.add(sourcePair.getName());
+      sourcesMap.put(sourcePair.getId(), sourcePair);
+    }
+
+    DatabusV2ConsumerRegistration consumerReg =
+        new DatabusV2ConsumerRegistration(sdccMockConsumer, sources, null);
+
+    List<DatabusV2ConsumerRegistration> allRegistrations =
+        Arrays.asList(consumerReg);
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
+            allRegistrations,
+            Executors.newCachedThreadPool(),
+            1000,
+            new StreamConsumerCallbackFactory(),
+            null);
+    callback.setSourceMap(sourcesMap);
+
+    DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
+    assert iter.hasNext() : "unable to read event";
+    DbusEvent event1 = iter.next();
+    assert iter.hasNext() : "unable to read event";
+    DbusEvent event2 = iter.next();
+    assert iter.hasNext() : "unable to read event";
+    DbusEvent event3 = iter.next();
+
+    initMockExceptionStreamConsumer3EventFullLifecycle(mockConsumer, event1, event2, event3, keyCounts, exception);
+
+    assert3EventFullLifecycleWithFailure(callback, event1, event2, event3);
+
+    EasyMock.verify(mockConsumer);
+//    assert keyCounts.get(1L).get() == 1 : "invalid number of event(1) calls: " + keyCounts.get(1L).get();
     assert keyCounts.get(2L).get() == 1 : "invalid number of event(2) calls:" + keyCounts.get(2L).get();
     assert keyCounts.get(3L).get() == 1 : "invalid number of event(3) calls:" + keyCounts.get(3L).get();
   }
@@ -498,8 +610,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg1, consumerReg2, consumerReg3);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
@@ -573,8 +685,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg1, consumerReg2, consumerReg3);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
@@ -645,8 +757,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg1);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
@@ -717,8 +829,8 @@ public class TestMultiConsumerCallback
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg1);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
@@ -833,8 +945,8 @@ public class TestMultiConsumerCallback
     //Create and fire up callbacks
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
-    MultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new MultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    MultiConsumerCallback callback =
+        new MultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             100,
@@ -901,7 +1013,7 @@ public class TestMultiConsumerCallback
 
     System.out.println("eventsReceived = " + statsCollector.getNumEventsReceived() + " eventsProcessed=" + statsCollector.getNumEventsProcessed());
     System.out.println("eventsErrProcessed =" + statsCollector.getNumErrorsProcessed() + " eventsErrReceived=" + statsCollector.getNumErrorsReceived()
-    		+ " totalEvents=" + statsCollector.getNumEventsReceived() + " totalEventsProcessed=" + totalEventsProcessed);
+                       + " totalEvents=" + statsCollector.getNumEventsReceived() + " totalEventsProcessed=" + totalEventsProcessed);
 
     //FIXME
     Assert.assertTrue(totalEvents >= totalEventsProcessed+eventsErrProcessed);
@@ -916,12 +1028,12 @@ public class TestMultiConsumerCallback
   @Test
   public void test2ConsumerTimeout()
   {
-	Logger log = Logger.getLogger("TestMultiConsumerCallback.test2ConsumerTimeout");
+    Logger log = Logger.getLogger("TestMultiConsumerCallback.test2ConsumerTimeout");
 
-	//Logger.getRootLogger().setLevel(Level.INFO);
-	log.info("test2ConsumerTimeout: start");
+    //Logger.getRootLogger().setLevel(Level.INFO);
+    log.info("test2ConsumerTimeout: start");
 
-	log.info("create dummy events");
+    log.info("create dummy events");
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -1000,8 +1112,8 @@ public class TestMultiConsumerCallback
     log.info("Create and fire up callbacks");
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
-    TimingOutMultiConsumerCallback<SelectingDatabusCombinedConsumer> callback =
-        new TimingOutMultiConsumerCallback<SelectingDatabusCombinedConsumer>(
+    TimingOutMultiConsumerCallback callback =
+        new TimingOutMultiConsumerCallback(
             allRegistrations,
             Executors.newCachedThreadPool(),
             300,
@@ -1033,7 +1145,7 @@ public class TestMultiConsumerCallback
                        "onEndSource fails because of timeout in onDataEvent(2)");
 
     EasyMock.reset(mockConsumer1);
-	log.info("test2ConsumerTimeout: end");
+    log.info("test2ConsumerTimeout: end");
   }
   @BeforeMethod
   public void beforeMethod()
@@ -1082,123 +1194,142 @@ public class TestMultiConsumerCallback
   {
   }
 
-}
 
-class EventCountingAnswer<T> implements IAnswer<T>
-{
-  private final T _result;
-  private final AtomicInteger _keyCounter;
-
-  public EventCountingAnswer(T result, AtomicInteger keyCounter)
+  class EventCountingAnswer<T> implements IAnswer<T>
   {
-    super();
-    _result = result;
-    _keyCounter = keyCounter;
+    private final T _result;
+    private final AtomicInteger _keyCounter;
+
+    public EventCountingAnswer(T result, AtomicInteger keyCounter)
+    {
+      super();
+      _result = result;
+      _keyCounter = keyCounter;
+    }
+
+
+    @Override
+    public T answer() throws Throwable
+    {
+      _keyCounter.incrementAndGet();
+      return _result;
+    }
   }
 
-
-  @Override
-  public T answer() throws Throwable
+  class TimingOutMultiConsumerCallback extends MultiConsumerCallback
   {
-    _keyCounter.incrementAndGet();
-    return _result;
-  }
-}
 
-class TimingOutMultiConsumerCallback<C> extends MultiConsumerCallback<C>
-{
+    private int _failOnCall;
 
-	private int _failOnCall;
-
-	public TimingOutMultiConsumerCallback(
-			List<DatabusV2ConsumerRegistration> consumers,
-			ExecutorService executorService, long timeBudgetMs,
-			ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
-			ConsumerCallbackStats consumerStats,
-			int errorCallNumber) {
-		super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats);
-		_failOnCall = errorCallNumber;
-	}
+    public TimingOutMultiConsumerCallback(
+        List<DatabusV2ConsumerRegistration> consumers,
+        ExecutorService executorService, long timeBudgetMs,
+        ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
+        ConsumerCallbackStats consumerStats,
+        int errorCallNumber) {
+      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats);
+      _failOnCall = errorCallNumber;
+    }
 
 
-	public TimingOutMultiConsumerCallback(
-			List<DatabusV2ConsumerRegistration> consumers,
-			ExecutorService executorService, long timeBudgetMs,
-			ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
-			int errorCallNumber) {
-		super(consumers, executorService, timeBudgetMs, callbackFactory);
-		_failOnCall = errorCallNumber;
-	}
+    public TimingOutMultiConsumerCallback(
+        List<DatabusV2ConsumerRegistration> consumers,
+        ExecutorService executorService, long timeBudgetMs,
+        ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
+        int errorCallNumber) {
+      super(consumers, executorService, timeBudgetMs, callbackFactory);
+      _failOnCall = errorCallNumber;
+    }
 
-	@Override
-	protected long getEstimatedTimeout(long timeBudget,
-				 long curTime,
-				 TimestampedFuture<ConsumerCallbackResult> top )
-	{
-		_failOnCall--;
+    @Override
+    protected long getEstimatedTimeout(long timeBudget,
+           long curTime,
+           TimestampedFuture<ConsumerCallbackResult> top )
+    {
+      _failOnCall--;
 
-		if (_failOnCall == -1 )
-			return 0;
-		return super.getEstimatedTimeout(timeBudget, curTime, top);
-	}
+      if (_failOnCall == -1 )
+        return 0;
+      return super.getEstimatedTimeout(timeBudget, curTime, top);
+    }
 
-	public void setFailOnCall(int failOnCall)
-	{
-		_failOnCall = failOnCall;
-	}
-}
-
-class LoggedAnswer<T> implements IAnswer<T>
-{
-  private final Logger _logger;
-  private final T _result;
-  private final Level _level;
-  private final String _message;
-
-  public LoggedAnswer(T result, Logger logger, Level level, String message)
-  {
-    super();
-    _result = result;
-    _level = level;
-    _message = message;
-    _logger = logger;
+    public void setFailOnCall(int failOnCall)
+    {
+      _failOnCall = failOnCall;
+    }
   }
 
-
-  @Override
-  public T answer() throws Throwable
+  class LoggedAnswer<T> implements IAnswer<T>
   {
-    _logger.log(_level, _message);
-    return _result;
+    private final Logger _logger;
+    private final T _result;
+    private final Level _level;
+    private final String _message;
+
+    public LoggedAnswer(T result, Logger logger, Level level, String message)
+    {
+      super();
+      _result = result;
+      _level = level;
+      _message = message;
+      _logger = logger;
+    }
+
+
+    @Override
+    public T answer() throws Throwable
+    {
+      _logger.log(_level, _message);
+      return _result;
+    }
+
   }
 
-}
-
-class SleepingAnswer<T> implements IAnswer<T>
-{
-  private final IAnswer<T> _delegate;
-  private final long _sleepMs;
-  private final T _defaultResult;
-
-  public SleepingAnswer(IAnswer<T> delegate, long sleepMs)
+  class SleepingAnswer<T> implements IAnswer<T>
   {
-    _delegate = delegate;
-    _sleepMs = sleepMs;
-    _defaultResult = null;
+    private final IAnswer<T> _delegate;
+    private final long _sleepMs;
+    private final T _defaultResult;
+
+    public SleepingAnswer(IAnswer<T> delegate, long sleepMs)
+    {
+      _delegate = delegate;
+      _sleepMs = sleepMs;
+      _defaultResult = null;
+    }
+
+    public SleepingAnswer(T defaultResult, long sleepMs)
+    {
+      _delegate = null;
+      _sleepMs = sleepMs;
+      _defaultResult = defaultResult;
+    }
+
+    @Override
+    public T answer() throws Throwable
+    {
+      try {Thread.sleep(_sleepMs); } catch (InterruptedException ie) {}
+      return null == _delegate ? _defaultResult : _delegate.answer();
+    }
   }
 
-  public SleepingAnswer(T defaultResult, long sleepMs)
+  class ExceptionAnswer<T> implements IAnswer<T>
   {
-    _delegate = null;
-    _sleepMs = sleepMs;
-    _defaultResult = defaultResult;
+    private final Throwable _exception;
+    public ExceptionAnswer(Throwable exception) {
+      _exception = exception;
+    }
+
+    @Override
+    public T answer() throws Throwable
+    {
+      throw _exception;
+    }
   }
 
-  @Override
-  public T answer() throws Throwable
-  {
-    try {Thread.sleep(_sleepMs); } catch (InterruptedException ie) {}
-    return null == _delegate ? _defaultResult : _delegate.answer();
+  class SomeApplicationException extends RuntimeException {
+    SomeApplicationException() {
+      super("Some Application Exception");
+    }
   }
-
 }

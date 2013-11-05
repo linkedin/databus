@@ -22,7 +22,7 @@ package com.linkedin.databus.core;
 import java.io.IOException;
 
 public abstract class InternalDatabusEventsListenerAbstract implements
-    InternalDatabusEventsListener, java.io.Closeable
+    InternalDatabusEventsListener
 {
   @Override
   public void onEvent(DbusEvent event, long offset, int size)

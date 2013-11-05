@@ -22,57 +22,70 @@ package com.linkedin.databus2.schemas;
 import java.util.Arrays;
 
 import org.apache.avro.Schema;
+import org.apache.commons.codec.binary.Hex;
 
+import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus2.schemas.utils.Utils;
 
 /**
+ * This class contains a byte-array that is used as a unique identifier for an Avro schema.
+ * The byte array is of size 16 (if we use MD5 hash) or 4 (if we use CRC32).
+ *
  * "Borrowed"  largely from com.linkedin.avro.SchemaId
  */
 public class SchemaId
 {
-  private final byte[] md5 = new byte[16];
+  private final byte[] _idBytes;
 
-  public SchemaId(byte[] new_md5)
+  public SchemaId(byte[] newIdBytes)
   {
     super();
-    Utils.notNull(new_md5);
-    if(md5.length != new_md5.length)
-      throw new IllegalArgumentException("schema id is of the wrong length (should be 16).");
-    for(int i=0; i<new_md5.length; i++)
-    	md5[i] = new_md5[i];
+    Utils.notNull(newIdBytes);
+    // As of now, we support either MD5 or CRC32.
+    //restrict byte sequences to either handle 128 bits or 32 bits
+    if((newIdBytes.length != DbusEvent.MD5_DIGEST_LEN)  && (newIdBytes.length != DbusEvent.CRC32_DIGEST_LEN))
+    {
+      throw new IllegalArgumentException("schema id is of length is " + newIdBytes.length +  " Expected length: "
+                                         + DbusEvent.CRC32_DIGEST_LEN + " or " + DbusEvent.MD5_DIGEST_LEN);
+    }
+    _idBytes = newIdBytes.clone();
   }
 
-  public static SchemaId forSchema(Schema schema)
+  /**
+   * Create a schema ID with an MD5  for a given Avro schema.
+   */
+  public static SchemaId createWithMd5(Schema schema)
   {
     return new SchemaId(Utils.md5(Utils.utf8(schema.toString(false))));
   }
 
-  public static SchemaId forSchema(String schema)
+  public static SchemaId createWithMd5(String schema)
   {
-    return forSchema(Schema.parse(schema));
+    return createWithMd5(Schema.parse(schema));
   }
 
   @Override
   public boolean equals(Object obj)
   {
     if(obj == null || !(obj instanceof SchemaId)) return false;
+    if (this == obj) return true; //shortcut
     SchemaId id = (SchemaId) obj;
-    return Arrays.equals(md5, id.md5);
+    return Arrays.equals(_idBytes, id._idBytes);
   }
 
   @Override
   public int hashCode()
   {
-    return Arrays.hashCode(md5);
+    return Arrays.hashCode(_idBytes);
   }
 
   @Override
   public String toString()
   {
-    return Utils.hex(md5);
+    return Hex.encodeHexString(_idBytes);
   }
 
   public byte[] getByteArray() {
-    return md5;
+    return _idBytes;
   }
 }

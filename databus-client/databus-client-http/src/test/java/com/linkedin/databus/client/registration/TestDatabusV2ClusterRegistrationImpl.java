@@ -46,8 +46,8 @@ import com.linkedin.databus.cluster.DatabusClusterNotifier;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventV2Factory;
 import com.linkedin.databus.core.DbusEventKey;
-import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 import com.linkedin.databus2.schemas.utils.SchemaHelper;
@@ -114,8 +114,8 @@ public class TestDatabusV2ClusterRegistrationImpl
 		//initialize relays
 		for (int relayN = 0; relayN < RELAY_PORT.length; ++relayN)
 		{
-			_dummyServer[relayN] = new SimpleTestServerConnection(DbusEventV1.byteOrder,
-					SimpleTestServerConnection.ServerType.NIO);
+			_dummyServer[relayN] = new SimpleTestServerConnection(new DbusEventV2Factory().getByteOrder(),
+					                                      SimpleTestServerConnection.ServerType.NIO);
 			_dummyServer[relayN].setPipelineFactory(new ChannelPipelineFactory() {
 				@Override
 				public ChannelPipeline getPipeline() throws Exception {
@@ -151,7 +151,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 		bufCfgBuilder.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
 		bufCfgBuilder.setMaxSize(100000);
 		bufCfgBuilder.setScnIndexSize(128);
-		bufCfgBuilder.setReadBufferSize(1);
+		bufCfgBuilder.setAverageEventSize(1);
 
 		_bufCfg = bufCfgBuilder.build();
 	}
@@ -174,7 +174,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			registerRelay(4, "relay3", new InetSocketAddress("localhost", 6666), "S3,S4,S5", client);
 
 			TestDbusPartitionListener listener = new TestDbusPartitionListener();
-			StaticConfig ckptConfig = new StaticConfig("localhost:1356", "dummy", 1);
+			StaticConfig ckptConfig = new StaticConfig("localhost:1356", "dummy", 1,1);
 			DbusClusterInfo clusterInfo = new DbusClusterInfo("dummy", 10,1);
 			
 			DatabusV2ClusterRegistrationImpl reg = new TestableDatabusV2ClusterRegistrationImpl(null,
@@ -573,7 +573,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 		}
 		
 		@Override
-		protected DatabusCluster createCluster(String id) throws Exception
+		protected DatabusCluster createCluster() throws Exception
 		{
 			return new TestDatabusCluster();
 		}

@@ -38,7 +38,7 @@ public class BootstrapCleanerConfig
 	private boolean enable;
 	private Map<String,RetentionConfig> retentionOverride;
 	private RetentionConfig retentionDefault;
-	private Map<String,String> bootstrapTypeOverride;		
+	private Map<String,String> bootstrapTypeOverride;
 	private String bootstrapTypeDefault;
 	private Map<String, Boolean> enableOptimizeTable;
 	private Boolean enableOptimizeTableDefault;
@@ -55,9 +55,9 @@ public class BootstrapCleanerConfig
 		bootstrapTypeDefault = BootstrapDBType.BOOTSTRAP_FULL.toString();
 		enable = true;
 		enableOptimizeTable = new HashMap<String, Boolean>();
-		enableOptimizeTableDefault = Boolean.FALSE;		
+		enableOptimizeTableDefault = Boolean.FALSE;
 		enableForceTabTableCleanup = new HashMap<String, Boolean>();
-		enableForceTabTableCleanupDefault = Boolean.FALSE;		
+		enableForceTabTableCleanupDefault = Boolean.FALSE;
 		diskSpaceTrigger = new DiskSpaceTriggerConfigBuilder();
 		periodicTrigger = new PeriodicTriggerConfigBuilder();
 	}
@@ -76,7 +76,7 @@ public class BootstrapCleanerConfig
 		{
 			bsTypeOverrides.put(e.getKey(), BootstrapDBType.valueOf(e.getValue()));
 		}
-		
+
 		return new BootstrapCleanerStaticConfig(retOverrides,
 								retentionDefault.build(),
 								bsTypeOverrides,
@@ -90,94 +90,94 @@ public class BootstrapCleanerConfig
 								periodicTrigger.build());
 	}
 
-	public RetentionConfig getRetentionOverride(String source) 
+	public RetentionConfig getRetentionOverride(String source)
 	{
 		RetentionConfig r = retentionOverride.get(source);
 
 		if (null == r)
 		{
 			r = new RetentionConfig();
-			retentionOverride.put(source, r);				
+			retentionOverride.put(source, r);
 		}
 
 		return r;
 	}
 
-	public Boolean getEnableOptimizeTable(String source) 
+	public Boolean getEnableOptimizeTable(String source)
 	{
 		return enableOptimizeTable.get(source);
 	}
-	
-	public void setEnableOptimizeTable(String source, Boolean enable) 
+
+	public void setEnableOptimizeTable(String source, Boolean enable)
 	{
 		this.enableOptimizeTable.put(source, enable);
 	}
-	
-	public Boolean getEnableOptimizeTableDefault() 
+
+	public Boolean getEnableOptimizeTableDefault()
 	{
 		return enableOptimizeTableDefault;
 	}
 
-	public void setEnableOptimizeTableDefault(Boolean enable) 
+	public void setEnableOptimizeTableDefault(Boolean enable)
 	{
 		this.enableOptimizeTableDefault = enable;
 	}
-	
-	public Boolean getEnableForceTabTableCleanup(String source) 
+
+	public Boolean getEnableForceTabTableCleanup(String source)
 	{
 		return enableForceTabTableCleanup.get(source);
 	}
-	
-	public void setEnableForceTabTableCleanup(String source, Boolean enable) 
+
+	public void setEnableForceTabTableCleanup(String source, Boolean enable)
 	{
 		this.enableForceTabTableCleanup.put(source, enable);
 	}
-	
-	public Boolean getEnableForceTabTableCleanupDefault() 
+
+	public Boolean getEnableForceTabTableCleanupDefault()
 	{
 		return enableForceTabTableCleanupDefault;
 	}
 
-	public void setEnableForceTabTableCleanupDefault(Boolean enable) 
+	public void setEnableForceTabTableCleanupDefault(Boolean enable)
 	{
 		this.enableForceTabTableCleanupDefault = enable;
 	}
-	
-	
-	public String getBootstrapTypeOverride(String source) 
+
+
+	public String getBootstrapTypeOverride(String source)
 	{
 		return bootstrapTypeOverride.get(source);
 	}
-	
-	public void setBootstrapTypeOverride(String source, String bootstrapTypeOverride) 
+
+	public void setBootstrapTypeOverride(String source, String bootstrapTypeOverride)
 	{
 		this.bootstrapTypeOverride.put(source, bootstrapTypeOverride);
 	}
-	
-	public void setRetentionOverride(String source, RetentionConfig retentionOverride) 
+
+	public void setRetentionOverride(String source, RetentionConfig retentionOverride)
 	{
 		this.retentionOverride.put(source, retentionOverride);
 	}
 
-	public RetentionConfig getRetentionDefault() 
+	public RetentionConfig getRetentionDefault()
 	{
 		return retentionDefault;
 	}
 
-	public void setRetentionDefault(RetentionConfig retentionDefault) 
+	public void setRetentionDefault(RetentionConfig retentionDefault)
 	{
 		this.retentionDefault = retentionDefault;
 	}
 
-	public String getBootstrapTypeDefault() 
+	public String getBootstrapTypeDefault()
 	{
 		return bootstrapTypeDefault;
 	}
 
-	public void setBootstrapTypeDefault(String bootstrapTypeDefault) 
+	public void setBootstrapTypeDefault(String bootstrapTypeDefault)
 	{
 		this.bootstrapTypeDefault = bootstrapTypeDefault;
-	}   
+	}
 
 	public boolean getEnable()
 	{
@@ -188,7 +188,7 @@ public class BootstrapCleanerConfig
 	{
 		enable = e;
 	}
-	
+
 	public PeriodicTriggerConfigBuilder getPeriodicTrigger() {
 		return periodicTrigger;
 	}
@@ -204,7 +204,7 @@ public class BootstrapCleanerConfig
 	public void setDiskSpaceTrigger(DiskSpaceTriggerConfigBuilder diskSpaceTrigger) {
 		this.diskSpaceTrigger = diskSpaceTrigger;
 	}
-	
+
 	public static class RetentionConfig implements ConfigBuilder<RetentionStaticConfig>
 	{
 		private static final String DEFAULT_RETENTION_TYPE = RetentionType.RETENTION_SECONDS.toString();
@@ -234,9 +234,9 @@ public class BootstrapCleanerConfig
 		public void setRetentionQuantity(long retentionQuantity) {
 			this.retentionQuantity = retentionQuantity;
 		}
-		
+
 		@Override
-		public RetentionStaticConfig build() throws InvalidConfigException 
+		public RetentionStaticConfig build() throws InvalidConfigException
 		{
 			try
 			{
@@ -245,10 +245,10 @@ public class BootstrapCleanerConfig
 			} catch (Exception ex) {
 				throw new InvalidConfigException(ex);
 			}
-		}		  
+		}
 	}
-	
-	
+
+
 	public static class DiskSpaceTriggerConfigBuilder
 		implements ConfigBuilder<DiskSpaceTriggerConfig>
 	{
@@ -295,10 +295,10 @@ public class BootstrapCleanerConfig
 		}
 
 		@Override
-		public DiskSpaceTriggerConfig build() 
-				throws InvalidConfigException 
+		public DiskSpaceTriggerConfig build()
+				throws InvalidConfigException
 		{
-			if (availableThresholdPercent > 100 || 
+			if (availableThresholdPercent > 100 ||
 					availableThresholdPercent < 0)
 				throw new InvalidConfigException("availableThresholdPercent must be between 0-100");
 
@@ -311,52 +311,52 @@ public class BootstrapCleanerConfig
 
 		public void setBootstrapDBDrive(String bootstrapDBDrive) {
 			this.bootstrapDBDrive = bootstrapDBDrive;
-		}						
+		}
 	}
-	
+
 	public static class PeriodicTriggerConfigBuilder
 		implements ConfigBuilder<PeriodicTriggerConfig>
 	{
-		public static final long DEFAULT_RUN_INTERVAL_SECONDS = 24*60*60; //every day		  
+		public static final long DEFAULT_RUN_INTERVAL_SECONDS = 6 * 60 * 60; //4x per day
 
-		private long runIntervalSeconds; 
+		private long runIntervalSeconds;
 		private boolean enable;
 		private boolean runOnStart;
-		
+
 		public PeriodicTriggerConfigBuilder()
 		{
 			runIntervalSeconds = DEFAULT_RUN_INTERVAL_SECONDS;
 			enable = true;
 			runOnStart = false;
 		}
-		
+
 		public long getRunIntervalSeconds() {
 			return runIntervalSeconds;
 		}
-		
+
 		public void setRunIntervalSeconds(long runIntervalSeconds) {
 			this.runIntervalSeconds = runIntervalSeconds;
 		}
-		
+
 		public boolean getEnable() {
 			return enable;
 		}
-		
+
 		public void setEnable(boolean enable) {
 			this.enable = enable;
 		}
-		
+
 		public boolean isRunOnStart() {
 			return runOnStart;
 		}
-		
+
 		public void setRunOnStart(boolean runOnStart) {
 			this.runOnStart = runOnStart;
 		}
 
 		@Override
-		public PeriodicTriggerConfig build() 
-				throws InvalidConfigException 
+		public PeriodicTriggerConfig build()
+				throws InvalidConfigException
 		{
 			return new PeriodicTriggerConfig(runIntervalSeconds, enable, runOnStart);
 		}

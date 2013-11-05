@@ -20,40 +20,47 @@ package com.linkedin.databus2.core.container.monitoring.mbean;
 
 
 
-/** Statistics about the network container */
+/**
+ * Statistics about the network container.
+ *
+ * The I/O threadpool is handed off to Netty for its internal use (handling
+ * connections and whatnot, near the beginning of the pipeline).  The worker
+ * threadpool is used at the other end of the pipeline, to service the
+ # incoming requests and produce the actual responses.
+ */
 public interface ContainerStatsMBean
 {
   // ************** GETTERS *********************
 
-  /** number of running io threads */
+  /** number of active (running) I/O threads */
   int getIoThreadRate();
 
-  /** max number of io threads since last reset */
+  /** max number of I/O threads seen during a metrics update */
   int getIoThreadMax();
 
-  /** number of active io threads */
-  int getIoActiveThreadRate();
-
-  /** number of scheduled io tasks */
+  /** number of scheduled I/O tasks since startup (approximate) */
   long getIoTaskCount();
 
-  /** max number of scheduled io tasks since last reset */
+  /** max number of scheduled I/O tasks in a metric-update interval */
   int getIoTaskMax();
 
-  /** number of running worker threads */
+  /** number of I/O tasks currently waiting in queue for a thread */
+  int getIoTaskQueueSize();
+
+  /** number of active (running) worker threads */
   int getWorkerThreadRate();
 
-  /** max number of worker threads since last reset */
+  /** max number of worker threads seen during a metrics update */
   int getWorkerThreadMax();
 
-  /** number of active worker threads */
-  int getWorkerActiveThreadRate();
-
-  /** number scheduled worker tasks */
+  /** number of scheduled worker tasks since startup (approximate) */
   long getWorkerTaskCount();
 
-  /** max number scheduled worker tasks since last reset */
+  /** max number of scheduled worker tasks in a metric-update interval */
   int getWorkerTaskMax();
+
+  /** number of worker tasks currently waiting in queue for a thread */
+  int getWorkerTaskQueueSize();
 
   /** total number of errors */
   long getErrorCount();
@@ -68,5 +75,4 @@ public interface ContainerStatsMBean
 
   /** Resets the statistics. */
   void reset();
-
 }

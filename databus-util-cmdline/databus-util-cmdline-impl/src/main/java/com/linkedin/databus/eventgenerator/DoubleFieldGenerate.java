@@ -24,8 +24,8 @@ import org.apache.avro.generic.GenericRecord;
 
 public class DoubleFieldGenerate extends SchemaFiller {
 
-  public static double minValue = 0;
-  public static double maxValue = Double.MAX_VALUE;
+  private static double minValue = 0;
+  private static double maxValue = Double.MAX_VALUE;
   
   public static double getMinValue()
   {

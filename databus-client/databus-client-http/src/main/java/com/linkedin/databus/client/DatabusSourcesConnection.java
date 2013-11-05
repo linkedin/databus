@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -42,6 +43,7 @@ import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
+import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.async.LifecycleMessage;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.data_model.LogicalSource;
@@ -90,12 +92,14 @@ public class DatabusSourcesConnection {
 	private final HttpStatisticsCollector _localRelayCallsStatsCollector;
 	private final DatabusRelayConnectionFactory _relayConnFactory;
 	private final DatabusBootstrapConnectionFactory _bootstrapConnFactory;
-	private final List<DatabusV2ConsumerRegistration> _relayConsumers;
+	private final List<DatabusV2ConsumerRegistration> _relayRegistrations;
 	private final ConsumerCallbackStats _relayConsumerStats;
 	private final ConsumerCallbackStats _bootstrapConsumerStats;
 	private final NannyRunnable _nannyRunnable;
+	private final DbusEventFactory _eventFactory;
+	private final ConnectionStateFactory _connStateFactory;
 
-	private final List<DatabusV2ConsumerRegistration> _bootstrapConsumers;
+	private final List<DatabusV2ConsumerRegistration> _bootstrapRegistrations;
 	private final SourcesConnectionStatus _connectionStatus;
 
 	private UncaughtExceptionTrackingThread _relayPullerThread;
@@ -108,37 +112,89 @@ public class DatabusSourcesConnection {
 
 	private final boolean _isBootstrapEnabled;
 	private final RegistrationId _registrationId;
+	private ReentrantLock _v3BootstrapLock = null;
 
 	public ExecutorService getIoThreadPool() {
 		return _ioThreadPool;
 	}
 
-	public DatabusSourcesConnection(
-			DatabusSourcesConnection.StaticConfig connConfig,
-			List<DatabusSubscription> subscriptions, Set<ServerInfo> relays,
-			Set<ServerInfo> bootstrapServices,
-			List<DatabusV2ConsumerRegistration> consumers,
-			List<DatabusV2ConsumerRegistration> bootstrapConsumers,
-			DbusEventBuffer dataEventsBuffer,
-			DbusEventBuffer bootstrapEventsBuffer,
-			ExecutorService ioThreadPool,
-			ContainerStatisticsCollector containerStatsCollector,
-			DbusEventsStatisticsCollector inboundEventsStatsCollector,
-			DbusEventsStatisticsCollector bootstrapEventsStatsCollector,
-			ConsumerCallbackStats relayCallbackStats,
-			ConsumerCallbackStats bootstrapCallbackStats,
-			CheckpointPersistenceProvider checkpointPersistenceProvider,
-			DatabusRelayConnectionFactory relayConnFactory,
-			DatabusBootstrapConnectionFactory bootstrapConnFactory,
-			HttpStatisticsCollector relayCallsStatsCollector,
-			RegistrationId registrationId, DatabusHttpClientImpl serverHandle)
+    public DatabusSourcesConnection(StaticConfig connConfig,
+       List<DatabusSubscription> subscriptions,
+       Set<ServerInfo> relays,
+       Set<ServerInfo> bootstrapServices,
+       List<DatabusV2ConsumerRegistration> registrations,
+       List<DatabusV2ConsumerRegistration> bootstrapRegistrations,
+       DbusEventBuffer dataEventsBuffer,
+       DbusEventBuffer bootstrapEventsBuffer,
+       ExecutorService ioThreadPool,
+       ContainerStatisticsCollector containerStatsCollector,
+       DbusEventsStatisticsCollector inboundEventsStatsCollector,
+       DbusEventsStatisticsCollector bootstrapEventsStatsCollector,
+       ConsumerCallbackStats relayCallbackStats,
+       ConsumerCallbackStats bootstrapCallbackStats,
+       CheckpointPersistenceProvider checkpointPersistenceProvider,
+       DatabusRelayConnectionFactory relayConnFactory,
+       DatabusBootstrapConnectionFactory bootstrapConnFactory,
+       HttpStatisticsCollector relayCallsStatsCollector,
+       RegistrationId registrationId,
+       DatabusHttpClientImpl serverHandle,
+       DbusEventFactory eventFactory)
+    {
+      this(connConfig,
+          subscriptions,
+          relays,
+          bootstrapServices,
+          registrations,
+          bootstrapRegistrations,
+          dataEventsBuffer,
+          bootstrapEventsBuffer,
+          ioThreadPool,
+          containerStatsCollector,
+          inboundEventsStatsCollector,
+          bootstrapEventsStatsCollector,
+          relayCallbackStats,
+          bootstrapCallbackStats,
+          checkpointPersistenceProvider,
+          relayConnFactory,
+          bootstrapConnFactory,
+          relayCallsStatsCollector,
+          registrationId,
+          serverHandle,
+          registrationId != null ? registrationId.toString() : null,
+          eventFactory,
+          null,
+    null);
+    }
+
+	public DatabusSourcesConnection(StaticConfig connConfig,
+					List<DatabusSubscription> subscriptions,
+					Set<ServerInfo> relays,
+					Set<ServerInfo> bootstrapServices,
+					List<DatabusV2ConsumerRegistration> registrations,
+					List<DatabusV2ConsumerRegistration> bootstrapRegistrations,
+					DbusEventBuffer dataEventsBuffer,
+					DbusEventBuffer bootstrapEventsBuffer,
+					ExecutorService ioThreadPool,
+					ContainerStatisticsCollector containerStatsCollector,
+					DbusEventsStatisticsCollector inboundEventsStatsCollector,
+					DbusEventsStatisticsCollector bootstrapEventsStatsCollector,
+					ConsumerCallbackStats relayCallbackStats,
+					ConsumerCallbackStats bootstrapCallbackStats,
+					CheckpointPersistenceProvider checkpointPersistenceProvider,
+					DatabusRelayConnectionFactory relayConnFactory,
+					DatabusBootstrapConnectionFactory bootstrapConnFactory,
+					HttpStatisticsCollector relayCallsStatsCollector,
+					RegistrationId registrationId,
+					DatabusHttpClientImpl serverHandle,
+					DbusEventFactory eventFactory,
+					ConnectionStateFactory connStateFactory)
 	{
 		this(connConfig,
 			subscriptions,
 			relays,
 			bootstrapServices,
-			consumers,
-			bootstrapConsumers,
+			registrations,
+			bootstrapRegistrations,
 			dataEventsBuffer,
 			bootstrapEventsBuffer,
 			ioThreadPool,
@@ -153,15 +209,18 @@ public class DatabusSourcesConnection {
 			relayCallsStatsCollector,
 			registrationId,
 			serverHandle,
-			registrationId != null ? registrationId.toString() : null);
+			registrationId != null ? registrationId.toString() : null,
+			eventFactory,
+			null,
+			connStateFactory);
 	}
 
 	public DatabusSourcesConnection(
 			DatabusSourcesConnection.StaticConfig connConfig,
 			List<DatabusSubscription> subscriptions, Set<ServerInfo> relays,
 			Set<ServerInfo> bootstrapServices,
-			List<DatabusV2ConsumerRegistration> consumers,
-			List<DatabusV2ConsumerRegistration> bootstrapConsumers,
+			List<DatabusV2ConsumerRegistration> registrations,
+			List<DatabusV2ConsumerRegistration> bootstrapRegistrations,
 			DbusEventBuffer dataEventsBuffer,
 			DbusEventBuffer bootstrapEventsBuffer,
 			ExecutorService ioThreadPool,
@@ -175,9 +234,13 @@ public class DatabusSourcesConnection {
 			DatabusBootstrapConnectionFactory bootstrapConnFactory,
 			HttpStatisticsCollector relayCallsStatsCollector,
 			RegistrationId registrationId, DatabusHttpClientImpl serverHandle,
-			String connRawId // Unique Name to be used for generating mbean and logger names.
+			String connRawId, // Unique Name to be used for generating mbean and logger names.
+			DbusEventFactory eventFactory,
+            ReentrantLock v3BootstrapLock,
+			ConnectionStateFactory connStateFactory
 			)
 	{
+		_eventFactory = eventFactory;
 		_connectionConfig = connConfig;
 		_dataEventsBuffer = dataEventsBuffer;
 		_bootstrapEventsBuffer = bootstrapEventsBuffer;
@@ -191,8 +254,8 @@ public class DatabusSourcesConnection {
 		_bootstrapConsumerStats = bootstrapCallbackStats;
 		_relayConnFactory = relayConnFactory;
 		_bootstrapConnFactory = bootstrapConnFactory;
-		_relayConsumers = consumers;
-		_bootstrapConsumers = bootstrapConsumers;
+		_relayRegistrations = registrations;
+		_bootstrapRegistrations = bootstrapRegistrations;
 		_relayCallsStatsCollector = relayCallsStatsCollector;
 		_localRelayCallsStatsCollector = null != relayCallsStatsCollector ? relayCallsStatsCollector
 				.createForClientConnection(toString()) : null;
@@ -202,22 +265,24 @@ public class DatabusSourcesConnection {
 		_log = Logger.getLogger(DatabusSourcesConnection.class.getName()
 				+ ".srcconn-" + _name);
 		_connectionStatus = new SourcesConnectionStatus();
+		_v3BootstrapLock = v3BootstrapLock;
+		_connStateFactory = connStateFactory;
 
 		List<DbusKeyCompositeFilterConfig> relayFilterConfigs = new ArrayList<DbusKeyCompositeFilterConfig>();
 		List<DbusKeyCompositeFilterConfig> bootstrapFilterConfigs = new ArrayList<DbusKeyCompositeFilterConfig>();
 
-		if (null != consumers) {
-			for (DatabusV2ConsumerRegistration c : consumers) {
-				DbusKeyCompositeFilterConfig conf = c.getFilterConfig();
+		if (null != registrations) {
+			for (DatabusV2ConsumerRegistration reg : registrations) {
+				DbusKeyCompositeFilterConfig conf = reg.getFilterConfig();
 
 				if (null != conf)
 					relayFilterConfigs.add(conf);
 			}
 		}
 
-		if (null != bootstrapConsumers) {
-			for (DatabusV2ConsumerRegistration c : bootstrapConsumers) {
-				DbusKeyCompositeFilterConfig conf = c.getFilterConfig();
+		if (null != bootstrapRegistrations) {
+			for (DatabusV2ConsumerRegistration reg : bootstrapRegistrations) {
+				DbusKeyCompositeFilterConfig conf = reg.getFilterConfig();
 
 				if (null != conf)
 					bootstrapFilterConfigs.add(conf);
@@ -233,26 +298,27 @@ public class DatabusSourcesConnection {
 					consumerParallelism, new NamedThreadFactory("callback"));
 		}
 
-		MultiConsumerCallback<DatabusCombinedConsumer> relayAsyncCallback = new MultiConsumerCallback<DatabusCombinedConsumer>(
-				(null != _relayConsumers ? _relayConsumers
+		MultiConsumerCallback relayAsyncCallback = new MultiConsumerCallback(
+				(null != _relayRegistrations ? _relayRegistrations
 						: new ArrayList<DatabusV2ConsumerRegistration>()),
 				_consumerCallbackExecutor,
 				connConfig.getConsumerTimeBudgetMs(),
 				new StreamConsumerCallbackFactory(), _relayConsumerStats);
 
-		MultiConsumerCallback<DatabusCombinedConsumer> bootstrapAsyncCallback = new MultiConsumerCallback<DatabusCombinedConsumer>(
-				(null != _bootstrapConsumers ? _bootstrapConsumers
+		MultiConsumerCallback bootstrapAsyncCallback = new MultiConsumerCallback(
+				(null != _bootstrapRegistrations ? _bootstrapRegistrations
 						: new ArrayList<DatabusV2ConsumerRegistration>()),
 				_consumerCallbackExecutor,
-				connConfig.getConsumerTimeBudgetMs(),
+				connConfig.getBstConsumerTimeBudgetMs(),
 				new BootstrapConsumerCallbackFactory(), _bootstrapConsumerStats);
 
 		if (_bootstrapEventsBuffer != null) {
 			_bootstrapPuller = new BootstrapPullThread(_name
-					+ "-BootstrapPuller", this, _bootstrapEventsBuffer,
+					+ "-BootstrapPuller", this, _bootstrapEventsBuffer, _connStateFactory,
 					bootstrapServices, bootstrapFilterConfigs,
 					connConfig.getPullerUtilizationPct(),
-					ManagementFactory.getPlatformMBeanServer());
+					ManagementFactory.getPlatformMBeanServer(),
+					_eventFactory, _v3BootstrapLock);
 		} else {
 			_bootstrapPuller = null;
 		}
@@ -264,11 +330,13 @@ public class DatabusSourcesConnection {
 				_registrationId);
 
 		_relayPuller = new RelayPullThread(_name + "-RelayPuller", this,
-				_dataEventsBuffer, relays, relayFilterConfigs,
+				_dataEventsBuffer, _connStateFactory, relays, relayFilterConfigs,
 				connConfig.getConsumeCurrent(),
 				connConfig.isReadLatestScnOnErrorEnabled(),
 				connConfig.getPullerUtilizationPct(),
-				ManagementFactory.getPlatformMBeanServer());
+				connConfig.getNoEventsConnectionResetTimeSec(),
+				ManagementFactory.getPlatformMBeanServer(),
+ 				_eventFactory);
 
 		_relayPuller.enqueueMessage(LifecycleMessage.createStartMessage());
 
@@ -288,14 +356,14 @@ public class DatabusSourcesConnection {
 
 		_isBootstrapEnabled = !(null == getBootstrapServices()
 				|| getBootstrapServices().isEmpty()
-				|| null == getBootstrapConsumers()
-				|| 0 == getBootstrapConsumers().size() || _bootstrapEventsBuffer == null);
+				|| null == getBootstrapRegistrations()
+				|| 0 == getBootstrapRegistrations().size() || _bootstrapEventsBuffer == null);
 
 		_log.info(" Is Service Empty : "
 				+ (null == getBootstrapServices() || getBootstrapServices()
 						.isEmpty()));
 		_log.info(" Is Consumers Empty : "
-				+ (null == getBootstrapConsumers() || 0 == getBootstrapConsumers()
+				+ (null == getBootstrapRegistrations() || 0 == getBootstrapRegistrations()
 						.size()));
 
 		_nannyRunnable = new NannyRunnable();
@@ -486,7 +554,7 @@ public class DatabusSourcesConnection {
 		return _dataEventsBuffer;
 	}
 
-	DbusEventBuffer getBootstrapEventsBuffer() {
+	public DbusEventBuffer getBootstrapEventsBuffer() {
 		return _bootstrapEventsBuffer;
 	}
 
@@ -498,16 +566,16 @@ public class DatabusSourcesConnection {
 		return cp;
 	}
 
-	public List<DatabusV2ConsumerRegistration> getBootstrapConsumers() {
-		return _bootstrapConsumers;
+	public List<DatabusV2ConsumerRegistration> getBootstrapRegistrations() {
+		return _bootstrapRegistrations;
 	}
 
 	public DatabusSourcesConnection.StaticConfig getConnectionConfig() {
 		return _connectionConfig;
 	}
 
-	public List<DatabusV2ConsumerRegistration> getRelayConsumers() {
-		return _relayConsumers;
+	public List<DatabusV2ConsumerRegistration> getRelayRegistrations() {
+		return _relayRegistrations;
 	}
 
 	class NannyRunnable implements Runnable {
@@ -586,24 +654,32 @@ public class DatabusSourcesConnection {
 		}
 
 		@Override
-		public void shutdown() {
-			_relayPuller.shutdown();
-			_relayDispatcher.shutdown();
-			if (_bootstrapPuller != null)
-				_bootstrapPuller.shutdown();
-			if (_bootstrapDispatcher != null)
-				_bootstrapDispatcher.shutdown();
+		public void shutdown()
+		{
+		  _log.info("shutting down connection ...");
+		  _relayPuller.shutdown();
+		  _relayDispatcher.shutdown();
+		  if (_bootstrapPuller != null)
+		  {
+		    _bootstrapPuller.shutdown();
+		  }
+		  if (_bootstrapDispatcher != null)
+		  {
+		    _bootstrapDispatcher.shutdown();
+		  }
 
-			_relayPullerThread.interrupt();
-			_relayDispatcherThread.interrupt();
+		  _relayPullerThread.interrupt();
+		  _relayDispatcherThread.interrupt();
 
-			if (_isBootstrapEnabled) {
-				_bootstrapPullerThread.interrupt();
-				_bootstrapDispatcherThread.interrupt();
-			}
+		  if (_isBootstrapEnabled)
+		  {
+		    _bootstrapPullerThread.interrupt();
+		    _bootstrapDispatcherThread.interrupt();
+		  }
 
-			super.shutdown();
-			_nannyThread.interrupt();
+		  super.shutdown();
+		  _nannyThread.interrupt();
+		  _log.info("connection shut down.");
 		}
 
 		@Override
@@ -643,13 +719,17 @@ public class DatabusSourcesConnection {
 
 	public static class StaticConfig {
 		private final DbusEventBuffer.StaticConfig _eventBuffer;
+		private final DbusEventBuffer.StaticConfig _bstEventBuffer;
 		private final long _consumerTimeBudgetMs;
+		private final long _bstConsumerTimeBudgetMs;
 		private final int _consumerParallelism;
 		private final double _checkpointThresholdPct;
 		private final Range _keyRange;
 		private final BackoffTimerStaticConfig _bsPullerRetriesBeforeCkptCleanup;
 		private final BackoffTimerStaticConfig _pullerRetries;
+		private final BackoffTimerStaticConfig _bstPullerRetries;
 		private final BackoffTimerStaticConfig _dispatcherRetries;
+		private final BackoffTimerStaticConfig _bstDispatcherRetries;
 		private final int _freeBufferThreshold;
 		private final boolean _consumeCurrent;
 		private final boolean _readLatestScnOnError;
@@ -657,33 +737,61 @@ public class DatabusSourcesConnection {
 		private final int _id;
 		private final boolean _enablePullerMessageQueueLogging;
 		private final int _numRetriesOnFallOff;
+		private final int _noEventsConnectionResetTimeSec;
 
 		public StaticConfig(DbusEventBuffer.StaticConfig eventBuffer,
-				long consumerTimeBudgetMs, int consumerParallelism,
+				DbusEventBuffer.StaticConfig bstEventBuffer,
+				long consumerTimeBudgetMs, long bstConsumerTimeBudgetMs, int consumerParallelism,
 				double checkpointThresholdPct, Range keyRange,
 				BackoffTimerStaticConfig bsPullerRetriesBeforeCkptCleanup,
 				BackoffTimerStaticConfig pullerRetries,
+				BackoffTimerStaticConfig bstPullerRetries,
 				BackoffTimerStaticConfig dispatcherRetries,
+				BackoffTimerStaticConfig bstDispatcherRetries,
 				int retriesOnFellOff, int freeBufferThreshold,
 				boolean consumeCurrent, boolean readLatestScnOnError,
 				double pullerBufferUtilizationPct, int id,
-				boolean enablePullerMessageQueueLogging) {
+				boolean enablePullerMessageQueueLogging,
+				int noEventsConnectionResetTimeSec
+				) {
 			super();
 			_eventBuffer = eventBuffer;
+			_bstEventBuffer = bstEventBuffer;
 			_consumerTimeBudgetMs = consumerTimeBudgetMs;
+			_bstConsumerTimeBudgetMs = bstConsumerTimeBudgetMs;
 			_consumerParallelism = consumerParallelism;
 			_checkpointThresholdPct = checkpointThresholdPct;
 			_keyRange = keyRange;
 			_bsPullerRetriesBeforeCkptCleanup = bsPullerRetriesBeforeCkptCleanup;
 			_pullerRetries = pullerRetries;
+			_bstPullerRetries = bstPullerRetries;
 			_dispatcherRetries = dispatcherRetries;
+			_bstDispatcherRetries = bstDispatcherRetries;
 			_numRetriesOnFallOff = retriesOnFellOff;
-			_freeBufferThreshold = freeBufferThreshold;
+			_freeBufferThreshold = (freeBufferThreshold > eventBuffer.getReadBufferSize()) ? eventBuffer.getReadBufferSize()/2:freeBufferThreshold;
 			_consumeCurrent = consumeCurrent;
 			_readLatestScnOnError = readLatestScnOnError;
 			_pullerBufferUtilizationPct = pullerBufferUtilizationPct;
 			_id = id;
 			_enablePullerMessageQueueLogging = enablePullerMessageQueueLogging;
+			_noEventsConnectionResetTimeSec = noEventsConnectionResetTimeSec;
+
+		}
+
+
+		public int getNoEventsConnectionResetTimeSec() {
+			return _noEventsConnectionResetTimeSec;
+		}
+		public DbusEventBuffer.StaticConfig getBstEventBuffer() {
+			return _bstEventBuffer;
+		}
+
+		public long getBstConsumerTimeBudgetMs() {
+			return _bstConsumerTimeBudgetMs;
+		}
+
+		public BackoffTimerStaticConfig getBstDispatcherRetries() {
+			return _bstDispatcherRetries;
 		}
 
 		public boolean getReadLatestScnOnError() {
@@ -749,6 +857,10 @@ public class DatabusSourcesConnection {
 			return _pullerRetries;
 		}
 
+		public BackoffTimerStaticConfig getBstPullerRetries() {
+			return _bstPullerRetries;
+		}
+
 		/** Error retries configuration calling the consumer code */
 		public BackoffTimerStaticConfig getDispatcherRetries() {
 			return _dispatcherRetries;
@@ -787,14 +899,17 @@ public class DatabusSourcesConnection {
 		@Override
 		public String toString() {
 			return "StaticConfig [_eventBuffer=" + _eventBuffer
+					+ ", _bstEventBuffer=" + _bstEventBuffer
 					+ ", _consumerTimeBudgetMs=" + _consumerTimeBudgetMs
+					+ ", _bstConsumerTimeBudgetMs=" + _bstConsumerTimeBudgetMs
 					+ ", _consumerParallelism=" + _consumerParallelism
 					+ ", _checkpointThresholdPct=" + _checkpointThresholdPct
 					+ ", _keyRange=" + _keyRange
 					+ ", _bsPullerRetriesBeforeCkptCleanup="
 					+ _bsPullerRetriesBeforeCkptCleanup + ", _pullerRetries="
-					+ _pullerRetries + ", _dispatcherRetries="
-					+ _dispatcherRetries + ", _freeBufferThreshold="
+					+ _pullerRetries + ", _bstPullerRetries=" + _bstPullerRetries + ", _dispatcherRetries="
+					+ _dispatcherRetries + ", _bstDispatcherRetries="
+					+ _bstDispatcherRetries + ", _freeBufferThreshold="
 					+ _freeBufferThreshold
 					+ ", _enablePullerMessageQueueLogging="
 					+ _enablePullerMessageQueueLogging + "]";
@@ -806,58 +921,73 @@ public class DatabusSourcesConnection {
 		private static final long DEFAULT_KEY_RANGE_MAX = -1L;
 
 		private static final long DEFAULT_MAX_BUFFER_SIZE = 10 * 1024 * 1024;
-		private static final int DEFAULT_MAX_READBUFFER_SIZE = 1024 * 1024;
+		private static final int DEFAULT_INIT_READBUFFER_SIZE = 20 * 1024;
 		private static final int DEFAULT_MAX_SCNINDEX_SIZE = 1024 * 1024;
 		private static final boolean DEFAULT_PULLER_MESSAGE_QUEUE_LOGGING = false;
 
-		private static int DEFAULT_MAX_RETRY_NUM = 3;
+		private static int DEFAULT_MAX_RETRY_NUM = -1;
 		private static int DEFAULT_INIT_SLEEP = 100;
 		private static double DEFAULT_SLEEP_INC_FACTOR = 1.1;
 
-		// Default Sleep : InitSleep : 1 sec, then keep incrementing 1 sec for
-		// subsequent retry, upto 25 retries.
-		private static int DEFAULT_BSPULLER_CKPTCLEANUP_MAX_RETRY_NUM = 25;
+		// Default Sleep : InitSleep : 1 sec, then keep incrementing 1.5*prev + 1 sec for
+		// subsequent retry, upto 1000 retries. (there is a limit on max sleep set to 1 minute)
+		// so at the worst case it will wait for ~16 hours
+		private static int DEFAULT_BSPULLER_CKPTCLEANUP_MAX_RETRY_NUM = 1000;
 		private static int DEFAULT_BSPULLER_CKPTCLEANUP_INIT_SLEEP = 1 * 1000;
 		private static int DEFAULT_BSPULLER_CKPTCLEANUP_SLEEP_INC_DELTA = 1000;
-		private static int DEFAULT_BSPULLER_CKPTCLEANUP_SLEEP_INC_FACTOR = 1;
+		private static double DEFAULT_BSPULLER_CKPTCLEANUP_SLEEP_INC_FACTOR = 1.5;
+		private static int DEFAULT_FREE_BUFFER_THRESHOLD=10*1024;
 
 		// Default Config woul be to retry 5 times w
 		private static int DEFAULT_RETRY_ON_FELLOFF_MAX_RETRY_NUM = 5;
 
+		private final Logger _log = Logger.getLogger(Config.class);
 		private DbusEventBuffer.Config _eventBuffer;
+		private DbusEventBuffer.Config _bstEventBuffer = null;
 		private long _consumerTimeBudgetMs = 300000;
+		private long _bstConsumerTimeBudgetMs = 300000;
+		private boolean _setBstConsumerTimeBudgetCalled = false;
 		private int _consumerParallelism = 1;
 		private double _checkpointThresholdPct;
 		private long _keyMin;
 		private long _keyMax;
 		private BackoffTimerStaticConfigBuilder _bsPullerRetriesBeforeCkptCleanup;
 		private BackoffTimerStaticConfigBuilder _pullerRetries;
+		private BackoffTimerStaticConfigBuilder _bstPullerRetries;
 		private BackoffTimerStaticConfigBuilder _dispatcherRetries;
+		private BackoffTimerStaticConfigBuilder _bstDispatcherRetries = null;
 		private int _numRetriesOnFallOff;
-		// max size event should be less than this ; default to 10K
-		private int _freeBufferThreshold = 10000;
+
+		//optimization - depreating the ability to alter the value
+		private int _freeBufferThreshold = DEFAULT_FREE_BUFFER_THRESHOLD;
 		private boolean _consumeCurrent = false;
 		private boolean _readLatestScnOnError = false;
 		private double _pullerBufferUtilizationPct = 100.0;
 		private int _id;
 		private boolean _enablePullerMessageQueueLogging;
+		private int _noEventsConnectionResetTimeSec = 15*60; // if there is no events for 15 min - disconnect
+
+		private void makeEvbConfig(DbusEventBuffer.Config evbConfig,
+																QueuePolicy qPolicy,
+																boolean enableScnIndex,
+																double defaultMemUsage)
+		{
+			evbConfig.setQueuePolicy(qPolicy.toString());
+			evbConfig.setEnableScnIndex(enableScnIndex);
+			evbConfig.setDefaultMemUsage(defaultMemUsage);
+			if (evbConfig.getMaxSize() > DEFAULT_MAX_BUFFER_SIZE) {
+	       _log.warn("Setting buffer size to " + DEFAULT_MAX_BUFFER_SIZE + " instead of requested size " + evbConfig.getMaxSize());
+				evbConfig.setMaxSize(DEFAULT_MAX_BUFFER_SIZE);
+			}
+
+			if (evbConfig.getScnIndexSize() > DEFAULT_MAX_SCNINDEX_SIZE) {
+				evbConfig.setScnIndexSize(DEFAULT_MAX_SCNINDEX_SIZE);
+			}
+		}
 
 		public Config() {
 			_eventBuffer = new DbusEventBuffer.Config();
-			_eventBuffer.setQueuePolicy(QueuePolicy.BLOCK_ON_WRITE.toString());
-			_eventBuffer.setEnableScnIndex(false);
-			_eventBuffer.setDefaultMemUsage(0.1);
-			if (_eventBuffer.getMaxSize() > DEFAULT_MAX_BUFFER_SIZE) {
-				_eventBuffer.setMaxSize(DEFAULT_MAX_BUFFER_SIZE);
-			}
-
-			if (_eventBuffer.getReadBufferSize() > DEFAULT_MAX_READBUFFER_SIZE) {
-				_eventBuffer.setReadBufferSize(DEFAULT_MAX_READBUFFER_SIZE);
-			}
-
-			if (_eventBuffer.getScnIndexSize() > DEFAULT_MAX_SCNINDEX_SIZE) {
-				_eventBuffer.setScnIndexSize(DEFAULT_MAX_SCNINDEX_SIZE);
-			}
+			makeEvbConfig(_eventBuffer, QueuePolicy.BLOCK_ON_WRITE, false, 0.1);
 
 			_checkpointThresholdPct = 75.0;
 			_keyMin = DEFAULT_KEY_RANGE_MIN;
@@ -888,14 +1018,93 @@ public class DatabusSourcesConnection {
 
 		public Config(Config other) {
 			_eventBuffer = new DbusEventBuffer.Config(other.getEventBuffer());
+			if (other.hasBstEventBuffer()) {
+				_bstEventBuffer = new DbusEventBuffer.Config(other.getBstEventBuffer());
+			} else {
+				_bstEventBuffer = null;
+			}
 		}
 
 		public DbusEventBuffer.Config getEventBuffer() {
 			return _eventBuffer;
 		}
 
+		/**
+		 * If anyone other than spring config ever calls this method they should first call hasBstEventBuffer().
+		 *
+		 * @return a newly constructed DbusEventBuffer.Config object.
+		 */
+		public DbusEventBuffer.Config getBstEventBuffer() {
+			if (_bstEventBuffer != null) {
+				return _bstEventBuffer;
+			}
+			_bstEventBuffer = new DbusEventBuffer.Config();
+			makeEvbConfig(_bstEventBuffer, QueuePolicy.BLOCK_ON_WRITE, false, 0.1);
+			return _bstEventBuffer;
+		}
+
+		public boolean hasBstEventBuffer() {
+			return _bstEventBuffer != null;
+		}
+
 		public void setEventBuffer(DbusEventBuffer.Config eventBuffer) {
 			_eventBuffer = eventBuffer;
+		}
+
+		/**
+		 * Corrects, checkpointThresholdPct to accommodate largestEventSize by calculating checkpoint threshold pct
+		 * override checkpoint threshold pct settings if (between 10 and 90 pct) to set the maximum
+		 * @param bufCfg : buffer config; with maxEventSize set
+		 * @return checkpointThresholdPct;
+		 */
+		public double computeSafeCheckpointThresholdPct(DbusEventBuffer.Config bufCfg)
+		{
+		  int safeMaxEventSize = (int)((100.0 - _checkpointThresholdPct) * bufCfg.maxMaxEventSize() / 100.0);
+		  if (DbusEventBuffer.Config.DEFAULT_MAX_EVENT_SIZE == bufCfg.getMaxEventSize())
+		  {
+		      //maxEventSize not set; return existing checkpointThresholdPct
+		    return _checkpointThresholdPct;
+		  }
+		  else if (safeMaxEventSize >= bufCfg.getMaxEventSize())
+		  {
+		    //maxEventSize is lesser than safeSize ; return checkpointThresholdPct;
+		    return _checkpointThresholdPct;
+		  }
+		  //case where checkpointThresholdPct has to be computed;
+		  return 100.0 - ((double)(bufCfg.getMaxEventSize()+_freeBufferThreshold)/bufCfg.maxMaxEventSize())*100.0;
+		}
+
+		private void validateBufferConfig(StaticConfig connConfig,DbusEventBuffer.StaticConfig bufferConfig) throws InvalidConfigException
+		{
+		  long bufferCapacityInBytes = bufferConfig.getMaxSize();
+      long maxWindowSizeInBytes = (long) ((connConfig
+          .getCheckpointThresholdPct() / 100.0) * bufferCapacityInBytes);
+      //After DDSDBUS-3222, this condition essentially boils down to : checkpointThresholdPct can at most be 100-(10K/maxSize) - in practice at least 99.99%
+      if ((maxWindowSizeInBytes + connConfig.getFreeBufferThreshold()) > bufferCapacityInBytes) {
+        throw new InvalidConfigException(
+            "Invalid configuration. Could lead to deadlock: ((checkPointThresholdPct*maxSize) + freeBufferThreshold) > maxSize"
+        + " freeBufferThreshold=" + _freeBufferThreshold + " checkpointThresholdPct=" + _checkpointThresholdPct
+        + " maxSize=" + bufferCapacityInBytes);
+      }
+      int readBufferSize = bufferConfig.getReadBufferSize();
+      //After DDSDBUS-3222, this condition essentially boils down to : is readBufferSize > 10K - which is the fixed size of freeBufferThreshold
+      if (readBufferSize <= connConfig.getFreeBufferThreshold() )
+      {
+          throw new InvalidConfigException(
+                        "Invalid configuration. Could lead to deadlock: readBufferSize <= freeBufferThreshold. Increase readBufferSize to be greater than freeBufferThreshold "
+                                + " readBufferSize=" + readBufferSize + " freeBufferThreshold= " + _freeBufferThreshold
+                        );
+      }
+		}
+
+		private void validateConfigs(StaticConfig connConfig) throws InvalidConfigException
+		{
+      validateBufferConfig(connConfig, connConfig.getEventBuffer());
+      if (connConfig.getBstEventBuffer() != null)
+      {
+        //might be same as connConfig.eventBuffer and is probably always set to a non-null
+        validateBufferConfig(connConfig, connConfig.getBstEventBuffer());
+      }
 		}
 
 		@Override
@@ -905,34 +1114,65 @@ public class DatabusSourcesConnection {
 				keyRange = new Range(_keyMin, _keyMax);
 			}
 
-			if (getConsumerTimeBudgetMs() < 0) {
-				throw new InvalidConfigException(
-						"Invalid consumer time budget:"
-								+ getConsumerTimeBudgetMs());
-			}
 			if (getConsumerParallelism() < 1) {
 				throw new InvalidConfigException(
 						"Invalid consumer parallelism:"
 								+ getConsumerParallelism());
 			}
 
+			if (_checkpointThresholdPct <= 0.0 || _checkpointThresholdPct > 100.0)
+			{
+			  throw new InvalidConfigException("checkpointThresholdPct must be in (0, 100]");
+			}
+
+      validateMaxEventSize(_eventBuffer);
+			if(_bstEventBuffer != null)
+			{
+			  validateMaxEventSize(_bstEventBuffer);
+			}
+
 			StaticConfig config = new StaticConfig(_eventBuffer.build(),
-					getConsumerTimeBudgetMs(), getConsumerParallelism(),
+					_bstEventBuffer != null ? _bstEventBuffer.build() : _eventBuffer.build(),
+					getConsumerTimeBudgetMs(), getBstConsumerTimeBudgetMs(), getConsumerParallelism(),
 					getCheckpointThresholdPct(), keyRange,
 					_bsPullerRetriesBeforeCkptCleanup.build(),
-					_pullerRetries.build(), _dispatcherRetries.build(),
+					_pullerRetries.build(), _bstPullerRetries != null ? _bstPullerRetries.build() : _pullerRetries.build(),
+					_dispatcherRetries.build(),
+					_bstDispatcherRetries != null ? _bstDispatcherRetries.build() : _dispatcherRetries.build(),
 					_numRetriesOnFallOff, _freeBufferThreshold,
 					_consumeCurrent, _readLatestScnOnError,
 					_pullerBufferUtilizationPct, _id,
-					_enablePullerMessageQueueLogging);
-			long bufferCapacityInBytes = config.getEventBuffer().getMaxSize();
-			long maxWindowSizeInBytes = (long) ((config
-					.getCheckpointThresholdPct() / 100.0) * bufferCapacityInBytes);
-			if ((maxWindowSizeInBytes + _freeBufferThreshold) > bufferCapacityInBytes) {
-				throw new InvalidConfigException(
-						"Invalid configuration. Could lead to deadlock: ((checkPointThresholdPct*maxSize) + freeBufferThreshold) > maxSize");
-			}
+					_enablePullerMessageQueueLogging,
+					_noEventsConnectionResetTimeSec
+					);
+			_log.info("Init readBufferSize=" + config.getEventBuffer().getReadBufferSize());
+			validateConfigs(config);
 			return config;
+		}
+
+    private void validateMaxEventSize(DbusEventBuffer.Config bufCfg)
+    {
+      int safeMaxEventSize = (int)((100.0 - _checkpointThresholdPct) * bufCfg.maxMaxEventSize() / 100.0);
+      if (DbusEventBuffer.Config.DEFAULT_MAX_EVENT_SIZE == bufCfg.getMaxEventSize())
+      {
+        bufCfg.setMaxEventSize(safeMaxEventSize);
+      }
+      else if (safeMaxEventSize < bufCfg.getMaxEventSize())
+      {
+        _log.warn(String.format("max event size %d is unsafe and may lead to a dead-lock; using %d instead. " +
+                                "To keep the current buffer maxEventSize, you should increase buffers maxSize or " +
+                                "decrease checkpointThresholdPct.",
+                                bufCfg.getMaxEventSize(), safeMaxEventSize));
+        bufCfg.setMaxEventSize(safeMaxEventSize);
+      }
+      _log.info("maxEventSize=" + bufCfg.getMaxEventSize());
+    }
+
+		public int getNoEventsConnectionResetTimeSec() {
+			return _noEventsConnectionResetTimeSec;
+		}
+		public void setNoEventsConnectionResetTimeSec(int noEventsConnectionResetTimeSec) {
+		  _noEventsConnectionResetTimeSec = noEventsConnectionResetTimeSec;
 		}
 
 		public boolean getReadLatestScnOnError() {
@@ -971,6 +1211,19 @@ public class DatabusSourcesConnection {
 			return _consumerTimeBudgetMs;
 		}
 
+		public long getBstConsumerTimeBudgetMs() {
+			if (_setBstConsumerTimeBudgetCalled) {
+			  return _bstConsumerTimeBudgetMs;
+			} else {
+				return _consumerTimeBudgetMs;
+			}
+		}
+
+		public void setBstConsumerTimeBudgetMs(long consumerTimeBudgetMs) {
+			_setBstConsumerTimeBudgetCalled = true;
+			_bstConsumerTimeBudgetMs = consumerTimeBudgetMs;
+		}
+
 		public void setConsumerTimeBudgetMs(long consumerTimeBudgetMs) {
 			_consumerTimeBudgetMs = consumerTimeBudgetMs;
 		}
@@ -988,7 +1241,7 @@ public class DatabusSourcesConnection {
 		}
 
 		public void setCheckpointThresholdPct(double checkpointThresholdPct) {
-			_checkpointThresholdPct = checkpointThresholdPct;
+		  _checkpointThresholdPct = checkpointThresholdPct;
 		}
 
 		public long getKeyMin() {
@@ -1000,7 +1253,15 @@ public class DatabusSourcesConnection {
 		}
 
 		public void setFreeBufferThreshold(int freeBufferThreshold) {
-			_freeBufferThreshold = freeBufferThreshold;
+		  if (freeBufferThreshold > DEFAULT_FREE_BUFFER_THRESHOLD)
+		  {
+		    _log.warn("Trying to set parameter: 'freeBufferThreshold' to " + freeBufferThreshold + " has no effect. Value=" +
+		        _freeBufferThreshold);
+		  }
+		  else
+		  {
+		     _freeBufferThreshold = freeBufferThreshold;
+		  }
 		}
 
 		public void setKeyMin(long keyMin) {
@@ -1031,8 +1292,41 @@ public class DatabusSourcesConnection {
 			return _pullerRetries;
 		}
 
+		public BackoffTimerStaticConfigBuilder getBstPullerRetries() {
+			if (_bstPullerRetries != null) {
+				return _bstPullerRetries;
+			}
+			_bstPullerRetries = new BackoffTimerStaticConfigBuilder();
+			_bstPullerRetries.setInitSleep(DEFAULT_INIT_SLEEP);
+			_bstPullerRetries.setSleepIncFactor(DEFAULT_SLEEP_INC_FACTOR);
+			_bstPullerRetries.setMaxRetryNum(DEFAULT_MAX_RETRY_NUM);
+			return _bstPullerRetries;
+		}
+
 		public BackoffTimerStaticConfigBuilder getDispatcherRetries() {
 			return _dispatcherRetries;
+		}
+
+		public boolean hasBstPullerRetries() {
+			return _bstPullerRetries != null;
+		}
+
+		/**
+		 * If anyone other than spring config ever calls this method they should first call hasBstDispatcherRetries() first.
+		 * @return A newly constructed BackoffTimerStaticConfigBuilder object.
+		 */
+		public BackoffTimerStaticConfigBuilder getBstDispatcherRetries() {
+			if (_bstDispatcherRetries != null) {
+				return _bstDispatcherRetries;
+			}
+			_bstDispatcherRetries = new BackoffTimerStaticConfigBuilder();
+			_bstDispatcherRetries.setSleepIncFactor(1.1);
+			_bstDispatcherRetries.setMaxRetryNum(-1);
+			return _bstDispatcherRetries;
+		}
+
+		public boolean hasBstDispatcherRetries() {
+			return _bstDispatcherRetries != null;
 		}
 
 		public boolean getEnablePullerMessageQueueLogging() {
@@ -1067,8 +1361,8 @@ public class DatabusSourcesConnection {
 	}
 
 	class MessageQueuesMonitor implements Runnable {
-		private static final long ERROR_SLEEP_MS = 60000;
-		private static final long INFO_SLEEP_MS = 1000;
+		private static final long ERROR_SLEEP_MS = 300000;
+		private static final long INFO_SLEEP_MS = 300000;
 		private static final long DEBUG_SLEEP_MS = 100;
 		private static final long TRACE_SLEEP_MS = 10;
 
@@ -1126,5 +1420,4 @@ public class DatabusSourcesConnection {
 			_bootstrapConsumerStats.unregisterAsMbean();
 		}
 	}
-
 }

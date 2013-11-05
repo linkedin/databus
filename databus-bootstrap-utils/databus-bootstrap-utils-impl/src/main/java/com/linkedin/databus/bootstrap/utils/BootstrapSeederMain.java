@@ -23,16 +23,15 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import javax.sql.DataSource;
-
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -54,11 +53,12 @@ import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.relay.OracleEventProducerFactory;
 import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
+import com.linkedin.databus2.relay.config.ReplicationBitSetterStaticConfig.SourceType;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
 import com.linkedin.databus2.schemas.SchemaRegistryConfigBuilder;
 import com.linkedin.databus2.schemas.SchemaRegistryStaticConfig;
@@ -74,23 +74,27 @@ public class BootstrapSeederMain
 	public static final String PHYSICAL_CONFIG_OPT_LONG_NAME = "physical_config";
     public static final String LOG4J_PROPS_OPT_LONG_NAME = "log_props";
     public static final String VALIDATION_TYPE_OPT_LONG_NAME="validation-type";
+    public static final String VALIDATION_SAMPLE_PCT_LONG_NAME="validation-sample-pct";
     public static final char   HELP_OPT_CHAR = 'h';
 	public static final char   BOOTSTRAP_DB_PROP_OPT_CHAR = 'p';
 	public static final char   PHYSICAL_CONFIG_OPT_CHAR = 'c';
 	public static final char LOG4J_PROPS_OPT_CHAR = 'l';
 	public static final char VALIDATION_TYPE_OPT_CHAR='v';
+ public static final char VALIDATION_SAMPLE_PCT_CHAR='s';
+
 
 	private static Properties  _sBootstrapConfigProps = null;
 	private static String      _sSourcesConfigFile    = null;
 	private static DataSource  _sDataStore      = null;
 	private static StaticConfig _sStaticConfig        = null;
-	private static List<MonitoredSourceInfo> _sources = null;
+	private static List<OracleTriggerMonitoredSourceInfo> _sources = null;
 	private static BootstrapDBSeeder _sSeeder         = null;
 	private static BootstrapSrcDBEventReader _sReader = null;
 	private static BootstrapSeederWriterThread _sWriterThread = null;
 	private static BootstrapEventBuffer  _sBootstrapBuffer = null;
 
 	private static String _validationType = "normal";
+	private static double _validationSamplePct = 100.0;
 
     public static BootstrapDBSeeder getSeeder()
     {
@@ -101,7 +105,12 @@ public class BootstrapSeederMain
     {
     	return _validationType;
     }
-    
+
+    public static double getValidationSamplePct ()
+    {
+      return _validationSamplePct;
+    }
+
     public static BootstrapSrcDBEventReader getReader()
     {
       return _sReader;
@@ -127,7 +136,7 @@ public class BootstrapSeederMain
       return _sStaticConfig;
     }
 
-    public static List<MonitoredSourceInfo> getSources()
+    public static List<OracleTriggerMonitoredSourceInfo> getSources()
     {
       return _sources;
     }
@@ -172,6 +181,10 @@ public class BootstrapSeederMain
 	    		  physicalSourceConfig.getUri() + "). Only jdbc:oracle: URIs are supported.");
 	    }
 
+	    String sourceTypeStr = physicalSourceConfig.getReplBitSetter().getSourceType();
+        if (SourceType.TOKEN.toString().equalsIgnoreCase(sourceTypeStr))
+          throw new InvalidConfigException("Token Source-type for Replication bit setter config cannot be set for trigger-based Databus relay !!");
+
 	    // Create the OracleDataSource used to get DB connection(s)
 	    try
 	    {
@@ -189,19 +202,28 @@ public class BootstrapSeederMain
 
 	    //TODO: Need a better way than relaying on RelayFactory for generating MonitoredSourceInfo
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());
-	    
+
 	    // Parse each one of the logical sources
-	    _sources = new ArrayList<MonitoredSourceInfo>();
+	    _sources = new ArrayList<OracleTriggerMonitoredSourceInfo>();
 	    FileSystemSchemaRegistryService schemaRegistryService =
 	    	    FileSystemSchemaRegistryService.build(_sStaticConfig.getSchemaRegistry().getFileSystem());
 
+	    Set<String> seenUris = new HashSet<String>();
 	    for(LogicalSourceConfig sourceConfig : physicalSourceConfig.getSources())
 	    {
-	      MonitoredSourceInfo source =
+	      String srcUri  = sourceConfig.getUri();
+	      if ( seenUris.contains(srcUri))
+	      {
+	        String msg = "Uri (" + srcUri + ") is used for more than one sources. Currently Bootstrap Seeder cannot support seeding sources with the same URI together. Please have them run seperately !!";
+	        LOG.fatal(msg);
+	        throw new InvalidConfigException(msg);
+	      }
+	      seenUris.add(srcUri);
+	      OracleTriggerMonitoredSourceInfo source =
 	          factory.buildOracleMonitoredSourceInfo(sourceConfig.build(), physicalSourceConfig.build(), schemaRegistryService);
 	      _sources.add(source);
 	    }
-	    _sSeeder = new BootstrapDBSeeder(_sStaticConfig.getBootstrap(),_sources,_sStaticConfig.getCheckpointPersistanceScript());
+	    _sSeeder = new BootstrapDBSeeder(_sStaticConfig.getBootstrap(),_sources);
 
 	    _sBootstrapBuffer = new BootstrapEventBuffer(_sStaticConfig.getController().getCommitInterval() * 2);
 
@@ -212,8 +234,7 @@ public class BootstrapSeederMain
 	                                             _sources,
 	                                             _sSeeder.getLastRows(),
 	                                             _sSeeder.getLastKeys(),
-	                                             0,
-	                                             _sStaticConfig.getCheckpointPersistanceScript());
+	                                             0);
 	}
 
 	@SuppressWarnings("static-access")
@@ -243,12 +264,18 @@ public class BootstrapSeederMain
 	    									.hasArg()
 	    									.withArgName("property_file")
 	    									.create(LOG4J_PROPS_OPT_CHAR);
-	    
+
 	    Option validationType = OptionBuilder.withLongOpt(VALIDATION_TYPE_OPT_LONG_NAME)
 	    						.withDescription("Type of validation algorithm , normal[cmp two sorted streams of oracle and bootstrap db]  or point[entry in bootstrap checked in oracle]")
 	    						.hasArg()
 	    						.withArgName("validation_type")
 	    						.create(VALIDATION_TYPE_OPT_CHAR);
+
+	    Option validationSamplePct = OptionBuilder.withLongOpt(VALIDATION_SAMPLE_PCT_LONG_NAME)
+          .withDescription("Validation sample pct ,0.0 to 100.00 [100.0]")
+          .hasArg()
+          .withArgName("validation_sample_pct")
+          .create(VALIDATION_SAMPLE_PCT_CHAR);
 
 	    Options options = new Options();
 	    options.addOption(helpOption);
@@ -256,7 +283,8 @@ public class BootstrapSeederMain
 	    options.addOption(dbOption);
 	    options.addOption(log4jPropsOption);
 	    options.addOption(validationType);
-	    
+	    options.addOption(validationSamplePct);
+
 
 	    CommandLine cmd = null;
 	    try
@@ -308,18 +336,38 @@ public class BootstrapSeederMain
 	    if (!cmd.hasOption(VALIDATION_TYPE_OPT_CHAR))
 	    {
 	    	_validationType = "normal";
-	    } 
-	    else 
-	    {	
+	    }
+	    else
+	    {
 	    	String vtype = cmd.getOptionValue(VALIDATION_TYPE_OPT_CHAR);
 	    	if (vtype.equals("point") || vtype.equals("normal") || vtype.equals("pointBs"))
 	    	{
 	    		_validationType = vtype;
-	    	} 
+	    	}
 	    	else
 	    	{
 	    		throw new RuntimeException("Validation type has to be one of 'normal' or 'point' or 'pointBs'");
 	    	}
+	    }
+	    if (cmd.hasOption(VALIDATION_SAMPLE_PCT_CHAR))
+	    {
+	       try
+	       {
+	         _validationSamplePct = Double.parseDouble(cmd.getOptionValue(VALIDATION_SAMPLE_PCT_CHAR));
+	         if (_validationSamplePct < 0.0 || _validationSamplePct > 100.0)
+	         {
+	           throw new RuntimeException("Error in specifying: " + VALIDATION_SAMPLE_PCT_LONG_NAME +
+	               "Should be between 0.0 and 100.0. It was " + _validationSamplePct);
+	         }
+	       }
+	       catch (NumberFormatException e)
+	       {
+	         throw new RuntimeException("Error in specifying: " + VALIDATION_SAMPLE_PCT_LONG_NAME +  " Exception:" + e);
+	       }
+	    }
+	    else
+	    {
+	      _validationSamplePct = 100.0;
 	    }
 
 	}
@@ -347,11 +395,6 @@ public class BootstrapSeederMain
 			return _controller;
 		}
 
-		public Map<String,String> getCheckpointPersistanceScript()
-		{
-			return _checkpointPersistanceScript;
-		}
-
 		public StaticConfig(BootstrapSrcDBEventReader.StaticConfig controller,
 				SchemaRegistryStaticConfig schemaRegistry,
 				BootstrapReadOnlyConfig bootstrap,
@@ -361,13 +404,11 @@ public class BootstrapSeederMain
 			_controller = controller;
 			_schemaRegistry = schemaRegistry;
 			_bootstrap = bootstrap;
-			_checkpointPersistanceScript = checkpointPersistanceScript;
 		}
 
 		private final BootstrapSrcDBEventReader.StaticConfig _controller;
 		private final SchemaRegistryStaticConfig _schemaRegistry;
 		private final BootstrapReadOnlyConfig   _bootstrap;
-		private final Map<String,String>        _checkpointPersistanceScript;
  	}
 
 	public static class Config implements ConfigBuilder<StaticConfig>

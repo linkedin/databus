@@ -22,6 +22,7 @@ package com.linkedin.databus.client.generic;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
@@ -67,7 +68,8 @@ public class SimpleFileLoggingConsumer {
   public static final String EVENT_PATTERN_OPT_NAME = "event_pattern";
   public static final String FILTER_CONF_FILE_OPT_NAME = "filter_conf_file";
   public static final String SERVER_SIDE_FILTER_PREFIX = "serversidefilter.";
-
+  public static final String SOURCES_OPT_NAME = "sources";
+  
   private static String _eventDumpFile = null;
   private static String _valueDumpFile = null;
   private static String _relayHost = null;
@@ -80,6 +82,7 @@ public class SimpleFileLoggingConsumer {
   private static String _eventPattern = null;
   private static boolean _enableBootStrap = false;
   private static String  _filterConfFile = null;
+  private static String[] _sources = null;
 
   protected static Options constructCommandLineOptions()
   {
@@ -95,6 +98,7 @@ public class SimpleFileLoggingConsumer {
     options.addOption(BOOTSTRAP_PORT_OPT_NAME, true, "Bootstrap server Port");
     options.addOption(EVENT_PATTERN_OPT_NAME, true, "Event Pattern Name to Check");
     options.addOption(FILTER_CONF_FILE_OPT_NAME, true, "Server Side Filter Config");
+    options.addOption(SOURCES_OPT_NAME,true,"Comma seperated source names");
     return options;
   }
 
@@ -166,13 +170,22 @@ public class SimpleFileLoggingConsumer {
     	LOG.info("Server Side Filtering Config File =" + _filterConfFile);
     }
 
+    if (cmd.hasOption(SOURCES_OPT_NAME))
+    {
+      _sources = cmd.getOptionValue(SOURCES_OPT_NAME).split(",");
+      LOG.info("Sources to be subscribed are =" + Arrays.toString(_sources));
+    }
+    
     // return what left over args
     return cmd.getArgs();
   }
 
+  /**
+   * @return the sources to be consumed by the consumer.  All the sources should be co-located in the same Relay EVB.
+   */
   protected String[] addSources()
   {
-    return null;
+    return _sources;
   }
 
   protected DatabusFileLoggingConsumer createTypedConsumer(String valueDumpFile) throws IOException

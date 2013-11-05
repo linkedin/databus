@@ -22,9 +22,11 @@ package com.linkedin.databus.core;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,6 +34,26 @@ import org.apache.log4j.Logger;
 
 public class DbusEventBufferMetaInfo {
   public static final Logger LOG = Logger.getLogger(DbusEventBufferMetaInfo.class);
+
+  // these are keys in meta file info. Each value matches the corresponding setting
+  // in the DbusEventBuf.
+  public static final String EVENT_STATE = "eventState";
+  public static final String TIMESTAMP_OF_LATEST_DATA_EVENT = "timestampOfLatestDataEvent";
+  public static final String TIMESTAMP_OF_FIRST_EVENT = "timestampOfFirstEvent";
+  public static final String PREV_SCN = "prevScn";
+  public static final String SEEN_END_OF_PERIOD_SCN = "seenEndOfPeriodScn";
+  public static final String LAST_WRITTEN_SEQUENCE = "lastWrittenSequence";
+  public static final String NUM_EVENTS_IN_WINDOW = "numEventsInWindow";
+  public static final String EVENT_START_INDEX = "eventStartIndex";
+  public static final String ALLOCATED_SIZE = "allocatedSize";
+  public static final String BUFFER_EMPTY = "empty";
+  public static final String BUFFER_TAIL = "tail";
+  public static final String BUFFER_HEAD = "head";
+  public static final String MAX_BUFFER_SIZE = "maxBufferSize";
+  public static final String CURRENT_WRITE_POSITION = "currentWritePosition";
+  public static final String BYTE_BUFFER_INFO = "ByteBufferInfo";
+  public static final String NUM_BYTE_BUFFER = "ByteBufferNum";
+
     /**
    * helper class for buffer serialization
    */
@@ -59,9 +81,10 @@ public class DbusEventBufferMetaInfo {
     public int getLimit() { return _limit;}
     public int getPos() { return _pos; }
     public int getCapacity() { return _cap;}
+
     @Override
     public String toString() {
-      return new String(_pos + DELIMITER + _limit + DELIMITER + _cap);
+      return _pos + DELIMITER + _limit + DELIMITER + _cap;
     }
   }
 
@@ -69,7 +92,7 @@ public class DbusEventBufferMetaInfo {
       public DbusEventBufferMetaInfoException(String string) {
         super(string);
       }
-    
+
       public DbusEventBufferMetaInfoException(DbusEventBufferMetaInfo mi, String string) {
         super("[" + mi.toString() + "]:" + string);
       }
@@ -80,7 +103,7 @@ public class DbusEventBufferMetaInfo {
     private static final char KEY_VALUE_SEP = ' ';
     private final Map<String, String> _info = new HashMap<String, String>(100);
     private boolean _valid = false;
-    private File _file;
+    private final File _file;
     public DbusEventBufferMetaInfo(File metaFile) {
       _file = metaFile;
     }
@@ -143,13 +166,12 @@ public class DbusEventBufferMetaInfo {
      */
     public boolean loadMetaInfo() throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException{
       //
-      FileReader fr;
       BufferedReader br = null;
       _valid = false;
       boolean debugEnabled = DbusEventBuffer.LOG.isDebugEnabled();
       try {
-        fr = new FileReader(_file);
-        br = new BufferedReader(fr);
+        InputStreamReader isr = new InputStreamReader(new FileInputStream(_file), "UTF-8");
+        br = new BufferedReader(isr);
 
         DbusEventBuffer.LOG.info("loading metaInfoFile " + _file);
         _info.clear();
@@ -189,42 +211,45 @@ public class DbusEventBufferMetaInfo {
               "metaInfoFile version doesn't match. Please remove the metafile and restart");
 
       if(isMetaFileOlderThenMMappedFiles(getSessionId())) {
-        _valid = false; //not valid file - don't use
+        // we do not act on this, but keep it as a warning in the logs
+        //_valid = false; //not valid file - don't use
       }
-      
+
       return _valid;
     }
-    
+
     /**
-     * 
+     *
      * @param sessionId
      * @return true if mmaped fiels have changed after metaInfo file
      */
     private boolean isMetaFileOlderThenMMappedFiles(String sessionId) {
-      
+
       if (sessionId == null)
         return false;// valid case, no session is ok
-      
+
       // one extra check is to verify that the session directory that contains the actual buffers
       // was not modified after the file was saved
       long metaFileModTime = _file.lastModified();
       LOG.debug(_file + " mod time: " + metaFileModTime);
-      
+
       // check the directory first
       File sessionDir = new File(_file.getParent(), sessionId);
       long sessionDirModTime = sessionDir.lastModified();
       if(sessionDirModTime > metaFileModTime) {
-        LOG.error("Session dir " + sessionDir + " seemed to be modified AFTER metaFile " + _file);
+        LOG.error("Session dir " + sessionDir +
+                  " seemed to be modified AFTER metaFile " + _file +
+                  " dirModTime=" + sessionDirModTime + "; metaFileModTime=" + metaFileModTime);
         return true;
       }
-      
+
       // check each file in the directory
       String mmappedFiles[] = sessionDir.list();
       if(mmappedFiles == null) {
         LOG.error("There are no mmaped files in the session directory: " + sessionDir);
         return true;
       }
-      
+
       for(String fName : mmappedFiles) {
         File f = new File(sessionDir, fName);
         long modTime = f.lastModified();
@@ -270,23 +295,29 @@ public class DbusEventBufferMetaInfo {
 
       if(_file.exists()) {
         File renameTo = new File(_file.getAbsoluteFile() + "." + System.currentTimeMillis());
-        _file.renameTo(renameTo);
+        if(! _file.renameTo(renameTo)) {
+          DbusEventBufferMetaInfo.LOG.warn("failed to rename " + _file + " to " + renameTo);
+        }
         DbusEventBuffer.LOG.warn("metaInfoFile " + _file + " exists. it is renambed to " + renameTo);
       }
-      FileWriter fw = new FileWriter(_file);
-      BufferedWriter bw = new BufferedWriter(fw);
+      OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(_file), "UTF-8");
+      BufferedWriter bw = new BufferedWriter(osw);
 
-      for(Map.Entry<String, String> e : _info.entrySet()) {
-        bw.write(e.getKey() + KEY_VALUE_SEP + e.getValue());
-        bw.newLine();
+      try {
+        for(Map.Entry<String, String> e : _info.entrySet()) {
+          bw.write(e.getKey() + KEY_VALUE_SEP + e.getValue());
+          bw.newLine();
+        }
+      } finally {
+        if(bw != null)
+          bw.close();
       }
-      bw.close();
     }
 
     @Override
     public String toString() {
       return _file.getAbsolutePath();
     }
-    
-    
+
+
   }

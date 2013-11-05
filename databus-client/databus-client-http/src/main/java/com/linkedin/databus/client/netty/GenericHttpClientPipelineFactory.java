@@ -48,24 +48,23 @@ public class GenericHttpClientPipelineFactory implements ChannelPipelineFactory
 
   public static final String READ_TIMEOUT_HANDLER_NAME = "client request read timeout handler";
 
-  private final HttpResponseProcessor _responseProcessor;
-  private final GenericHttpResponseHandler.KeepAliveType _keepAlive;
+  //private final HttpResponseProcessor _responseProcessor;
+  private final GenericHttpResponseHandler _handler;
   private final ContainerStatisticsCollector _containerStatsCollector;
   private final Timer _timeoutTimer;
   private final long _writeTimeoutMs;
   private final long _readTimeoutMs;
   private final ChannelGroup _channelGroup; //provides automatic channel closure on shutdown
 
-  public GenericHttpClientPipelineFactory(HttpResponseProcessor responseProcessor,
-                                          GenericHttpResponseHandler.KeepAliveType keepAlive,
+  public GenericHttpClientPipelineFactory(GenericHttpResponseHandler handler,
                                           ContainerStatisticsCollector containerStatsCollector,
                                           Timer timeoutTimer,
                                           long writeTimeoutMs,
                                           long readTimeoutMs,
                                           ChannelGroup channelGroup)
   {
-    _responseProcessor = responseProcessor;
-    _keepAlive = keepAlive;
+    //_responseProcessor = responseProcessor;
+    _handler = handler;
     _containerStatsCollector = containerStatsCollector;
     _timeoutTimer = timeoutTimer;
     _writeTimeoutMs = writeTimeoutMs;
@@ -97,6 +96,7 @@ public class GenericHttpClientPipelineFactory implements ChannelPipelineFactory
                              _containerStatsCollector));
       }
 
+
       ExtendedReadTimeoutHandler readTimeoutHandler =
           new ExtendedReadTimeoutHandler("client call ",
                                          _timeoutTimer,
@@ -110,7 +110,8 @@ public class GenericHttpClientPipelineFactory implements ChannelPipelineFactory
       // Remove the following line if you don't want automatic content decompression.
       pipeline.addLast("inflater", new HttpContentDecompressor());
 
-      pipeline.addLast("handler", new GenericHttpResponseHandler(_responseProcessor, _keepAlive));
+      //pipeline.addLast("handler", new GenericHttpResponseHandler(_responseProcessor, _keepAlive));
+      pipeline.addLast("handler", _handler);
 
       //add a handler to deal with write timeouts
       pipeline.addLast("client request write timeout handler",

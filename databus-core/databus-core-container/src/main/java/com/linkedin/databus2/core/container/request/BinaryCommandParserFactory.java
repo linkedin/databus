@@ -19,16 +19,21 @@ package com.linkedin.databus2.core.container.request;
 */
 
 
+import java.nio.ByteOrder;
+
 import org.jboss.netty.channel.Channel;
 
 /**
- * The interface for binary command parsers that are used to parse a TCP stream and insert the
- * command object into the Netty pipeline.
- * */
+ * The interface for binary command parsers that are used to parse a TCP stream and insert
+ * the command object into the Netty pipeline.
+ *
+ * (That sounds very generic, but it really just means RPL_DBUS in the Espresso case.  See
+ * {@link StartSendEventsRequest} and {@link SendEventsRequest}.)
+ */
 public interface BinaryCommandParserFactory
 {
 
   /** Creates a binary parser for a command */
-  BinaryCommandParser createParser(Channel channel);
+  BinaryCommandParser createParser(Channel channel, ByteOrder byteOrder);
 
 }

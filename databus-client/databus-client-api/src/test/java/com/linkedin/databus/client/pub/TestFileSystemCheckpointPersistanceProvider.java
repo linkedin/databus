@@ -124,7 +124,9 @@ public class TestFileSystemCheckpointPersistanceProvider
     CacheEntry cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
     Checkpoint cp2 = cacheEntry2.getCheckpoint();
     assertNotNull(cp2);
-    assertEquals(cp1.toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(DbusClientMode.ONLINE_CONSUMPTION, cp2.getConsumptionMode());
+    assertTrue(cp2.getFlexible());
 
     //more complex checkpoint plus overwriting current state
     Checkpoint cp3 = new Checkpoint();
@@ -141,7 +143,11 @@ public class TestFileSystemCheckpointPersistanceProvider
     cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
     cp2 = cacheEntry2.getCheckpoint();
     assertNotNull(cp2);
-    assertEquals(cp3.toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(cp3.getConsumptionMode(), cp2.getConsumptionMode());
+    assertEquals(cp3.getWindowScn(), cp2.getWindowScn());
+    assertEquals(cp3.getPrevScn(), cp2.getPrevScn());
+    assertEquals(cp3.getWindowOffset(), cp2.getWindowOffset());
 
     //make sure the backup still works
     assertTrue(checkpointFile.delete());
@@ -155,7 +161,9 @@ public class TestFileSystemCheckpointPersistanceProvider
     cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
     cp2 = cacheEntry2.getCheckpoint();
     assertNotNull(cp2);
-    assertEquals(cp1.toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(DbusClientMode.ONLINE_CONSUMPTION, cp2.getConsumptionMode());
+    assertTrue(cp2.getFlexible());
 
     //try to keep some stuff around and see if things go south
     Checkpoint cp4 = new Checkpoint();
@@ -174,7 +182,11 @@ public class TestFileSystemCheckpointPersistanceProvider
       cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
       cp2 = cacheEntry2.getCheckpoint();
       assertNotNull(cp2);
-      assertEquals(cp4.toString(), cp2.toString());
+      //TODO need to use a Checkpoint.equals() method
+      assertEquals(cp4.getConsumptionMode(), cp2.getConsumptionMode());
+      assertEquals(cp4.getWindowScn(), cp2.getWindowScn());
+      assertEquals(cp4.getPrevScn(), cp2.getPrevScn());
+      assertEquals(cp4.getWindowOffset(), cp2.getWindowOffset());
     }
     finally
     {
@@ -238,7 +250,11 @@ public class TestFileSystemCheckpointPersistanceProvider
       CacheEntry cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
       Checkpoint cp2 = cacheEntry2.getCheckpoint();
       assertNotNull(cp2);
-      assertEquals(cp[i].toString(), cp2.toString());
+      //TODO need to use a Checkpoint.equals() method
+      assertEquals(cp[i].getConsumptionMode(), cp2.getConsumptionMode());
+      assertEquals(cp[i].getWindowScn(), cp2.getWindowScn());
+      assertEquals(cp[i].getPrevScn(), cp2.getPrevScn());
+      assertEquals(cp[i].getWindowOffset(), cp2.getWindowOffset());
     }
 
     //make sure we don't go over history size
@@ -260,7 +276,12 @@ public class TestFileSystemCheckpointPersistanceProvider
       CacheEntry cacheEntry2 = checkpointProvider.new CacheEntry(streamId, null);
       Checkpoint cp2 = cacheEntry2.getCheckpoint();
       assertNotNull(cp2);
-      assertEquals(cp[13 - i].toString(), cp2.toString());
+      final int j = 13 -i;
+      //TODO need to use a Checkpoint.equals() method
+      assertEquals(cp[j].getConsumptionMode(), cp2.getConsumptionMode());
+      assertEquals(cp[j].getWindowScn(), cp2.getWindowScn());
+      assertEquals(cp[j].getPrevScn(), cp2.getPrevScn());
+      assertEquals(cp[j].getWindowOffset(), cp2.getWindowOffset());
     }
   }
 
@@ -279,7 +300,7 @@ public class TestFileSystemCheckpointPersistanceProvider
     FileSystemCheckpointPersistenceProvider checkpointProvider =
       new FileSystemCheckpointPersistenceProvider(config, 2);
 
-    List<String> sourceNames = Arrays.asList("source1", "source 2", "source-3");
+    List<String> sourceNames = Arrays.asList("source1", "source_2", "source-3");
     List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sourceNames);
     List<String> subsList = checkpointProvider.convertSubsToListOfStrings(subs);
 
@@ -321,7 +342,11 @@ public class TestFileSystemCheckpointPersistanceProvider
 
       Checkpoint cp2 = checkpointProvider.loadCheckpoint(sourceNames);
       assertNotNull(cp2);
-      assertEquals(cp[i].toString(), cp2.toString());
+      //TODO need to use a Checkpoint.equals() method
+      assertEquals(cp[i].getConsumptionMode(), cp2.getConsumptionMode());
+      assertEquals(cp[i].getWindowScn(), cp2.getWindowScn());
+      assertEquals(cp[i].getPrevScn(), cp2.getPrevScn());
+      assertEquals(cp[i].getWindowOffset(), cp2.getWindowOffset());
     }
 
     //create a new persister and read the last state
@@ -330,7 +355,11 @@ public class TestFileSystemCheckpointPersistanceProvider
 
     Checkpoint cp2 = checkpointProvider2.loadCheckpoint(sourceNames);
     assertNotNull(cp2);
-    assertEquals(cp[14].toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(cp[14].getConsumptionMode(), cp2.getConsumptionMode());
+    assertEquals(cp[14].getWindowScn(), cp2.getWindowScn());
+    assertEquals(cp[14].getPrevScn(), cp2.getPrevScn());
+    assertEquals(cp[14].getWindowOffset(), cp2.getWindowOffset());
   }
 
   @Test
@@ -372,7 +401,7 @@ public class TestFileSystemCheckpointPersistanceProvider
     {
       for (int j = 0; j < 5; ++j)
       {
-        int cpN = (i + j) % 15;
+        final int cpN = (i + j) % 15;
         //List<DatabusSubscription> subs = DatabusSubscription.getSubscriptionList(sourceNames.get(j));
         checkpointProvider.storeCheckpoint(sourceNames.get(j), cp[cpN]);
         //checkpointProvider.storeCheckpointV3(subs, cp[cpN]);
@@ -380,7 +409,11 @@ public class TestFileSystemCheckpointPersistanceProvider
         Checkpoint cp2 = checkpointProvider.loadCheckpoint(sourceNames.get(j));
         //Checkpoint cp2 = checkpointProvider.loadCheckpointV3(subs);
         assertNotNull(cp2);
-        assertEquals(cp[cpN].toString(), cp2.toString());
+        //TODO need to use a Checkpoint.equals() method
+        assertEquals(cp[cpN].getConsumptionMode(), cp2.getConsumptionMode());
+        assertEquals(cp[cpN].getWindowScn(), cp2.getWindowScn());
+        assertEquals(cp[cpN].getPrevScn(), cp2.getPrevScn());
+        assertEquals(cp[cpN].getWindowOffset(), cp2.getWindowOffset());
       }
 
       FileSystemCheckpointPersistenceProvider checkpointProvider2 =
@@ -388,12 +421,16 @@ public class TestFileSystemCheckpointPersistanceProvider
 
       for (int j = 0; j < 5; ++j)
       {
-        int cpN = (i + j) % 15;
+        final int cpN = (i + j) % 15;
         //List<DatabusSubscription> subs = DatabusSubscription.getSubscriptionList(sourceNames.get(j));
         Checkpoint cp2 = checkpointProvider2.loadCheckpoint(sourceNames.get(j));
         //Checkpoint cp2 = checkpointProvider2.loadCheckpointV3(subs);
         assertNotNull(cp2);
-        assertEquals(cp[cpN].toString(), cp2.toString());
+        //TODO need to use a Checkpoint.equals() method
+        assertEquals(cp[cpN].getConsumptionMode(), cp2.getConsumptionMode());
+        assertEquals(cp[cpN].getWindowScn(), cp2.getWindowScn());
+        assertEquals(cp[cpN].getPrevScn(), cp2.getPrevScn());
+        assertEquals(cp[cpN].getWindowOffset(), cp2.getWindowOffset());
       }
     }
 
@@ -436,7 +473,11 @@ public class TestFileSystemCheckpointPersistanceProvider
     checkpointProvider.storeCheckpoint(sourceNames, cp);
     Checkpoint cp2 = checkpointProvider.loadCheckpoint(sourceNames);
     assertNotNull(cp2);
-    assertEquals(cp.toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(cp.getConsumptionMode(), cp2.getConsumptionMode());
+    assertEquals(cp.getWindowScn(), cp2.getWindowScn());
+    assertEquals(cp.getPrevScn(), cp2.getPrevScn());
+    assertEquals(cp.getWindowOffset(), cp2.getWindowOffset());
 
     //Test without com.linkedin.events. prefix
     sourceNames.clear();
@@ -452,7 +493,11 @@ public class TestFileSystemCheckpointPersistanceProvider
     checkpointProvider.storeCheckpoint(sourceNames, cp);
     cp2 = checkpointProvider.loadCheckpoint(sourceNames);
     assertNotNull(cp2);
-    assertEquals(cp.toString(), cp2.toString());
+    //TODO need to use a Checkpoint.equals() method
+    assertEquals(cp.getConsumptionMode(), cp2.getConsumptionMode());
+    assertEquals(cp.getWindowScn(), cp2.getWindowScn());
+    assertEquals(cp.getPrevScn(), cp2.getPrevScn());
+    assertEquals(cp.getWindowOffset(), cp2.getWindowOffset());
   }
 
 }

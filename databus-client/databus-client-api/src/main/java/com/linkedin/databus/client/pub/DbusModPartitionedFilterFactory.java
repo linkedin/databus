@@ -86,7 +86,7 @@ public class DbusModPartitionedFilterFactory implements
 	public DbusKeyCompositeFilterConfig createServerSideFilter( DbusClusterInfo cluster, DbusPartitionInfo partition) 
 		throws InvalidConfigException
 	{
-	    DbusKeyCompositeFilterConfig.Config compositeConfig = new DbusKeyCompositeFilterConfig.Config();
+	  DbusKeyCompositeFilterConfig.Config compositeConfig = new DbusKeyCompositeFilterConfig.Config();
 	    
 		for (DatabusSubscription s : _subscriptions)
 		{

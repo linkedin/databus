@@ -28,25 +28,15 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus.bootstrap.api.BootstrapProcessingException;
-import com.linkedin.databus.bootstrap.api.BootstrapProducerStatus;
-import com.linkedin.databus2.core.container.request.BootstrapDBException;
-import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.util.DBHelper;
 
 /**
- * @author ksurlake
- *
+ *  This shall be where the connection pooling is implemented and all bootstrap processor
+ *  shall just have a handle to this connection pool instead of creating instances of this class
  */
-// TODO: This shall be where the connection pooling is implemented and all bootstrap
-// processor
-// shall just have a handle to this connection pool instead of creating instances of this
-// class
 public class BootstrapConn
 {
   private Connection         _bootstrapConn;
@@ -58,7 +48,7 @@ public class BootstrapConn
   public static final String MODULE = BootstrapConn.class.getName();
   public static final Logger LOG    = Logger.getLogger(MODULE);
   private static final String MAXRID_QUERY = "select maxrid from bootstrap_loginfo where srcid = ? and logid = ?";
-  
+
   public BootstrapConn()
   {
     _bootstrapConn = null;
@@ -134,20 +124,20 @@ public class BootstrapConn
   {
     return getLogId(srcId, "bootstrap_applier_state");
   }
-  
+
   public long executeQueryAndGetLong(String query, long defaultVal)
   	throws SQLException
   {
 	  Statement stmt  = null;
 	  Connection conn = getDBConn();
 	  ResultSet rs = null;
-	  
+
 	  long res  = defaultVal;
 	  try
 	  {
 		  stmt = conn.createStatement();
 		  rs = stmt.executeQuery(query);
-		  
+
 		  if ( rs.next() )
 		  {
 			  res = rs.getLong(1);
@@ -157,7 +147,53 @@ public class BootstrapConn
 	  }
 	  return res;
   }
-  
+
+
+  /**
+   *
+   * @param query: that expects to return a single long
+   * @param defaultVal: value to be returned if there is an error in query or if a null result was found
+   * @param timeoutSeconds : query timeout
+   * @return single row result of type long;
+   * @throws SQLException
+   */
+  public long executeQuerySafe(String query,long defaultVal,int timeoutSeconds) throws SQLException
+  {
+    Statement stmt = null;
+    Connection conn = getDBConn();
+    ResultSet rs = null;
+
+    long res = defaultVal;
+    try
+    {
+      stmt = conn.createStatement();
+      if (timeoutSeconds > 0)
+      {
+        stmt.setQueryTimeout(timeoutSeconds);
+      }
+      rs = stmt.executeQuery(query);
+
+      if (rs.next())
+      {
+        res = rs.getLong(1);
+        // NULL result is interpreted as 0 with getLong()
+        if (rs.wasNull())
+        {
+          res = defaultVal;
+        }
+      }
+    }
+    catch (SQLException e)
+    {
+      LOG.warn("Error executing query : " + query  + " Exception=" + e.getMessage() );
+      LOG.warn("Returning default value: " + defaultVal);
+    }
+    finally
+    {
+      DBHelper.close(rs, stmt, null);
+    }
+    return res;
+  }
 
   public void executeDDL(String sql)
 		  throws SQLException
@@ -170,13 +206,15 @@ public class BootstrapConn
 	  {
 		  stmt = _bootstrapConn.createStatement();
 		  int rs = stmt.executeUpdate(sql);
-		  _bootstrapConn.commit();
+		  DBHelper.commit(_bootstrapConn);
 		  LOG.info("Executed Commmand (" + sql + ") with result " + rs);
+	  } catch (SQLException s) {
+		  DBHelper.rollback(_bootstrapConn);
 	  } finally {
 		  DBHelper.close(stmt);
 	  }
   }
- 
+
 
   public void executeUpdate(String sql)
 		  throws SQLException
@@ -189,13 +227,15 @@ public class BootstrapConn
 	  {
 		  stmt = _bootstrapConn.createStatement();
 		  int rs = stmt.executeUpdate(sql);
-		  _bootstrapConn.commit();
+		  DBHelper.commit(_bootstrapConn);
 		  LOG.info("Executed Commmand (" + sql + ") with result " + rs);
+	  } catch (SQLException s) {
+		  DBHelper.rollback(_bootstrapConn);
 	  } finally {
 		  DBHelper.close(stmt);
 	  }
   }
-  
+
 
   public void initBootstrapConn(boolean autoCommit,
                                 int isolationLevel,
@@ -206,14 +246,14 @@ public class BootstrapConn
     throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException
   {
 	  StringBuilder urlStr = new StringBuilder();
-	 
-      urlStr.append("jdbc:mysql://" + hostName); 
-      
+
+      urlStr.append("jdbc:mysql://" + hostName);
+
       if ( null != dbName )
-          urlStr.append("/" + dbName); 
-      
+          urlStr.append("/" + dbName);
+
       urlStr.append("?user=").append(userName).append("&password=").append(password);
-       
+
       _url = urlStr.toString();
       _autoCommit  = autoCommit;
      _isolationLevel = isolationLevel;
@@ -246,8 +286,8 @@ public class BootstrapConn
 	  close();
 	  createNewBootstrapConnection();
   }
- 
-  public void close() 
+
+  public void close()
   {
 	 DBHelper.close(_bootstrapConn);
      _bootstrapConn = null;
@@ -277,27 +317,27 @@ public class BootstrapConn
   }
 
   /*
-   * Find the max row id of the log table. 
+   * Find the max row id of the log table.
    * This is an approximate measure of the number of rows in the log table
    */
   public long getMaxRowIdForLog(int logid, int srcid)
   	throws SQLException
   {
 	  long maxrid = 0;
-	  
+
 	  if ( null == _maxridStmt)
 	  {
 		  _maxridStmt = getDBConn().prepareStatement(MAXRID_QUERY);
 	  }
-	  
+
 	  _maxridStmt.setInt(1, srcid);
 	  _maxridStmt.setInt(2, logid);
-	  
+
 	  ResultSet rs = null;
 	  try
 	  {
 		  rs = _maxridStmt.executeQuery();
-		  
+
 		  if ( rs.next() )
 		  {
 			  maxrid = rs.getLong(1);

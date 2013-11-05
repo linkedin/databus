@@ -19,37 +19,19 @@ package com.linkedin.databus2.core.container.netty;
 */
 
 
-import com.linkedin.databus.core.DatabusComponentStatus;
-import com.linkedin.databus.core.DbusEventV1;
-import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.StatsCollectorMergeable;
-import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
-import com.linkedin.databus.core.util.ConfigApplier;
-import com.linkedin.databus.core.util.ConfigBuilder;
-import com.linkedin.databus.core.util.ConfigManager;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.JsonUtils;
-import com.linkedin.databus.core.util.NamedThreadFactory;
-import com.linkedin.databus2.core.DatabusException;
-import com.linkedin.databus2.core.container.JmxStaticConfig;
-import com.linkedin.databus2.core.container.JmxStaticConfigBuilder;
-import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
-import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdmin;
-import com.linkedin.databus2.core.container.request.CommandsRegistry;
-import com.linkedin.databus2.core.container.request.ContainerAdminRequestProcessor;
-import com.linkedin.databus2.core.container.request.ContainerStatsRequestProcessor;
-import com.linkedin.databus2.core.container.request.JavaStatsRequestProcessor;
-import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -57,11 +39,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
+
 import javax.management.MBeanServer;
 import javax.management.remote.JMXConnectorServer;
 import javax.management.remote.JMXConnectorServerFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.naming.NameAlreadyBoundException;
+
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.GnuParser;
@@ -89,6 +73,28 @@ import org.jboss.netty.util.HashedWheelTimer;
 import org.jboss.netty.util.ThreadNameDeterminer;
 import org.jboss.netty.util.ThreadRenamingRunnable;
 import org.jboss.netty.util.Timer;
+
+import com.linkedin.databus.core.DatabusComponentStatus;
+import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectorMergeable;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
+import com.linkedin.databus.core.util.ConfigApplier;
+import com.linkedin.databus.core.util.ConfigBuilder;
+import com.linkedin.databus.core.util.ConfigManager;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.JsonUtils;
+import com.linkedin.databus.core.util.NamedThreadFactory;
+import com.linkedin.databus2.core.DatabusException;
+import com.linkedin.databus2.core.container.JmxStaticConfig;
+import com.linkedin.databus2.core.container.JmxStaticConfigBuilder;
+import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdmin;
+import com.linkedin.databus2.core.container.request.CommandsRegistry;
+import com.linkedin.databus2.core.container.request.ContainerAdminRequestProcessor;
+import com.linkedin.databus2.core.container.request.ContainerStatsRequestProcessor;
+import com.linkedin.databus2.core.container.request.JavaStatsRequestProcessor;
+import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 
 /**
  * A serving container
@@ -138,12 +144,17 @@ public abstract class ServerContainer
   private volatile boolean _shutdown = false;
   private boolean _shutdownRequest = false;
   private boolean _started = false;
+  private String _baseDir = "."; //if deployed with glu - usually /.../i001/ directory
+
+  //The byte order used for the Dbusevent serialization.
+  private final ByteOrder _dbusEventByteOrder;
 
   protected ServerBootstrap _httpBootstrap;
   protected ServerBootstrap _tcpBootstrap;
 
   protected Channel _httpServerChannel;
   protected Channel _tcpServerChannel;
+  protected int _containerPort = -1;
 
   /** Helper field until we migrate the callers of the static CLI functions to the Cli class */
   private static Cli _staticCliToBeDeprecated = new Cli();
@@ -169,16 +180,16 @@ public abstract class ServerContainer
     return _processorRegistry;
   }
 
-  public ServerContainer(Config configBuilder) throws IOException, InvalidConfigException,
-                                                      DatabusException
+  public ByteOrder getDbusEventByteOrder()
   {
-    this(configBuilder.build());
+    return _dbusEventByteOrder;
   }
 
-  public ServerContainer(StaticConfig config) throws IOException, InvalidConfigException,
-                                                     DatabusException
+  public ServerContainer(StaticConfig config, ByteOrder byteOrder)
+  throws IOException, InvalidConfigException, DatabusException
   {
    _containerStaticConfig = config;
+   _baseDir = config.getContainerBaseDir();
    //by default we have 5ms timeout precision
    _networkTimeoutTimer = new HashedWheelTimer(5, TimeUnit.MILLISECONDS);
 
@@ -187,6 +198,8 @@ public abstract class ServerContainer
 
    _mbeanServer = _containerStaticConfig.getOrCreateMBeanServer();
    _containerStaticConfig.getRuntime().setManagedInstance(this);
+
+    _dbusEventByteOrder = byteOrder;
 
    //TODO (DDSDBUS-105) HIGH we have to use the builder here instead of a read-only copy because we have a
    //bootstrapping circular reference RuntimeConfig -> ContainerStatisticsCollector.RuntimeConfig
@@ -258,7 +271,7 @@ public abstract class ServerContainer
     _globalStatsThread = new Thread(_globalStatsMerger, "GlobalStatsThread");
     _globalStatsThread.setDaemon(true);
 
-    initializeContainerNetworking();
+    initializeContainerNetworking(byteOrder);
     initializeContainerJmx();
     initializeContainerCommandProcessors();
     initializeStatsMerger();
@@ -293,24 +306,24 @@ public abstract class ServerContainer
                                       DatabusComponentStatus.INITIALIZING_MESSAGE);
   }
 
-  protected void initializeContainerNetworking() throws IOException, DatabusException
+  protected void initializeContainerNetworking(ByteOrder byteOrder) throws IOException, DatabusException
   {
     //instruct netty not to rename our threads in the I/O and boss thread pools
     ThreadRenamingRunnable.setThreadNameDeterminer(ThreadNameDeterminer.CURRENT);
 
     _httpBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(_bossExecutorService,
-                                                                       _ioExecutorService));
+                                                                           _ioExecutorService));
     _httpBootstrap.setPipelineFactory(new HttpServerPipelineFactory(this));
-    _httpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
-    _httpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
+    _httpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(byteOrder));
+    _httpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(byteOrder));
 
     if (_containerStaticConfig.getTcp().isEnabled())
     {
       _tcpBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory(_bossExecutorService,
                                                                             _ioExecutorService));
-      _tcpBootstrap.setPipelineFactory(new TcpServerPipelineFactory(this));
-      _tcpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
-      _tcpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(DbusEventV1.byteOrder));
+      _tcpBootstrap.setPipelineFactory(new TcpServerPipelineFactory(this, byteOrder));
+      _tcpBootstrap.setOption("bufferFactory", DirectChannelBufferFactory.getInstance(byteOrder));
+      _tcpBootstrap.setOption("child.bufferFactory", DirectChannelBufferFactory.getInstance(byteOrder));
 
       //LOG.debug("endianness:" + ((ChannelBufferFactory)_tcpBootstrap.getOption("bufferFactory")).getDefaultOrder());
     }
@@ -387,9 +400,24 @@ public abstract class ServerContainer
       _httpChannelGroup = new DefaultChannelGroup();
 
       _httpServerChannel = _httpBootstrap.bind(new InetSocketAddress(portNum));
+      InetSocketAddress actualAddress = (InetSocketAddress)_httpServerChannel.getLocalAddress();
+      _containerPort = actualAddress.getPort();
+
+      // persist the port number (file name should be unique for the container)
+      File portNumFile = new File(getHttpPortFileName());
+      portNumFile.deleteOnExit();
+      try {
+        FileWriter portNumFileW = new FileWriter(portNumFile);
+        portNumFileW.write(Integer.toString(_containerPort));
+        portNumFileW.close();
+        LOG.info("Saving port number in " + portNumFile.getAbsolutePath());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+
       _httpChannelGroup.add(_httpServerChannel);
       LOG.info("Serving container " + getContainerStaticConfig().getId() +
-               " HTTP listener on port " + portNum);
+               " HTTP listener on port " + _containerPort);
 
       if (_containerStaticConfig.getTcp().isEnabled())
       {
@@ -791,7 +819,6 @@ public abstract class ServerContainer
     {
       _usage = usage;
       _cliOptions = new Options();
-      constructCommandLineOptions();
       _helpFormatter = new HelpFormatter();
       _helpFormatter.setWidth(150);
     }
@@ -818,6 +845,7 @@ public abstract class ServerContainer
 
     public void processCommandLineArgs(String[] cliArgs) throws IOException, DatabusException
     {
+      constructCommandLineOptions();
 
       CommandLineParser cliParser = new GnuParser();
 
@@ -1382,9 +1410,11 @@ public abstract class ServerContainer
     private final RuntimeConfigBuilder _runtimeConfigBuilder;
     private final String _healthcheckPath;
     private final long _readTimeoutMs;
+    private final long _bstReadTimeoutMs;
     private final long _writeTimeoutMs;
     private final TcpStaticConfig _tcp;
     private final boolean _enableHttpCompression;
+    private final String _containerBaseDir;
 
     public StaticConfig(int id, JmxStaticConfig jmxConfig, int httpPort,
                         MBeanServer existingMbeanServer,
@@ -1392,9 +1422,11 @@ public abstract class ServerContainer
                         RuntimeConfigBuilder runtimeConfigBuilder,
                         String healthcheckPath,
                         long readTimeoutMs,
+                        long bstReadTimeoutMs,
                         long writeTimeoutMs,
                         TcpStaticConfig tcp,
-                        boolean enableHttpCompression)
+                        boolean enableHttpCompression,
+                        String containerBaseDir)
     {
       super();
       _id = id;
@@ -1405,9 +1437,15 @@ public abstract class ServerContainer
       _runtimeConfigBuilder = runtimeConfigBuilder;
       _healthcheckPath = healthcheckPath;
       _readTimeoutMs = readTimeoutMs;
+      _bstReadTimeoutMs = bstReadTimeoutMs;
       _writeTimeoutMs = writeTimeoutMs;
       _tcp = tcp;
       _enableHttpCompression = enableHttpCompression;
+      _containerBaseDir = containerBaseDir;
+    }
+    /** container base directory */
+    public String getContainerBaseDir() {
+      return _containerBaseDir;
     }
 
     /** HTTP port to listen on */
@@ -1474,6 +1512,11 @@ public abstract class ServerContainer
       return _readTimeoutMs;
     }
 
+    public long getBstReadTimeoutMs()
+    {
+      return _bstReadTimeoutMs;
+    }
+
     /** Timeout for confirmation from the peer when sending a response */
     public long getWriteTimeoutMs()
     {
@@ -1517,9 +1560,12 @@ public abstract class ServerContainer
     private int _defaultId;
     private String _healthcheckPath             = "admin";
     private long _readTimeoutMs                 = 15000;
+    private long _bstReadTimeoutMs              = 15000;
+    private boolean _bstReadTimeoutSet = false;
     private long _writeTimeoutMs                = 15000;
     private final TcpStaticConfigBuilder _tcp;
     private boolean _enableHttpCompression      = false;
+    private String _containerBaseDir = ".";
 
     public Config()
     {
@@ -1528,7 +1574,12 @@ public abstract class ServerContainer
       _tcp = new TcpStaticConfigBuilder();
       _id = -1;
     }
-
+    public String getContainerBaseDir() {
+      return _containerBaseDir;
+    }
+    public void setContainerBaseDir(String dir) {
+      _containerBaseDir = dir;
+    }
     public int getHttpPort()
     {
       return _httpPort;
@@ -1574,21 +1625,29 @@ public abstract class ServerContainer
         LOG.error("Error getting localhost info", uhe);
       }
 
-      if (_id == -1) _id = (_defaultId + _httpPort);
+      if (_id == -1) {
+        UUID uuid = UUID.randomUUID();
+        _id =  Math.abs(_defaultId + uuid.hashCode());
+        LOG.info("Using container id: " + _id +
+                 "(from defaultId = " + _defaultId + ";hash=" + uuid.hashCode() + ")");
+      }
 
       String realHealthcheckPath = _healthcheckPath.startsWith("/") ? _healthcheckPath.substring(1)
                                                                     : _healthcheckPath;
 
       LOG.info("Using http port:" + _httpPort);
-      LOG.info("Using container id: " + _id);
+      LOG.info("Using containerBasedir: " + _containerBaseDir);
+
       LOG.info("Using healthcheck path: " + realHealthcheckPath);
       return new StaticConfig(_id, _jmx.build(), _httpPort, _existingMbeanServer,
                               _runtimeConfigPropertyPrefix, _runtime,
                               realHealthcheckPath,
                               _readTimeoutMs,
+                              _bstReadTimeoutSet ? _bstReadTimeoutMs : _readTimeoutMs,
                               _writeTimeoutMs,
                               _tcp.build(),
-                              _enableHttpCompression);
+                              _enableHttpCompression,
+                              _containerBaseDir);
     }
 
 
@@ -1642,6 +1701,15 @@ public abstract class ServerContainer
       _healthcheckPath = healthcheckPath;
     }
 
+    public long getBstReadTimeoutMs()
+    {
+      if (_bstReadTimeoutSet) {
+        return _bstReadTimeoutMs;
+      } else {
+        return _readTimeoutMs;
+      }
+    }
+
     public long getReadTimeoutMs()
     {
       return _readTimeoutMs;
@@ -1650,6 +1718,12 @@ public abstract class ServerContainer
     public void setReadTimeoutMs(long readTimeoutMs)
     {
       _readTimeoutMs = readTimeoutMs;
+    }
+
+    public void setBstReadTimeoutMs(long bstReadTimeoutMs)
+    {
+      _bstReadTimeoutMs = bstReadTimeoutMs;
+      _bstReadTimeoutSet = true;
     }
 
     public long getWriteTimeoutMs()
@@ -1802,10 +1876,16 @@ public abstract class ServerContainer
 				{
 				  synchronized(this)
 				  {
-					for( StatsCollectors<?  extends StatsCollectorMergeable<?>> stats : _stats)
-					{
-						stats.mergeStatsCollectors();
-					}
+                    try
+                    {
+    					for( StatsCollectors<?  extends StatsCollectorMergeable<?>> stats : _stats)
+    					{
+    						stats.mergeStatsCollectors();
+    					}
+                    } catch (RuntimeException r)
+                    {
+                    	LOG.error("Error during merging of stats ", r);
+                    }
 				  }
                   if (!_stopRequested)
                     Thread.sleep(_sleepInMs);
@@ -1905,6 +1985,20 @@ public abstract class ServerContainer
 
   }
 
+  /**
+   * http port used by the container
+   * @return port num
+   */
+  public int getHttpPort() {
+    return _containerPort;
+  }
+  /** base directory for the Container */
+  public String getBaseDir () {
+    return _baseDir;
+  }
+  public String getHttpPortFileName() {
+    return new File(_baseDir, "containerPortNum_" + _containerStaticConfig.getId()).getAbsolutePath();
+  }
 }
 
 class JmxShutdownThread extends Thread

@@ -29,9 +29,10 @@ import org.apache.log4j.Logger;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStats;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerTrafficTotalStats;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerTrafficTotalStatsMBean;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
@@ -191,9 +192,12 @@ public class ContainerStatsRequestProcessor extends AbstractStatsRequestProcesso
 
   private void processContainerStats(DatabusRequest request) throws IOException
   {
-    //FIXME DDS-305
-    /* TrackingExecutorServiceState.Stats containerStats = _configManager.getDefaultExecutorTrackingStats();
-    writeJsonObjectToResponse(containerStats, request); */
+    ContainerStats containerStats = _containerStatsCollector.getContainerStats();
+    if (null == containerStats)
+    {
+      return;
+    }
+    writeJsonObjectToResponse(containerStats, request);
   }
 
   private void processOutboundTrafficTotalStats(DatabusRequest request) throws IOException

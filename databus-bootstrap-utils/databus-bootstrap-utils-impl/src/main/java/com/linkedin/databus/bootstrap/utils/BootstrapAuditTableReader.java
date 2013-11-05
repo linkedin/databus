@@ -25,17 +25,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus.core.util.RateMonitor;
 import com.linkedin.databus2.util.DBHelper;
 
 public abstract class BootstrapAuditTableReader
@@ -50,7 +44,6 @@ public abstract class BootstrapAuditTableReader
 	protected final Type               _pkeyType;
 	protected final String             _pkeyName;
 	protected final int                _interval;
-	private 		PreparedStatement   _stmt = null;
 
 	public BootstrapAuditTableReader(
 	                    Connection conn,
@@ -70,13 +63,15 @@ public abstract class BootstrapAuditTableReader
 
 	public void close()
 	{
-		DBHelper.close(_conn);
 	}
-
+/**
+ * Used in one-off situation to find the number of rows in the given table
+ * @param key
+ * @return
+ */
 	public long getNumRecords(String key)
 	{
 		String sql = getNumRecordsStmt(key);
-		Connection conn = null;
 		PreparedStatement stmt = null;
 		ResultSet rs = null;
 		long numRecords = -1;
@@ -91,49 +86,36 @@ public abstract class BootstrapAuditTableReader
 		} catch ( SQLException sqlEx) {
 		    LOG.error("getNumRecords() error: " + sqlEx.getMessage(), sqlEx);
 		} finally {
-			DBHelper.close(rs,stmt,conn);
+			DBHelper.close(rs,stmt,null);
 		}
 		return numRecords;
 	}
 
-
-	public ResultSet getRecords(long from)
-		throws SQLException
-	{
-		 ResultSet rs = null;
-		 try
-		 {
-			 if ( null != _stmt)
-				 DBHelper.close(_stmt);
-
-			 _stmt = getFetchStmt(from);
-			 //stmt.setFetchSize(10000);
-			 //stmt.setMaxRows(10);
-			 rs = _stmt.executeQuery();
-		 } catch ( SQLException sqlEx) {
-			 DBHelper.close(rs, _stmt, null);
-			 throw sqlEx;
-		 }
-		 return rs;
-	}
-
-	public ResultSet getRecords(String from)
-	throws SQLException
-{
-	 PreparedStatement stmt = null;
-	 ResultSet rs = null;
-	 try
-	 {
-		 stmt = getFetchStmt(from);
-		 //stmt.setFetchSize(10000);
-		 //stmt.setMaxRows(10);
-		 rs = stmt.executeQuery();
-	 } catch ( SQLException sqlEx) {
-		 DBHelper.close(rs, stmt, null);
-		 throw sqlEx;
-	 }
-	 return rs;
-}
+  /**
+   *
+   * @param from : Defines lower bound of srckey  (> from)
+   * @return resultSet: consists of rows sorted in ascending order of srckey
+   * Note that stmt's lifetime is managed by subclass
+   * @throws SQLException
+   */
+  public ResultSet getRecords(String from) throws SQLException
+  {
+    PreparedStatement stmt = null;
+    ResultSet rs = null;
+    try
+    {
+      stmt = getFetchStmt(from);
+      // stmt.setFetchSize(10000);
+      // stmt.setMaxRows(10);
+      rs = stmt.executeQuery();
+    }
+    catch (SQLException sqlEx)
+    {
+      DBHelper.close(rs, null, null);
+      throw sqlEx;
+    }
+    return rs;
+  }
 
 	private String getNumRecordsStmt(String key)
 	{
@@ -190,13 +172,6 @@ public abstract class BootstrapAuditTableReader
 	  private byte[] _avroRecord;
 	  private Map<String,Object> _sourceRecord;
 	}
-
-	/*
-	 * @param fromId - The rowId to start streaming
-	 * @return PreparedStatement of the query for streaming records
-	 */
-	public abstract PreparedStatement getFetchStmt(long fromId)
-			throws SQLException;
 
 	/*
 	 * @param from - The pKey to start streaming

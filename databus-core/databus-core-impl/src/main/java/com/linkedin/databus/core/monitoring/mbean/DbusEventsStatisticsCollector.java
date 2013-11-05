@@ -19,7 +19,7 @@ package com.linkedin.databus.core.monitoring.mbean;
 */
 
 
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
+import com.linkedin.databus.core.DbusEventInternalReadable.EventScanStatus;
 import com.linkedin.databus.core.DbusEventInternalReadable;
 import com.linkedin.databus.core.DbusEventUtils;
 import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
@@ -348,6 +348,11 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
 		  {
 			  mergePerPeer(peerEntry.getKey(), peerEntry.getValue(), writeLock);
 		  }
+	  }
+	  catch (RuntimeException r)
+	  {
+		  // Do not let the exception propagate to the GlobalStatsThread
+		  LOG.error("Received an error during merging internal stats", r);
 	  }
 	  finally
 	  {

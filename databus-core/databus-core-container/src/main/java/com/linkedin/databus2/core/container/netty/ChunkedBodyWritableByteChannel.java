@@ -140,7 +140,7 @@ public class ChunkedBodyWritableByteChannel implements ChunkedWritableByteChanne
   }
 
   @Override
-  public void addMetadata(String name, String value)
+  public void addMetadata(String name, Object value)
   {
     if (null != _response)
     {
@@ -158,7 +158,7 @@ public class ChunkedBodyWritableByteChannel implements ChunkedWritableByteChanne
   }
 
   @Override
-  public void setMetadata(String name, String value)
+  public void setMetadata(String name, Object value)
   {
     if (null != _response)
     {

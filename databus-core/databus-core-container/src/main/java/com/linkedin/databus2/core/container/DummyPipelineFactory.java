@@ -37,6 +37,7 @@ import com.linkedin.databus2.core.container.request.CommandsRegistry;
 import com.linkedin.databus2.core.container.request.SimpleBinaryDatabusRequestDecoder;
 import com.linkedin.databus2.core.container.request.SimpleBinaryDatabusResponseEncoder;
 
+/** Used only for Espresso (databus3-relay) unit tests. */
 public class DummyPipelineFactory
 {
   public static final String RESPONSE_AGGREGATOR_NAME = "response aggregator";
@@ -47,10 +48,12 @@ public class DummyPipelineFactory
   public static class DummyServerPipelineFactory implements ChannelPipelineFactory
   {
     private final CommandsRegistry _cmdsRegistry;
+    private final ByteOrder _byteOrder;
 
-    public DummyServerPipelineFactory(CommandsRegistry cmdsRegistry)
+    public DummyServerPipelineFactory(CommandsRegistry cmdsRegistry, ByteOrder byteOrder)
     {
       _cmdsRegistry = cmdsRegistry;
+      _byteOrder = byteOrder;
     }
 
     @Override
@@ -63,7 +66,7 @@ public class DummyPipelineFactory
       pipeline.addLast("read timeout", readTimeoutHandler);
 
       pipeline.addLast("request decoder",
-                       new SimpleBinaryDatabusRequestDecoder(_cmdsRegistry, readTimeoutHandler));
+                       new SimpleBinaryDatabusRequestDecoder(_cmdsRegistry, readTimeoutHandler, _byteOrder));
       pipeline.addLast(COMMAND_CAPTURE_NAME, new SimpleObjectCaptureHandler());
       pipeline.addLast(SimpleBinaryDatabusRequestDecoder.REQUEST_EXEC_HANDLER_NAME,
                        new SimpleObjectCaptureHandler());

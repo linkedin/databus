@@ -19,6 +19,25 @@ package com.linkedin.databus.client;
 */
 
 
+import java.io.IOException;
+import java.net.URISyntaxException;
+import java.nio.ByteOrder;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+import org.apache.log4j.Logger;
+
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfig.ProviderType;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
 import com.linkedin.databus.client.consumer.LoggingConsumer;
@@ -58,6 +77,8 @@ import com.linkedin.databus.client.request.ClientStateRequestProcessor;
 import com.linkedin.databus.client.request.ClientStatsRequestProcessor;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV2Factory;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.AggregatedDbusEventsStatisticsCollector;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
@@ -72,22 +93,6 @@ import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdm
 import com.linkedin.databus2.core.container.monitoring.mbean.HttpStatisticsCollector;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
-import java.io.IOException;
-import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import org.apache.log4j.Logger;
 
 
 /**
@@ -112,7 +117,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   /** Map from source list to relays that can provide the list */
   protected Map<List<DatabusSubscription>, Set<ServerInfo>> _bootstrapGroups;
 
-  /** All relay connections */
+  /** All relay connections and bootstrap connections */
   protected final List<DatabusSourcesConnection> _relayConnections;
 
   /** Static configuration */
@@ -123,6 +128,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   protected final CheckpointPersistenceProvider _checkpointPersistenceProvider;
   /** Statistics collector about databus events */
   protected final HttpStatisticsCollector _httpStatsCollector;
+  // this instance is not really used, TODO get rid of it
   protected final LoggingConsumer _loggingListener;
   protected final DatabusRelayConnectionFactory _relayConnFactory;
   protected final DatabusBootstrapConnectionFactory _bootstrapConnFactory;
@@ -143,9 +149,19 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   protected LastWriteTimeTrackerImpl _writeTimeTracker = null;
   protected DatabusClientDSCUpdater _dscUpdater = null;
 
+  protected final DbusEventFactory _eventFactory;
+
   /**
    * Private instance variables
    */
+
+  /** Default client-relay protocol version.  @see getProtocolVersion() for details. */
+  // TODO:  There's another copy of this in CheckpointPersistenceProviderAbstract; unify.  DDSDBUS-2107 item 14
+  private static final int DEFAULT_PROTOCOL_VERSION = 2;
+
+  /** max event version understood by this client */
+  private static final int DEFAULT_MAX_EVENT_VERSION = DbusEventFactory.DBUS_EVENT_V2;
+
 
   /** Map from source list to stream consumers that will use those */
   private final Map<List<DatabusSubscription>, List<DatabusV2ConsumerRegistration>>
@@ -161,24 +177,37 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   protected boolean _cmEnabled = false;
 
   /**
-   * List of registrations for this client instance  
+   * List of registrations for this client instance
    */
-  private List<DatabusRegistration> _regList = new CopyOnWriteArrayList<DatabusRegistration>();
+  private final List<DatabusRegistration> _regList = new CopyOnWriteArrayList<DatabusRegistration>();
 
   /**
-   *  Set of clusters that have been registered.
+   * Set of clusters that have been registered.
    */
-  private Set<String> _activeClusters = new HashSet<String>();
-  
+  private final Set<String> _activeClusters = new HashSet<String>();
+
   /**
-   * Creates a client with a configuration based on specified properties.
-   * @param  propertyPrefix   the prefix for all property names for this client
-   * @param  props            the configuration properties
+   * Returns the version of the relay-client protocol we're using.  DatabusHttpV3ClientImpl overrides this.
+   * Reference wiki:  Databus+v2.0++Protocol
+   *
+   * <ul>
+   *   <li> 2 - client specifies sources rather than subscriptions and uses single-source checkpoints;
+   *            /register returns list of source schemas only </li>
+   *   <li> 3 - client specifies subscriptions and uses multi-source checkpoints;
+   *            /register returns list of source schemas only </li>
+   *   <li> 4 - as with v3, but /register returns map containing schemas for keys and metadata in
+   *            addition to sources </li>
+   * </ul>
    */
-  public DatabusHttpClientImpl(String propertyPrefix, Properties props)
-        throws InvalidConfigException, IOException, DatabusException
+  protected int getProtocolVersion()
   {
-    this(createConfigBuilder(propertyPrefix, props).build());
+    return DEFAULT_PROTOCOL_VERSION;
+  }
+
+
+  protected int getMaxEventVersion()
+  {
+    return DEFAULT_MAX_EVENT_VERSION;
   }
 
   public boolean isCMEnabled()
@@ -203,6 +232,17 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
+  /**
+   * Creates a client with a configuration based on specified properties.
+   * @param  propertyPrefix   the prefix for all property names for this client
+   * @param  props            the configuration properties
+   */
+  public DatabusHttpClientImpl(String propertyPrefix, Properties props)
+        throws InvalidConfigException, IOException, DatabusException
+  {
+    this(createConfigBuilder(propertyPrefix, props).build());
+  }
+
   public DatabusHttpClientImpl() throws InvalidConfigException, IOException, DatabusException
   {
     this(new Config());
@@ -214,11 +254,18 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     this(config.build());
   }
 
-  public DatabusHttpClientImpl(StaticConfig config) throws IOException, InvalidConfigException,
+  public DatabusHttpClientImpl(StaticConfig config) throws InvalidConfigException, IOException,
                                                            DatabusException
   {
-    super(config.getContainer());
+    this(config, ByteOrder.BIG_ENDIAN);  // default order is big-endian
+  }
 
+  public DatabusHttpClientImpl(StaticConfig config, ByteOrder byteOrder)
+  throws IOException, InvalidConfigException, DatabusException
+  {
+    super(config.getContainer(), byteOrder);
+
+    _eventFactory = new DbusEventV2Factory(byteOrder);
 
     _clientStaticConfig = config;
 
@@ -243,16 +290,20 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     _relayConnections = new ArrayList<DatabusSourcesConnection>(20);
 
 
-
-    _clientNode = new DatabusClientNode(config.getCluster());
-    _groupMember = _clientNode.isEnabled() ?  _clientNode.getMember(_clientStaticConfig.getCluster().getDomain(),
+    if (config.getCluster().isEnabled())
+    {
+    	_clientNode = new DatabusClientNode(config.getCluster());
+    	_groupMember = _clientNode.isEnabled() ?  _clientNode.getMember(_clientStaticConfig.getCluster().getDomain(),
                                                             _clientStaticConfig.getCluster().getGroup(),
                                                             _clientStaticConfig.getCluster().getName()) : null;
-
-
+    }
+    else
+    {
+    	_clientNode = null;
+    	_groupMember = null;
+    }
     _checkpointPersistenceProvider = _clientStaticConfig.getCheckpointPersistence()
-                                     .getOrCreateCheckpointPersistenceProvider(_groupMember);
-
+            .getOrCreateCheckpointPersistenceProvider(_groupMember);
     HttpStatisticsCollector httpStatsColl = _clientStaticConfig.getHttpStatsCollector()
                                             .getExistingStatsCollector();
     if (null == httpStatsColl)
@@ -271,16 +322,18 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     _configManager = new ConfigManager<RuntimeConfig>(_clientStaticConfig.getRuntimeConfigPrefix(),
                                                       _clientStaticConfig.getRuntime());
 
-    NettyHttpConnectionFactory defaultConnFacory =
+    NettyHttpConnectionFactory defaultConnFactory =
         new NettyHttpConnectionFactory(getBossExecutorService(), getIoExecutorService() ,
                                        getContainerStatsCollector(),
                                        getNetworkTimeoutTimer(),
                                        _clientStaticConfig.getContainer().getWriteTimeoutMs(),
                                        _clientStaticConfig.getContainer().getReadTimeoutMs(),
-                                       _clientStaticConfig.getProtocolVersion(),
+                                       _clientStaticConfig.getContainer().getBstReadTimeoutMs(),
+                                       getProtocolVersion(),
+                                       getMaxEventVersion(),
                                        getHttpChannelGroup());
-    _relayConnFactory = defaultConnFacory;
-    _bootstrapConnFactory = defaultConnFacory;
+    _relayConnFactory = defaultConnFactory;
+    _bootstrapConnFactory = defaultConnFactory;
 
     initializeClientCommandProcessors();
     //_inBoundStatsCollectors is merged in ServerContainer
@@ -382,18 +435,26 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 	  }
 
 	  DatabusV2ConsumerRegistration consumerReg =
-			  new DatabusV2ConsumerRegistration(dccListenersList, sources, filterConfig);
+	      new DatabusV2ConsumerRegistration(dccListenersList, sources, filterConfig);
 
 	  List<DatabusV2ConsumerRegistration> consumers =
-			  registerDatabusListener(consumerReg, _relayGroups, getRelayGroupStreamConsumers(), DatabusSubscription.createSubscriptionList(sources));
-	  if (listeners[0] != getLoggingListener() && 1 == consumers.size())
-	  {
-		  DatabusStreamConsumer logConsumer = getLoggingListener();
-		  SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
+	      registerDatabusListener(consumerReg, _relayGroups, getRelayGroupStreamConsumers(), DatabusSubscription.createSubscriptionList(sources));
 
-		  DatabusV2ConsumerRegistration loggingReg =
-				  new DatabusV2ConsumerRegistration(sdccLogConsumer,	sources,filterConfig);
-		  consumers.add(loggingReg);
+	  if (1 == consumers.size())
+	  {
+	    DatabusStreamConsumer logConsumer = listeners[0];
+	    if(! (logConsumer instanceof LoggingConsumer)) {
+	      // create a new Logging consumer for this list of consumers
+	      try {
+	        logConsumer = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
+	      } catch (InvalidConfigException e) {
+	        throw new DatabusClientException(e);
+	      }
+	      SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
+	      DatabusV2ConsumerRegistration loggingReg =
+	          new DatabusV2ConsumerRegistration(sdccLogConsumer,	sources,filterConfig);
+	      consumers.add(loggingReg);
+	    }
 	  }
   }
 
@@ -440,13 +501,21 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 		List<DatabusV2ConsumerRegistration> consumers =
 				registerDatabusListener(consumerReg, _relayGroups, getRelayGroupBootstrapConsumers(),
 						DatabusSubscription.createSubscriptionList(sources));
-		if (listeners[0] != getLoggingListener() && 1 == consumers.size())
+		if (1 == consumers.size())
 		{
-			DatabusBootstrapConsumer logConsumer = getLoggingListener();
-			SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
-			DatabusV2ConsumerRegistration loggerReg =
-					new DatabusV2ConsumerRegistration(sdccLogConsumer, sources, filter);
-			consumers.add(loggerReg);
+		  DatabusBootstrapConsumer logConsumer = listeners[0];
+		  if(! (logConsumer instanceof LoggingConsumer)) {
+		    // create a new Logging consumer for this list of consumers
+		    try {
+          logConsumer = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
+        } catch (InvalidConfigException e) {
+          throw new DatabusClientException(e);
+        }
+		    SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
+		    DatabusV2ConsumerRegistration loggerReg =
+		        new DatabusV2ConsumerRegistration(sdccLogConsumer, sources, filter);
+		    consumers.add(loggerReg);
+		  }
 		}
   }
 
@@ -520,6 +589,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   /**
    *
+   * Returns *both* the relay and bootstrap connections
    * @return
    */
   public synchronized List<DatabusSourcesConnection> getRelayConnections() {
@@ -676,15 +746,17 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
                throws DatabusClientException
   {
          if ((null == consumer))
-               throw new DatabusClientException("Consumer Callback is null !!");
+               throw new DatabusClientException("No consumer callback has been specified.");
 
          if ((null == sources) || (sources.length == 0))
-               throw new DatabusClientException("Sources is empty !!");
+               throw new DatabusClientException("Please specify Databus sources to be consumed: register(consumer, source1, source2, ...");
 
          RegistrationId regId =
-                 RegistrationIdGenerator.generateNewId(consumer.getClass().getSimpleName(), 
+                 RegistrationIdGenerator.generateNewId(consumer.getClass().getSimpleName(),
                 		                               DatabusSubscription.createSubscriptionList(Arrays.asList(sources)));
-         DatabusV2RegistrationImpl reg = new DatabusV2RegistrationImpl(regId, this, getCheckpointPersistenceProvider());
+         DatabusV2RegistrationImpl reg = new DatabusV2RegistrationImpl(regId,
+                                                                       this,
+                                                                       getCheckpointPersistenceProvider());
          List<DatabusCombinedConsumer> consumers = new ArrayList<DatabusCombinedConsumer>();
          consumers.add(consumer);
          reg.addDatabusConsumers(consumers);
@@ -701,15 +773,17 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
         throws DatabusClientException
   {
                if ((null == consumers)  || (consumers.isEmpty()))
-                       throw new DatabusClientException("Consumer Callback list is empty !!");
+                 throw new DatabusClientException("No consumer callbacks have been specified.");
 
                if ((null == sources) || (sources.length == 0))
-                       throw new DatabusClientException("Sources is empty !!");
+                 throw new DatabusClientException("Please specify Databus sources to be consumed: register(consumer, source1, source2, ...");
 
                RegistrationId regId =
                        RegistrationIdGenerator.generateNewId(consumers.iterator().next().getClass().getSimpleName(),
                     		                                DatabusSubscription.createSubscriptionList(Arrays.asList(sources)));
-               DatabusV2RegistrationImpl reg = new DatabusV2RegistrationImpl(regId, this, getCheckpointPersistenceProvider());
+               DatabusV2RegistrationImpl reg = new DatabusV2RegistrationImpl(regId,
+                                                                             this,
+                                                                             getCheckpointPersistenceProvider());
                reg.addDatabusConsumers(consumers);
                reg.addSubscriptions(sources);
                _regList.add(reg);
@@ -721,32 +795,32 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   public DatabusRegistration registerCluster(String cluster,
                DbusClusterConsumerFactory consumerFactory,
                DbusServerSideFilterFactory filterFactory,
-               DbusPartitionListener partitionListener, String... sources)  
+               DbusPartitionListener partitionListener, String... sources)
                                 throws DatabusClientException
-  
+
   {
          if ((null == sources) || (sources.length == 0))
                throw new DatabusClientException("Sources is empty !!");
-          
+
          if ( _activeClusters.contains(cluster))
         	 throw new DatabusClientException("Cluster :" + cluster + " has already been registed to this client instance." +
                                               " Only one registration per cluster is allowed for a databus client instance !!");
-         
+
          ClusterRegistrationStaticConfig c = _clientStaticConfig.getClientCluster(cluster);
-          
+
          if ( null == c )
                  throw new DatabusClientException("Cluster Configuration for cluster (" + cluster + ") not provided !!");
 
          if ( null == consumerFactory)
         	 throw new DatabusClientException("Consumer Factory is null !!");
-         
-         ClusterCheckpointPersistenceProvider.StaticConfig ckptPersistenceProviderConfig = new ClusterCheckpointPersistenceProvider.StaticConfig(c.getZkAddr(),c.getClusterName(),c.getMaxCkptWritesSkipped());
+
+         ClusterCheckpointPersistenceProvider.StaticConfig ckptPersistenceProviderConfig = new ClusterCheckpointPersistenceProvider.StaticConfig(c.getZkAddr(),c.getClusterName(),c.getMaxCkptWritesSkipped(),c.getCheckpointIntervalMs());
 
          DbusClusterInfo clusterInfo = new DbusClusterInfo(c.getClusterName(), c.getNumPartitions(), c.getQuorum());
 
          RegistrationId regId =
                  RegistrationIdGenerator.generateNewId(c.getClusterName());
-         
+
          DatabusV2ClusterRegistrationImpl reg = new DatabusV2ClusterRegistrationImpl(regId, this, ckptPersistenceProviderConfig, clusterInfo, consumerFactory, filterFactory, partitionListener, sources);
          _regList.add(reg);
          reg.onRegister();
@@ -774,7 +848,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   public Collection<DatabusRegistration> getAllRegistrations()
   {
          return Collections.unmodifiableCollection(_regList);
-         
+
   }
 
   /**
@@ -853,40 +927,40 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     LOG.info("relay consumers: " + getRelayGroupStreamConsumers().size());
     LOG.info("bootstrap consumers: " + getRelayGroupBootstrapConsumers().size());
 
-    // Disabling dscUpdater on purpose: Reason - no users
-    //_dscUpdater = new DatabusClientDSCUpdater(_groupMember,_writeTimeTracker,_clientStaticConfig.getDSCUpdateIntervalMs());
-    if (_clientNode.isEnabled())
+    if (_clientNode != null && _clientNode.isEnabled())
     {
       if (!waitForLeadership())
       {
         LOG.error("Error acquiring leadership! Not starting client");
-		return;
+        return;
       }
     }
 
     _httpStatsCollector.registerMastershipStatus(1);
-    if (getClientStaticConfig().getProtocolVersion() == 2)
+    if (!getClientStaticConfig().usesDynamicRelayConfiguration())
     {
-        initializeRelayConnections();
-        for (DatabusRegistration r : _regList)
+      initializeRelayConnections();
+      for (DatabusRegistration r : _regList)
+      {
+        if (!r.getState().isRunning())
         {
-        	if (! r.getState().isRunning())
-        	{
-        		try {
-
-        			LOG.info("Registration (" + r.getRegistrationId() + ") has not been started yet !! Starting !!");
-        			r.start();
-        		} catch (DatabusClientException e) {
-        			LOG.error("Got exception while starting registration !!", e);
-        			throw new RuntimeException(e);
-        		}
-        	}
+          try
+          {
+            LOG.info("Registration (" + r.getRegistrationId() + ") has not been started yet !! Starting !!");
+            r.start();
+          }
+          catch (DatabusClientException e)
+          {
+            LOG.error("Got exception while starting registration !!", e);
+            throw new RuntimeException(e);
+          }
         }
+      }
     }
     else
     {
-        // The connections are made during registerDatabusListener call and not when the client is started
-    	LOG.info("Client version 3: Connections to relays during a register call");
+      // The connections are made during registerDatabusListener call and not when the client is started
+      LOG.info("Client with dynamically configured relays: relay connections will be initialized during register call");
     }
     if ((_dscUpdater != null) && _dscUpdater.isRunning())
     {
@@ -897,43 +971,46 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   @Override
   protected void doShutdown()
   {
-    LOG.info(getClass().getSimpleName() +": shutting down...");
+    LOG.info(getClass().getSimpleName() + ": shutting down...");
     unregisterMbeans();
     for (DatabusSourcesConnection relayConn: _relayConnections)
     {
       relayConn.stop();
     }
-    
+
     for(DatabusRegistration reg : _regList)
     {
-    	LOG.info("Shutting down registration :" + reg.getRegistrationId());
+    	LOG.info("Shutting down registration: " + reg.getRegistrationId());
     	try
     	{
     		if (reg.getState() != RegistrationState.SHUTDOWN)
     			reg.shutdown();
     	} catch (Exception ex) {
-    		LOG.error("Unable to shutdown registration :" + reg.getRegistrationId(),ex);
+    		LOG.error("Unable to shut down registration: " + reg.getRegistrationId(),ex);
     	}
     }
 
-    //shutdown dsc updater thread if running; it might write to zk; so leave zk after this
+    //shut down dsc updater thread if running; it might write to zk, so leave zk after this
     if ((_dscUpdater != null) && _dscUpdater.isRunning())
     {
       _dscUpdater.stop();
       _dscUpdater.awaitShutdown();
     }
 
-  //leave group;
+    //leave group;
     if (_groupMember != null)
     {
-    	_groupMember.leave();
+      _groupMember.leave();
     }
     //close zk connection
-    _clientNode.close();
+    if (_clientNode != null)
+    {
+      _clientNode.close();
+    }
     _httpStatsCollector.registerMastershipStatus(0);
 
     super.doShutdown();
-    LOG.info(getClass().getSimpleName() +": shutdown.");
+    LOG.info(getClass().getSimpleName() +": shutdown complete.");
   }
 
   /**
@@ -944,13 +1021,12 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   {
     _processorRegistry.register(ClientStatsRequestProcessor.COMMAND_NAME,
                                new ClientStatsRequestProcessor(null, this));
-    _processorRegistry.register(ClientStateRequestProcessor.COMMAND_NAME, 
+    _processorRegistry.register(ClientStateRequestProcessor.COMMAND_NAME,
     		                    new ClientStateRequestProcessor(null, this));
   }
 
   /**
    *
-   * @return
    */
   protected boolean waitForLeadership()
   {
@@ -995,9 +1071,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   /**
    *
-   * @param groupsServers
-   * @param sources
-   * @return
    * @throws DatabusClientException
    */
   protected ServerInfo getRandomRelay(Map<List<DatabusSubscription>, Set<ServerInfo>> groupsServers,
@@ -1019,33 +1092,33 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       DatabusV2ConsumerRegistration listener,
       Map<List<DatabusSubscription>, Set<ServerInfo>> groupsServers,
       Map<List<DatabusSubscription>, List<DatabusV2ConsumerRegistration>> groupsListeners,
-      List<DatabusSubscription> sources
-      )
-      throws DatabusClientException
+      List<DatabusSubscription> sources)
+  throws DatabusClientException
   {
-	List<DatabusSubscription> subsSources = null;
+    List<DatabusSubscription> subsSources = null;
     ServerInfo randomRelay = getRandomRelay(groupsServers, sources);
     if ( null == randomRelay )
     {
-    	// Possible only in V3 case, where a registration succeeds even if there is no relay
-    	// available to serve it immediately
-    	assert (getClientStaticConfig().getProtocolVersion() == 3);
-    	subsSources = sources;
+      // Possible only in dynamic case (formerly "v3"), where a registration succeeds
+      // even if there is no relay available to serve it immediately.
+      assert getClientStaticConfig().usesDynamicRelayConfiguration() :
+             "Client relay(s) configured statically but no relays available at listener registration";
+      subsSources = sources;
     }
     else
     {
-        try
-        {
-          subsSources = DatabusSubscription.createFromUriList(randomRelay.getSources());
-        }
-        catch (DatabusException e)
-        {
-          throw new DatabusClientException("source list decode error:" + e.getMessage(), e);
-        }
-        catch (URISyntaxException e)
-        {
-          throw new DatabusClientException("source list decode error:" + e.getMessage(), e);
-        }
+      try
+      {
+        subsSources = DatabusSubscription.createFromUriList(randomRelay.getSources());
+      }
+      catch (DatabusException e)
+      {
+        throw new DatabusClientException("source list decode error:" + e.getMessage(), e);
+      }
+      catch (URISyntaxException e)
+      {
+        throw new DatabusClientException("source list decode error:" + e.getMessage(), e);
+      }
     }
     List<DatabusV2ConsumerRegistration> consumers = getListOfConsumerRegsFromSubList(groupsListeners, subsSources);
     if (null == consumers)
@@ -1178,13 +1251,18 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 				  }
 			  }
 
-			  DbusEventBuffer eventBuffer = connConfig.getEventBuffer().getOrCreateEventBuffer();
+			  DbusEventBuffer eventBuffer = connConfig.getEventBuffer().getOrCreateEventBuffer(_eventFactory);
 			  eventBuffer.setDropOldEvents(true);
 			  eventBuffer.start(0);
 
-			  DbusEventBuffer bootstrapBuffer = new DbusEventBuffer(connConfig.getEventBuffer());
-			  bootstrapBuffer.setDropOldEvents(false);
-			  bootstrapBuffer.start(0);
+
+			  DbusEventBuffer bootstrapBuffer = null;
+			  // create bootstrap only if it is enabled
+			  if(_clientStaticConfig.getRuntime().getBootstrap().isEnabled()) {
+			    bootstrapBuffer = new DbusEventBuffer(connConfig.getEventBuffer());
+			    bootstrapBuffer.setDropOldEvents(false);
+			    bootstrapBuffer.start(0);
+			  }
 
 			  LOG.info("The sourcesList is " + sourcesStrList);
 			  LOG.info("The relayGroupStreamConsumers is " + getRelayGroupStreamConsumers().get(subsList));
@@ -1239,6 +1317,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 			                                  getMbeanServer());
 			    _bsConsumerStatsCollectors.addStatsCollector(statsCollectorName, bootstrapConsumerStats);
 
+			  ConnectionStateFactory connStateFactory = new ConnectionStateFactory(DatabusSubscription.getStrList(subsList));
 			  DatabusSourcesConnection newConn =
 					  new DatabusSourcesConnection(
 							  connConfig,
@@ -1261,7 +1340,9 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 							  getBootstrapConnFactory(),
 							  getHttpStatsCollector(),
 							  null,
-							  this);
+							  this,
+							 _eventFactory,
+							 connStateFactory);
 
 			  _consumerStatsCollectors.addStatsCollector(statsCollectorName,newConn.getRelayConsumerStats());
 			  _bsConsumerStatsCollectors.addStatsCollector(statsCollectorName,newConn.getBootstrapConsumerStats());
@@ -1316,12 +1397,11 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   }
 
   /**
-   * Not applicable in V2
-   * @return
+   * Not applicable in V2.
    */
   public Map<RegistrationId, DatabusV3Registration> getRegistrationIdMap()
   {
-	  return null;
+    return null;
   }
 
   /**
@@ -1329,7 +1409,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
    */
   public DatabusSourcesConnection getDatabusSourcesConnection(String regIdStr)
   {
-	  return null;
+    return null;
   }
 
   /**
@@ -1487,16 +1567,14 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     private final FileSystemCheckpointPersistenceProvider.RuntimeConfig _fileSystem;
     private final SharedCheckpointPersistenceProvider.RuntimeConfig _shared;
 
-    public CheckpointPersistenceRuntimeConfig(
-                                              FileSystemCheckpointPersistenceProvider.RuntimeConfig fileSystem)
+    public CheckpointPersistenceRuntimeConfig(FileSystemCheckpointPersistenceProvider.RuntimeConfig fileSystem)
     {
       super();
       _fileSystem = fileSystem;
       _shared= null;
     }
 
-    public CheckpointPersistenceRuntimeConfig(
-                                              SharedCheckpointPersistenceProvider.RuntimeConfig shared)
+    public CheckpointPersistenceRuntimeConfig(SharedCheckpointPersistenceProvider.RuntimeConfig shared)
     {
       super();
       _shared = shared;
@@ -1665,7 +1743,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     private final CheckpointPersistenceRuntimeConfigBuilder _runtime;
     private final String _runtimeConfigPrefix;
     private final boolean _clearBeforeUse;
-    private final int _version; // default is 2
+    private final int _protocolVersion;
 
 
     @Override
@@ -1677,14 +1755,14 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 				+ ", _clearBeforeUse=" + _clearBeforeUse + "]";
 	}
 
-	public CheckpointPersistenceStaticConfig(ProviderType type,
+    public CheckpointPersistenceStaticConfig(ProviderType type,
                                              FileSystemCheckpointPersistenceProvider.StaticConfig fileSystem,
                                              SharedCheckpointPersistenceProvider.StaticConfig sharedState,
                                              CheckpointPersistenceProvider existing,
                                              CheckpointPersistenceRuntimeConfigBuilder runtime,
                                              String runtimeConfigPrefix,
                                              boolean clearBeforeUse,
-                                             int version)
+                                             int protocolVersion)
     {
       super();
       _type = type;
@@ -1694,31 +1772,21 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       _runtime = runtime;
       _runtimeConfigPrefix = runtimeConfigPrefix;
       _clearBeforeUse = clearBeforeUse;
-      _version = version;
+      _protocolVersion = protocolVersion;
     }
 
     /** The type of the checkpoint persistence provider.
      *
      * <ul>
      *  <li> FILE_SYSTEM specifies to store the checkpoints in a directory on a local file system</li>
-     *  <li> EXISTING specifies to use a Spring-wired checkpoint persisten provider </li>
+     *  <li> EXISTING specifies to use a Spring-wired checkpoint-persistence provider </li>
      *  <li> SHARED specifies to store the checkpoints in a shared location as distributed state </li>
-     *  <li> NONE specifies not to persist checkpoints (*Use at your own risk!*) </li>
+     *  <li> NONE specifies not to persist checkpoints (<b>Use at your own risk!</b>) </li>
      * </ul>
      **/
     public ProviderType getType()
     {
       return _type;
-    }
-
-    /** relay-communication protocol version
-     * <ul>
-     * <li> 2 - v2 clients
-     * <li> 3 - espresso clients
-     * </ul>
-     */
-    public int getVersion() {
-      return _version;
     }
 
     /**
@@ -1787,11 +1855,11 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
         case FILE_SYSTEM:
         LOG.info("Creating file-system checkpoint persistence provider");
         cpPersistenceProvider =
-            new FileSystemCheckpointPersistenceProvider(getFileSystem(), getVersion());
+            new FileSystemCheckpointPersistenceProvider(getFileSystem(), _protocolVersion);
         break;
         case SHARED:
-          LOG.info("Creating shared zookeeper based checkpoint persistence provider");
-        cpPersistenceProvider  = new SharedCheckpointPersistenceProvider(groupMember,getSharedState());
+        LOG.info("Creating shared ZooKeeper-based checkpoint persistence provider");
+        cpPersistenceProvider = new SharedCheckpointPersistenceProvider(groupMember, getSharedState());
         break;
 
         case EXISTING: cpPersistenceProvider = _existing; break;
@@ -1812,14 +1880,14 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   public static class CheckpointPersistenceStaticConfigBuilder
                       implements ConfigBuilder<CheckpointPersistenceStaticConfig>
   {
-    private String _type                       = ProviderType.FILE_SYSTEM.toString();
+    private String _type = ProviderType.FILE_SYSTEM.toString();
     private FileSystemCheckpointPersistenceProvider.Config _fileSystem;
     private SharedCheckpointPersistenceProvider.Config _sharedState;
     private CheckpointPersistenceProvider _existing  = null;
     private CheckpointPersistenceRuntimeConfigBuilder _runtime;
     private String _runtimeConfigPrefix;
     private boolean _clearBeforeUse;
-    private int _version;
+    private int _protocolVersion;
 
     public CheckpointPersistenceStaticConfigBuilder()
     {
@@ -1829,13 +1897,12 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       setRuntimeConfigPrefix("databus.checkpointPersistence.");
       _sharedState = new SharedCheckpointPersistenceProvider.Config();
       _clearBeforeUse = false;
-      _version = 2; // default is 2
+      _protocolVersion = DEFAULT_PROTOCOL_VERSION;
     }
-    public int getVersion() {
-      return _version;
-    }
-    public void setVersion(int version) {
-      _version = version;
+
+    public void setProtocolVersion(int protocolVersion)
+    {
+      _protocolVersion = protocolVersion;
     }
 
     public String getType()
@@ -1913,13 +1980,15 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
       LOG.info("checkpoint persistence type: " + _type);
       LOG.info("clear before use: " + _clearBeforeUse);
-      LOG.info("version: " + _version);
+      LOG.info("client-relay protocol version: " + _protocolVersion);
 
-      return new CheckpointPersistenceStaticConfig(providerType, getFileSystem().build(),getSharedState().build(),
+      return new CheckpointPersistenceStaticConfig(providerType,
+                                                   getFileSystem().build(),
+                                                   getSharedState().build(),
                                                    getExisting(), getRuntime(),
                                                    getRuntimeConfigPrefix(),
                                                    isClearBeforeUse(),
-                                                   getVersion());
+                                                   _protocolVersion);
     }
 
     public boolean isClearBeforeUse()
@@ -2313,10 +2382,10 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     private final long _dscUpdateIntervalMs;
     private final int _pullerBufferUtilizationPct;
     private final boolean _enableReadLatestOnRelayFallOff;
-    private final int _protocolVersion;
     private final boolean _enablePerConnectionStats;
+    private final boolean _usesDynamicRelayConfiguration;
     private final Map<String, ClusterRegistrationStaticConfig> _clientClusters;
-    
+
     public StaticConfig(CheckpointPersistenceStaticConfig checkpointPersistence,
                         ServerContainer.StaticConfig container,
                         RuntimeConfigBuilder runtime,
@@ -2329,8 +2398,8 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
                         long dscUpdateIntervalMs,
                         int pullerBufferUtilizationPct,
                         boolean enableReadLatestOnRelayFallOff,
-                        int protocolVersion,
                         boolean enablePerConnectionStats,
+                        boolean usesDynamicRelayConfiguration,
                         Map<String, ClusterRegistrationStaticConfig> clientClusters)
     {
       super();
@@ -2346,8 +2415,8 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       _dscUpdateIntervalMs = dscUpdateIntervalMs;
       _pullerBufferUtilizationPct = pullerBufferUtilizationPct;
       _enableReadLatestOnRelayFallOff = enableReadLatestOnRelayFallOff;
-      _protocolVersion = protocolVersion;
       _enablePerConnectionStats = enablePerConnectionStats;
+      _usesDynamicRelayConfiguration = usesDynamicRelayConfiguration;
       _clientClusters = clientClusters;
     }
 
@@ -2424,38 +2493,51 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       return _pullerBufferUtilizationPct;
     }
 
-	public boolean isReadLatestScnOnErrorEnabled()
+    public boolean isReadLatestScnOnErrorEnabled()
     {
-	  return _enableReadLatestOnRelayFallOff;
+      return _enableReadLatestOnRelayFallOff;
     }
 
-	public int getProtocolVersion() {
-	  return _protocolVersion;
-	}
+    public boolean isEnablePerConnectionStats()
+    {
+      return _enablePerConnectionStats;
+    }
 
+    /**
+     * The relays used by the client can be configured either statically or, with a ZooKeeper
+     * setup, dynamically.  The v2 codebase (this) supports only static configs, but the v3
+     * codebase (@see DatabusHttpV3ClientImpl) supports both.  Note that this setting is
+     * independent of the v2 vs. v3 (vs. v4) <em>protocol</em>; static configuration may be
+     * desirable even for clients using the latest protocol version.  Also note that while
+     * "v2" and "v3" are often conflated with Oracle and Espresso source databases, respectively,
+     * this is more or less an accidental and temporary state of affairs.
+     */
+    public boolean usesDynamicRelayConfiguration()
+    {
+      return _usesDynamicRelayConfiguration;
+    }
 
-	@Override
-	public String toString() {
-		return "StaticConfig [_checkpointPersistence=" + _checkpointPersistence
-				+ ", _container=" + _container + ", _runtime=" + _runtime
-				+ ", _runtimeConfigPrefix=" + _runtimeConfigPrefix
-				+ ", _connectionDefaults=" + _connectionDefaults
-				+ ", _connections=" + _connections + ", _httpStatsCollector="
-				+ _httpStatsCollector + ", _loggingListener="
-				+ _loggingListener + ", _cluster=" + _cluster
-				+ ", _dscUpdateIntervalMs=" + _dscUpdateIntervalMs
-				+ ", _pullerBufferUtilizationPct="
-				+ _pullerBufferUtilizationPct
-				+ ", _enableReadLatestOnRelayFallOff="
-				+ _enableReadLatestOnRelayFallOff
-				+ ",protocolVersion = "
-				+ _protocolVersion + "]";
-	}
-
-  public boolean isEnablePerConnectionStats()
-  {
-    return _enablePerConnectionStats;
-  }
+    @Override
+    public String toString()
+    {
+      return "StaticConfig ["
+             + "_checkpointPersistence=" + _checkpointPersistence
+             + ", _container=" + _container
+             + ", _runtime=" + _runtime
+             + ", _runtimeConfigPrefix=" + _runtimeConfigPrefix
+             + ", _connectionDefaults=" + _connectionDefaults
+             + ", _connections=" + _connections
+             + ", _httpStatsCollector=" + _httpStatsCollector
+             + ", _loggingListener=" + _loggingListener
+             + ", _cluster=" + _cluster
+             + ", _dscUpdateIntervalMs=" + _dscUpdateIntervalMs
+             + ", _pullerBufferUtilizationPct=" + _pullerBufferUtilizationPct
+             + ", _enableReadLatestOnRelayFallOff=" + _enableReadLatestOnRelayFallOff
+             + ", _enablePerConnectionStats=" + _enablePerConnectionStats
+             + ", _usesDynamicRelayConfiguration=" + _usesDynamicRelayConfiguration
+             + ", _clientClusters=" + _clientClusters
+             + "]";
+    }
   }
 
   /**
@@ -2476,18 +2558,18 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 	  protected DatabusClientNode.Config _cluster;
 	  protected long _dscUpdateIntervalMs;
 	  protected int _pullerBufferUtilizationPct;
-	  protected int _protocolVersion;
-	  protected boolean _enablePerConnectionStats = true;
+	  protected boolean _enablePerConnectionStats = false;
 	  protected Map<String, ClusterRegistrationConfig> _clientClusters;
-	  
+
 	  // Flag to do streamFromLastScn on SCNNotFoundException
 	  protected boolean _enableReadLatestOnRelayFallOff;
 
 	  protected HashMap<List<String>, DatabusSourcesConnection.StaticConfig> _connConfigs;
 
-	  public StaticConfigBuilderBase() {
+	  public StaticConfigBuilderBase()
+	  {
 		  _dscUpdateIntervalMs = 5*1000;
-		  _pullerBufferUtilizationPct = 85;
+		  _pullerBufferUtilizationPct = 100;
 		  // Flag to do streamFromLastScn on SCNNotFoundException
 		  _enableReadLatestOnRelayFallOff = false;
 		  _runtime = new RuntimeConfigBuilder();
@@ -2505,7 +2587,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 		  _httpStatsCollector = new HttpStatisticsCollector.Config();
 		  _loggingListener = new LoggingConsumer.Config();
 		  _cluster= new DatabusClientNode.Config();
-		  _protocolVersion = 2;
 	  }
 
 	  protected void verifyConfig() throws InvalidConfigException
@@ -2612,12 +2693,12 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
 		  return cluster;
 	  }
-	  
+
 	  public void setClientCluster(String id, ClusterRegistrationConfig cluster)
 	  {
 		  _clientClusters.put(id, cluster);
 	  }
-	  
+
 	  public HttpStatisticsCollector.Config getHttpStatsCollector()
 	  {
 		  return _httpStatsCollector;
@@ -2678,6 +2759,19 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       _enablePerConnectionStats = enablePerConnectionStats;
     }
 
+    /**
+     * The relays used by the client can be configured either statically or, with a ZooKeeper
+     * setup, dynamically.  The v2 codebase (this) supports only static configs, but the v3
+     * codebase (@see DatabusHttpV3ClientImpl) supports both.  Note that this setting is
+     * independent of the v2 vs. v3 (vs. v4) <em>protocol</em>; static configuration may be
+     * desirable even for clients using the latest protocol version.  Also note that while
+     * "v2" and "v3" are often conflated with Oracle and Espresso source databases, respectively,
+     * that is more or less an accidental and temporary state of affairs.
+     */
+    public boolean usesDynamicRelayConfiguration()
+    {
+      return false;
+    }
   }
 
   /**
@@ -2688,9 +2782,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   public static class Config extends StaticConfigBuilderBase
   implements ConfigBuilder<StaticConfig>
   {
-
-
-
 	public Config()
     {
     	super();
@@ -2718,9 +2809,9 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 		  confBuilder.setId(sconfig.getId());
 		  _connConfigs.put(Arrays.asList(keySources), confBuilder.build());
 	  }
-	  
+
 	  Map<String, ClusterRegistrationStaticConfig> clientClusterStaticConfigs = new HashMap<String, ClusterRegistrationStaticConfig>();
-	           
+
 	  for (Entry<String, ClusterRegistrationConfig> e : _clientClusters.entrySet())
 	  {
 		  String clusterName = e.getValue().getClusterName();
@@ -2743,8 +2834,8 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
                               _dscUpdateIntervalMs,
                               _pullerBufferUtilizationPct,
                               _enableReadLatestOnRelayFallOff,
-                              _protocolVersion,
                               _enablePerConnectionStats,
+                              usesDynamicRelayConfiguration(),
                               clientClusterStaticConfigs);
     }
 
@@ -2768,22 +2859,22 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     @Override
     public Status getStatus()
     {
-       if ( !_relayConnections.isEmpty())       
+       if ( !_relayConnections.isEmpty())
     	   return _relayConnections.get(0).getConnectionStatus().getStatus();
        else if ( ! _regList.isEmpty())
     	   return _regList.get(0).getStatus().getStatus();
-    
+
        return null;
     }
 
     @Override
     public String getMessage()
     {
-    	if ( !_relayConnections.isEmpty())       
+    	if ( !_relayConnections.isEmpty())
     		return _relayConnections.get(0).getConnectionStatus().getMessage();
     	else if ( ! _regList.isEmpty())
     		return _regList.get(0).getStatus().getMessage();
-    	
+
     	return null;
     }
 
@@ -2796,7 +2887,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       {
         relayConn.getConnectionStatus().pause();
       }
-      
+
       for(DatabusRegistration reg : _regList)
       {
     	  LOG.info("Pausing registration :" + reg.getRegistrationId());
@@ -2817,7 +2908,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       {
         relayConn.getConnectionStatus().resume();
       }
-      
+
       for(DatabusRegistration reg : _regList)
       {
     	  LOG.info("Resuming registration :" + reg.getRegistrationId());
@@ -2842,7 +2933,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
       {
         relayConn.getConnectionStatus().suspendOnError(cause);
       }
-      
+
       for(DatabusRegistration reg : _regList)
       {
     	  LOG.info("Suspending registration :" + reg.getRegistrationId());
@@ -2889,5 +2980,11 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   {
     throw new UnsupportedOperationException();
   }
+
+  public DbusEventFactory getEventFactory()
+  {
+    return _eventFactory;
+  }
+
 }
 

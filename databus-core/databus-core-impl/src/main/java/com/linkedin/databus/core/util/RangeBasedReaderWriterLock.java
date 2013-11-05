@@ -355,7 +355,15 @@ public class RangeBasedReaderWriterLock {
   @Override
   public String toString()
   {
-    return "{readerRanges:" + readerRanges +", writerRange:" + writerRange +
-           ", writerIn:" + writerIn + ", writerWaiting:" + writerWaiting + "}";
+    mutex.lock();
+    try
+    {
+      return "{readerRanges:" + readerRanges +", writerRange:" + writerRange +
+             ", writerIn:" + writerIn + ", writerWaiting:" + writerWaiting + "}";
+    }
+    finally
+    {
+      mutex.unlock();
+    }
   }
 }

@@ -32,12 +32,13 @@ import java.util.Map;
 import org.apache.avro.specific.SpecificCompiler;
 
 /**
- * User: jwesterm Date: Oct 12, 2010 Time: 10:29:24 AM
+ * This tools is replaced by interactive schema generator tool, check InteractiveSchemaGenerator class for more details.
  */
+@Deprecated
 public class SchemaGeneratorMain
 {
   private static final String[] DEFAULT_JDBC_DRIVERS = {"oracle.jdbc.driver.OracleDriver"};
-  private static final String DEFAULT_DATABASE = "jdbc:oracle:thin:@devdb:1521:db";
+  private static final String DEFAULT_DATABASE = "jdbc:oracle:thin:@devdb:1521:devdb";
   private static final String DEFAULT_USERNAME = "system";
   private static final String DEFAULT_PASSWORD = "manager";
 
@@ -323,4 +324,5 @@ private String _primaryKey;
       throw ex;
     }
   }
+  
 }

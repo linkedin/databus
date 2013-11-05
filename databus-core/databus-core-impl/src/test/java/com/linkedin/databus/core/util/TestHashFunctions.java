@@ -19,11 +19,12 @@ package com.linkedin.databus.core.util;
 */
 
 
-import com.linkedin.databus.core.DbusEventV1;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.zip.CRC32;
-import org.testng.annotations.Test;
+
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV2Factory;
 
 public class TestHashFunctions
 {
@@ -31,7 +32,10 @@ public class TestHashFunctions
 	public static int ONE_KB_IN_BYTES = 1024;
 	public static int ONE_MB_IN_BYTES = ONE_KB_IN_BYTES * ONE_KB_IN_BYTES;
 
-	@Test
+	private static DbusEventFactory _eventFactory = new DbusEventV2Factory();
+
+	//no useful testing -- just a microbenchmark
+	//@Test
 	public void testHashPerf()
 	{
 		System.out.println("1 KB:");
@@ -56,7 +60,7 @@ public class TestHashFunctions
     public void testHashPerf(int capacity)
     {
 		byte[] b = new byte[capacity];
-		ByteBuffer buf = ByteBuffer.allocateDirect(capacity).order(DbusEventV1.byteOrder);
+		ByteBuffer buf = ByteBuffer.allocateDirect(capacity).order(_eventFactory.getByteOrder());
 		Random r = new Random();
 		r.nextBytes(b);
 		buf.put(b);
@@ -87,7 +91,7 @@ public class TestHashFunctions
 
 		delayMicro = (diff/1000)/10;
 
-		System.out.println("Latency of System CRC32 (Micro Seconds) for byte[] is: " + delayMicro);
+		System.out.println("Latency (microseconds) of system CRC32 for byte[] is: " + delayMicro);
 
 		prevhash = fun.hash(b);
 		for (int i = 0; i < 10; i++)
@@ -99,7 +103,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of FNV (Micro Seconds) for byte[] is: " + delayMicro);
+		System.out.println("Latency (microseconds) of FNV for byte[] is: " + delayMicro);
 
 		prevhash = jFun.hash(b);
 		for (int i = 0; i < 10; i++)
@@ -111,7 +115,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of Jenkins (Micro Seconds) for byte[]  is: " + delayMicro);
+		System.out.println("Latency (microseconds) of Jenkins for byte[]  is: " + delayMicro);
 
 		prevhash = ByteBufferCRC32.getChecksum(b);
 		for (int i = 0; i < 10; i++)
@@ -123,7 +127,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of ByteBufferCRC32 (Micro Seconds) for byte[] is: " + delayMicro);
+		System.out.println("Latency (microseconds) of ByteBufferCRC32 for byte[] is: " + delayMicro);
 
 		//System.out.println("Buffer position-Remaining :" + buf.position() + "-" + buf.remaining());
 
@@ -137,7 +141,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of FNV (Micro Seconds) for ByteBuffer is: " + delayMicro);
+		System.out.println("Latency (microseconds) of FNV for ByteBuffer is: " + delayMicro);
 		//System.out.println("Buffer position-Remaining :" + buf.position() + "-" + buf.remaining());
 
 		prevhash = fun.hash(buf);
@@ -150,7 +154,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of Jenkins (Micro Seconds) for ByteBuffer is: " + delayMicro);
+		System.out.println("Latency (microseconds) of Jenkins for ByteBuffer is: " + delayMicro);
 		//System.out.println("Buffer position-Remaining :" + buf.position() + "-" + buf.remaining());
 		prevhash = ByteBufferCRC32.getChecksum(buf);
 		for (int i = 0; i < 10; i++)
@@ -162,7 +166,7 @@ public class TestHashFunctions
 			diff += (end - start);
 		}
 		delayMicro = (diff/1000)/10;
-		System.out.println("Latency of ByteBufferCRC32 (Micro Seconds)  for ByteBuffer is: " + delayMicro);
+		System.out.println("Latency (microseconds) of ByteBufferCRC32 for ByteBuffer is: " + delayMicro);
 
 		//System.out.println("Buffer position-Remaining :" + buf.position() + "-" + buf.remaining());
 	}

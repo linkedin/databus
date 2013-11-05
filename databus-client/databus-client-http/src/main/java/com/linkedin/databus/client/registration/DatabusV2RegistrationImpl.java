@@ -1,23 +1,22 @@
 package com.linkedin.databus.client.registration;
 /*
- *
- * Copyright 2013 LinkedIn Corp. All rights reserved
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *   http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+*
+* Copyright 2013 LinkedIn Corp. All rights reserved
+*
+* Licensed under the Apache License, Version 2.0 (the "License");
+* you may not use this file except in compliance with the License.
+* You may obtain a copy of the License at
+*
+*   http://www.apache.org/licenses/LICENSE-2.0
+*
+* Unless required by applicable law or agreed to in writing,
+* software distributed under the License is distributed on an
+* "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+* KIND, either express or implied.  See the License for the
+* specific language governing permissions and limitations
+* under the License.
+*
 */
-
 
 import java.io.File;
 import java.io.IOException;
@@ -28,11 +27,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-
 import javax.management.MBeanServer;
 
 import org.apache.log4j.Logger;
 
+import com.linkedin.databus.client.ConnectionStateFactory;
 import com.linkedin.databus.client.DatabusHttpClientImpl;
 import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.client.DatabusSourcesConnection.StaticConfig;
@@ -63,62 +62,70 @@ import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 
 public class DatabusV2RegistrationImpl
-      implements DatabusRegistration 
+      implements DatabusRegistration
 {
 	private RegistrationState _state;
-	private RegistrationId _id;
-    private Logger _log;
+	protected RegistrationId _id;
+    private final Logger _log;
 	private final CheckpointPersistenceProvider _checkpointPersistenceProvider;
-    private DbusEventsStatisticsCollector _inboundEventsStatsCollector;
-	private DbusEventsStatisticsCollector _bootstrapEventsStatsCollector;
-    private ConsumerCallbackStats _relayConsumerStats;
-    private ConsumerCallbackStats _bootstrapConsumerStats;
+    protected DbusEventsStatisticsCollector _inboundEventsStatsCollector;
+    protected DbusEventsStatisticsCollector _bootstrapEventsStatsCollector;
+    protected ConsumerCallbackStats _relayConsumerStats;
+    protected ConsumerCallbackStats _bootstrapConsumerStats;
 	private final List<DatabusCombinedConsumer> _consumers;
 	private final LoggingConsumer _loggingConsumer;
 	private final List<String> _sources;
 	private DatabusSourcesConnection _sourcesConnection;
 	private DatabusRegistration _parent = null;
-    private final DatabusHttpClientImpl _client;
+    protected final DatabusHttpClientImpl _client;
 	private Status _status = null;
 	private DbusKeyCompositeFilterConfig _filterConfig = null;
-	
+
 	private List<DatabusV2ConsumerRegistration> _streamConsumerRawRegistrations;
 	private List<DatabusV2ConsumerRegistration> _bootstrapConsumerRawRegistrations;
-	
+
+	/** Suffix Names for Stats Collectors **/
+	public static final String STREAM_EVENT_STATS_SUFFIX_NAME = ".inbound";
+	public static final String BOOTSTRAP_EVENT_STATS_SUFFIX_NAME = ".inbound.bs";
+	public static final String RELAY_CONSUMER_STATS_SUFFIX_NAME = ".callback.relay";
+	public static final String BOOTSTRAP_CONSUMER_STATS_SUFFIX_NAME = ".callback.bootstrap";
+
     public class Status extends DatabusComponentStatus
 	{
       public Status()
       {
         super(getStatusName());
       }
-      
-      
+
+
 	}
-    
-    public DatabusV2RegistrationImpl(RegistrationId id, 
-			 DatabusHttpClientImpl client)
-    {
-    	this(id,client,client.getCheckpointPersistenceProvider(),null,null);
-    }
-    
-    public DatabusV2RegistrationImpl(RegistrationId id, 
-    								 DatabusHttpClientImpl client, 
-    								 CheckpointPersistenceProvider ckptProvider)
-    {
-    	this(id,client,ckptProvider,null,null);
-    }
-    
-    
+
+    // TODO:  nuke?  no Databus callers at all; is this a public (external) API?
     public DatabusV2RegistrationImpl(RegistrationId id,
-    		DatabusHttpClientImpl client,
-            CheckpointPersistenceProvider ckptProvider,
-            String[] sources,
-            AbstractDatabusCombinedConsumer[] consumers)
+                                     DatabusHttpClientImpl client)
+    {
+    	this(id, client, client.getCheckpointPersistenceProvider(), null, null);
+    }
+
+    public DatabusV2RegistrationImpl(RegistrationId id,
+                                     DatabusHttpClientImpl client,
+                                     CheckpointPersistenceProvider ckptProvider)
+    {
+    	this(id, client, ckptProvider, null, null);
+    }
+
+
+    // TODO:  make private?  no other Databus callers except two ctors above; is this a public (external) API?
+    public DatabusV2RegistrationImpl(RegistrationId id,
+                                     DatabusHttpClientImpl client,
+                                     CheckpointPersistenceProvider ckptProvider,
+                                     String[] sources,
+                                     AbstractDatabusCombinedConsumer[] consumers)
     {
     	_id = id;
     	_status = new Status();
     	_client = client;
-    	_checkpointPersistenceProvider = ckptProvider; 
+    	_checkpointPersistenceProvider = ckptProvider;
     	_state = RegistrationState.INIT;
     	_sources = new ArrayList<String>();
     	_consumers = new ArrayList<DatabusCombinedConsumer>();
@@ -126,10 +133,10 @@ public class DatabusV2RegistrationImpl
                 			(null  == _id ? "" : "." + _id.getId()));
         if ( null != sources)
         	_sources.addAll(Arrays.asList(sources));
-    	
+
     	if ( null != consumers)
     		_consumers.addAll(Arrays.asList(consumers));
-    	
+
     	LoggingConsumer c = null;
     	try {
 			c = new LoggingConsumer(client.getClientStaticConfig().getLoggingListener());
@@ -138,7 +145,7 @@ public class DatabusV2RegistrationImpl
 		}
     	_loggingConsumer = c;
     }
-    
+
     /**
     *
     * Add sources to a given registration object
@@ -153,8 +160,8 @@ public class DatabusV2RegistrationImpl
            throws IllegalStateException
    {
 	   	if ( ! _state.isPreStartState())
-	   		throw new IllegalStateException("Cannot add sources when state is running/shutdown. Current State :" + _state);  
-          
+	   		throw new IllegalStateException("Cannot add sources when state is running/shutdown. Current State :" + _state);
+
 	   	for (String s : sources)
 	   		if (! _sources.contains(s))
 	   			_sources.add(s);
@@ -172,11 +179,11 @@ public class DatabusV2RegistrationImpl
    {
 	   	if ( ! _state.isRunning())
 	   		throw new IllegalStateException("Cannot remove sources when state is running. Current State :" + _state);
-	    
+
 	   	for (String s : sources)
 	   		_sources.remove(s);
    }
-   
+
     /**
     *
     * Adds the specified consumers associated with this registration
@@ -209,7 +216,7 @@ public class DatabusV2RegistrationImpl
 	   _consumers.removeAll(consumers);
 
    }
-   
+
    /**
     * Callback when registration is added to client Registration Set.
     * @param state
@@ -218,7 +225,7 @@ public class DatabusV2RegistrationImpl
    {
    	_state = RegistrationState.REGISTERED;
    }
-    
+
     /**
      * Initialize Statistics Collectors
      */
@@ -226,41 +233,17 @@ public class DatabusV2RegistrationImpl
     {
 	  MBeanServer mbeanServer =  null;
 
-          if ( null != _client )
+      if ( null != _client )
 	  {
-	      mbeanServer = _client.getClientStaticConfig().isEnablePerConnectionStats() ?
-	      							_client.getMbeanServer() : null;
+	      mbeanServer = _client.getMbeanServer();
 	  }
 
 	  int ownerId = null == _client ? -1 : _client.getContainerStaticConfig().getId();
 	  String regId = null != _id ? _id.getId() : "unknownReg";
+
 	  initializeStatsCollectors(regId, ownerId, mbeanServer);
-    }
-    
-    /**
-     * Initialize Statistics Collectors
-     */
-    protected void initializeStatsCollectors(String regId, int ownerId, MBeanServer mbeanServer)
-    {
-	  _inboundEventsStatsCollector =
-	      new DbusEventsStatisticsCollector(ownerId,
-	                                        regId + ".inbound",
-	                                        true,
-	                                        false,
-	                                        mbeanServer);
-	  _bootstrapEventsStatsCollector =
-	      new DbusEventsStatisticsCollector(ownerId,
-	                                        regId + ".inbound.bs",
-	                                        true,
-	                                        false,
-	                                        mbeanServer);
-	  _relayConsumerStats =
-	      new ConsumerCallbackStats(ownerId, regId + ".callback.relay",
-	                                regId, true, false, new ConsumerCallbackStatsEvent());
-      _bootstrapConsumerStats =
-          new ConsumerCallbackStats(ownerId, regId + ".callback.bootstrap",
-                                    regId, true, false, new ConsumerCallbackStatsEvent());
-	  if (null != _client && _client.getClientStaticConfig().isEnablePerConnectionStats())
+
+	  if (null != _client)
 	  {
         _client.getBootstrapEventsStats().addStatsCollector(regId, _bootstrapEventsStatsCollector );
         _client.getInBoundStatsCollectors().addStatsCollector(regId, _inboundEventsStatsCollector);
@@ -268,11 +251,36 @@ public class DatabusV2RegistrationImpl
         _client.getBootstrapConsumerStatsCollectors().addStatsCollector(regId, _bootstrapConsumerStats);
 	  }
     }
-        
+
+    /**
+     * Initialize Statistics Collectors
+     */
+    protected void initializeStatsCollectors(String regId, int ownerId, MBeanServer mbeanServer)
+    {
+	  _inboundEventsStatsCollector =
+	      new DbusEventsStatisticsCollector(ownerId,
+	                                        regId + STREAM_EVENT_STATS_SUFFIX_NAME,
+	                                        true,
+	                                        false,
+	                                        mbeanServer);
+	  _bootstrapEventsStatsCollector =
+	      new DbusEventsStatisticsCollector(ownerId,
+	                                        regId + BOOTSTRAP_EVENT_STATS_SUFFIX_NAME,
+	                                        true,
+	                                        false,
+	                                        mbeanServer);
+	  _relayConsumerStats =
+	      new ConsumerCallbackStats(ownerId, regId + RELAY_CONSUMER_STATS_SUFFIX_NAME,
+	                                regId, true, false, new ConsumerCallbackStatsEvent());
+      _bootstrapConsumerStats =
+          new ConsumerCallbackStats(ownerId, regId + BOOTSTRAP_CONSUMER_STATS_SUFFIX_NAME,
+                                    regId, true, false, new ConsumerCallbackStatsEvent());
+    }
+
 	@Override
-	public synchronized boolean start() 
-			 throws IllegalStateException, DatabusClientException 
-	{    		
+	public synchronized boolean start()
+			 throws IllegalStateException, DatabusClientException
+	{
 		_log.info("Starting registration (" + toString() + ") !!");
 
 		if (_state.isRunning())
@@ -360,35 +368,61 @@ public class DatabusV2RegistrationImpl
 		if (null == connConfig)
 			connConfig = _client.getClientStaticConfig().getConnectionDefaults();
 
-		DbusEventBuffer.StaticConfig cfg = connConfig.getEventBuffer();
-		DbusEventBuffer eventBuffer = new DbusEventBuffer(cfg.getMaxSize(), cfg.getMaxIndividualBufferSize(), cfg.getScnIndexSize(),
-				cfg.getReadBufferSize(), cfg.getAllocationPolicy(), new File(cfg.getMmapDirectory().getAbsolutePath() + "_stream_" + _id ),
-				cfg.getQueuePolicy(), cfg.getTrace(), null, cfg.getAssertLevel(),
-				cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents(), cfg.isEnableScnIndex());
-
-		eventBuffer.setDropOldEvents(true);
-		eventBuffer.start(0);
+			DbusEventBuffer eventBuffer = null;
+			{
+			  DbusEventBuffer.StaticConfig cfg = connConfig.getEventBuffer();
+			  eventBuffer = new DbusEventBuffer(cfg.getMaxSize(),
+                                          cfg.getMaxIndividualBufferSize(),
+                                          cfg.getScnIndexSize(),
+                                          cfg.getReadBufferSize(),
+                                          cfg.getMaxEventSize(),
+                                          cfg.getAllocationPolicy(),
+                                          new File(cfg.getMmapDirectory().getAbsolutePath() + "_stream_" + _id),
+                                          cfg.getQueuePolicy(),
+                                          cfg.getTrace(),
+                                          null,
+                                          cfg.getAssertLevel(),
+                                          cfg.getBufferRemoveWaitPeriod(),
+                                          cfg.getRestoreMMappedBuffers(),
+                                          cfg.getRestoreMMappedBuffersValidateEvents(),
+                                          cfg.isEnableScnIndex(),
+                                          _client.getEventFactory());
+			  eventBuffer.setDropOldEvents(true);
+			  eventBuffer.start(0);
+    }
 
 		DbusEventBuffer bootstrapBuffer = null;
-
 		if (enableBootstrap && canConsumerBootstrap)
 		{
-			bootstrapBuffer = new DbusEventBuffer(cfg.getMaxSize(), cfg.getMaxIndividualBufferSize(), cfg.getScnIndexSize(),
-					cfg.getReadBufferSize(), cfg.getAllocationPolicy(), new File(cfg.getMmapDirectory().getAbsolutePath() + "_bootstrap_" + _id ),
-					cfg.getQueuePolicy(), cfg.getTrace(), null, cfg.getAssertLevel(),
-					cfg.getBufferRemoveWaitPeriod(), cfg.getRestoreMMappedBuffers(), cfg.getRestoreMMappedBuffersValidateEvents(), cfg.isEnableScnIndex());
+			DbusEventBuffer.StaticConfig bstCfg = connConfig.getBstEventBuffer();
+			bootstrapBuffer = new DbusEventBuffer(bstCfg.getMaxSize(),
+                                            bstCfg.getMaxIndividualBufferSize(),
+                                            bstCfg.getScnIndexSize(),
+                                            bstCfg.getReadBufferSize(),
+                                            bstCfg.getMaxEventSize(),
+                                            bstCfg.getAllocationPolicy(),
+                                            new File(bstCfg.getMmapDirectory().getAbsolutePath() + "_bootstrap_" + _id ),
+                                            bstCfg.getQueuePolicy(),
+                                            bstCfg.getTrace(),
+                                            null,
+                                            bstCfg.getAssertLevel(),
+                                            bstCfg.getBufferRemoveWaitPeriod(),
+                                            bstCfg.getRestoreMMappedBuffers(),
+                                            bstCfg.getRestoreMMappedBuffersValidateEvents(),
+                                            bstCfg.isEnableScnIndex(),
+                                            _client.getEventFactory());
 			bootstrapBuffer.setDropOldEvents(false);
 			bootstrapBuffer.start(0);
 		}
 
 		List<DatabusSubscription> subs = createSubscriptions(_sources);
-		
+
 		if (null != _checkpointPersistenceProvider && _client.getClientStaticConfig().getCheckpointPersistence().isClearBeforeUse())
 		{
 			_log.info("Clearing checkpoint for sources :" + _sources + " with regId :" + _id);
 			_checkpointPersistenceProvider.removeCheckpoint(_sources);
 		}
-		  
+
 		_sourcesConnection = createConnection(connConfig,subs,candidateRelays,candidateBootstrapServers,eventBuffer,bootstrapBuffer);
 		_sourcesConnection.start();
 		_state = RegistrationState.STARTED;
@@ -398,20 +432,20 @@ public class DatabusV2RegistrationImpl
 		return true;
 	}
 
-	private List<DatabusSubscription> createSubscriptions(List<String> sources) 
+	private List<DatabusSubscription> createSubscriptions(List<String> sources)
 			throws DatabusClientException
 	{
 		List<DatabusSubscription> subs = null;
-		
+
 		try
 		{
 			subs = DatabusSubscription.createFromUriList(sources);
 		} catch (Exception ex) {
 			throw new DatabusClientException(ex);
-		} 
+		}
 		return subs;
 	}
-	
+
 	/**
 	 * Factory method to create sources connection
 	 * @param connConfig
@@ -422,18 +456,19 @@ public class DatabusV2RegistrationImpl
 	 * @param bootstrapBuffer
 	 * @return
 	 */
-	protected synchronized DatabusSourcesConnection createConnection(StaticConfig connConfig, 
-			                                            List<DatabusSubscription> subs, 
-			                                            Set<ServerInfo> candidateRelays, 
+	protected synchronized DatabusSourcesConnection createConnection(StaticConfig connConfig,
+			                                            List<DatabusSubscription> subs,
+			                                            Set<ServerInfo> candidateRelays,
 			                                            Set<ServerInfo> candidateBootstrapServers,
 			                                            DbusEventBuffer eventBuffer,
 			                                            DbusEventBuffer bootstrapBuffer)
 	{
-		
-		_log.info("Creating Sources Connection : Candidate Relays :" 
+
+		_log.info("Creating Sources Connection : Candidate Relays :"
 		              + candidateRelays + ", CandidateBootstrapServers :"
 				      + candidateBootstrapServers + ", Subscriptions :" + subs);
-		
+
+    ConnectionStateFactory connStateFactory = new ConnectionStateFactory(DatabusSubscription.getStrList(subs));
 		DatabusSourcesConnection sourcesConnection =
 				  new DatabusSourcesConnection(
 						  connConfig,
@@ -456,13 +491,16 @@ public class DatabusV2RegistrationImpl
 						  _client.getHttpStatsCollector(),
 						  null, // This should make sure the checkpoint directory structure is compatible with V2.
 						  _client,
-						  _id.toString()); // Used to uniquely identify logs and mbean name 
+						  _id.toString(), // Used to uniquely identify logs and mbean name
+						  _client.getEventFactory(),
+						  null,
+						  connStateFactory);
 		return sourcesConnection;
 	}
-	
-	
+
+
 	@Override
-	public synchronized void shutdown() throws IllegalStateException 
+	public synchronized void shutdown() throws IllegalStateException
 	{
 
 		if (! _state.isRunning())
@@ -473,10 +511,16 @@ public class DatabusV2RegistrationImpl
 		_sourcesConnection.stop();
 		_status.shutdown();
 		_state = RegistrationState.SHUTDOWN;
+
+		// remove this registration stats from client stats Collector list.
+		_client.getBootstrapEventsStats().removeStatsCollector(_id.getId());
+	    _client.getInBoundStatsCollectors().removeStatsCollector(_id.getId());
+	    _client.getRelayConsumerStatsCollectors().removeStatsCollector(_id.getId());
+	    _client.getBootstrapConsumerStatsCollectors().removeStatsCollector(_id.getId());
 	}
 
 	@Override
-	public synchronized void pause() throws IllegalStateException 
+	public synchronized void pause() throws IllegalStateException
 	{
 
 		if ( _state == RegistrationState.PAUSED)
@@ -493,7 +537,7 @@ public class DatabusV2RegistrationImpl
 	}
 
 	@Override
-	public synchronized void suspendOnError(Throwable ex) throws IllegalStateException 
+	public synchronized void suspendOnError(Throwable ex) throws IllegalStateException
 	{
 		if ( _state == RegistrationState.SUSPENDED_ON_ERROR)
 			return;
@@ -507,9 +551,9 @@ public class DatabusV2RegistrationImpl
 		_state = RegistrationState.SUSPENDED_ON_ERROR;
 
 	}
-	
+
 	@Override
-	public synchronized void resume() throws IllegalStateException 
+	public synchronized void resume() throws IllegalStateException
 	{
 		if ( _state == RegistrationState.RESUMED)
 			return;
@@ -529,8 +573,8 @@ public class DatabusV2RegistrationImpl
 	}
 
 	@Override
-	public synchronized boolean deregister() 
-			throws IllegalStateException 
+	public synchronized boolean deregister()
+			throws IllegalStateException
 	{
 		if ((_state == RegistrationState.DEREGISTERED) || (_state == RegistrationState.INIT))
 			return false;
@@ -548,16 +592,16 @@ public class DatabusV2RegistrationImpl
 	{
 		_client.deregister(this);
 	}
-	
-	
+
+
 	@Override
-	public Collection<DatabusSubscription> getSubscriptions() 
+	public Collection<DatabusSubscription> getSubscriptions()
 	{
 		return DatabusSubscription.createSubscriptionList(_sources);
 	}
 
 	@Override
-	public synchronized DatabusComponentStatus getStatus() 
+	public synchronized DatabusComponentStatus getStatus()
 	{
 		return _status;
 	}
@@ -572,39 +616,39 @@ public class DatabusV2RegistrationImpl
 		return _parent;
 	}
 
-	
+
 	protected void setParent(DatabusRegistration parent) {
 		_parent = parent;
 	}
-	
+
 	@Override
 	public synchronized DatabusRegistration withRegId(RegistrationId regId)
-			throws DatabusClientException, IllegalStateException 
+			throws DatabusClientException, IllegalStateException
 	{
 		if ( (_id != null) && (_id.equals(regId)))
 			return this;
-		
+
 		if (! RegistrationIdGenerator.isIdValid(regId))
 			throw new DatabusClientException("Another registration with the same regId (" + regId + ") already present !!");
-	
+
 		if (_state.isRunning())
 			throw new IllegalStateException("Cannot update regId when registration is in running state. RegId :" + _id + ", State :" + _state);
-		
+
 		_id = regId;
-		_status = new Status(); // Component Status should use the correct component name		
+		_status = new Status(); // Component Status should use the correct component name
 
 		return this;
 	}
-	
-	
+
+
 	@Override
 	public synchronized DatabusRegistration withServerSideFilter(
 			DbusKeyCompositeFilterConfig filterConfig)
-			throws IllegalStateException 
+			throws IllegalStateException
 	{
 
 		if (_state.isRunning())
-			throw new IllegalStateException("Cannot update server-side filter when registration is in running state. RegId :" + _id 
+			throw new IllegalStateException("Cannot update server-side filter when registration is in running state. RegId :" + _id
 					+ ", State :" + _state);
 
 		_filterConfig = filterConfig;
@@ -617,15 +661,15 @@ public class DatabusV2RegistrationImpl
 	}
 
 	@Override
-	public Checkpoint getLastPersistedCheckpoint() 
+	public Checkpoint getLastPersistedCheckpoint()
 	{
-		Checkpoint cp =_checkpointPersistenceProvider.loadCheckpoint(_sources);		
+		Checkpoint cp =_checkpointPersistenceProvider.loadCheckpoint(_sources);
 		return cp;
 	}
 
 	@Override
 	public synchronized boolean storeCheckpoint(Checkpoint ckpt)
-			throws IllegalStateException 
+			throws IllegalStateException
 	{
 		try
 		{
@@ -633,30 +677,30 @@ public class DatabusV2RegistrationImpl
 		} catch (IOException ioe) {
 			_log.error("Storing checkpoint failed with exception", ioe);
 			return false;
-		} 
+		}
 		return true;
 	}
 
 	@Override
-	public DbusEventsStatisticsCollectorMBean getRelayEventStats() 
+	public DbusEventsStatisticsCollectorMBean getRelayEventStats()
 	{
 		return _inboundEventsStatsCollector;
 	}
 
 	@Override
-	public DbusEventsStatisticsCollectorMBean getBootstrapEventStats() 
+	public DbusEventsStatisticsCollectorMBean getBootstrapEventStats()
 	{
 		return _bootstrapEventsStatsCollector;
 	}
 
 	@Override
-	public ConsumerCallbackStatsMBean getRelayCallbackStats() 
+	public ConsumerCallbackStatsMBean getRelayCallbackStats()
 	{
 		return _relayConsumerStats;
 	}
 
 	@Override
-	public ConsumerCallbackStatsMBean getBootstrapCallbackStats() 
+	public ConsumerCallbackStatsMBean getBootstrapCallbackStats()
 	{
 		return _bootstrapConsumerStats;
 	}
@@ -679,22 +723,22 @@ public class DatabusV2RegistrationImpl
 		throw new RuntimeException("Not supported yet !!");
 	}
 
-	  
+
 	protected synchronized String getStatusName()
 	{
 	  return "Status" + ((_id != null ) ? "_" + _id.getId() : "");
 	}
-	
+
 	private static boolean canServe(ServerInfo s, Collection<String> sources)
 	{
 		List<String> supportedSources = s.getSources();
-		
+
 		for (String src : sources)
 		{
 			if (! supportedSources.contains(src))
 				return false;
 		}
-		
+
 		return true;
 	}
 
@@ -722,5 +766,5 @@ public class DatabusV2RegistrationImpl
 
 	public LoggingConsumer getLoggingConsumer() {
 		return _loggingConsumer;
-	}	
+	}
 }

@@ -20,22 +20,32 @@ package com.linkedin.databus.core;
 
 
 
-import com.linkedin.databus.core.data_model.PhysicalPartition;
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertNull;
+import static org.testng.Assert.assertTrue;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import junit.framework.Assert;
+
+import org.apache.log4j.Level;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 
-import static org.testng.Assert.assertEquals;
-import static org.testng.Assert.assertNull;
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus2.test.TestUtil;
 
 
 public class TestCheckpointMult
@@ -45,11 +55,17 @@ public class TestCheckpointMult
   Map<Integer, List<Integer>> pSrcIds = new HashMap<Integer, List<Integer>>();
   Integer WIN_OFFSET1 = 100;
   Integer WIN_SCN1 = 1000;
-  Integer WIN_OFFSET2 = 200;
+  Integer WIN_OFFSET2 = -1;
   Integer WIN_SCN2 = 2000;
 
+  @BeforeClass
+  void setUpClass()
+  {
+    TestUtil.setupLogging(true, null, Level.ERROR);
+  }
+
   @BeforeTest
-  void setup() {
+  void setUp() {
     _cpMult = makeCpMult();
   }
 
@@ -68,7 +84,7 @@ public class TestCheckpointMult
 
     for(int id: pSrcIds.keySet()) {
       Checkpoint cp = new Checkpoint();
-      cp.setWindowOffset(pSrcIds.get(id).get(0));
+      cp.setWindowOffset(pSrcIds.get(id).get(0).longValue());
       cp.setWindowScn((long)pSrcIds.get(id).get(1));
       PhysicalPartition pPart = new PhysicalPartition(id, "name");
       cpMult.addCheckpoint(pPart, cp);
@@ -130,7 +146,7 @@ public class TestCheckpointMult
   }
 
   @Test
-  public void serdeCheckpointMult() throws JsonGenerationException, JsonMappingException, IOException {
+  public void serdeCheckpointMult() throws Exception {
 
     validateCheckpoints();
     assertEquals(_cpMult.getNumCheckponts(), 2, " wrong number of enteries in cpMult");
@@ -186,7 +202,7 @@ public class TestCheckpointMult
 
     ObjectMapper mapper = new ObjectMapper();
     Map<String, String> map = mapper.readValue(
-        new ByteArrayInputStream(serialCpMult.getBytes()), Map.class);
+        new ByteArrayInputStream(serialCpMult.getBytes()), new TypeReference<Map<String, String>>(){});
     map.put("NonJsonKey", "Some value");
     map.put("cursorPartition", ppart.toJsonString());
     ByteArrayOutputStream bs = new ByteArrayOutputStream();
@@ -194,5 +210,44 @@ public class TestCheckpointMult
     cpMultCopy = new CheckpointMult(bs.toString());
 
     assertEquals(cpMultCopy.getCursorPartition(), ppart);
+  }
+
+  @Test
+  public void testAtMostOnePartialWindow() throws Exception
+  {
+    CheckpointMult cpMult = new CheckpointMult();
+    final PhysicalPartition pp1 = new PhysicalPartition(1, "February");
+    final PhysicalPartition pp2 = new PhysicalPartition(1, "Friday");
+    Checkpoint cp = new Checkpoint();
+    cp.setWindowScn(100L);
+    cp.setWindowOffset(3);
+    cpMult.addCheckpoint(pp1, cp);  // Added one checkpoint with partial window.
+    assertEquals(pp1, cpMult.getPartialWindowPartition());
+    cp = new Checkpoint();
+    cp.setWindowScn(500L);
+    cp.setWindowOffset(2);
+
+    boolean caughtException = false;
+    try {
+      cpMult.addCheckpoint(pp2, cp);
+    } catch (DatabusRuntimeException e) {
+      caughtException = true;
+    }
+    assertTrue(caughtException, "Was able to add two checkpoints with partial windows");
+
+    // It should be possible to add the checkpoint and then change it (since we just add it to a map)
+    cp.setWindowOffset(-1);
+    cpMult.addCheckpoint(pp2, cp);
+    cp.setWindowOffset(13);
+    String serialized = cpMult.toString();
+    caughtException = false;
+    try {
+      CheckpointMult cpMult2 = new CheckpointMult(serialized);
+      Assert.assertEquals(cpMult, cpMult2);
+
+    } catch (InvalidParameterSpecException e) {
+      caughtException= true;
+    }
+    assertTrue(caughtException, "Did not raise exception with two partial windows in serialized checkpoint " + serialized);
   }
 }

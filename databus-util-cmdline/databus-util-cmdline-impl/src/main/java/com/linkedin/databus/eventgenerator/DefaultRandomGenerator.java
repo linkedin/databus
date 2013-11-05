@@ -46,12 +46,12 @@ public class DefaultRandomGenerator implements RandomDataGenerator
     range = range > 0 ? range: -range; //Prevent integer overflow.
     int generated = min + rand.nextInt(range);
     generated = generated > max ? max: generated;
-    return min + rand.nextInt(range);
+    return generated;
   }
 
   public String getNextString()
   {
-    return getNextString(StringFieldGenerate.minStringLength, StringFieldGenerate.maxStringLength);
+    return getNextString(StringFieldGenerate.getMinStringLength(), StringFieldGenerate.getMaxStringLength());
   }
 
   public String getNextString(int min, int max)
@@ -77,7 +77,9 @@ public class DefaultRandomGenerator implements RandomDataGenerator
   }
 
   public long getNextLong() {
-    return Math.abs(rand.nextLong());
+    long randomLong = rand.nextLong();
+
+    return randomLong == Long.MIN_VALUE ? 0: Math.abs(randomLong);
   }
 
   public boolean getNextBoolean()

@@ -1,4 +1,5 @@
 package com.linkedin.databus.bootstrap.producer;
+
 /*
  *
  * Copyright 2013 LinkedIn Corp. All rights reserved
@@ -16,8 +17,7 @@ package com.linkedin.databus.bootstrap.producer;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
-
+ */
 
 import java.nio.ByteBuffer;
 import java.sql.Connection;
@@ -54,49 +54,51 @@ import com.linkedin.databus2.util.DBHelper;
 
 public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
 {
-  public static final String      MODULE               = BootstrapProducerCallback.class.getName();
-  public static final Logger      LOG                  = Logger.getLogger(MODULE);
+  public static final String MODULE = BootstrapProducerCallback.class.getName();
+  public static final Logger LOG = Logger.getLogger(MODULE);
 
-  private BootstrapDBMetaDataDAO           _bootstrapDao       = null;
-  private PreparedStatement       _stmt                = null;
-  private PreparedStatement       _logScnStmt          = null;
-  private int                     _numEvents           = 0;
-  private int                     _totalNumEvents           = 0;
-  private long                    _seedCatchupScn      = -1;
-  private int                     _state               = BootstrapProducerStatus.ACTIVE;
-  private long                    _oldWindowScn        = -1;
-  private long                    _newWindowScn        = -1;
+  private BootstrapDBMetaDataDAO _bootstrapDao = null;
+  private PreparedStatement _stmt = null;
+  private PreparedStatement _logScnStmt = null;
+  private int _numEvents = 0;
+  private int _totalNumEvents = 0;
+  private long _seedCatchupScn = -1;
+  private int _state = BootstrapProducerStatus.ACTIVE;
+  private long _oldWindowScn = -1;
+  private long _newWindowScn = -1;
   // max(scn) of log at producer startup
-  private long                    _producerStartScn    = -1;
-  private Map<String, SourceInfo> _trackedSources      = null;
-  private Map<Integer, String>    _trackedSrcIdsToNames = null;
-  private BootstrapReadOnlyConfig _config              = null;
-  private String                  _currentSource       = null;
-  private BackoffTimer            _retryTimer          = null;
-  private List<String>            _logicalSources      = null;
+  private long _producerStartScn = -1;
+  private Map<String, SourceInfo> _trackedSources = null;
+  private Map<Integer, String> _trackedSrcIdsToNames = null;
+  private BootstrapReadOnlyConfig _config = null;
+  private String _currentSource = null;
+  private BackoffTimer _retryTimer = null;
+  private List<String> _logicalSources = null;
 
   /* Stats Specific */
   private BootstrapProducerStatsCollector _statsCollector = null;
-  private RateMonitor      _srcRm  = new RateMonitor("ProducerSourceRateMonitor");
-  private RateMonitor      _totalRm  = new RateMonitor("ProducerTotalRateMonitor");
-  private int             _currentLogId;
-  private int             _currentRowId;
+  private final RateMonitor _srcRm = new RateMonitor(
+      "ProducerSourceRateMonitor");
+  private final RateMonitor _totalRm = new RateMonitor(
+      "ProducerTotalRateMonitor");
+  private int _currentLogId;
+  private int _currentRowId;
 
-  private final int        _maxRowsInLog;
-  private boolean          _errorRetriesExceeded;
+  private final int _maxRowsInLog;
+  private boolean _errorRetriesExceeded;
 
-  private ErrorCaseHandler _errorHandler               = null;
+  private ErrorCaseHandler _errorHandler = null;
 
-  public BootstrapProducerCallback(BootstrapReadOnlyConfig config, List<String> logicalSources)
-  	throws Exception
+  public BootstrapProducerCallback(BootstrapReadOnlyConfig config,
+      List<String> logicalSources) throws Exception
   {
-	  this(config,null,null,logicalSources);
+    this(config, null, null, logicalSources);
   }
 
   public BootstrapProducerCallback(BootstrapReadOnlyConfig config,
-                                   BootstrapProducerStatsCollector statsCollector,
-                                   ErrorCaseHandler errorHandler,
-                                   List<String> logicalSources) throws SQLException
+      BootstrapProducerStatsCollector statsCollector,
+      ErrorCaseHandler errorHandler, List<String> logicalSources)
+      throws SQLException
   {
     _config = config;
     _logicalSources = logicalSources;
@@ -109,53 +111,54 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     init();
   }
 
-  public void init()
-    throws SQLException
+  public void init() throws SQLException
   {
-	  Set<String> configedSources = new HashSet<String>(_logicalSources);
-	  _trackedSources = _bootstrapDao.getDBTrackedSources(configedSources);
+    Set<String> configedSources = new HashSet<String>(_logicalSources);
+    _trackedSources = _bootstrapDao.getDBTrackedSources(configedSources);
 
+    _trackedSrcIdsToNames = new HashMap<Integer, String>();
+    for (Entry<String, SourceInfo> entry : _trackedSources.entrySet())
+    {
+      _trackedSrcIdsToNames.put(entry.getValue().getSrcId(), entry.getKey());
+    }
 
-	  _trackedSrcIdsToNames = new HashMap<Integer, String>();
-	  for ( Entry<String, SourceInfo> entry : _trackedSources.entrySet())
-	  {
-		  _trackedSrcIdsToNames.put(entry.getValue().getSrcId(), entry.getKey());
-	  }
+    LOG.info("maxRowsInLog=" + _maxRowsInLog);
+    LOG.info("trackedSources: ");
+    int lastState = BootstrapProducerStatus.UNKNOWN;
+    int curr = 0;
+    for (SourceInfo info : _trackedSources.values())
+    {
+      if (0 == curr)
+      {
+        lastState = info.getStatus();
+      }
+      else
+      {
+        if (info.getStatus() != lastState)
+        {
+          String msg = "Bootstrap Source state does not seem to be consistent for all the sources that this producer listens to. "
+              + " Found atleast 2 different states :"
+              + lastState
+              + ","
+              + info.getStatus();
+          LOG.error(msg);
+          throw new RuntimeException(msg);
+        }
+      }
+      curr++;
+      LOG.info(info.toString());
+    }
 
-	  LOG.info("maxRowsInLog=" + _maxRowsInLog);
-	  LOG.info("trackedSources: ");
-	  int lastState = BootstrapProducerStatus.UNKNOWN;
-	  int curr = 0;
-	  for (SourceInfo info : _trackedSources.values())
-	  {
-		  if ( 0 == curr )
-		  {
-			  lastState = info.getStatus();
-		  }
-		  else
-		  {
-			  if ( info.getStatus() != lastState)
-			  {
-				  String msg = "Bootstrap Source state does not seem to be consistent for all the sources that this producer listens to. "
-					  + " Found atleast 2 different states :" + lastState + "," + info.getStatus();
-				  LOG.error(msg);
-				  throw new RuntimeException(msg);
-			  }
-		  }
-		  curr++;
-		  LOG.info(info.toString());
-	  }
+    _state = lastState;
 
-	  _state = lastState;
-
-	  initWindowScn();
+    initWindowScn();
   }
 
   @Override
   public ConsumerCallbackResult onStartDataEventSequence(SCN startScn)
   {
-	_srcRm.start();
-	_totalNumEvents = 0;
+    _srcRm.start();
+    _totalNumEvents = 0;
     ConsumerCallbackResult success = ConsumerCallbackResult.SUCCESS;
     try
     {
@@ -163,18 +166,22 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       {
         initWindowScn();
       }
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-      if ( null != _statsCollector)
-      	_statsCollector.registerSQLException();
-      LOG.error("Got SQLException in startDataEventSequence Hanlder!! Connections will be reset !!",e);
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
+      LOG.error(
+          "Got SQLException in startDataEventSequence Hanlder!! Connections will be reset !!",
+          e);
       try
       {
-    	  reset();
-      } catch (SQLException sqlEx) {
-    	  LOG.error("Got exception while resetting connections. Stopping Client !!", sqlEx);
-    	  return ConsumerCallbackResult.ERROR_FATAL;
+        reset();
+      } catch (SQLException sqlEx)
+      {
+        LOG.error(
+            "Got exception while resetting connections. Stopping Client !!",
+            sqlEx);
+        return ConsumerCallbackResult.ERROR_FATAL;
       }
       success = ConsumerCallbackResult.ERROR;
     }
@@ -195,65 +202,82 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       updateSourcesInDB();
 
       boolean markActive = false;
-      if ( _state == BootstrapProducerStatus.SEEDING_CATCHUP )
+      if (_state == BootstrapProducerStatus.SEEDING_CATCHUP)
       {
-    	  if ( _newWindowScn > _seedCatchupScn  )
-    	  {
-    		  LOG.info("Bootstrap DB for sources (" + _trackedSources.values()
-    				  + ") has completed the seeding catchup phase. Marking them active in bootstrap_sources table !! SeedCatchupSCN was :"
-    				  + _seedCatchupScn );
-    		  markActive = true;
-    	  }
-      } else if ( _state == BootstrapProducerStatus.FELL_OFF_RELAY) {
-    	  if ( _newWindowScn > _producerStartScn)
-    	  {
-    		  LOG.info("Bootstrap DB for sources (" + _trackedSources.values()
-    				       + ") has started getting events since last fell-off relay !! Marking them active !!");
-    		  markActive = true;
-    	  }
+        if (_newWindowScn > _seedCatchupScn)
+        {
+          LOG.info("Bootstrap DB for sources ("
+              + _trackedSources.values()
+              + ") has completed the seeding catchup phase. Marking them active in bootstrap_sources table !! SeedCatchupSCN was :"
+              + _seedCatchupScn);
+          markActive = true;
+        }
+      }
+      else if (_state == BootstrapProducerStatus.FELL_OFF_RELAY)
+      {
+        if (_newWindowScn > _producerStartScn)
+        {
+          LOG.info("Bootstrap DB for sources ("
+              + _trackedSources.values()
+              + ") has started getting events since last fell-off relay !! Marking them active !!");
+          markActive = true;
+        }
       }
 
-      if ( markActive)
-	      _bootstrapDao.updateSourcesStatus(_trackedSources.keySet(), BootstrapProducerStatus.ACTIVE);
+      if (markActive)
+        _bootstrapDao.updateSourcesStatus(_trackedSources.keySet(),
+            BootstrapProducerStatus.ACTIVE);
 
-
-      getConnection().commit();
-
-      if ( markActive)
+      Connection conn = getConnection();
+      try
       {
-		  _state = BootstrapProducerStatus.ACTIVE;
-	      for (SourceInfo info : _trackedSources.values())
-	      {
-	    	  info.setStatus(BootstrapProducerStatus.ACTIVE);
-	      }
+        DBHelper.commit(conn);
+      } catch (SQLException s)
+      {
+        DBHelper.rollback(conn);
+        throw s;
+      }
+
+      if (markActive)
+      {
+        _state = BootstrapProducerStatus.ACTIVE;
+        for (SourceInfo info : _trackedSources.values())
+        {
+          info.setStatus(BootstrapProducerStatus.ACTIVE);
+        }
       }
 
       LOG.info("bootstrap producer upto scn " + _newWindowScn);
 
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-      if ( null != _statsCollector)
-    	  _statsCollector.registerSQLException();
 
-      LOG.error("Got SQLException in endDataEventSequence Handler !! Connections will be reset !!", e);
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
+
+      LOG.error(
+          "Got SQLException in endDataEventSequence Handler !! Connections will be reset !!",
+          e);
       try
       {
-    	  reset();
-      } catch (SQLException sqlEx) {
-    	  LOG.error("Got exception while resetting connections. Stopping Client !!", sqlEx);
-    	  return ConsumerCallbackResult.ERROR_FATAL;
+        reset();
+      } catch (SQLException sqlEx)
+      {
+        LOG.error(
+            "Got exception while resetting connections. Stopping Client !!",
+            sqlEx);
+        return ConsumerCallbackResult.ERROR_FATAL;
       }
       return ConsumerCallbackResult.ERROR;
-    }
-    finally
+    } finally
     {
-    	_totalRm.stop();
-    	long latency = _totalRm.getDuration()/1000000L;
-    	if ( null != _statsCollector)
-    	{
-    		_statsCollector.registerEndWindow(latency, _totalNumEvents, _newWindowScn);
-    	}
+      _totalRm.stop();
+      long latency = _totalRm.getDuration() / 1000000L;
+      if (null != _statsCollector)
+      {
+        _statsCollector.registerEndWindow(latency, _totalNumEvents,
+            _newWindowScn);
+      }
     }
 
     return ConsumerCallbackResult.SUCCESS;
@@ -262,7 +286,8 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   @Override
   public ConsumerCallbackResult onRollback(SCN startScn)
   {
-    return _errorRetriesExceeded ? ConsumerCallbackResult.ERROR_FATAL : ConsumerCallbackResult.SUCCESS;
+    return _errorRetriesExceeded ? ConsumerCallbackResult.ERROR_FATAL
+        : ConsumerCallbackResult.SUCCESS;
   }
 
   @Override
@@ -278,24 +303,31 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       srcInfo = _trackedSources.get(source);
       if (null == srcInfo)
       {
-    	LOG.error("Source :" + source + " not managed in this bootstrap DB instance !! Managed Sources : (" + _trackedSources + ")");
-    	return ConsumerCallbackResult.ERROR;
+        LOG.error("Source :"
+            + source
+            + " not managed in this bootstrap DB instance !! Managed Sources : ("
+            + _trackedSources + ")");
+        return ConsumerCallbackResult.ERROR;
       }
       ret = prepareStatement(srcInfo.getSrcId());
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
 
-      if ( null != _statsCollector)
-      	_statsCollector.registerSQLException();
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
 
-      LOG.error("Got SQLException in startSource Hanlder!! Connections will be reset !!",e);
+      LOG.error(
+          "Got SQLException in startSource Hanlder!! Connections will be reset !!",
+          e);
       try
       {
-    	  reset();
-      } catch (SQLException sqlEx) {
-    	  LOG.error("Got exception while resetting connections. Stopping Client !!", sqlEx);
-    	  return ConsumerCallbackResult.ERROR_FATAL;
+        reset();
+      } catch (SQLException sqlEx)
+      {
+        LOG.error(
+            "Got exception while resetting connections. Stopping Client !!",
+            sqlEx);
+        return ConsumerCallbackResult.ERROR_FATAL;
       }
       return ConsumerCallbackResult.ERROR;
     }
@@ -317,87 +349,102 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
         _stmt.close();
         _stmt = null;
       }
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-      if ( null != _statsCollector)
-      	_statsCollector.registerSQLException();
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
 
-      LOG.error("Got SQLException in endSource Hanlder!! Connections will be reset !!",e);
+      LOG.error(
+          "Got SQLException in endSource Hanlder!! Connections will be reset !!",
+          e);
       try
       {
-    	  reset();
-      } catch (SQLException sqlEx) {
-    	  LOG.error("Got exception while resetting connections. Stopping Client !!", sqlEx);
-    	  return ConsumerCallbackResult.ERROR_FATAL;
+        reset();
+      } catch (SQLException sqlEx)
+      {
+        LOG.error(
+            "Got exception while resetting connections. Stopping Client !!",
+            sqlEx);
+        return ConsumerCallbackResult.ERROR_FATAL;
       }
       return ConsumerCallbackResult.ERROR;
-    } finally {
-        _srcRm.stop();
-        long latency = _srcRm.getDuration()/1000000L;
+    } finally
+    {
+      _srcRm.stop();
+      long latency = _srcRm.getDuration() / 1000000L;
 
-        if ( null != _statsCollector)
-        	_statsCollector.registerBatch(_currentSource, latency, _numEvents, _newWindowScn, _currentLogId, _currentRowId);
+      if (null != _statsCollector)
+        _statsCollector.registerBatch(_currentSource, latency, _numEvents,
+            _newWindowScn, _currentLogId, _currentRowId);
 
-        _totalNumEvents += _numEvents;
-        _numEvents = 0;
+      _totalNumEvents += _numEvents;
+      _numEvents = 0;
     }
 
     return ConsumerCallbackResult.SUCCESS;
   }
 
   @Override
-  public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
+  public ConsumerCallbackResult onDataEvent(DbusEvent e,
+      DbusEventDecoder eventDecoder)
   {
-    if ( e.sequence() < _newWindowScn)
+    if (e.sequence() < _newWindowScn)
     {
-    	LOG.warn("Seeing an Old event. Dropping it !! Current SCN : "
-    			   + _newWindowScn + ". Event :" + e.toString());
-    	return ConsumerCallbackResult.SUCCESS;
+      LOG.warn("Seeing an Old event. Dropping it !! Current SCN : "
+          + _newWindowScn + ". Event :" + e.toString());
+      return ConsumerCallbackResult.SUCCESS;
     }
     _numEvents++;
     _newWindowScn = e.sequence();
 
     try
     {
-    	//TODO (DDSDBUS-776) : remove erstwhile windowscn column
-    	_stmt.setLong(1, _newWindowScn);
-    	_stmt.setLong(2, _newWindowScn);
+      // TODO (DDSDBUS-776) : remove erstwhile windowscn column
+      _stmt.setLong(1, _newWindowScn);
+      _stmt.setLong(2, _newWindowScn);
 
-    	String keyStr = null;
-    	if ( e.isKeyNumber())
-    	{
-    		keyStr = new Long(e.key()).toString();
-    	} else {
-    		keyStr = new String(e.keyBytes());
-    	}
-    	_stmt.setString(3, keyStr);
-      if (!(e instanceof DbusEventInternalWritable)) {
-        throw new UnsupportedClassVersionError("Cannot get raw bytes out of DbusEvent");
+      String keyStr = null;
+      if (e.isKeyNumber())
+      {
+        keyStr = new Long(e.key()).toString();
       }
-    	ByteBuffer bytebuff = ((DbusEventInternalWritable)e).getRawBytes();
+      else
+      {
+        keyStr = new String(e.keyBytes());
+      }
+      _stmt.setString(3, keyStr);
+      if (!(e instanceof DbusEventInternalWritable))
+      {
+        throw new UnsupportedClassVersionError(
+            "Cannot get raw bytes out of DbusEvent");
+      }
+      ByteBuffer bytebuff = ((DbusEventInternalWritable) e).getRawBytes();
 
-    	byte val[] = new byte[bytebuff.remaining()];
-    	bytebuff.get(val);
+      byte val[] = new byte[bytebuff.remaining()];
+      bytebuff.get(val);
 
-    	_stmt.setBytes(4, val);
+      _stmt.setBytes(4, val);
 
-    	_stmt.executeUpdate();
-    }
-    catch (SQLException e1)
+      _stmt.executeUpdate();
+    } catch (SQLException e1)
     {
-        if ( null != _statsCollector)
-      	  _statsCollector.registerSQLException();
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
 
-        LOG.error("Got SQLException in dataEvent Hanlder!! Connections will be reset !!",e1);
-        try
-        {
-      	  reset();
-        } catch (SQLException sqlEx) {
-      	  LOG.error("Got exception while resetting connections. Stopping Client !!", sqlEx);
-      	  return ConsumerCallbackResult.ERROR_FATAL;
-        }
-        return ConsumerCallbackResult.ERROR;
+      LOG.error(
+          "Got SQLException in dataEvent Hanlder!! Connections will be reset !!",
+          e1);
+      try
+      {
+        reset();
+      } catch (SQLException sqlEx)
+      {
+        LOG.error(
+            "Got exception while resetting connections. Stopping Client !!",
+            sqlEx);
+        return ConsumerCallbackResult.ERROR_FATAL;
+      }
+      return ConsumerCallbackResult.ERROR;
     }
 
     return ConsumerCallbackResult.SUCCESS;
@@ -419,25 +466,28 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       {
         try
         {
-            // Producer fell-off the relay. It could be in an active transaction (last valid event was not EOP) in
-            // which case, we should roll-back. This is safe since the checkpoint is consistent with the
-            // roll-back state
-        	getConnection().rollback();
-        } catch (SQLException sqlEx) {
-            if ( null != _statsCollector)
-            	  _statsCollector.registerSQLException();
+          // Producer fell-off the relay. It could be in an active transaction
+          // (last valid event was not EOP) in
+          // which case, we should roll-back. This is safe since the checkpoint
+          // is consistent with the
+          // roll-back state
+          getConnection().rollback();
+        } catch (SQLException sqlEx)
+        {
+          if (null != _statsCollector)
+            _statsCollector.registerSQLException();
 
-            LOG.error("Got exception while rolling back transaction !!", sqlEx);
+          LOG.error("Got exception while rolling back transaction !!", sqlEx);
         }
 
-        _bootstrapDao.updateSourcesStatus(_trackedSources.keySet(), BootstrapProducerStatus.FELL_OFF_RELAY);
+        _bootstrapDao.updateSourcesStatus(_trackedSources.keySet(),
+            BootstrapProducerStatus.FELL_OFF_RELAY);
 
-        if ( null != _statsCollector)
+        if (null != _statsCollector)
           _statsCollector.registerFellOffRelay();
       }
       success = ConsumerCallbackResult.SUCCESS;
-    }
-    catch (Exception e)
+    } catch (Exception e)
     {
       LOG.error("Got exception onError() ", e);
       success = ConsumerCallbackResult.ERROR;
@@ -448,54 +498,56 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   /*
    * Reset the Bootstrap Connection and in memory state of Producer
    */
-  private void reset()
-  	throws SQLException
+  private void reset() throws SQLException
   {
-	  boolean success = false;
-	  /*
-	   * Retry Connections with exponential backoff upto 1 min.
-	   */
-	  _retryTimer.reset();
-	  while ( ! success )
-	  {
-		  try
-		  {
-			  // Close automatically rollbacks the transaction
-			  DBHelper.close(_stmt);
-			  _stmt = null;
+    boolean success = false;
+    /*
+     * Retry Connections with exponential backoff upto 1 min.
+     */
+    _retryTimer.reset();
+    while (!success)
+    {
+      try
+      {
+        // Close automatically rollbacks the transaction
+        DBHelper.close(_stmt);
+        _stmt = null;
 
-			  DBHelper.close(_logScnStmt);
-			  _logScnStmt = null;
+        DBHelper.close(_logScnStmt);
+        _logScnStmt = null;
 
-			  _bootstrapDao.getBootstrapConn().close();
+        _bootstrapDao.getBootstrapConn().close();
 
-			  _bootstrapDao.getBootstrapConn().getDBConn(); // recreate the Connection
+        _bootstrapDao.getBootstrapConn().getDBConn(); // recreate the Connection
 
-			  _bootstrapDao.getBootstrapConn().executeDummyBootstrapDBQuery();
+        _bootstrapDao.getBootstrapConn().executeDummyBootstrapDBQuery();
 
-			  // Initialize in memory state
-			  init();
+        // Initialize in memory state
+        init();
 
-			  success = true;
-		  } catch (SQLException sqlEx) {
-			  if ( null != _statsCollector)
-				  _statsCollector.registerSQLException();
+        success = true;
+      } catch (SQLException sqlEx)
+      {
+        if (null != _statsCollector)
+          _statsCollector.registerSQLException();
 
-			  LOG.error("Unable to reset the Bootstrap DB connection !!", sqlEx);
+        LOG.error("Unable to reset the Bootstrap DB connection !!", sqlEx);
 
-
-			  if ( _retryTimer.getRemainingRetriesNum() <= 0 )
-			  {
-				  String message = "Producer Thread reached max retries trying to reset the MySQL Connections. Stopping !!";
-				  LOG.fatal(message);
-				  _errorRetriesExceeded = true;
-				  //throw sqlEx;
-				  /* ERROR_FATAL is not implemented yet, Hence using callback to let HttpClientImpl stop */
-				  _errorHandler.onErrorRetryLimitExceeded(message, sqlEx);
-			  }
-			  _retryTimer.backoffAndSleep();
-		 }
-	  }
+        if (_retryTimer.getRemainingRetriesNum() <= 0)
+        {
+          String message = "Producer Thread reached max retries trying to reset the MySQL Connections. Stopping !!";
+          LOG.fatal(message);
+          _errorRetriesExceeded = true;
+          // throw sqlEx;
+          /*
+           * ERROR_FATAL is not implemented yet, Hence using callback to let
+           * HttpClientImpl stop
+           */
+          _errorHandler.onErrorRetryLimitExceeded(message, sqlEx);
+        }
+        _retryTimer.backoffAndSleep();
+      }
+    }
   }
 
   private void updateAllProducerSourcesMetaData() throws SQLException
@@ -538,10 +590,9 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       // sql.append(" values(?, ?,?)");
 
       _stmt = conn.prepareStatement(sql.toString());
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-      LOG.error("Got SQLException in prepareStatement!! ",e);
+      LOG.error("Got SQLException in prepareStatement!! ", e);
       throw e;
     }
 
@@ -556,39 +607,39 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     Statement stmt = null;
     try
     {
-    	sql.append("select max(p.windowscn), max(s.endscn) from bootstrap_producer_state p, bootstrap_seeder_state s ");
-    	sql.append("where p.srcid = s.srcid and p.srcid in (");
-    	int count = _trackedSources.size();
-    	for ( SourceInfo srcInfo : _trackedSources.values())
-    	{
-    		count--;
-    		sql.append(srcInfo.getSrcId());
-    		if ( count > 0)
-    			sql.append(",");
-    	}
-    	sql.append(")");
-    	stmt = getConnection().createStatement();
-    	LOG.info("sql query = " + sql.toString());
-    	rs = stmt.executeQuery(sql.toString());
-    	if (rs.next())
-    	{
-    		_producerStartScn = _oldWindowScn = _newWindowScn = rs.getLong(1);
-    		_seedCatchupScn = rs.getLong(2);
-    	}
-    }
-    catch (SQLException e)
+      sql.append("select max(p.windowscn), max(s.endscn) from bootstrap_producer_state p, bootstrap_seeder_state s ");
+      sql.append("where p.srcid = s.srcid and p.srcid in (");
+      int count = _trackedSources.size();
+      for (SourceInfo srcInfo : _trackedSources.values())
+      {
+        count--;
+        sql.append(srcInfo.getSrcId());
+        if (count > 0)
+          sql.append(",");
+      }
+      sql.append(")");
+      stmt = getConnection().createStatement();
+      LOG.info("sql query = " + sql.toString());
+      rs = stmt.executeQuery(sql.toString());
+      if (rs.next())
+      {
+        _producerStartScn = _oldWindowScn = _newWindowScn = rs.getLong(1);
+        _seedCatchupScn = rs.getLong(2);
+      }
+    } catch (SQLException e)
     {
-        if ( null != _statsCollector)
-        	  _statsCollector.registerSQLException();
-     LOG.error("Unable to select producer's max windowscn. Setting windowscn to -1",e);
-     _oldWindowScn = -1;
-     _newWindowScn = -1;
-     _producerStartScn = -1;
-     throw e;
-    }
-    finally
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
+      LOG.error(
+          "Unable to select producer's max windowscn. Setting windowscn to -1",
+          e);
+      _oldWindowScn = -1;
+      _newWindowScn = -1;
+      _producerStartScn = -1;
+      throw e;
+    } finally
     {
-    	DBHelper.close(rs,stmt,null);
+      DBHelper.close(rs, stmt, null);
 
     }
   }
@@ -607,14 +658,12 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       {
         rid = rs.getInt(1);
       }
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-      LOG.error("Unable to find max. rid. Setting current rid to -1",e);
+      LOG.error("Unable to find max. rid. Setting current rid to -1", e);
       rid = -1;
       throw e;
-    }
-    finally
+    } finally
     {
       if (null != stmt)
       {
@@ -630,7 +679,8 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     return rid;
   }
 
-  private void setLogPosition(int logid, int logrid, long windowscn, String source) throws SQLException
+  private void setLogPosition(int logid, int logrid, long windowscn,
+      String source) throws SQLException
   {
     PreparedStatement stmt = getLogPositionStmt();
 
@@ -658,19 +708,19 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
 
       sql.append("update bootstrap_producer_state set logid = ?, rid = ? , windowscn = ? where srcid = (select id from bootstrap_sources where src = ?)");
       _logScnStmt = conn.prepareStatement(sql.toString());
-    }
-    catch (SQLException e)
+    } catch (SQLException e)
     {
-        if ( null != _statsCollector)
-        	  _statsCollector.registerSQLException();
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
 
-      LOG.error("Exception occurred while getting the bootstrap_producer statement", e);
+      LOG.error(
+          "Exception occurred while getting the bootstrap_producer statement",
+          e);
       throw e;
     }
 
     return _logScnStmt;
   }
-
 
   private void updateSourcesInDB() throws SQLException
   {
@@ -687,49 +737,45 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       {
         srcinfo.switchLogFile(getConnection());
         setLogPosition(srcinfo.getCurrLogId(), 0, _newWindowScn, entry.getKey());
-        //getConnection().commit();
+        // getConnection().commit();
         _bootstrapDao.createNewLogTable(srcinfo.getSrcId());
       }
     }
   }
 
-  private Connection getConnection()
-  	throws SQLException
+  private Connection getConnection() throws SQLException
   {
-	Connection conn = null;
+    Connection conn = null;
 
     if (_bootstrapDao == null)
     {
       BootstrapConn dbConn = new BootstrapConn();
       try
       {
-        dbConn.initBootstrapConn(false,
-                                         _config.getBootstrapDBUsername(),
-                                         _config.getBootstrapDBPassword(),
-                                         _config.getBootstrapDBHostname(),
-                                         _config.getBootstrapDBName());
+        final boolean autoCommit = false;
+        dbConn.initBootstrapConn(autoCommit, _config.getBootstrapDBUsername(),
+            _config.getBootstrapDBPassword(), _config.getBootstrapDBHostname(),
+            _config.getBootstrapDBName());
         _bootstrapDao = new BootstrapDBMetaDataDAO(dbConn,
-        								   _config.getBootstrapDBHostname(),
-        								   _config.getBootstrapDBUsername(),
-        								   _config.getBootstrapDBPassword(),
-        								   _config.getBootstrapDBName(),
-        								   false);
-      }
-      catch (Exception e)
+            _config.getBootstrapDBHostname(), _config.getBootstrapDBUsername(),
+            _config.getBootstrapDBPassword(), _config.getBootstrapDBName(),
+            autoCommit);
+      } catch (Exception e)
       {
-    	LOG.fatal("Unable to open BootstrapDB Connection !!", e);
+        LOG.fatal("Unable to open BootstrapDB Connection !!", e);
         return null;
       }
     }
 
     try
     {
-    	conn = _bootstrapDao.getBootstrapConn().getDBConn();
-    } catch ( SQLException e) {
-        if ( null != _statsCollector)
-        	  _statsCollector.registerSQLException();
-    	LOG.fatal("Not able to open BootstrapDB Connection !!", e);
-    	throw e;
+      conn = _bootstrapDao.getBootstrapConn().getDBConn();
+    } catch (SQLException e)
+    {
+      if (null != _statsCollector)
+        _statsCollector.registerSQLException();
+      LOG.fatal("Not able to open BootstrapDB Connection !!", e);
+      throw e;
     }
     return conn;
   }
@@ -739,11 +785,10 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     return _bootstrapDao.getBootstrapConn().getLogTableNameToProduce(srcId);
   }
 
-
   public interface ErrorCaseHandler
   {
-	  /* Callback for handling case when error retries limit reached */
-	  void onErrorRetryLimitExceeded(String message, Throwable exception);
+    /* Callback for handling case when error retries limit reached */
+    void onErrorRetryLimitExceeded(String message, Throwable exception);
   }
 
 }

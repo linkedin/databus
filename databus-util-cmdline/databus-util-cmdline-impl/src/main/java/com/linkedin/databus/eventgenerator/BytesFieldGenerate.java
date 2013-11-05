@@ -24,7 +24,7 @@ import org.apache.avro.generic.GenericRecord;
 
 public class BytesFieldGenerate extends SchemaFiller{
 
-  public static int defaultMaxBytesLength = 50;
+  private static int defaultMaxBytesLength = 50;
 
   public static int getMaxBytesLength()
   {

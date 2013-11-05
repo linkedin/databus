@@ -54,33 +54,40 @@ public class ResourceVersionedSchemaSetProvider implements VersionedSchemaSetPro
     VersionedSchemaSet result = new VersionedSchemaSet();
 
     InputStream indexIns = null;
-    BufferedReader indexReader = null;
-    try
+    indexIns = _classLoader.getResourceAsStream(INDEX_RESOURCE_NAME);
+    if (null == indexIns)
     {
-      indexIns = _classLoader.getResourceAsStream(INDEX_RESOURCE_NAME);
-      indexReader = new BufferedReader(new InputStreamReader(indexIns));
+      LOG.info("resource not found: " + INDEX_RESOURCE_NAME + "; no schemas will be loaded");
+    }
+    else
+    {
+      BufferedReader indexReader = null;
+      try
+      {
+        indexReader = new BufferedReader(new InputStreamReader(indexIns, "UTF-8"));
 
-      List<String> resourceNames = readIndex(indexReader);
-      LOG.info("schema resources found: " + resourceNames);
-      for (String resource: resourceNames)
-      {
-        VersionedSchema schema = readSchemaFromResource(resource);
-        if (null != schema) result.add(schema);
+        List<String> resourceNames = readIndex(indexReader);
+        LOG.info("schema resources found: " + resourceNames);
+        for (String resource: resourceNames)
+        {
+          VersionedSchema schema = readSchemaFromResource(resource);
+          if (null != schema) result.add(schema);
+        }
       }
-    }
-    catch (IOException ioe)
-    {
-      LOG.error("i/o error: " + ioe.getMessage(), ioe);
-    }
-    finally
-    {
-      try {
-        if (null != indexIns) indexIns.close();
-        if (null != indexReader) indexReader.close();
-      }
-      catch (IOException e1)
+      catch (IOException ioe)
       {
-        LOG.error("cleanup failed: " + e1.getMessage(), e1);
+        LOG.error("i/o error: " + ioe.getMessage(), ioe);
+      }
+      finally
+      {
+        try {
+          indexIns.close();
+          if (null != indexReader) indexReader.close();
+        }
+        catch (IOException e1)
+        {
+          LOG.error("cleanup failed: " + e1.getMessage(), e1);
+        }
       }
     }
     return result;
@@ -96,7 +103,7 @@ public class ResourceVersionedSchemaSetProvider implements VersionedSchemaSetPro
     try
     {
       String schemaJson = IOUtils.toString(schemaInput);
-      VersionedSchema schema = new VersionedSchema(schemaId, Schema.parse(schemaJson));
+      VersionedSchema schema = new VersionedSchema(schemaId, Schema.parse(schemaJson), null);
       return schema;
     }
     finally

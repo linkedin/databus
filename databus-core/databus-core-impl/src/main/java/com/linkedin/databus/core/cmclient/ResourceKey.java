@@ -52,7 +52,7 @@ public class ResourceKey
 		 */
 		String[] parts = resourceKey.split(",");
 		if (parts.length != NUM_SUBKEYS)
-			throw new ParseException("Does not have " + NUM_SUBKEYS, parts.length);
+			throw new ParseException("Resource key " + resourceKey + " has " + parts.length + " parts instead of " + NUM_SUBKEYS, 0);
 		_physicalSource = parts[0];
 		_physicalPartition = parts[1];
 		_logicalPartitionRepresentation = new LogicalPartitionRepresentation(parts[2]);		

@@ -21,7 +21,6 @@ package com.linkedin.databus.client.netty;
 
 import java.io.InputStream;
 import java.nio.channels.Channels;
-import java.nio.channels.ClosedChannelException;
 import java.util.Formatter;
 
 import org.apache.log4j.Logger;
@@ -29,27 +28,21 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.jboss.netty.bootstrap.ClientBootstrap;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.group.ChannelGroup;
-import org.jboss.netty.handler.codec.http.DefaultHttpRequest;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.HttpVersion;
 import org.jboss.netty.util.Timer;
 
 import com.linkedin.databus.client.ChunkedBodyReadableByteChannel;
 import com.linkedin.databus.client.DatabusBootstrapConnection;
 import com.linkedin.databus.client.DatabusBootstrapConnectionStateMessage;
-import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.DatabusSourcesConnection;
+import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.BaseHttpResponseProcessor;
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusConstants;
+import com.linkedin.databus.core.InvalidCheckpointException;
 import com.linkedin.databus.core.async.ActorMessageQueue;
 import com.linkedin.databus2.core.container.ExtendedReadTimeoutHandler;
 import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
@@ -57,7 +50,8 @@ import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldExcep
 import com.linkedin.databus2.core.filter.DbusKeyFilter;
 
 public class NettyHttpDatabusBootstrapConnection
-             implements DatabusBootstrapConnection, ChannelFutureListener
+             extends AbstractNettyHttpConnection
+             implements DatabusBootstrapConnection
 {
   public static final String MODULE = NettyHttpDatabusBootstrapConnection.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
@@ -72,34 +66,18 @@ public class NettyHttpDatabusBootstrapConnection
     STREAM_REQUEST_WRITE
   }
 
-  private final ServerInfo _server;
   private final ActorMessageQueue _callback;
-  private final ClientBootstrap _bootstrap;
-  private final GenericHttpClientPipelineFactory _pipelineFactory;
   private DatabusBootstrapConnectionStateMessage _callbackStateReuse;
-  private Channel _channel;
   private ExtendedReadTimeoutHandler _readTimeOutHandler;
   private State _curState;
-  private int _connectRetriesLeft;
   private Checkpoint _checkpoint;
   private String _sourcesIdList;
   private String _sourcesNameList;
   private int _freeBufferSpace;
   private final RemoteExceptionHandler _remoteExceptionHandler;
   private DbusKeyFilter _filter;
-  private int _version;
-  private final ChannelGroup _channelGroup; //provides automatic channels closure on shutdown
   private GenericHttpResponseHandler _handler;
-
-  @Override
-  public void close()
-  {
-	 if ( (null != _channel) && _channel.isConnected() )
-	 {
-		 ChannelFuture res = _channel.close();
-		 res.awaitUninterruptibly();
-	 }
-  }
+  //private MyConnectListener _connectListener;
 
   public NettyHttpDatabusBootstrapConnection(ServerInfo server,
                                          ActorMessageQueue callback,
@@ -109,29 +87,16 @@ public class NettyHttpDatabusBootstrapConnection
                                          Timer timeoutTimer,
                                          long writeTimeoutMs,
                                          long readTimeoutMs,
-                                         int version,
+                                         int protocolVersion,
                                          ChannelGroup channelGroup)
   {
-    super();
-    _server = server;
+    super(server, bootstrap, containerStatsCollector, timeoutTimer, writeTimeoutMs, readTimeoutMs,
+          channelGroup, protocolVersion, LOG);
     _callback = callback;
-    _bootstrap = bootstrap;
-    _channelGroup = channelGroup;
-    //FIXME Use a config for the retries and timeout (DDSDBUS-95)
-    _bootstrap.setOption("connectTimeoutMillis", DatabusSourcesConnection.CONNECT_TIMEOUT_MS);
-
-    _pipelineFactory = new GenericHttpClientPipelineFactory(
-        null,
-        GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE,
-        containerStatsCollector,
-        timeoutTimer,
-        writeTimeoutMs,
-        readTimeoutMs,
-        channelGroup);
-    _bootstrap.setPipelineFactory(_pipelineFactory);
     _remoteExceptionHandler = remoteExceptionHandler;
-    _channel = null;
-    _version = version;
+
+    //_connectListener = new MyConnectListener();
+    //setConnectListener(_connectListener);
   }
 
 
@@ -143,13 +108,19 @@ public class NettyHttpDatabusBootstrapConnection
                                              Timer timeoutTimer,
                                              long writeTimeoutMs,
                                              long readTimeoutMs,
-                                             int version,
+                                             int protocolVersion,
                                              ChannelGroup channelGroup)
   {
     this(relay,
          callback,
-         new ClientBootstrap(channelFactory), containerStatsCollector, remoteExceptionHandler,
-                             timeoutTimer,writeTimeoutMs,readTimeoutMs,version,channelGroup);
+         new ClientBootstrap(channelFactory),
+         containerStatsCollector,
+         remoteExceptionHandler,
+         timeoutTimer,
+         writeTimeoutMs,
+         readTimeoutMs,
+         protocolVersion,
+         channelGroup);
   }
 
 
@@ -159,12 +130,10 @@ public class NettyHttpDatabusBootstrapConnection
     _checkpoint = checkpoint;
     _callbackStateReuse = stateReuse;
     _handler = null;
-    
+
     if (null == _channel || ! _channel.isConnected())
     {
-      //we've lost our connection to the bootstrap server; it's best to signal an error to the
-      //puller so that it can figure out how to switch to a different one
-      onRequestFailure();
+      connect(State.TARGET_SCN_REQUEST_CONNECT);
     }
     else
     {
@@ -180,40 +149,23 @@ public class NettyHttpDatabusBootstrapConnection
     _readTimeOutHandler = (ExtendedReadTimeoutHandler)channelPipeline.get(GenericHttpClientPipelineFactory.READ_TIMEOUT_HANDLER_NAME);
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
-    BootstrapTargetScnHttpResponseProcessor sourcesResponseProcessor =
-        new BootstrapTargetScnHttpResponseProcessor(_callback, _callbackStateReuse, _checkpoint,
+    BootstrapTargetScnHttpResponseProcessor targetResponseProcessor =
+        new BootstrapTargetScnHttpResponseProcessor(this, _callback, _callbackStateReuse,
+                                                    _checkpoint,
                                                     _remoteExceptionHandler, _readTimeOutHandler);
-    _handler = new GenericHttpResponseHandler(sourcesResponseProcessor,
-            						GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
-    
-    channelPipeline.replace(
-            "handler", "handler",_handler);
 
-    StringBuilder uriString = new StringBuilder(1024);
-    Formatter uriFmt = new Formatter(uriString);
-    uriFmt.format("/targetSCN?source=%s", _checkpoint.getSnapshotSource());
-
-    LOG.info("Sending " + uriString.toString());
+    final String url = createTargetScnRequestUrl();
+    LOG.info("Sending " + url);
 
     // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(
-        HttpVersion.HTTP_1_1, HttpMethod.GET, uriString.toString());
-    request.setHeader(HttpHeaders.Names.HOST, _server.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
+    HttpRequest request = createEmptyRequest(url);
+    sendRequest(request, new TargetScnRequestResultListener(), targetResponseProcessor);
+  }
 
-    if (_channel.isConnected())
-    {
-      ChannelFuture future = _channel.write(request);	
-      future.addListener(this);
-      LOG.debug("Wrote /targetScn request");
-    }
-    else
-    {
-      onResponseFailure(new ClosedChannelException());
-      LOG.error("disconnect on /targetSCN request");
-    }
-
+  private String createTargetScnRequestUrl()
+  {
+    // Adding checkpoint to the targetSCN request for supporting V3 bootstrap. It is unused in case of V2 bootstrap
+    return String.format("/targetSCN?source=%s&checkPoint=%s", _checkpoint.getSnapshotSource(), _checkpoint.toString());
   }
 
   @Override
@@ -223,7 +175,7 @@ public class NettyHttpDatabusBootstrapConnection
     _callbackStateReuse = stateReuse;
     _sourcesNameList = sourceNamesList;
     _handler = null;
-    
+
     if (null == _channel || ! _channel.isConnected())
     {
       connect(State.START_SCN_REQUEST_CONNECT);
@@ -243,41 +195,23 @@ public class NettyHttpDatabusBootstrapConnection
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
     BootstrapStartScnHttpResponseProcessor sourcesResponseProcessor =
-        new BootstrapStartScnHttpResponseProcessor(_callback, _callbackStateReuse, _checkpoint,
+        new BootstrapStartScnHttpResponseProcessor(this, _callback, _callbackStateReuse,
+                                                   _checkpoint,
                                                    _remoteExceptionHandler,
                                                    _readTimeOutHandler);
-    _handler = new GenericHttpResponseHandler(sourcesResponseProcessor,
-            				GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
-    
-    channelPipeline.replace(
-        "handler", "handler",_handler);
-        
 
-    StringBuilder uriString = new StringBuilder(1024);
-    Formatter uriFmt = new Formatter(uriString);
-    uriFmt.format("/startSCN?sources=%s&checkPoint=%s", _sourcesNameList, _checkpoint.toString());
-
-    LOG.info("Sending " + uriString.toString());
+    final String url = createStartScnRequestUrl();
+    LOG.info("Sending " + url);
 
     // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(
-            HttpVersion.HTTP_1_1, HttpMethod.GET, uriString.toString());
-    request.setHeader(HttpHeaders.Names.HOST, _server.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
+    HttpRequest request = createEmptyRequest(url);
+    sendRequest(request, new StartScnRequestResultListener(), sourcesResponseProcessor);
+  }
 
-    if (_channel.isConnected())
-    {
-      ChannelFuture future = _channel.write(request);	
-      future.addListener(this);
-      LOG.debug("Wrote /startScn request");
-    }
-    else
-    {
-      onResponseFailure(new ClosedChannelException());
-      LOG.error("disconnect on /startSCN request");
-    }
-
+  private String createStartScnRequestUrl()
+  {
+    return String.format("/startSCN?sources=%s&checkPoint=%s", _sourcesNameList,
+                         _checkpoint.toString());
   }
 
   @Override
@@ -291,7 +225,7 @@ public class NettyHttpDatabusBootstrapConnection
     _freeBufferSpace = freeBufferSpace;
     _filter = filter;
     _handler = null;
-    
+
     if (null == _channel || ! _channel.isConnected())
     {
       connect(State.STREAM_REQUEST_CONNECT);
@@ -311,14 +245,30 @@ public class NettyHttpDatabusBootstrapConnection
     _readTimeOutHandler.start(channelPipeline.getContext(_readTimeOutHandler));
 
     StreamHttpResponseProcessor streamResponseProcessor =
-        new StreamHttpResponseProcessor(_callback, _callbackStateReuse, _readTimeOutHandler);
-    _handler = new GenericHttpResponseHandler(streamResponseProcessor,
-            								GenericHttpResponseHandler.KeepAliveType.KEEP_ALIVE);
-    
-    channelPipeline.replace(
-        "handler", "handler",_handler);
-        
+        new StreamHttpResponseProcessor(this, _callback, _callbackStateReuse, _readTimeOutHandler);
 
+    StringBuilder uriString = new StringBuilder(10240);
+    boolean error = populateBootstrapRequestUrl(uriString);
+
+    if (error)
+    {
+      return;
+    }
+
+    final String url = uriString.toString();
+    if (LOG.isDebugEnabled())
+    {
+      LOG.debug("Sending " + url);
+    }
+
+    // Prepare the HTTP request.
+    HttpRequest request = createEmptyRequest(url);
+    sendRequest(request, new BootstrapRequestResultListener(), streamResponseProcessor);
+  }
+
+  private boolean populateBootstrapRequestUrl(StringBuilder uriString)
+  {
+    boolean error = false;
     ObjectMapper objMapper = new ObjectMapper();
     String filterStr = null;
 
@@ -329,13 +279,12 @@ public class NettyHttpDatabusBootstrapConnection
     		filterStr = objMapper.writeValueAsString(_filter);
     	} catch( Exception ex) {
     		LOG.error("Got exception while serializing filter. Filter was : " + _filter, ex);
-    		onRequestFailure();
+    		error = true;
+    		onRequestFailure(uriString.toString(), ex);
     	}
     }
 
-    StringBuilder uriString = new StringBuilder(10240);
     Formatter uriFmt = new Formatter(uriString);
-
     if ( null != filterStr)
     {
     	uriFmt.format("/bootstrap?sources=%s&checkPoint=%s&output=binary&batchSize=%d&filter=%s",
@@ -344,101 +293,20 @@ public class NettyHttpDatabusBootstrapConnection
     	uriFmt.format("/bootstrap?sources=%s&checkPoint=%s&output=binary&batchSize=%d",
                 _sourcesIdList, _checkpoint.toString(), _freeBufferSpace);
     }
+    uriFmt.close(); //make the compiler shut up
 
-    if (LOG.isDebugEnabled())
-    {
-      LOG.debug("Sending " + uriString.toString());
-    }
-
-    // Prepare the HTTP request.
-    HttpRequest request = new DefaultHttpRequest(
-            HttpVersion.HTTP_1_1, HttpMethod.GET, uriString.toString());
-    request.setHeader(HttpHeaders.Names.HOST, _server.getAddress().toString());
-    request.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
-    request.setHeader(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
-
-    // Send the HTTP request.   
-    if (_channel.isConnected())
-    {
-      ChannelFuture future = _channel.write(request);	
-      future.addListener(this);
-      LOG.debug("Wrote /bootstrap request");
-    }
-    else
-    {
-      onResponseFailure(new ClosedChannelException());
-      LOG.error("disconnect on /bootstrap request");
-    }
+    return error;
   }
 
 
   private void connect(State connectState)
   {
     _curState = connectState;
-    //FIXME Use a config for the retries and timeout (DDSDBUS-96)
-    _connectRetriesLeft = DatabusSourcesConnection.MAX_CONNECT_RETRY_NUM;
-    connectRetry();
+    connectWithListener(new MyConnectListener());
   }
 
-  private void connectRetry()
+  private void onConnectSuccess(Channel channel)
   {
-    LOG.info("connecting : " + _server.toString());
-    ChannelFuture future = _bootstrap.connect(_server.getAddress());
-    future.addListener(this);
-  }
-
-  @Override
-  public void operationComplete(ChannelFuture future) throws Exception
-  {
-    switch (_curState)
-    {
-      case START_SCN_REQUEST_CONNECT:
-      case TARGET_SCN_REQUEST_CONNECT:
-      case STREAM_REQUEST_CONNECT:
-      {
-        onConnectComplete(future);
-        break;
-      }
-      case START_SCN_REQUEST_WRITE:
-      case TARGET_SCN_REQUEST_WRITE:
-      case STREAM_REQUEST_WRITE:
-      {
-        onWriteComplete(future);
-        break;
-      }
-      default: throw new RuntimeException("don't know what to do in state:" + _curState);
-    }
-  }
-
-  private void onConnectComplete(ChannelFuture future) throws Exception
-  {
-    if (future.isCancelled())
-    {
-      LOG.error("Connect cancelled");
-      onRequestFailure();
-    }
-    else if (future.isSuccess())
-    {
-      onConnectSuccess(future.getChannel());
-    }
-    else if (_connectRetriesLeft > 0)
-    {
-      -- _connectRetriesLeft;
-      LOG.warn("connect failed: retries left " + _connectRetriesLeft + ": " + _server.toString(),
-               future.getCause());
-      connectRetry();
-    }
-    else
-    {
-      LOG.error("connect failed; giving up: " + _server.toString() , future.getCause());
-      onRequestFailure();
-    }
-  }
-
-  private void onConnectSuccess(Channel channel) throws Exception
-  {
-    LOG.info("connected: " + _server.toString());
-    _channel = channel;
     switch (_curState)
     {
       case START_SCN_REQUEST_CONNECT: onStartScnConnectSuccess(); break;
@@ -448,22 +316,30 @@ public class NettyHttpDatabusBootstrapConnection
     }
   }
 
-  private void onWriteComplete(ChannelFuture future) throws Exception
+  /**
+   * TODO : This method is overridden to get the _handler local to this class and not the
+   * parent class. Once cleanup is performed to use _handler from parent class, this method
+   * must be removed
+   */
+  @Override
+  protected GenericHttpResponseHandler getHandler()
   {
-    if (future.isCancelled())
-    {
-      LOG.error("Write cancelled");
-      onRequestFailure();
-    }
-    else if (! future.isSuccess())
-    {  
-      LOG.error("write failed", future.getCause());  
-      onRequestFailure();
-    }
+    return _handler;
   }
 
-  private void onRequestFailure()
+  private void onRequestFailure(HttpRequest req, Throwable cause)
   {
+    onRequestFailure(null == req ? (String)null : req.getUri(), cause);
+  }
+
+  private void onRequestFailure(String req, Throwable cause)
+  {
+    LOG.info("request failure: req=" + req + " cause=" + cause);
+
+    if(shouldIgnoreWriteTimeoutException(cause)) {
+      LOG.error("got RequestFailure because of WriteTimeoutException");
+      return;
+    }
     switch (_curState)
     {
       case START_SCN_REQUEST_CONNECT:
@@ -481,28 +357,98 @@ public class NettyHttpDatabusBootstrapConnection
     _callback.enqueueMessage(_callbackStateReuse);
   }
 
-  private void onResponseFailure(Throwable cause)
+  private class MyConnectListener implements ConnectResultListener
   {
-    switch (_curState)
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ConnectResultListener#onConnectSuccess(org.jboss.netty.channel.Channel)
+     */
+    @Override
+    public void onConnectSuccess(Channel channel)
     {
-      case START_SCN_REQUEST_WRITE: _callbackStateReuse.switchToStartScnResponseError(); break;
-      case TARGET_SCN_REQUEST_WRITE: _callbackStateReuse.switchToTargetScnResponseError(); break;
-      case STREAM_REQUEST_WRITE: _callbackStateReuse.switchToStreamResponseError(); break;
-      default: throw new RuntimeException("don't know what to do in state:" + _curState);
+      NettyHttpDatabusBootstrapConnection.this.onConnectSuccess(channel);
     }
 
-    _callback.enqueueMessage(_callbackStateReuse);
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ConnectResultListener#onConnectFailure(java.lang.Throwable)
+     */
+    @Override
+    public void onConnectFailure(Throwable cause)
+    {
+      NettyHttpDatabusBootstrapConnection.this.onRequestFailure((String)null, cause);
+    }
   }
 
-  @Override
-  public int getVersion() {
-	return _version;
+  /** Callback for /startSCN request result */
+  private class StartScnRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      //Do nothing
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
   }
 
+  /** Callback for /targetSCN request result */
+  private class TargetScnRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      //Do nothing
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
+  }
+
+  /** Callback for /bootstrap request result */
+  private class BootstrapRequestResultListener implements SendRequestResultListener
+  {
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestSuccess(org.jboss.netty.handler.codec.http.HttpRequest)
+     */
+    @Override
+    public void onSendRequestSuccess(HttpRequest req)
+    {
+      //Do nothing
+    }
+
+    /**
+     * @see com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener#onSendRequestFailure(org.jboss.netty.handler.codec.http.HttpRequest, java.lang.Throwable)
+     */
+    @Override
+    public void onSendRequestFailure(HttpRequest req, Throwable cause)
+    {
+      //TODO eventually the onRequestFailure can be expanded here
+      onRequestFailure(req, cause);
+    }
+  }
 }
 
-class BootstrapTargetScnHttpResponseProcessor
-extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
+class BootstrapTargetScnHttpResponseProcessor extends BaseHttpResponseProcessor
 {
   public static final String MODULE = BootstrapTargetScnHttpResponseProcessor.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
@@ -511,20 +457,29 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
   private final DatabusBootstrapConnectionStateMessage _stateReuse;
   private final Checkpoint _checkpoint;
   private final RemoteExceptionHandler _remoteExceptionHandler;
-  private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-  public BootstrapTargetScnHttpResponseProcessor(ActorMessageQueue bootstrapPullThread,
+  /**
+   * Constructor
+   * @param parent                the AbstractNettyHttpConnection object that instantiated this
+   *                              response processor
+   * @param bootstrapPullThread   callback to send the processed response or errors to
+   * @param readStartScnState     a message object to reuse for the callback
+   *                              (TODO remove that: premature GC optimization)
+   * @param readTimeOutHandler    the ReadTimeoutHandler for the connection handled by this
+   *                              response handler.
+   */
+  public BootstrapTargetScnHttpResponseProcessor(AbstractNettyHttpConnection parent,
+                                                 ActorMessageQueue bootstrapPullThread,
                                                  DatabusBootstrapConnectionStateMessage readStartScnState,
                                                  Checkpoint checkpoint,
                                                  RemoteExceptionHandler remoteExceptionHandler,
                                                  ExtendedReadTimeoutHandler readTimeoutHandler)
   {
-    super(null);
+    super(parent, readTimeoutHandler);
     _callback = bootstrapPullThread;
     _stateReuse = readStartScnState;
     _checkpoint = checkpoint;
     _remoteExceptionHandler = remoteExceptionHandler;
-    _readTimeOutHandler = readTimeoutHandler;
   }
 
   @Override
@@ -534,7 +489,6 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
 
 	if (_errorHandled)
 	{
-	    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
 		return;
 	}
 
@@ -563,13 +517,18 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
 
         _stateReuse.switchToTargetScnSuccess();
 
-        // make sure we are in the expected mode
+        // make sure we are in the expected mode -- sanity checks
         Checkpoint ckpt = _checkpoint;
-        if (ckpt.getConsumptionMode() != DbusClientMode.BOOTSTRAP_CATCHUP)
+        if (ckpt.getConsumptionMode() != DbusClientMode.BOOTSTRAP_SNAPSHOT)
         {
-          throw new RuntimeException("TargetScnResponseProcessor:"
-                                     + " expecting in client mode: " + DbusClientMode.BOOTSTRAP_CATCHUP
-                                     + " while in the incorrect mode: " + ckpt.getConsumptionMode());
+          throw new InvalidCheckpointException("TargetScnResponseProcessor:"
+                                     + " expecting in client mode: " + DbusClientMode.BOOTSTRAP_SNAPSHOT,
+                                     ckpt);
+        }
+        else if (! ckpt.isSnapShotSourceCompleted())
+        {
+          throw new InvalidCheckpointException("TargetScnResponseProcessor: current snapshot source not completed",
+                                               ckpt);
         }
 
         LOG.info("Target SCN "
@@ -586,10 +545,6 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
       LOG.error("/targetScn response error:" + ex.getMessage(), ex);
       _stateReuse.switchToTargetScnResponseError();
     }
-    finally
-    {
-      if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
-    }
 
     _callback.enqueueMessage(_stateReuse);
   }
@@ -604,7 +559,7 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("channel exception: " + cause.getMessage(), cause);
+    LOG.error("exception during /targetSCN response: " + cause, cause);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
     	LOG.info("Enqueueing TargetSCN Response Error State to Puller Queue");
@@ -618,8 +573,7 @@ extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
   }
 }
 
-class BootstrapStartScnHttpResponseProcessor
-      extends HttpResponseProcessorDecorator <ChunkedBodyReadableByteChannel>
+class BootstrapStartScnHttpResponseProcessor extends BaseHttpResponseProcessor
 {
   public static final String MODULE = BootstrapStartScnHttpResponseProcessor.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
@@ -628,20 +582,29 @@ class BootstrapStartScnHttpResponseProcessor
   private final DatabusBootstrapConnectionStateMessage _stateReuse;
   private final Checkpoint _checkpoint;
   private final RemoteExceptionHandler _remoteExceptionHandler;
-  private final ExtendedReadTimeoutHandler _readTimeOutHandler;
 
-  public BootstrapStartScnHttpResponseProcessor(ActorMessageQueue bootstrapPullThread,
+  /**
+   * Constructor
+   * @param parent                the AbstractNettyHttpConnection object that instantiated this
+   *                              response processor
+   * @param bootstrapPullThread   callback to send the processed response or errors to
+   * @param readStartScnState     a message object to reuse for the callback
+   *                              (TODO remove that: premature GC optimization)
+   * @param readTimeOutHandler    the ReadTimeoutHandler for the connection handled by this
+   *                              response handler.
+   */
+  public BootstrapStartScnHttpResponseProcessor(AbstractNettyHttpConnection parent,
+                                                ActorMessageQueue bootstrapPullThread,
                                                 DatabusBootstrapConnectionStateMessage readStartScnState,
                                                 Checkpoint checkpoint,
                                                 RemoteExceptionHandler remoteExceptionHandler,
                                                 ExtendedReadTimeoutHandler readTimeOutHandler)
   {
-    super(null);
+    super(parent, readTimeOutHandler);
     _callback = bootstrapPullThread;
     _stateReuse = readStartScnState;
     _checkpoint = checkpoint;
     _remoteExceptionHandler = remoteExceptionHandler;
-    _readTimeOutHandler = readTimeOutHandler;
   }
 
   @Override
@@ -651,7 +614,6 @@ class BootstrapStartScnHttpResponseProcessor
 
 	if (_errorHandled)
 	{
-	    if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
 		return;
 	}
 
@@ -671,6 +633,16 @@ class BootstrapStartScnHttpResponseProcessor
       }
       else
       {
+        String hostHdr = DbusConstants.UNKNOWN_HOST;
+        String svcHdr = DbusConstants.UNKNOWN_SERVICE_ID;
+
+        if (null != getParent())
+        {
+          hostHdr = getParent().getRemoteHost();
+          svcHdr = getParent().getRemoteService();
+          LOG.info("initiated bootstrap sesssion to host " + hostHdr + " service " + svcHdr);
+        }
+
         InputStream bodyStream = Channels.newInputStream(_decorated);
 
         ObjectMapper mapper = new ObjectMapper();
@@ -687,49 +659,48 @@ class BootstrapStartScnHttpResponseProcessor
 
         LOG.info("Response startScn:" + scnString + ", from bootstrap Server :" + serverHostPort);
         long startScn = Long.parseLong(scnString);
-
-        /*
-         * No need to create a seperate BootstrapConnection as we are guaranteed to have a bootstrap Connection
-         * at this point.
-         */
-        _stateReuse.switchToStartScnSuccess(_checkpoint, null, serverInfo);
-
-        //Checkpoint ckpt = new Checkpoint();
-        //ckpt.setInit(true);
-        // TODO: add the following when the method is added in checkpoint (DDSDBUS-94)
-        // ckpt.setAllBootstrapSources(_readStartScnState.getSourcesNames());
-        //ckpt.setBootstrapStartScn(startScn);
-        //ckpt.setBootstrapPhase(BootstrapPhase.BOOTSTRAP_PHASE_SNAPSHOT);
-        //ckpt.setSnapshotSource(_readStartScnState.getSourcesNames().get(0));
-        //ckpt.startSnapShotSource();
-
-        // make sure we are in the expected mode
         Checkpoint ckpt = _checkpoint;
-        if (ckpt.getConsumptionMode() != DbusClientMode.BOOTSTRAP_SNAPSHOT)
-        {
-          throw new RuntimeException("StartScnResponseProcessor:"
-                                     + " expecting in client mode: "
-                                     + DbusClientMode.BOOTSTRAP_SNAPSHOT
-                                     + " while in the incorrect mode: "
-                                     + ckpt.getConsumptionMode());
-        }
 
-        LOG.info("Start SCN "
-                  + startScn
-                  + " received for bootstrap snapshot source "
-                  + ckpt.getSnapshotSource());
-        ckpt.setBootstrapStartScn(startScn);
-        ckpt.setBootstrapServerInfo(serverHostPort);
+        if (startScn < 0)
+        {
+          LOG.error("unexpected value for startSCN: " + startScn);
+          _stateReuse.switchToStartScnResponseError();
+        }
+        else if (ckpt.getConsumptionMode() != DbusClientMode.BOOTSTRAP_SNAPSHOT)
+        {
+          LOG.error("StartScnResponseProcessor:" + " expecting in client mode: " + DbusClientMode.BOOTSTRAP_SNAPSHOT
+                    + " while in the incorrect mode: " + ckpt.getConsumptionMode());
+        }
+        else
+        {
+          /*
+           * No need to create a seperate BootstrapConnection as we are guaranteed to have a bootstrap Connection
+           * at this point.
+           */
+          _stateReuse.switchToStartScnSuccess(_checkpoint, null, serverInfo);
+
+          //Checkpoint ckpt = new Checkpoint();
+          //ckpt.setInit(true);
+          // TODO: add the following when the method is added in checkpoint (DDSDBUS-94)
+          // ckpt.setAllBootstrapSources(_readStartScnState.getSourcesNames());
+          //ckpt.setBootstrapStartScn(startScn);
+          //ckpt.setBootstrapPhase(BootstrapPhase.BOOTSTRAP_PHASE_SNAPSHOT);
+          //ckpt.setSnapshotSource(_readStartScnState.getSourcesNames().get(0));
+          //ckpt.startSnapShotSource();
+
+          LOG.info("Start SCN "
+                    + startScn
+                    + " received for bootstrap snapshot source "
+                    + ckpt.getSnapshotSource());
+          ckpt.setBootstrapStartScn(startScn);
+          ckpt.setBootstrapServerInfo(serverHostPort);
+        }
       }
     }
     catch (Exception ex)
     {
       LOG.error("Failed to process /startscn response", ex);
       _stateReuse.switchToStartScnResponseError();
-    }
-    finally
-    {
-      if (null != _readTimeOutHandler) _readTimeOutHandler.stop();
     }
 
     _callback.enqueueMessage(_stateReuse);
@@ -745,7 +716,7 @@ class BootstrapStartScnHttpResponseProcessor
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("channel exception: " + cause.getMessage(), cause);
+    LOG.error("exception during /startSCN response: " + cause, cause);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
     	LOG.info("Enqueueing StartSCN Response Error State to Puller Queue");

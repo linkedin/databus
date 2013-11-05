@@ -32,7 +32,10 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableSet;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import org.apache.log4j.Logger;
 
@@ -66,8 +69,8 @@ public class DbusEventBufferMult
   final private Set<DbusEventBuffer> _uniqBufs = new HashSet<DbusEventBuffer>();
 
   // physical key to a buffer mapping
-  final private Map<PhysicalPartitionKey, DbusEventBuffer> _bufsMap =
-    new HashMap<PhysicalPartitionKey, DbusEventBuffer>();
+  final private TreeMap<PhysicalPartitionKey, DbusEventBuffer> _bufsMap =
+    new TreeMap<PhysicalPartitionKey, DbusEventBuffer>();
 
   // partition to physical sources mapping
   final private Map<PhysicalPartitionKey, Set<PhysicalSource>> _partKey2PhysiscalSources =
@@ -82,6 +85,7 @@ public class DbusEventBufferMult
     new HashMap<Integer, LogicalSource>();
 
   private File _mmapDirectory = null;
+  private DbusEventFactory _eventFactory;
 
 
   // specify if we want to drop SCN less then current when adding new events to this buffers
@@ -90,17 +94,24 @@ public class DbusEventBufferMult
   private final double _nanoSecsInMSec = 1000000.0;
   public static final String BAK_DIRNAME_SUFFIX = ".BAK";
 
-  // construction
-  public DbusEventBufferMult() {
+  // (almost) empty constructor:  used only by tests
+  public DbusEventBufferMult()
+  {
     // creates empty mult buffer, new buffers can be added later
+    _eventFactory = new DbusEventV2Factory();  // this is required in order to add buffers, though
   }
 
   // we should keep a set of all the buffers
   // we should build mapping based on unique physical source ids
-  public DbusEventBufferMult(PhysicalSourceStaticConfig [] pConfigs, DbusEventBuffer.StaticConfig config) throws InvalidConfigException {
+  public DbusEventBufferMult(PhysicalSourceStaticConfig [] pConfigs,
+                             DbusEventBuffer.StaticConfig config,
+                             DbusEventFactory eventFactory)
+  throws InvalidConfigException
+  {
+    _eventFactory = eventFactory;
 
     if(pConfigs == null) {
-      // if we expect to get partitions configs from relay - we can create and EMPTY relay
+      // if we expect to get partitions configs from relay - we can create an EMPTY relay
       LOG.warn("Creating empty MULT buffer. No pConfigs passed");
       return;
     }
@@ -127,6 +138,9 @@ public class DbusEventBufferMult
     LogicalPartitionKey lKey = new LogicalPartitionKey(lSource, lPartition);
 
     PhysicalPartitionKey pKey = _logicalPKey2PhysicalPKey.get(lKey);
+    if (pKey == null) {
+      return null;
+    }
     return _bufsMap.get(pKey);
   }
 
@@ -239,9 +253,10 @@ public class DbusEventBufferMult
    * also checks if any buffers should be removed
    * @throws InvalidConfigException */
   public synchronized DbusEventBuffer addNewBuffer(PhysicalSourceStaticConfig pConfig,
-                                                   DbusEventBuffer.StaticConfig config) throws InvalidConfigException {
-
-	long startTimeTs = System.nanoTime();
+                                                   DbusEventBuffer.StaticConfig config)
+  throws InvalidConfigException
+  {
+    long startTimeTs = System.nanoTime();
 
     if(config == null)
       throw new InvalidConfigException("config cannot be null for addNewBuffer");
@@ -264,18 +279,16 @@ public class DbusEventBufferMult
     if(buf != null) {
       LOG.info("Adding new buffer. Buffer " + buf.hashCode() + " already exists for: " + pConfig);
     } else {
-
-      if(pConfig.isDbusEventBufferSet())
-    	  {
-    	  	buf = new DbusEventBuffer(pConfig.getDbusEventBuffer(), pPartition);
-    	  	LOG.info("Using- source specific event buffer config, the event buffer size allocated is: " + buf.getAllocatedSize());
-    	  }
+      if (pConfig.isDbusEventBufferSet())
+      {
+        buf = new DbusEventBuffer(pConfig.getDbusEventBuffer(), pPartition, _eventFactory);
+        LOG.info("Using- source specific event buffer config, the event buffer size allocated is: " + buf.getAllocatedSize());
+      }
       else
-    	  {
-    	  	buf = new DbusEventBuffer(config, pPartition);
-    	  	LOG.info("Using- global event buffer config, the buffer size allocated is: " + buf.getAllocatedSize());
-    	  }
-
+      {
+        buf = new DbusEventBuffer(config, pPartition, _eventFactory);
+        LOG.info("Using- global event buffer config, the buffer size allocated is: " + buf.getAllocatedSize());
+      }
       addBuffer(pConfig, buf);
     }
 
@@ -286,7 +299,7 @@ public class DbusEventBufferMult
     long endTimeTs = System.nanoTime();
     if (PERF_LOG.isDebugEnabled())
     {
-    	PERF_LOG.debug("addNewBuffer took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec + "ms");
+      PERF_LOG.debug("addNewBuffer took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec + "ms");
     }
     return buf;
   }
@@ -352,7 +365,7 @@ public class DbusEventBufferMult
 
     // now remove the buffers from the list of uniq buffers
     for(DbusEventBuffer b : set) {
-      b.closeBuffer();
+      b.closeBuffer(false); // do not persist buffer's mmap info
       _uniqBufs.remove(b);
     }
   }
@@ -378,7 +391,7 @@ public class DbusEventBufferMult
     {
       try
       {
-        entry.getValue().closeBuffer();
+        entry.getValue().closeBuffer(true);
       }
       catch (RuntimeException e)
       {
@@ -521,7 +534,7 @@ public class DbusEventBufferMult
 
   /** add another buffer with the mappings */
   public synchronized void addBuffer(PhysicalSourceStaticConfig pConfig, DbusEventBuffer buf) {
-    LOG.info("addBuffer for phSrc=" + pConfig.getId() + "; buf=" + buf.hashCode());
+    LOG.info("addBuffer for phSrc=" + pConfig + "; buf=" + buf.hashCode());
 
     PhysicalPartition pPartition = pConfig.getPhysicalPartition();
     PhysicalPartitionKey pKey = new PhysicalPartitionKey(pPartition);
@@ -600,9 +613,9 @@ public class DbusEventBufferMult
     }
   }
 
-  public Set<PhysicalPartitionKey> getAllPhysicalPartitionKeys()
+  public NavigableSet<PhysicalPartitionKey> getAllPhysicalPartitionKeys()
   {
-    return _bufsMap.keySet();
+    return _bufsMap.navigableKeySet();
   }
 
   private void  updateLogicalSourceMapping(PhysicalPartitionKey pKey,
@@ -655,9 +668,10 @@ public class DbusEventBufferMult
    * allows to read from different buffers (mapped by the sources) one window at a time
    */
   public class DbusEventBufferBatchReader implements DbusEventBufferBatchReadable {
-    private final HashSet<PhysicalPartitionKey> _pKeys;
+    private final NavigableSet<PhysicalPartitionKey> _pKeys;
     CheckpointMult _checkPoints;
-	private final StatsCollectors<DbusEventsStatisticsCollector> _statsCollectors;
+    int _clientEventVersion = 0;
+	  private final StatsCollectors<DbusEventsStatisticsCollector> _statsCollectors;
 
     public DbusEventBufferBatchReader(CheckpointMult cpMult,
                                       Collection<PhysicalPartitionKey> physicalPartitions,
@@ -666,10 +680,12 @@ public class DbusEventBufferMult
       _statsCollectors = statsCollectors;
       _checkPoints = cpMult;
 
-      _pKeys = (null != physicalPartitions) ? new HashSet<PhysicalPartitionKey>(physicalPartitions)
-                                            : new HashSet<PhysicalPartitionKey>();
+      // physicalPartitions will be null in v2 mode
+      _pKeys = (null != physicalPartitions) ? new TreeSet<PhysicalPartitionKey>(physicalPartitions)
+                                            : new TreeSet<PhysicalPartitionKey>();
     }
 
+    // V2 mode
     public DbusEventBufferBatchReader(Collection<Integer> ids,
                                       CheckpointMult cpMult,
                                       StatsCollectors<DbusEventsStatisticsCollector> statsCollectors) throws IOException
@@ -723,16 +739,15 @@ public class DbusEventBufferMult
       }
     }
 
-
-
 	@Override
-    public int streamEvents(boolean streamFromLatestScn,
-                            int batchFetchSize,
-                            WritableByteChannel writeChannel, Encoding encoding,
-                            DbusFilter filter)
+    public StreamEventsResult streamEvents(boolean streamFromLatestScn,
+                                           int batchFetchSize,
+                                           WritableByteChannel writeChannel,
+                                           Encoding encoding,
+                                           DbusFilter filter)
     throws ScnNotFoundException, BufferNotFoundException, OffsetNotFoundException
     {
-	  long startTimeTs = System.nanoTime();
+	    long startTimeTs = System.nanoTime();
 
       int numEventsStreamed = 0;
       int batchFetchSoFar = 0;
@@ -741,13 +756,62 @@ public class DbusEventBufferMult
       // control how much is written thru this channel
       SizeControlledWritableByteChannel ch = new SizeControlledWritableByteChannel(writeChannel);
 
-      boolean somethingStreamed = true;
       boolean debugEnabled = LOG.isDebugEnabled();
-      while (somethingStreamed && batchFetchSoFar < batchFetchSize) {
-        somethingStreamed = false; // if nothing gets streamed for a full circle we need to stop
+
+      // If there is a partition that had a partial window sent, then we need to start from that
+      // partition (and the offset within that checkpoint).
+      // If there was no partial window sourced and a cursor was set, then the cursor was the partition
+      // from which we last streamed data. We start streaming from the partition *after* the cursor,
+      // unless the cursor itself is not there any more (in which case, we stream from first partition).
+      NavigableSet<PhysicalPartitionKey> workingSet = _pKeys;
+      PhysicalPartition partialWindowPartition = _checkPoints.getPartialWindowPartition();
+      if (partialWindowPartition != null) {
+        // Ignore cursorPartition, and construct a working set that includes the partialWindowPartition.
+        workingSet = _pKeys.tailSet(new PhysicalPartitionKey(partialWindowPartition), true);
+        if (workingSet.size() == 0) {
+          // Apparently we sourced an incomplete window from a partition that has since moved away?
+          // Throw an exception
+          throw new OffsetNotFoundException("Partial window offset not found" + partialWindowPartition);
+        }
+      } else {
+        // We sent a complete window last time (or, this is the first time we are sending something)
+        // If cursor partition exists, and we can find it in our pKeys, we have a working set starting
+        // from the partition greater than cursor. Otherwise, we go with the entire key set.
+        workingSet = _pKeys;
+        PhysicalPartition cursorPartition = _checkPoints.getCursorPartition();
+        if (cursorPartition != null) {
+          PhysicalPartitionKey ppKey = new PhysicalPartitionKey(cursorPartition);
+          workingSet = _pKeys.tailSet(ppKey, false);
+          if (workingSet.isEmpty() || !_pKeys.contains(ppKey)) {
+            workingSet = _pKeys;
+          }
+        }
+      }
+
+      // Initialize a datastructure, that contains the list of all physical partitions for which we invoked
+      // streamEvents with streamFromLatest==true.
+      // Details described in DDSDBUS-2461, DDSDBUS-2341 and rb 178201
+      Set<PhysicalPartitionKey> streamFromLatestState = new HashSet<PhysicalPartitionKey>();
+
+      // Send events from each partition in the working set, iterating through them in an ascending
+      // order. Stop sending when we have overflowed the buffer, or there is nothing more to send in
+      // any of the buffers.
+      // Note that in the first iteration of the outer loop, it may be that we have not scanned all
+      // partitions (because our working set was smaller). In that case, even if nothing was streamed,
+      // we want to continue through (at least) one more iteration, scanning all partitions.
+      // Keep track of  partitions that are not able to send data because the event would not fit
+      // into the buffer offered by the client. If we are returning from this method without sending a
+      // single event *and* we had events in some of the partitions that would not fit in the client's
+      // buffer, then send back the size of the smallest of such events to the client. It could well be
+      // that the client can make progress in other partitions, but one partition could be blocked forever
+      // because of this event if the client was offering its full buffer size.
+      int minPendingEventSize = 0;
+      boolean done = false;
+      while (!done) {
+        boolean somethingStreamed = false;
 
         // go over relevant buffers
-        for(PhysicalPartitionKey pKey : _pKeys) {
+        for(PhysicalPartitionKey pKey : workingSet) {
           DbusEventBuffer buf = _bufsMap.get(pKey);
           if (null == buf)
           {
@@ -756,17 +820,15 @@ public class DbusEventBufferMult
         	  LOG.error(errMsg);
         	  throw new BufferNotFoundException(errMsg);
           }
-          Checkpoint cp=null;
           PhysicalPartition pPartition = pKey.getPhysicalPartition();
           DbusEventsStatisticsCollector statsCollector = _statsCollectors == null ? null : _statsCollectors.getStatsCollector(pPartition.toSimpleString());
 
-          if(_checkPoints != null) {
-            cp = _checkPoints.getCheckpoint(pKey.getPhysicalPartition());// get the corresponding checkpoint
-            if(debugEnabled)
-              LOG.debug("get Checkpoint by pPartitio" + pPartition + ";cp=" + cp);
-          }
+          Checkpoint cp=null;
+          cp = _checkPoints.getCheckpoint(pKey.getPhysicalPartition());// get the corresponding checkpoint
+          if(debugEnabled)
+            LOG.debug("get Checkpoint by pPartition" + pPartition + ";cp=" + cp);
           if(cp == null) {
-            cp = new Checkpoint(); // create a checkpoint, NOTE: these values won't get back to caller
+            cp = new Checkpoint(); // create a checkpoint, NOTE: these values won't get back to V2 callers
             cp.setFlexible();
             _checkPoints.addCheckpoint(pPartition, cp);
           }
@@ -775,20 +837,49 @@ public class DbusEventBufferMult
           if(_pKeys.size() == 1) // for single buffer just read as much as you can
             mode = DbusEventBuffer.StreamingMode.CONTINUOUS;
 
-          int numEvents =  buf.streamEvents(cp, streamFromLatestScn, batchFetchSize - batchFetchSoFar,
-                                            ch, encoding, filter, mode, statsCollector);
+          StreamEventsArgs args = new StreamEventsArgs(batchFetchSize - batchFetchSoFar);
+          boolean streamFromLatestScnForPartition = computeStreamFromLatestScnForPartition(pKey, streamFromLatestState, streamFromLatestScn);
+          args.setEncoding(encoding).setStreamFromLatestScn(streamFromLatestScnForPartition);
+          args.setSMode(mode).setFilter(filter).setStatsCollector(statsCollector).setMaxClientEventVersion(_clientEventVersion);
+          StreamEventsResult result =  buf.streamEvents(cp, ch, args);
+          int numEvents = result.getNumEventsStreamed();
+          if (numEvents == 0 && result.getSizeOfPendingEvent() > 0)
+          {
+            // There was an event in the DbusEventBuffer that could not fit into the client's buffer.
+            if (minPendingEventSize == 0)
+            {
+              minPendingEventSize = result.getSizeOfPendingEvent();
+            }
+            else if (result.getSizeOfPendingEvent() < minPendingEventSize)
+            {
+              minPendingEventSize = result.getSizeOfPendingEvent();
+            }
+          }
 
-          if(numEvents>0)
+          if(numEvents>0) {
             somethingStreamed = true;
+          }
           numEventsStreamed += numEvents;
           batchFetchSoFar = ch.writtenSoFar();
           if(debugEnabled)
             LOG.debug("one iteration:  read " + numEvents + " from buf " + buf.hashCode() +
                       "; read so far "  + batchFetchSoFar + "(out of " + batchFetchSize + ")");
 
-          if(batchFetchSoFar >=  batchFetchSize)
+          _checkPoints.addCheckpoint(pPartition, cp);
+          if (cp.getWindowOffset() < 0) {
+            _checkPoints.setCursorPartition(pPartition);
+          }
+          if(batchFetchSoFar >=  batchFetchSize) {
             break;
+          }
         }
+        if (batchFetchSoFar >= batchFetchSize) {
+          done = true;
+        } else if (!somethingStreamed && (workingSet.size() == _pKeys.size())) {
+          done = true;
+        }
+        // Start again with all keys.
+        workingSet = _pKeys;
       }
 
       long endTimeTs = System.nanoTime();
@@ -797,7 +888,52 @@ public class DbusEventBufferMult
       	PERF_LOG.debug("streamEvents took: " + (endTimeTs - startTimeTs) / _nanoSecsInMSec + "ms");
       }
 
-      return numEventsStreamed;
+      return new StreamEventsResult(numEventsStreamed,
+                                    minPendingEventSize > 0 ? minPendingEventSize : 0);
+    }
+
+    @Override
+    public CheckpointMult getCheckpointMult()
+    {
+      return _checkPoints;
+    }
+
+    @Override
+    public void setClientMaxEventVersion(int version)
+    {
+      _clientEventVersion = version;
+    }
+
+    /**
+     * A helper method to deal with enableStreamFromLatestScn logic between DbusEventBufferMult and DbusEventBuffer
+     * If streamFromLatest==true, invoke streamEvents call on DbusEventBuffer exactly once with streamFromLatest==true.
+     * Else if streamFromLatest==false, invoke streamEvents with streamFromLatest==false everytime.
+     * Because of the information lost about the checkpoint, the same last event is repeatedly streamed until the buffer
+     * fills up. The stop-gap solution to fix the issue is to send a subsequent call with streamFromLatest==false, and hence
+     * have the incoming checkpoint respected
+     *
+     * @pKey The partition key that we currently want to stream from
+     * @ppList The list of partition keys, which have already been invoked streamEvents with streamFromLatest==true. This is
+     *         assumed to be an allocated HashSet
+     * @streamFromLatestScn The boolean variable that is input into {@link DbusEventBufferMult##streamEvents}
+     */
+    protected boolean computeStreamFromLatestScnForPartition(
+        PhysicalPartitionKey pKey, Set<PhysicalPartitionKey> ppList, boolean streamFromLatestScn)
+    {
+      if (! streamFromLatestScn)
+      {
+        // If streamFromLatestScn is false, always return false
+        return false;
+      }
+      if ( pKey == null || ppList.contains(pKey) )
+      {
+        return false;
+      }
+      if (!ppList.contains(pKey))
+      {
+        ppList.add(pKey);
+      }
+      return true;
     }
   }
 
@@ -929,7 +1065,7 @@ public class DbusEventBufferMult
     }
   }
   //////////////////////////////////
-  public static class PhysicalPartitionKey {
+  public static class PhysicalPartitionKey implements Comparable {
     @Override
     public int hashCode()
     {
@@ -984,6 +1120,15 @@ public class DbusEventBufferMult
     @Override
     public String toString() {
       return toJsonString();
+    }
+
+    @Override
+    public int compareTo(Object other) {
+      if (!(other instanceof PhysicalPartitionKey)) {
+        throw new ClassCastException("PhysicalPartitionKey class expected instead of " + other.getClass().getSimpleName());
+      }
+      PhysicalPartition op = ((PhysicalPartitionKey)other).getPhysicalPartition();
+      return _pPartition.compareTo(op);
     }
   }
 }

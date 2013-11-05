@@ -19,16 +19,8 @@ package com.linkedin.databus.core;
 */
 
 
+import static org.testng.AssertJUnit.assertTrue;
 
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
-import com.linkedin.databus.core.DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException;
-import com.linkedin.databus.core.util.DbusEventGenerator;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.core.AssertLevel;
-import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
-import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -40,6 +32,7 @@ import java.nio.channels.WritableByteChannel;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Vector;
+
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.ConsoleAppender;
@@ -52,6 +45,15 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.DbusEventBuffer.DbusEventIterator;
+import com.linkedin.databus.core.DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException;
+import com.linkedin.databus.core.test.DbusEventCorrupter;
+import com.linkedin.databus.core.test.DbusEventGenerator;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.core.AssertLevel;
+import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
+import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
 
 
 public class TestDbusEventBufferPersistence
@@ -83,7 +85,7 @@ public class TestDbusEventBufferPersistence
     config.setMaxSize(maxEventBufferSize);
     config.setMaxIndividualBufferSize(maxIndividualBufferSize);
     config.setScnIndexSize(maxIndexSize);
-    config.setReadBufferSize(maxReadBufferSize);
+    config.setAverageEventSize(maxReadBufferSize);
     config.setAllocationPolicy(allocationPolicy.name());
     config.setRestoreMMappedBuffers(restoreMMappedBuffers);
     config.setMmapDirectory(mmapDirectory);
@@ -328,6 +330,50 @@ public class TestDbusEventBufferPersistence
   }
 
   @Test
+  public void testMetaFileCleanup() throws InvalidConfigException, IOException {
+    testMetaFileCleanup(true); //do not remove sessionid and meta file
+    testMetaFileCleanup(false);
+  }
+
+  public void testMetaFileCleanup(boolean persistBuffer) throws InvalidConfigException, IOException {
+    int maxEventBufferSize = 1144;
+    int maxIndividualBufferSize = 500;
+
+    DbusEventBuffer dbusBuf = new DbusEventBuffer(getConfig(maxEventBufferSize,maxIndividualBufferSize,
+                                            100,500,AllocationPolicy.MMAPPED_MEMORY, _mmapDirStr, true));
+
+    File metaFile = new File(_mmapDir, dbusBuf.metaFileName());
+    // after buffer is created - meta file should be removed
+    Assert.assertFalse(metaFile.exists());
+    dbusBuf.saveBufferMetaInfo(false);
+    // new file should be created
+    Assert.assertTrue(metaFile.exists());
+    DbusEventBufferMetaInfo mi = new DbusEventBufferMetaInfo(metaFile);
+    mi.loadMetaInfo();
+    Assert.assertTrue(mi.isValid());
+
+    dbusBuf.closeBuffer(persistBuffer); // this should close buffer and removed the files
+    File sessionDir = new File(metaFile.getParent(), mi.getSessionId());
+
+    if(persistBuffer) { // dir  and meta data should be still around
+      Assert.assertTrue(sessionDir.exists() && sessionDir.isDirectory(), "mmap session dir still exists");
+
+
+      // now let's touch one of the mmap files
+      File writeBufferFile = new File(sessionDir, "writeBuffer_0");
+      Assert.assertTrue(writeBufferFile.exists() && writeBufferFile.isFile(), "writeBufferFile still exist");
+
+      mi = new DbusEventBufferMetaInfo(metaFile);
+      mi.loadMetaInfo();
+      Assert.assertTrue(mi.isValid(), "MetaInfo file is valid");
+    } else {
+      // dir and meta files both should be gone
+      Assert.assertFalse(sessionDir.exists(), "mmap session dir doesn't exist");
+      Assert.assertFalse(metaFile.exists(), "meta file session dir doesn't exist");
+    }
+  }
+
+  @Test
   public void testMetaFileTimeStamp() throws InvalidConfigException, IOException {
     int maxEventBufferSize = 1144;
     int maxIndividualBufferSize = 500;
@@ -347,13 +393,13 @@ public class TestDbusEventBufferPersistence
 
     // now let's touch one of the mmap files
     File writeBufferFile = new File(new File(metaFile.getParent(), mi.getSessionId()), "writeBuffer_0");
-    long modTime = System.currentTimeMillis()+1000; //presission of the mod time is 1 sec
+    long modTime = System.currentTimeMillis()+1000; //Precision of the mod time is 1 sec
 
     writeBufferFile.setLastModified(modTime);
     LOG.debug("setting mod time for " + writeBufferFile + " to " +  modTime + " now val = " + writeBufferFile.lastModified());
     mi = new DbusEventBufferMetaInfo(metaFile);
     mi.loadMetaInfo();
-    Assert.assertFalse(mi.isValid());
+    Assert.assertTrue(mi.isValid());  //we don't invalidate the meta file based on mod time
   }
 
   @Test
@@ -367,18 +413,18 @@ public class TestDbusEventBufferPersistence
    * @throws InvalidConfigException
    * @throws IOException
    */
-  public void testRestoringBufferWithEvents() throws InvalidConfigException, IOException {
+  public void testRestoringBufferWithEvents() throws InvalidConfigException, IOException
+  {
     int maxEventBufferSize = 1144;
     int maxIndividualBufferSize = 500;
     int numEvents = 10; // must be even
-
-
 
     DbusEventBuffer.StaticConfig conf = getConfig(maxEventBufferSize,maxIndividualBufferSize,
                       100,500,AllocationPolicy.MMAPPED_MEMORY, _mmapDirStr, true);
     DbusEventBuffer dbusBuf = new DbusEventBuffer(conf);
 
     pushEventsToBuffer(dbusBuf, numEvents);
+
     // verify events are in the buffer
     DbusEventIterator it = dbusBuf.acquireIterator("allevents");
     int count=-1; // first event is "prev" event
@@ -418,45 +464,59 @@ public class TestDbusEventBufferPersistence
   }
 
 
-  private void pushEventsToBuffer(DbusEventBuffer dbusBuf, int numEvents) {
+  private void pushEventsToBuffer(DbusEventBuffer dbusBuf, int numEvents)
+  {
     dbusBuf.start(1);
     dbusBuf.startEvents();
     DbusEventGenerator generator = new DbusEventGenerator();
-    Vector<DbusEventInternalWritable> events = new Vector<DbusEventInternalWritable>();
+    Vector<DbusEvent> events = new Vector<DbusEvent>();
 
     generator.generateEvents(numEvents, 1, 100, 10, events);
 
     // set end of windows
-    for (int i=0;i<numEvents-1;i++)
+    for (int i=0; i < numEvents-1; ++i)
     {
       long scn = events.get(i).sequence();
-      i++;
+      ++i;
 
-      DbusEventInternalWritable e = events.get(i);
-      e.setSrcId((short)-2);
-      e.setSequence(scn);
-      e.applyCrc();
-      Assert.assertTrue(e.isValid(true));
-      Assert.assertTrue( EventScanStatus.OK == e.scanEvent(true));
+      DbusEventInternalWritable writableEvent;
+      try
+      {
+        writableEvent = DbusEventCorrupter.makeWritable(events.get(i));
+      }
+      catch (InvalidEventException ie)
+      {
+        LOG.error("Exception trace is " + ie);
+        Assert.fail();
+        return;
+      }
+      writableEvent.setSrcId((short)-2);
+      writableEvent.setSequence(scn);
+      writableEvent.applyCrc();
+      assertTrue("invalid event #" + i, writableEvent.isValid(true));
     }
 
-    //Setup the ReadChannel with 2 events
+    // set up the ReadChannel with 2 events
     ByteArrayOutputStream oStream = new ByteArrayOutputStream();
     WritableByteChannel oChannel = Channels.newChannel(oStream);
-    for ( int i = 0; i < numEvents; i++)
-      events.get(i).writeTo(oChannel,Encoding.BINARY);
+    for (int i = 0; i < numEvents; ++i)
+    {
+      ((DbusEventInternalReadable)events.get(i)).writeTo(oChannel,Encoding.BINARY);
+    }
 
     byte[] writeBytes = oStream.toByteArray();
     ByteArrayInputStream iStream = new ByteArrayInputStream(writeBytes);
     ReadableByteChannel rChannel = Channels.newChannel(iStream);
-    try {
+    try
+    {
       dbusBuf.readEvents(rChannel);
-    } catch (InvalidEventException ie) {
+    }
+    catch (InvalidEventException ie)
+    {
       LOG.error("Exception trace is " + ie);
       Assert.fail();
       return;
     }
-
   }
 
   private void validateFiles(File metaFile, int bufNumbers) throws DbusEventBufferMetaInfoException {
@@ -470,8 +530,6 @@ public class TestDbusEventBufferPersistence
       Assert.assertTrue(new File(dir, "writeBuffer_"+i).exists());
     }
     Assert.assertTrue(new File(dir, "scnIndex").exists());
-    Assert.assertTrue(new File(dir, "readBuffer").exists());
-
   }
 
 
@@ -490,6 +548,6 @@ public class TestDbusEventBufferPersistence
 
     PhysicalSourceStaticConfig[] _physConfigs =  new PhysicalSourceStaticConfig [] {pStatConf1, pStatConf2};
 
-    return new DbusEventBufferMult(_physConfigs, config);
+    return new DbusEventBufferMult(_physConfigs, config, new DbusEventV2Factory());
   }
 }

@@ -20,12 +20,16 @@ package com.linkedin.databus.eventgenerator;
 
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.JsonEncoder;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.HelpFormatter;
@@ -40,6 +44,7 @@ public class DataGenerator {
 
   public final static String MODULE = DataGenerator.class.getName();
   public final static Logger LOG = Logger.getLogger(MODULE);
+  private final static String PRINT_AVRO_JSON_OPTNAME = "printAvroJson";
   Schema schema;
 
   /*
@@ -60,7 +65,7 @@ public class DataGenerator {
   /*
    * Generate random based on the avro schema
    * The schema must be of a record type to work
-   * 
+   *
    * @return returns the randomly generated record
    */
   public GenericRecord generateRandomRecord() throws UnknownTypeException {
@@ -76,7 +81,7 @@ public class DataGenerator {
     {
       SchemaFiller schemaFill = SchemaFiller.createRandomField(field);
       schemaFill.writeToRecord(record);
-    }	
+    }
     return record;
   }
 
@@ -101,13 +106,16 @@ public class DataGenerator {
     opt.addOption("minLongRange", true,    "Start range of long");
     opt.addOption("maxLongRange", true,  "End range of long");
     opt.addOption("maxBytesLength", true,  "Maximum length of the bytes to be generated");
+    opt.addOption(PRINT_AVRO_JSON_OPTNAME, true,  "Replace the default human-readable JSON serialization with" +
+                  " the standard Avro JSON serialization of the record which can be deserialized back to a " +
+                  " record. The result is printed out to a file or to the standard output (-)." );
 
     return opt;
   }
 
   public static void printHelp(Options opts) {
     HelpFormatter formatter = new HelpFormatter();
-    formatter.printHelp("help", opts);
+    formatter.printHelp("Generate a record with random data given an Avro schema", opts);
   }
 
   public static void main(String[] args) throws IOException, UnknownTypeException {
@@ -138,8 +146,33 @@ public class DataGenerator {
     File schemaFile = new File(fileLoc);
     DataGenerator dataGenerator = new DataGenerator(schemaFile);
     GenericRecord record = dataGenerator.generateRandomRecord();
-    DataGenerator.prettyPrint(record);
-    
+    if (cmd.hasOption(PRINT_AVRO_JSON_OPTNAME))
+    {
+      String outname = cmd.getOptionValue(PRINT_AVRO_JSON_OPTNAME);
+      OutputStream outs = System.out;
+      if (!outname.equals("-")) 
+      {
+        outs = new FileOutputStream(outname);
+      }
+      printAvroJson(record, outs);
+      if (!outname.equals("-"))
+      {
+        outs.close();
+      }
+    }
+    else
+    {
+      DataGenerator.prettyPrint(record);
+    }
+
+  }
+
+  private static void printAvroJson(GenericRecord record, OutputStream outs) throws IOException
+  {
+    JsonEncoder jsonEnc = new JsonEncoder(record.getSchema(), outs);
+    GenericDatumWriter<GenericRecord> datumWriter = new GenericDatumWriter<GenericRecord>(record.getSchema());
+    datumWriter.write(record, jsonEnc);
+    jsonEnc.flush();
   }
 
   // TODO add thread based generator here

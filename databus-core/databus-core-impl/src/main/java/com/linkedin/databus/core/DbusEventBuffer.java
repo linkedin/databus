@@ -18,12 +18,13 @@ package com.linkedin.databus.core;
  *
 */
 
-
 import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -48,11 +49,12 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.apache.commons.io.FileUtils;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonParseException;
 
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
+import com.linkedin.databus.core.DbusEventInternalReadable.EventScanStatus;
 import com.linkedin.databus.core.RelayEventTraceOption.RelayEventTraceOptionBuilder;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
@@ -64,9 +66,9 @@ import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus.core.util.Range;
 import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus.core.util.RangeBasedReaderWriterLock.LockToken;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.AssertLevel;
 import com.linkedin.databus2.core.DatabusException;
-import com.linkedin.databus2.core.filter.DbusFilter;
 
 // TODO Decide if we really want to provide a writable iterator to classes outside of DbusEventBuffer.
 public class DbusEventBuffer implements Iterable<DbusEventInternalWritable>,
@@ -82,16 +84,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   protected static final AtomicLong ITERATORS_COUNTER = new AtomicLong(0);
 
-  // On seeing some runtime exceptions, turn on debug log (useful for errors which repeat) but make sure they are not in debug forever
-  private final int _numDebugOnErrorIterations = 0;
-  private final Level _oldLogLevel = Level.OFF;
-  private final boolean _alreadyDebugonErrorEnabled = false;
-  private boolean _dropOldEvents = false;
   private final long _bufferRemoveWaitPeriodSec; // wait period before buffer is removed (if refCount is 0)
   private final double _nanoSecsInMSec = 1000000.0;
+  private final DbusEventFactory _eventFactory;
 
-
+  private byte _eventSerializationVersion = -1;  // TODO:  nuke this; use _eventFactory.getVersion() instead
   private boolean _scnRegress = false;
+  private boolean _dropOldEvents = false;
 
 
   public static final int MAX_DEBUG_ON_ERROR_ITERATIONS = 2;
@@ -132,15 +131,28 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _dropOldEvents = val;
   }
 
+  protected static class SessionIdGenerator
+  {
+    private long _lastSessionIdGenerated = -1;
+    synchronized String generateSessionId() {
+      // just in case - to guarantee uniqueness
+      long sessionId;
+      while ((sessionId = System.currentTimeMillis()) <= _lastSessionIdGenerated)
+        ;
+      _lastSessionIdGenerated = sessionId;
+      return SESSION_PREFIX + _lastSessionIdGenerated;
+    }
+
+  }
   /**
    * Iterator over a fixed range of events in the buffer and with no locking. The remove() method
-   * is not supproted.
+   * is not supported.
    */
   protected class BaseEventIterator implements Iterator<DbusEventInternalWritable>
   {
     protected final BufferPosition _currentPosition;
     protected final BufferPosition _iteratorTail;
-    protected DbusEventInternalWritable _iteratingEvent;
+    protected DbusEventInternalWritable _iteratingEvent;  // TODO Make this readable
     protected String _identifier;
 
     public BaseEventIterator(long head, long tail, String iteratorName)
@@ -150,7 +162,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       _iteratorTail = new BufferPosition(_bufferPositionParser,_buffers);
       _iteratorTail.setPosition(tail);
-      _iteratingEvent = new DbusEventV1();
+      _iteratingEvent = _eventFactory.createWritableDbusEvent();
       reset(head, tail, iteratorName);
       trackIterator(this);
     }
@@ -179,14 +191,28 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       }
       else
       {
-        _currentPosition.sanitize();
-        _iteratorTail.sanitize();
-        result = (_currentPosition.getPosition() != _iteratorTail.getPosition());
+        try
+        {
+          _currentPosition.sanitize();
+          _iteratorTail.sanitize();
+          if (_currentPosition.getPosition() > _iteratorTail.getPosition())
+          {
+            LOG.error("unexpected iterator state: this:" + this + " \nbuf: " + DbusEventBuffer.this);
+            throw new DatabusRuntimeException("unexpected iterator state: " +  this);
+          }
+          result = (_currentPosition.getPosition() != _iteratorTail.getPosition());
 
-        if (LOG.isDebugEnabled())
-          LOG.debug(" - hasNext = " + result + " currentPosition = " +
-                    _currentPosition + " iteratorTail = " + _iteratorTail
-                    + "limit = " + _buffers[0].limit() + "tail = " + _tail);
+          if (LOG.isTraceEnabled())
+            LOG.trace(" - hasNext = " + result + " currentPosition = " +
+                      _currentPosition + " iteratorTail = " + _iteratorTail
+                      + "limit = " + _buffers[0].limit() + "tail = " + _tail);
+        }
+        catch (DatabusRuntimeException e)
+        {
+          _log.error("error in hasNext for iterator: " + this);
+          _log.error("buffer: " + DbusEventBuffer.this);
+          throw e;
+        }
       }
       return result;
     }
@@ -285,15 +311,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _iteratorTail.setPosition(tail);
 
       assertPointers();
-
-      if (_iteratingEvent == null)
-      {
-        _iteratingEvent = new DbusEventV1();
-      }
+      assert _iteratingEvent != null;
     }
 
     protected DbusEventInternalWritable next(boolean validateEvent) throws InvalidEventException
     {
+      final long oldPos = _currentPosition.getPosition();
+
       if (!hasNext())
       {
         throw new NoSuchElementException();
@@ -303,10 +327,35 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       {
         if (!nextEvent.isValid())
         {
+          _log.error("invalid event in iterator detected:" + this);
+          //if the event is corrupted print a reasonable amount of bytes
+          int dumpLen = Math.min(100, Math.max(nextEvent.size(), 100));
+          _log.error("current event bytes:" +
+                     hexdumpByteBufferContents(_currentPosition.getPosition(), dumpLen));
+          if (oldPos >= 0)
+          {
+            _log.error("previous event bytes @ " + _bufferPositionParser.toString(oldPos, _buffers) + ": " +
+                hexdumpByteBufferContents(oldPos, 100));
+          }
+
           throw new InvalidEventException();
         }
       }
-      _currentPosition.incrementOffset(nextEvent.size());
+
+      try
+      {
+        _currentPosition.incrementOffset(nextEvent.size());
+      }
+      catch (DatabusRuntimeException e)
+      {
+        if (oldPos >= 0)
+        {
+          _log.error("previous event bytes @ " + _bufferPositionParser.toString(oldPos, _buffers) + ": " +
+              hexdumpByteBufferContents(oldPos, 100));
+        }
+        _scnIndex.printVerboseString(LOG, Level.ERROR);
+        throw new InvalidEventException("error in incrementOffset: " + e.getMessage(), e);
+      }
       return nextEvent;
     }
 
@@ -317,11 +366,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     protected DbusEventInternalWritable currentEvent()
     {
       _currentPosition.sanitize();
-      if (null==_iteratingEvent)
-      {
-        _iteratingEvent = new DbusEventV1();
-      }
-      _iteratingEvent.reset(_buffers[_currentPosition.bufferIndex()], _currentPosition.bufferOffset());
+      assert _iteratingEvent != null;
+      _iteratingEvent = (DbusEventInternalWritable)_iteratingEvent.reset(_buffers[_currentPosition.bufferIndex()], _currentPosition.bufferOffset());
       return _iteratingEvent;
     }
 
@@ -346,7 +392,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       builder.append(_currentPosition);
       builder.append(", iteratorTail: ");
       builder.append(_iteratorTail);
-      if (null != _iteratingEvent && _iteratingEvent.isValid())
+      assert _iteratingEvent != null;
+      if (BaseEventIterator.this.hasNext() && _iteratingEvent.isValid())
       {
         builder.append(", iteratingEvent: ");
         builder.append(_iteratingEvent);
@@ -509,8 +556,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   /**
-   * An iterator that will automatically release any resources once it goes passed its
-   * last element.*/
+   * An iterator that will automatically release any resources once it goes past its
+   * last element.
+   */
   protected class ManagedEventIterator extends InternalEventIterator
   {
 
@@ -596,14 +644,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     private void copyBufferEndpoints() throws InterruptedException, TimeoutException
     {
       final boolean debugEnabled = _log.isDebugEnabled();
-      final int startReadLocks = _rwLockProvider.getNumReaders();
-      int endReadLocks = startReadLocks;
-      final long oldPos = _currentPosition.getPosition();
-      final long oldTail = _iteratorTail.getPosition();
-      final LockToken oldLock = _lockToken;
       _queueLock.lock();
       try
       {
+        final long oldPos = _currentPosition.getPosition();
+        final long oldTail = _iteratorTail.getPosition();
         try
         {
           _iteratorTail.copy(_tail);
@@ -628,7 +673,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
               _log.debug("refreshing iterator: " + this);
 
             reacquireReadLock();
-            endReadLocks = _rwLockProvider.getNumReaders();
 
             if (debugEnabled)
               _log.debug("done refreshing iterator: " + this);
@@ -639,9 +683,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       {
         _queueLock.unlock();
       }
-      assert startReadLocks == endReadLocks:
-          "this:" + this + "; oldLock:" + oldLock +
-          "; locks:" + _rwLockProvider ;
     }
 
     /**
@@ -676,7 +717,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         }
         catch (InterruptedException e)
         {
-          LOG.warn(toString() + ": await/refresh interrupted", e);
+          LOG.warn(toString() + ": await/refresh interrupted");
           return false;
         }
         catch (TimeoutException e)
@@ -693,30 +734,36 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
 
     /**
-     * Allows a reader to wait on the iterator until there is new data to consume
-     *
+     * Allows a reader (of the buffer) to wait on the iterator until there is
+     * new data to consume, ignoring any InterruptedExceptions.
      */
     public void awaitUninterruptibly()
     {
-    	try
-    	{
-    		await(true);
-    	} catch (InterruptedException ie) {
-    		//Not expected to reach here
-    	}
+      try
+      {
+        await(true);
+      } catch (InterruptedException ie) {
+        //Not expected to reach here
+      }
     }
 
     /**
-     * Allows a reader to wait on the iterator until there is new data to consume
-     *
+     * Allows a reader (of the buffer) to wait on the iterator until there is
+     * new data to consume.
      */
     public void await() throws InterruptedException
     {
-    	await(false);
+      await(false);
     }
 
+    /**
+     * Allows a reader (of the buffer) to wait on the iterator until there is
+     * new data to consume.
+     */
     public void await(boolean absorbInterrupt) throws InterruptedException
     {
+      boolean debugEnabled = _log.isDebugEnabled();
+
       // wait for notification that there is data to consume
       _queueLock.lock();
       try
@@ -726,19 +773,19 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           copyBufferEndpoints();
           while (!hasNext())
           {
-            if (LOG.isDebugEnabled())
-              LOG.debug(_identifier+":waiting for notEmpty" + this);
+            if (debugEnabled)
+              _log.debug(_identifier+": waiting for notEmpty" + this);
 
             _notEmpty.await();
             copyBufferEndpoints();
-            if (LOG.isDebugEnabled())
-              LOG.debug("Iterator " + this + " coming out of await");
+            if (debugEnabled)
+              _log.debug("Iterator " + this + " coming out of await");
           }
         }
         catch (InterruptedException e)
         {
-          LOG.warn(toString() + ": await/refresh interrupted", e);
-          if ( ! absorbInterrupt)
+          _log.warn(toString() + ": await/refresh interrupted", e);
+          if (!absorbInterrupt)
             throw e;
         }
         catch (TimeoutException e)
@@ -753,12 +800,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
 
     /**
-     * Allows a reader to wait on the iterator until there is new data to consume
-     *
+     * Allows a reader (of the buffer) to wait on the iterator until there is
+     * new data to consume.
+     * TODO:  merge this with above await()! (with absorbInterrupt = true and new absorbTimeout = true)
      */
     public void awaitInterruptibly()
     {
-      boolean debugEnabled = LOG.isDebugEnabled();
+      boolean debugEnabled = _log.isDebugEnabled();
 
       // wait for notification that there is data to consume
       _queueLock.lock();
@@ -767,14 +815,16 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         try
         {
           copyBufferEndpoints();
-          boolean wait = true;
+          final boolean wait = true;  // never changed => pointless:  ??
           while (wait && !hasNext())
           {
-            if (debugEnabled) LOG.debug(_identifier+":waiting for notEmpty" + this);
+            if (debugEnabled)
+              _log.debug(_identifier+": waiting for notEmpty" + this);
 
             _notEmpty.await();
             copyBufferEndpoints();
-            if (debugEnabled) LOG.debug("Iterator " + this + " coming out of await");
+            if (debugEnabled)
+              _log.debug("Iterator " + this + " coming out of await");
           }
         }
         catch (InterruptedException e)
@@ -807,7 +857,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         }
         catch (InterruptedException e)
         {
-          _log.warn(toString() + ": refresh interruped");
+          _log.warn(toString() + ": refresh interrupted");
           return false;
         }
         catch (TimeoutException e)
@@ -838,8 +888,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                            _bufferPositionParser);
 
       acquireWriteLock();
+
       try
       {
+        if(isClosed()) {
+          LOG.warn("canceling remove operation on iterator because the buffer is closed. it=" + this);
+          throw new DatabusRuntimeException(toString() + " remove canceled.");
+        }
         copyBufferEndpoints();
 
         long newHead = _currentPosition.getPosition();
@@ -860,11 +915,25 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       catch (InterruptedException e)
       {
         _log.error("buffer locks: " + _rwLockProvider);
-        throw new DatabusRuntimeException(toString() + ": refresh interruped", e);
+        throw new DatabusRuntimeException(toString() + ": refresh interrupted", e);
       }
       catch (TimeoutException e)
       {
+        _log.error("remove timeout for iterator " + this + " in buffer " + DbusEventBuffer.this, e);
         throw new DatabusRuntimeException(toString() + ": refresh timed out", e);
+      }
+      catch (RuntimeException e)
+      {
+        _log.error("error removing events for iterator " + this + ":" + e.getMessage());
+        _log.error("buffer:" + DbusEventBuffer.this);
+        throw e;
+      }
+      catch (AssertionError e)
+      {
+        _log.error("error removing events for iterator " + this + ":" + e.getMessage());
+        _log.error("buffer:" + DbusEventBuffer.this);
+        _log.error(hexdumpByteBufferContents(_currentPosition.getPosition(), 200));
+        throw e;
       }
       finally
       {
@@ -926,10 +995,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private final int _maxBufferSize;
 
   /**
-   * used for reading bytes into a staging area
-   * before inserting into the primary buffer
+   * the initial size of the event staging buffer used to validate incoming events
    */
-  private final ByteBuffer _readBuffer;
+  private final int _initReadBufferSize;
+  /**
+   * The maximum allowed event size
+   */
+  private final int _maxEventSize;
 
   /**
    * head and tail of the whole buffer (abstracting away the fact that there are multiple buffers involved)
@@ -949,6 +1021,27 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   private boolean _isClosed = false;
 
+  protected boolean isClosed()
+  {
+    // has to be under lock
+    if(!_queueLock.isLocked())
+      throw new RuntimeException("checking if buffer is closed should be done under _queueLock");
+
+    return _isClosed;
+  }
+
+  protected void setClosed() throws DatabusException
+  {
+    acquireWriteLock();
+    try {
+      if(_isClosed) {
+        throw new DatabusException("closing already closed buffer");
+      }
+      _isClosed = true;
+    } finally {
+      releaseWriteLock();
+    }
+  }
 
   /** Allocated memory for the buffer */
   private final long _allocatedSize;
@@ -962,7 +1055,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private String _sessionId;
 
   // Cached objects to prevent frequent 'new'-s
-  DbusEventInternalWritable _writingEvent; // use this event while writing to the buffer
 
   // Pool of iterators
   protected final Set<WeakReference<BaseEventIterator>> _busyIteratorPool =
@@ -995,7 +1087,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private volatile long _timestampOfLatestDataEvent = 0;
 
   /** The last generated session id; we keep track of those to avoid duplicates */
-  private volatile long _lastSessionIdGenerated = -1;
+  private static SessionIdGenerator _sessionIdGenerator = new SessionIdGenerator();
 
   // Ref counting for the buffer
   private int _refCount = 0;
@@ -1040,14 +1132,22 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private void clearAndStart(boolean start, long prevScn)
   {
     acquireWriteLock();
-    lockFreeClear();
-    _scnIndex.clear();
-    if (start)
-    {
-      this.start(prevScn);
+
+    try {
+      if(isClosed()) {
+        LOG.warn("canceling clearAndStart because the buffer is being closed");
+        return;
+      }
+      lockFreeClear();
+      _scnIndex.clear();
+      if (start)
+      {
+        this.start(prevScn);
+      }
+      _empty=true;
+    } finally {
+      releaseWriteLock();
     }
-    _empty=true;
-    releaseWriteLock();
   }
 
   public void reset(long prevScn)
@@ -1074,8 +1174,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _lastWrittenSequence = -1L;
     _timestampOfFirstEvent = 0;
     // TODO (medium) DDSDBUS-56:
-    // what happens to the iterators that might be iterating over this
-    // buffer
+    // what happens to the iterators that might be iterating over this buffer?
     // should we call a notifyClear() on them?
     for (ByteBuffer buf: _buffers)
     {
@@ -1086,79 +1185,90 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
 
+  // Called by tests
   public DbusEventBuffer(Config config) throws InvalidConfigException
   {
     this(config.build());
   }
 
-  public DbusEventBuffer(StaticConfig config, PhysicalPartition pPartition)
+  // Called by tests that test the client.  Note that this version cannot be
+  // used by Espresso tests since the event factory here defaults to BIG_ENDIAN
+  // order, whereas Espresso requires LITTLE_ENDIAN == BinaryProtocol.BYTE_ORDER.
+  // (Such tests can use the three-arg constructor with pPartition set to null.)
+  public DbusEventBuffer(StaticConfig config)
   {
     this(config.getMaxSize(), config.getMaxIndividualBufferSize(), config.getScnIndexSize(),
-         config.getReadBufferSize(), config.getAllocationPolicy(), config.getMmapDirectory(),
-         config.getQueuePolicy(), config.getTrace(), pPartition, config.getAssertLevel(),
-         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents(),
-         config.isEnableScnIndex());
+         config.getReadBufferSize(), config.getMaxEventSize(),
+         config.getAllocationPolicy(), config.getMmapDirectory(),
+         config.getQueuePolicy(), config.getTrace(), null, config.getAssertLevel(),
+         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(),
+         config.getRestoreMMappedBuffersValidateEvents(), config.isEnableScnIndex(), new DbusEventV1Factory());
   }
 
-  public DbusEventBuffer(StaticConfig config) // Called by tests that test the client
+  public DbusEventBuffer(StaticConfig config, PhysicalPartition pPartition, DbusEventFactory eventFactory)
   {
     this(config.getMaxSize(), config.getMaxIndividualBufferSize(), config.getScnIndexSize(),
-         config.getReadBufferSize(), config.getAllocationPolicy(), config.getMmapDirectory(),
-         config.getQueuePolicy(), config.getTrace(), null, config.getAssertLevel(),
-         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(), config.getRestoreMMappedBuffersValidateEvents(),
-         config.isEnableScnIndex());
+         config.getReadBufferSize(), config.getMaxEventSize(),
+         config.getAllocationPolicy(), config.getMmapDirectory(),
+         config.getQueuePolicy(), config.getTrace(), pPartition, config.getAssertLevel(),
+         config.getBufferRemoveWaitPeriod(), config.getRestoreMMappedBuffers(),
+         config.getRestoreMMappedBuffersValidateEvents(), config.isEnableScnIndex(), eventFactory);
   }
 
   /**
    * Fine-grained constructor.
    */
   public DbusEventBuffer(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
-                         int maxReadBufferSize, AllocationPolicy allocationPolicy, File mmapDirectory, QueuePolicy queuePolicy,
-                         RelayEventTraceOption traceOption, PhysicalPartition physicalPartition,
-                         AssertLevel assertLevel, long bufRemovalWaitPeriod,
+                         int initReadBufferSize, int maxEventSize,
+                         AllocationPolicy allocationPolicy, File mmapDirectory,
+                         QueuePolicy queuePolicy, RelayEventTraceOption traceOption,
+                         PhysicalPartition physicalPartition, AssertLevel assertLevel, long bufRemovalWaitPeriod,
                          boolean restoreBuffers, boolean validateEventesInRestoredBuffers,
-                         boolean enableScnIndex) {
+                         boolean enableScnIndex, DbusEventFactory eventFactory)
+  {
     //TODO replace all occurrences of LOG with _log so we get partition info
     _log = (null == physicalPartition) ? LOG :
            Logger.getLogger(MODULE + "." + physicalPartition.toSimpleString());
 
     _assertLevel = assertLevel;
-    LOG.info("DbusEventBuffer starting up with " + "maxEventBufferSize = " + maxEventBufferSize + ", maxIndividualBufferSize = " + maxIndividualBufferSize +
+    LOG.info("DbusEventBuffer starting up with " + "eventBufferSize = " + maxEventBufferSize +
+             ", maxIndividualBufferSize = " + maxIndividualBufferSize +
              ", maxIndexSize = "+ maxIndexSize +
-             ", maxReadBufferSize = " + maxReadBufferSize + ", allocationPolicy = " +
+             ", initReadBufferSize = " + initReadBufferSize + ", maxEventSize=" + maxEventSize +
+             ", allocationPolicy = " +
              allocationPolicy.toString() + ", mmapDirectory = " + mmapDirectory.getAbsolutePath() +
              ",queuePolicy = " + queuePolicy +
              ", eventTraceOption = " + traceOption.getOption() + ", needFileSuffix = " +
              traceOption.isNeedFileSuffix() + ", assertLevel=" + _assertLevel +
              ", bufRemovalWaitPeriod=" + bufRemovalWaitPeriod + ", restoreBuffers=" + restoreBuffers);
 
+    _eventFactory = eventFactory;
+    _eventSerializationVersion = eventFactory.getVersion();
     _bufferPersistenceEnabled = restoreBuffers;
     _queueingPolicy = queuePolicy;
     _allocationPolicy = allocationPolicy;
     List<ByteBuffer> buffers = new ArrayList<ByteBuffer>();
     _maxBufferSize = maxIndividualBufferSize;
-    _writingEvent = new DbusEventV1();
     _empty = true;
     _lastWrittenSequence = -1;
     _prevScn=-1L;
     _timestampOfFirstEvent = 0;
     _timestampOfLatestDataEvent = 0;
     _bufferRemoveWaitPeriodSec = bufRemovalWaitPeriod;
-    if(physicalPartition == null) {
-      physicalPartition = new PhysicalPartition(0, "default");
-    }
-    _physicalPartition = physicalPartition;
+    _physicalPartition = (physicalPartition == null)? new PhysicalPartition(0, "default") : physicalPartition;
 
     // file to read meta info for saved buffers (if any), MetaInfo constructor doesn't create/open any actual file
     DbusEventBufferMetaInfo mi = null;
 
     // in case of MMAPED memory - see if there is a meta file, and if there is - read from it
     if(allocationPolicy == AllocationPolicy.MMAPPED_MEMORY) {
-      _sessionId = generateSessionId(); // new session
+      _sessionId = _sessionIdGenerator.generateSessionId(); // new session
       File metaInfoFile = new File(mmapDirectory, metaFileName());
       if(restoreBuffers) {
         if(!metaInfoFile.exists()) {
-          LOG.warn("RestoreBuffers flag is specified, but the file " + metaInfoFile + " doesn't exist");
+          LOG.warn("restoreBuffers flag is specified, but the file " + metaInfoFile + " doesn't exist");
+        } else if((System.currentTimeMillis() - metaInfoFile.lastModified()) > _bufferRemoveWaitPeriodSec*1000) {
+          LOG.warn("restoreBuffers flag is specified, but the file " + metaInfoFile + " is older than " + _bufferRemoveWaitPeriodSec + " secs");
         } else {
           try{
             mi = new DbusEventBufferMetaInfo(metaInfoFile);
@@ -1191,16 +1301,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       }
 
       _mmapDirectory = mmapDirectory;
-      if(!restoreBuffers)
+      if (!restoreBuffers) {
+        LOG.info("restoreBuffers is false => will delete mmap session directory " + _mmapSessionDirectory + " on exit");
         _mmapSessionDirectory.deleteOnExit();
+      }
     }
-    // when allocating readBuffer we don't need the content - hence 'false' for restore buffers
-    // TODO support event type of V2
-    _readBuffer = allocateByteBuffer(maxReadBufferSize, DbusEventV1.byteOrder, allocationPolicy,
-                                     false, _mmapSessionDirectory,
-                                     new File(_mmapSessionDirectory, "readBuffer"));
-
-    // NOTE. for restoreBuffers option we don't store metaInfo for readBuffer - no need
 
     LOG.debug("Will allocate a total of " + maxEventBufferSize + " bytes");
     long allocatedSize = 0;
@@ -1209,8 +1314,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       int nextSize = (int) Math.min(_maxBufferSize, (maxEventBufferSize-allocatedSize));
       if (LOG.isDebugEnabled())
         LOG.debug("Will allocate a buffer of size " + nextSize + " bytes with allocationPolicy = " + allocationPolicy.toString());
-      // TODO Support V2 event
-      ByteBuffer buffer = allocateByteBuffer(nextSize, DbusEventV1.byteOrder, allocationPolicy,
+      ByteBuffer buffer = allocateByteBuffer(nextSize, _eventFactory.getByteOrder(), allocationPolicy,
                                              restoreBuffers, _mmapSessionDirectory,
                                              new File(_mmapSessionDirectory, "writeBuffer_"+ buffers.size()));
       buffers.add(buffer);
@@ -1229,10 +1333,28 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       }
     }
 
+    _maxEventSize = maxEventSize;
+    if (initReadBufferSize <= getMaxReadBufferCapacity())
+    {
+      _initReadBufferSize = initReadBufferSize;
+    }
+    else
+    {
+      _initReadBufferSize = getMaxReadBufferCapacity();
+      _log.warn(String.format("Initial event staging buffer size %d > than max possible %d event size; " +
+      		                  "resetting to %d ", _initReadBufferSize, getMaxReadBufferCapacity(),
+      		                  getMaxReadBufferCapacity()));
+    }
+    if (0 >= _initReadBufferSize)
+    {
+      throw new DatabusRuntimeException("invalid initial event staging buffer size: " + _initReadBufferSize);
+    }
+
     _bufferPositionParser = new BufferPositionParser((int)(Math.min(_maxBufferSize, maxEventBufferSize)), buffers.size());
 
     _scnIndex = new ScnIndex(maxIndexSize, maxEventBufferSize, _maxBufferSize, _bufferPositionParser,
-        allocationPolicy, restoreBuffers, _mmapSessionDirectory, _assertLevel, enableScnIndex);
+                             allocationPolicy, restoreBuffers, _mmapSessionDirectory, _assertLevel,
+                             enableScnIndex, _eventFactory.getByteOrder());
 
     _head = new BufferPosition(_bufferPositionParser, _buffers);
     _tail = new BufferPosition(_bufferPositionParser, _buffers);
@@ -1277,14 +1399,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _queueLock.lock();
     updateFirstEventMetadata();
     _queueLock.unlock();
-  }
 
-  synchronized String generateSessionId() {
-    // just in case - to guarantee uniqueness
-    long sessionId;
-    while ((sessionId = System.currentTimeMillis()) <= _lastSessionIdGenerated);
-    _lastSessionIdGenerated = sessionId;
-    return SESSION_PREFIX + _lastSessionIdGenerated;
   }
 
   String metaFileName() {
@@ -1295,28 +1410,31 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * go over all the ByteBuffers and validate them
    * @throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException
    */
-  private void setAndValidateMMappedBuffers(DbusEventBufferMetaInfo mi) throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException {
+  private void setAndValidateMMappedBuffers(DbusEventBufferMetaInfo mi)
+      throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException
+  {
     // set buffer info - pos and limit
     DbusEventBufferMetaInfo.BufferInfo [] bufsInfo = null;
     bufsInfo = mi.getBuffersInfo();
 
     int i = 0;
-    for(ByteBuffer buffer : _buffers) {
+    for (ByteBuffer buffer : _buffers) {
       DbusEventBufferMetaInfo.BufferInfo bi = bufsInfo[i];
 
       buffer.position(bi.getPos());
       buffer.limit(bi.getLimit());
 
       // validate
-      if(buffer.position()>buffer.limit()     ||
+      if (buffer.position() > buffer.limit()  ||
           buffer.limit() > buffer.capacity()  ||
           buffer.capacity() != bi.getCapacity()) {
-        String msg = "ByteBuffers dont't match: i= " + i + ";pos=" + buffer.position() +
-            ";limit=" + buffer.limit() + "; capacity=" + buffer.capacity() + ";miCapacity=" + bi.getCapacity();
+        String msg = "ByteBuffers don't match: i=" + i + "; pos=" + buffer.position() +
+            "; limit=" + buffer.limit() + "; capacity=" + buffer.capacity() + "; miCapacity=" + bi.getCapacity();
         throw new DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException(mi, msg);
       }
       i++;
     }
+    _log.info("successfully validated all " + i + " mmapped buffers");
   }
 
   /**
@@ -1371,19 +1489,19 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     // figure out number of buffers we are going to allocate
     long numBuffs = maxTotalEventBufferSize/_maxBufferSize;
     if(maxTotalEventBufferSize % _maxBufferSize > 0) numBuffs++;  // calculate number of ByteBuffers we will have
-    long miNumBuffs = mi.getLong("ByteBufferNum");
+    long miNumBuffs = mi.getLong(DbusEventBufferMetaInfo.NUM_BYTE_BUFFER);
     if(miNumBuffs != numBuffs) {
       throw new DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException(mi ,
             "Invalid number of ByteBuffers in meta file:" + miNumBuffs + "(expected =" + numBuffs + ")");
     }
     // individual buffer size
-    long miBufSize = mi.getLong("maxBufferSize");
+    long miBufSize = mi.getLong(DbusEventBufferMetaInfo.MAX_BUFFER_SIZE);
     if(miBufSize != _maxBufferSize)
       throw new DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException(mi,
             "Invalid maxBufferSize in meta file:" + miBufSize + "(expected =" + _maxBufferSize + ")");
 
     // _allocatedSize - validate against real buffers
-     long allocatedSize = mi.getLong("allocatedSize");
+     long allocatedSize = mi.getLong(DbusEventBufferMetaInfo.ALLOCATED_SIZE);
      if(maxTotalEventBufferSize != allocatedSize)
        throw new DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException(mi,
              "Invalid maxEventBufferSize in meta file:" + allocatedSize + "(expected =" + maxTotalEventBufferSize + ")");
@@ -1394,7 +1512,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                        AllocationPolicy allocationPolicy,
                                        boolean restoreBuffers,
                                        File mmapSessionDir,
-                                       File mmapFile) {
+                                       File mmapFile)
+  {
     ByteBuffer buffer = null;
 
     switch (allocationPolicy)
@@ -1407,34 +1526,38 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       break;
     case MMAPPED_MEMORY:
     default:
-    {
-      if(restoreBuffers && !mmapFile.exists()) {
-        LOG.warn("restoreBuffers is set to true, but file " + mmapFile + " doesn't exist");
-      }
-      if(restoreBuffers) {
-        LOG.info("restoring buffer from " +mmapFile);
-      }
-      // dirs are already created and initialized
-      if(!mmapSessionDir.exists())
+      // expect that dirs are already created and initialized
+      if (!mmapSessionDir.exists()) {
         throw new RuntimeException(mmapSessionDir.getAbsolutePath() + " doesn't exist");
-
-      if (mmapFile.exists() && !restoreBuffers && !mmapFile.delete()) {
-        throw new RuntimeException("deletion of file failed: " + mmapFile.getAbsolutePath());
       }
-      if(!restoreBuffers)
-        mmapFile.deleteOnExit(); // in case we don't need files later.
 
-      FileChannel rwChannel;
+      if (restoreBuffers) {
+        if (!mmapFile.exists()) {
+          LOG.warn("restoreBuffers is true, but file " + mmapFile + " doesn't exist");
+        } else {
+          LOG.info("restoring buffer from " + mmapFile);
+        }
+      } else {
+        if (mmapFile.exists()) {
+          // this path should never happen (only if the generated session ID accidentally matches a previous one)
+          LOG.info("restoreBuffers is false; deleting existing mmap file " + mmapFile);
+          if (!mmapFile.delete()) {
+            throw new RuntimeException("deletion of file failed: " + mmapFile.getAbsolutePath());
+          }
+        }
+        LOG.info("restoreBuffers is false => will delete new mmap file " + mmapFile + " on exit");
+        mmapFile.deleteOnExit(); // in case we don't need files later.
+      }
+
       try {
-        rwChannel = new RandomAccessFile(mmapFile, "rw").getChannel();
+        FileChannel rwChannel = new RandomAccessFile(mmapFile, "rw").getChannel();
         buffer = rwChannel.map(FileChannel.MapMode.READ_WRITE, 0, size).order(byteOrder);
         rwChannel.close();
-      } catch (FileNotFoundException e){
-        throw new RuntimeException(e);
+      } catch (FileNotFoundException e) {
+        throw new RuntimeException("[should never happen!] can't find mmap file/dir " + mmapFile.getAbsolutePath(), e);
       } catch (IOException e) {
-        throw new RuntimeException(e);
+        throw new RuntimeException("unable to initialize mmap file " + mmapFile, e);
       }
-    }
     }
     return buffer;
   }
@@ -1495,8 +1618,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   /** Set scn immediately preceding the minScn; */
-  public void setPrevScn(long scn) {
-    if (_log.isDebugEnabled()) _log.info("setting prevScn to: " + scn);
+  public void setPrevScn(long scn)
+  {
+    if (_log.isDebugEnabled())
+      _log.info("setting prevScn to: " + scn);
     _prevScn = scn;
   }
 
@@ -1542,12 +1667,20 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   @Override
   public void startEvents() {
     assert ((_eventState == WindowState.INIT) || (_eventState == WindowState.ENDED));
-    resetWindowState();
-    _eventState = WindowState.STARTED;
-    // set currentWritePosition to tail.
-    // This allows us to silently rollback any writes we did past the tail but never called endEvents() on.
-    long tailPosition = _tail.getPosition();
-    _currentWritePosition.setPosition( ((tailPosition > 0) ? tailPosition:0));
+    acquireWriteLock();
+    try {
+      if(isClosed()) {
+        throw new DatabusRuntimeException("attempting startEvents for a closed buffer");
+      }
+      resetWindowState();
+      _eventState = WindowState.STARTED;
+      // set currentWritePosition to tail.
+      // This allows us to silently rollback any writes we did past the tail but never called endEvents() on.
+      long tailPosition = _tail.getPosition();
+      _currentWritePosition.setPosition( ((tailPosition > 0) ? tailPosition:0));
+    } finally {
+      releaseWriteLock();
+    }
   }
 
 
@@ -1578,7 +1711,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                              DbusEventsStatisticsCollector statsCollector)
   {
     throw new RuntimeException("This method is not implemented!!!");
- }
+  }
 
   /* (non-Javadoc)
    * @see com.linkedin.databus.core.DbusEventBufferAppendable#appendEvent(com.linkedin.databus.core.DbusEventKey, long, short, long, short, byte[], byte[], boolean, com.linkedin.databus.monitoring.mbean.DbusEventsStatisticsCollector)
@@ -1586,10 +1719,23 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   @Override
   public boolean appendEvent(DbusEventKey key, short pPartitionId, short lPartitionId,
                              long timeStamp, short srcId, byte[] schemaId, byte[] value,
-                             boolean enableTracing, DbusEventsStatisticsCollector statsCollector)  {
+                             boolean enableTracing, DbusEventsStatisticsCollector statsCollector)
+  {
+    return appendEvent(key, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value, enableTracing, false, statsCollector);
+  }
+
+  @Override
+  public boolean appendEvent(DbusEventKey key, short pPartitionId, short lPartitionId,
+                             long timeStamp, short srcId, byte[] schemaId, byte[] value,
+                             boolean enableTracing, boolean isReplicated, DbusEventsStatisticsCollector statsCollector)
+  {
     DbusEventInfo eventInfo = new DbusEventInfo(null, 0L, pPartitionId, lPartitionId,
                                                 timeStamp, srcId, schemaId, value, enableTracing,
                                                 false);
+    eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
+    // this single change causes 5 failures in TestDbusEventBufferMult:
+    //eventInfo.setEventSerializationVersion(getEventSerializationVersion()); // use _eventFactory version for consistency
+    eventInfo.setReplicated(isReplicated);
 
     return appendEvent(key, eventInfo, statsCollector);
   }
@@ -1599,20 +1745,26 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                              DbusEventInfo eventInfo,
                              DbusEventsStatisticsCollector statsCollector)
   {
-	boolean isDebugEnabled = LOG.isDebugEnabled();
+    boolean isDebugEnabled = LOG.isDebugEnabled();
+    acquireWriteLock();
     try {
       assert((_eventState == WindowState.STARTED) || (_eventState == WindowState.EVENTS_ADDED));
       try
       {
-    	  _scnIndex.assertHeadPosition(_head.getRealPosition());
-    	  _bufferPositionParser.assertSpan(_head.getPosition(), _currentWritePosition.getPosition(),isDebugEnabled);
+        _scnIndex.assertHeadPosition(_head.getRealPosition());
+        _bufferPositionParser.assertSpan(_head.getPosition(), _currentWritePosition.getPosition(),isDebugEnabled);
       } catch (RuntimeException re) {
-    	  LOG.fatal("Got runtime Exception :", re);
-    	  LOG.fatal("Event Buffer is :" + toString());
-    	  throw re;
+        LOG.fatal("Got runtime Exception :", re);
+        LOG.fatal("Event Buffer is :" + toString());
+        throw re;
       }
 
-      prepareForAppend(key, eventInfo.getValue());
+      if(isClosed()) {
+        throw new DatabusRuntimeException("refusing to append event, because the buffer is closed");
+      }
+
+      final int expNumBytesWritten = DbusEventFactory.computeEventLength(key, eventInfo);
+      prepareForAppend(expNumBytesWritten);
 
       if (_eventState == WindowState.STARTED) {
         //We set eventStartIndex here because _currentWritePosition is not finalized before
@@ -1620,24 +1772,19 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         _eventStartIndex.copy(_currentWritePosition);
       }
 
-      long preWritePosition = _currentWritePosition.getPosition();
       if (isDebugEnabled)
       {
-    	  LOG.debug("serializingEvent at position " + _currentWritePosition.toString());
-
-    	  LOG.debug("PhysicalPartition passed in=" + eventInfo.getpPartitionId() + "; from the buffer = "
-    			  			+ _physicalPartition.getId().shortValue());
+        LOG.debug("serializingEvent at position " + _currentWritePosition.toString());
+        LOG.debug("PhysicalPartition passed in=" + eventInfo.getpPartitionId() + "; from the buffer = "
+                  + _physicalPartition.getId().shortValue());
       }
 
       eventInfo.setSequenceId(0L);
       eventInfo.setpPartitionId(_physicalPartition.getId().shortValue());
       eventInfo.setAutocommit(false);
-      // TODO support event type of V2
-      int bytesWritten = DbusEventV1.serializeEvent(key,
-                                                  _buffers[_currentWritePosition.bufferIndex()],
-                                                  eventInfo);
-
-      long expNumBytesWritten = DbusEventV1.length(key, eventInfo.getValue());
+      int bytesWritten = DbusEventFactory.serializeEvent(key,
+                                                         _buffers[_currentWritePosition.bufferIndex()],
+                                                         eventInfo);
 
       //prepareForAppend makes decision to move Head depending upon expNumBytesWritten
       if ( bytesWritten != expNumBytesWritten)
@@ -1658,19 +1805,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _numEventsInWindow++;
       _timestampOfLatestDataEvent = Math.max(_timestampOfLatestDataEvent,
                     eventInfo.getTimeStampInNanos());
-
-      if (_writingEvent == null)
-      {
-        _writingEvent = new DbusEventV1();
-      }
-
-      preWritePosition = _bufferPositionParser.sanitize(preWritePosition, _buffers);
-      _writingEvent.reset(_buffers[_bufferPositionParser.bufferIndex(preWritePosition)], _bufferPositionParser.bufferOffset(preWritePosition));
     }
     catch (KeyTypeNotImplementedException ex)
     {
       if (null != statsCollector)
-        statsCollector.registerEventError(EventScanStatus.ERR);
+        statsCollector.registerEventError(DbusEventInternalReadable.EventScanStatus.ERR);
       throw new DatabusRuntimeException(ex);
     }
     finally
@@ -1679,6 +1818,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
        * Ensuring that any locks that might be held are released safely before
        * returning from this method
        */
+      releaseWriteLock();
       finalizeAppend();
     }
     return true;
@@ -1691,15 +1831,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    *    - this also implies moving the head for the ScnIndex to keep it in lock-step with the buffer
    * b) moving the currentWritePosition to the correct location so that the entire event will fit
    *    into the selected ByteBuffer
-   * @param key		the key of the event to be appended
-   * @param value	the byte serialization of the event payload
+   * @param dbusEventSize has the size of the event that will be appended.
    * @throws com.linkedin.databus.core.KeyTypeNotImplementedException
    */
-  private void prepareForAppend(DbusEventKey key, byte[] value)
-		  throws KeyTypeNotImplementedException
+  private void prepareForAppend(final int dbusEventSize)
+  throws KeyTypeNotImplementedException
   {
-	boolean isDebugEnabled = LOG.isDebugEnabled();
-    int dbusEventSize = DbusEventV1.length(key, value);
+    boolean isDebugEnabled = LOG.isDebugEnabled();
 
     _queueLock.lock();
     try
@@ -1727,6 +1865,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         	              _currentWritePosition.bufferOffset()) + " < " + dbusEventSize);
         final long newWritePos =
             _bufferPositionParser.incrementIndex(_currentWritePosition.getPosition(), _buffers);
+
+        // ensureFreeSpace will call moveHead, which also resets limit to capacity
         ensureFreeSpace(_currentWritePosition.getPosition(), newWritePos, isDebugEnabled);
         moveCurrentWritePosition(newWritePos);
 
@@ -1737,99 +1877,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         throw new DatabusRuntimeException("insufficient buffer capacity for event of size:" +
                                           dbusEventSize);
 
+      // passing true for noLimit, because we just need to make sure we don't go over capacity,
+      // limit will be reset in the next call
       final long stopIndex =
           _bufferPositionParser.incrementOffset(_currentWritePosition.getPosition(),
-                                                dbusEventSize, _buffers);
+                                                dbusEventSize, _buffers, true);  //no limit true - see DDSDBUS-1515
       ensureFreeSpace(_currentWritePosition.getPosition(), stopIndex, isDebugEnabled);
-      //acquireWriteRangeLock(_currentWritePosition.bufferIndex(), stopIndex);
       buffer.position(_currentWritePosition.bufferOffset());
-      _writingEvent.unsetInited(); //is that needed?
-
-      //LOG.debug("currentWritePosition = " + _bufferPositionParser.toString(currentWritePosition));
-      /*ByteBuffer buffer = _buffers[_currentWritePosition.bufferIndex()];
-
-      while ((buffer.capacity() - buffer.position()) < dbusEventSize)
-      {
-        // buffer does not have enough capacity to write this event to
-        // set the limit at the current point and move to the next buffer
-        buffer.limit(buffer.position());
-
-        _currentWritePosition.sanitize();
-        buffer = _buffers[_currentWritePosition.bufferIndex()];
-        buffer.position(_currentWritePosition.bufferOffset());
-      }
-
-      if (buffer.position() + dbusEventSize > buffer.limit())
-      {
-        buffer.limit(buffer.capacity());
-      }
-
-
-      long startPositionCopy = _head.getPosition() < 0 ? 0 :_head.getPosition();
-      _writingEvent.unsetInited();
-
-      boolean moveHead = (!empty()) &&
-      			Range.containsReaderPosition(initialWriteStartPos, stopIndex, _head.getPosition(),
-      					                     _bufferPositionParser);
-
-      if (_bufferPositionParser.init(startPositionCopy))
-        startPositionCopy = 0;
-
-      if (_bufferPositionParser.bufferOffset(stopIndex) >
-          _buffers[_bufferPositionParser.bufferIndex(stopIndex)].limit())
-      {
-        throw new RuntimeException("I don't ever expect to be here");
-      }
-
-      if (moveHead)
-      {
-        long proposedHead = _scnIndex.getLargerOffset(stopIndex);
-        if (isDebugEnabled)
-          LOG.debug("Move Head: CurrentHead = " + _head + " CurrentOffset = " +
-                    _bufferPositionParser.toString(stopIndex) +
-                    " ProposedHead = " + _bufferPositionParser.toString(proposedHead));
-
-       if (0 > proposedHead)
-       {
-         if ( QueuePolicy.OVERWRITE_ON_WRITE == _queueingPolicy)
-         {
-           try
-           {
-             _scnIndex.assertHeadPosition(_head.getRealPosition());
-             _bufferPositionParser.assertSpan(_head.getPosition(), _tail.getPosition(),isDebugEnabled);
-           } catch (RuntimeException re) {
-             LOG.error("prepareForAppend: Got runtime Exception :", re);
-           }
-         }
-
-         LOG.warn("track(ScnIndex.head): prepareForAppend: failed to find larger offset");
-         LOG.warn("Head=" + _head + " Tail=" + _tail + " CurrentOffset=" + stopIndex +
-                  " CurrentWritePosition=" + _currentWritePosition +
-                  " ProposedHead=" + proposedHead + " PreviousOffset=" + startIndex
-                  + " EventSize=" + dbusEventSize + " MinScn=" + getMinScn());
-         LOG.warn("Event Buffer is :" + toString());
-         LOG.warn("SCN Index is :");
-         _scnIndex.printVerboseString(LOG, org.apache.log4j.Level.WARN);
-       }
-
-       moveHead(proposedHead, -1, -1, isDebugEnabled);
-      }
-      else
-      {
-        try
-        {
-          _head.setPosition(_bufferPositionParser.sanitize(startPositionCopy, _buffers));
-        }
-        catch (RuntimeException re)
-        {
-          LOG.error("Initial Start Write Position = " + _bufferPositionParser.toString(initialWriteStartPos));
-          LOG.error("startPositionCopy = " + _bufferPositionParser.toString(startPositionCopy));
-          LOG.error("_head = " + _head.toString());
-          LOG.error("Range.contains = " + Range.containsReaderPosition(startIndex, stopIndex, _head.getPosition(),_bufferPositionParser));
-
-          throw re;
-        }
-      }*/
     }
     finally
     {
@@ -1852,11 +1906,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   @Override
   public void rollbackEvents() {
-    // do nothing
-    // tail should be pointing to eventWindowStartScn
-    // reset window local state
-    resetWindowState();
-    rollbackCurrentWritePosition();
+    acquireWriteLock();
+
+    try {
+      if(isClosed()) {
+        LOG.warn("attempt to rollbackEvents for a closed buffer");
+        return;
+      }
+      // do nothing
+      // tail should be pointing to eventWindowStartScn
+      // reset window local state
+      resetWindowState();
+      rollbackCurrentWritePosition();
+    } finally {
+      releaseWriteLock();
+    }
   }
 
 
@@ -1915,52 +1979,63 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
 
     if (WindowState.ENDED == _eventState){
-        if (isDebugEnabled)
-        {
-          LOG.debug("Skipping event window as Window is already in ended state" + windowScn);
-        }
-    }
-
-    if (WindowState.STARTED == _eventState && windowScn == _lastWrittenSequence)
-    {
-      //nothing to finish
       if (isDebugEnabled)
       {
-        LOG.debug("Skipping event window that did not move forward:" + windowScn);
+        LOG.debug("Skipping event window as Window is already in ended state" + windowScn);
       }
-      _eventState = WindowState.ENDED;
-
-      return;
     }
+    acquireWriteLock();
 
     try
     {
-      prepareForAppend(DbusEventV1.EOPMarkerKey, DbusEventV1.EOPMarkerValue);
-      long preWritePosition = _currentWritePosition.getPosition();
+      if(isClosed()) {
+        throw new DatabusRuntimeException("refusing to endEvents, because the buffer is closed");
+      }
+
+      if (WindowState.STARTED == _eventState && windowScn == _lastWrittenSequence)
+      {
+        //nothing to finish
+        if (isDebugEnabled)
+        {
+          LOG.debug("Skipping event window that did not move forward:" + windowScn);
+        }
+        _eventState = WindowState.ENDED;
+
+        return;
+      }
+
       DbusEventInfo eventInfo = new DbusEventInfo(null,
                                                   windowScn,
                                                   _physicalPartition.getId().shortValue(),
                                                   (short)0,
                                                   _timestampOfLatestDataEvent,
-                                                  DbusEventV1.EOPMarkerSrcId,
-                                                  DbusEventV1.emptymd5,
-                                                  DbusEventV1.EOPMarkerValue,
+                                                  DbusEventInternalWritable.EOPMarkerSrcId,
+                                                  DbusEventInternalWritable.emptyMd5,
+                                                  DbusEventInternalWritable.EOPMarkerValue,
                                                   false, //enable tracing
-                                                  false // autocommit
+                                                  false, // autocommit
+                                                  getEventSerializationVersion(),
+                                                  (short)0,  // payload schema version, 0 since there is no payload
+                                                  null  // DbusEventPart for metadata
                                                   );
-      final int bytesWritten =
-        DbusEventV1.serializeEndOfPeriodMarker(_buffers[_currentWritePosition.bufferIndex()],
-                                             eventInfo);
+      final int expNumBytesWritten = DbusEventFactory.computeEventLength(DbusEventInternalWritable.EOPMarkerKey,
+                                                                         eventInfo);
+      prepareForAppend(expNumBytesWritten);
+      final int numBytesWritten = _eventFactory.serializeLongKeyEndOfPeriodMarker(_buffers[_currentWritePosition.bufferIndex()],
+                                                                                  eventInfo);
 
-
+      if (numBytesWritten != expNumBytesWritten)
+      {
+        String msg = "Actual Bytes Written was :" + numBytesWritten +
+            ", Expected to Write :" + expNumBytesWritten;
+        LOG.fatal(msg);
+        LOG.fatal("Event Buffer is :" + toString());
+        throw new DatabusRuntimeException(msg);
+      }
       final long newWritePos =
-          _bufferPositionParser.incrementOffset(_currentWritePosition.getPosition(), bytesWritten,
+          _bufferPositionParser.incrementOffset(_currentWritePosition.getPosition(), numBytesWritten,
                                                 _buffers);
       moveCurrentWritePosition(newWritePos);
-
-      preWritePosition =  _bufferPositionParser.sanitize(preWritePosition, _buffers);
-      _writingEvent.reset(_buffers[_bufferPositionParser.bufferIndex(preWritePosition)],
-                          _bufferPositionParser.bufferOffset(preWritePosition));
 
       finalizeAppend();
 
@@ -2005,6 +2080,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
             // TODO (DDSDBUS-57): per SD's request, scnIndex is kept out of internalListeners.
             // But in theory, scnIndex shall be one of the internalListeners.
             // SD shall address this code when he gets around to it - LG
+            // [who the heck are SD and LG??]
             if ((!_internalListeners.isEmpty()) && callListener)
             {
               for (InternalDatabusEventsListener listener : _internalListeners)
@@ -2034,65 +2110,59 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     	  {
     		 _scnIndex.assertLastWrittenPos(_eventStartIndex);
     	  } catch (RuntimeException re) {
-    		  LOG.fatal("Got runtime Exception :", re);
-    		  LOG.fatal("Event Buffer is :" + toString());
-    		  LOG.fatal("SCN Index is :");
+    		  _log.fatal("Got runtime Exception: ", re);
+    		  _log.fatal("Event Buffer is: " + toString());
+    		  _log.fatal("SCN Index is: ");
     		  _scnIndex.printVerboseString(LOG, org.apache.log4j.Level.FATAL);
 
     		  throw re;
     	  }
       }
 
-      //Update Tail
-      acquireWriteLock();
-      try
+
+      _eventState = WindowState.ENDED;
+      _lastWrittenSequence = windowScn;
+      long oldTail = _tail.getPosition();
+
+      assert _currentWritePosition.bufferGenId() - _head.bufferGenId() <= 1 : toString();
+      _tail.copy(_currentWritePosition);
+      if (_head.getPosition() < 0)
       {
-        _eventState = WindowState.ENDED;
-        _lastWrittenSequence = windowScn;
-        long oldTail = _tail.getPosition();
-
-        assert _currentWritePosition.bufferGenId() - _head.bufferGenId() <= 1 : toString();
-        _tail.copy(_currentWritePosition);
-        if (_head.getPosition() < 0)
-        {
-          _head.setPosition(0);
-        }
-
-        if (QueuePolicy.OVERWRITE_ON_WRITE == _queueingPolicy)
-        {
-          try
-          {
-      	  _bufferPositionParser.assertSpan(_head.getPosition(), _tail.getPosition(),isDebugEnabled);
-      	  _scnIndex.assertHeadPosition(_head.getRealPosition());
-          } catch (RuntimeException re) {
-      	  LOG.fatal("Got runtime Exception :", re);
-      	  LOG.info("Old Tail was :" + _bufferPositionParser.toString(oldTail) + ", New Tail is :" + _tail.toString());
-      	  LOG.fatal("Event Buffer is :" + toString());
-      	  throw re;
-          }
-        }
-
-        if (LOG.isDebugEnabled())
-          LOG.debug("DbusEventBuffer: head = " + _head.toString() + " tail = " + _tail.toString() + "empty = " + empty());
-        if (null != statsCollector) {
-          statsCollector.registerBufferMetrics(this.getMinScn(),_lastWrittenSequence,this.getPrevScn(),this.getBufferFreeSpace());
-          statsCollector.registerTimestampOfFirstEvent(_timestampOfFirstEvent);
-        }
-        _empty = false;
-        updateFirstEventMetadata();
-        _notEmpty.signalAll();
-      }
-      finally
-      {
-        releaseWriteLock();
+        _head.setPosition(0);
       }
 
-    }
-    catch (KeyTypeNotImplementedException ex)
+      if (QueuePolicy.OVERWRITE_ON_WRITE == _queueingPolicy)
+      {
+        try
+        {
+          _bufferPositionParser.assertSpan(_head.getPosition(), _tail.getPosition(),isDebugEnabled);
+          _scnIndex.assertHeadPosition(_head.getRealPosition());
+        } catch (RuntimeException re) {
+          _log.fatal("Got runtime Exception: ", re);
+          _log.info("Old Tail was: " + _bufferPositionParser.toString(oldTail, _buffers) + ", New Tail is: " + _tail.toString());
+          _log.fatal("Event Buffer is: " + toString());
+          throw re;
+        }
+      }
+
+      if (_log.isDebugEnabled())
+        _log.debug("DbusEventBuffer: head = " + _head.toString() + " tail = " + _tail.toString() + "empty = " + empty());
+      if (null != statsCollector) {
+        statsCollector.registerBufferMetrics(this.getMinScn(),_lastWrittenSequence,this.getPrevScn(),this.getBufferFreeSpace());
+        statsCollector.registerTimestampOfFirstEvent(_timestampOfFirstEvent);
+      }
+      _empty = false;
+      updateFirstEventMetadata();
+      _notEmpty.signalAll();
+
+
+    } catch (KeyTypeNotImplementedException ex)
     {
       if (null != statsCollector)
-        statsCollector.registerEventError(EventScanStatus.ERR);
+        statsCollector.registerEventError(DbusEventInternalReadable.EventScanStatus.ERR);
       throw new RuntimeException(ex);
+    } finally {
+      releaseWriteLock();
     }
   }
 
@@ -2123,6 +2193,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Given a checkPoint, writes events that form the next sequence of events after
    * that checkpoint onto the provided WritableByteChannel.
    *
+   * params are actually passed in  {@link StreamEventsArgs}
    * @param checkPoint
    *            : checkpoint to start streaming from
    * @param streamFromLatestScn
@@ -2140,61 +2211,41 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    *             // throws when things go wrong : semantics need to be
    *             hardened
    */
-  public int streamEvents(Checkpoint checkPoint,  boolean streamFromLatestScn, int batchFetchSize,
-          WritableByteChannel writeChannel, Encoding encoding,
-          DbusFilter filter) throws ScnNotFoundException, OffsetNotFoundException {
-	  return streamEvents(checkPoint, streamFromLatestScn, batchFetchSize, writeChannel, encoding, filter, StreamingMode.CONTINUOUS, null);
-  }
-
-  public int streamEvents(Checkpoint checkPoint, int batchFetchSize,
-                          WritableByteChannel writeChannel, Encoding encoding,
-                          DbusFilter filter,
-                          DbusEventsStatisticsCollector statsCollector) throws ScnNotFoundException, OffsetNotFoundException
-  {
-    return streamEvents(checkPoint, false, batchFetchSize, writeChannel, encoding, filter,
-                        StreamingMode.CONTINUOUS, statsCollector);
-  }
-
-
-  public int streamEvents(Checkpoint checkPoint, boolean streamFromLatestScn, int batchFetchSize,
-          WritableByteChannel writeChannel, Encoding encoding,
-          DbusFilter filter,
-          DbusEventsStatisticsCollector statsCollector) throws ScnNotFoundException, OffsetNotFoundException
-  {
-	  return streamEvents(checkPoint, streamFromLatestScn, batchFetchSize, writeChannel, encoding, filter,
-			  StreamingMode.CONTINUOUS, statsCollector);
-  }
 
   /**
    *
    * @param checkPoint
-   * @param batchFetchSize
    * @param writeChannel
-   * @param encoding
-   * @param filter
-   * @param statsCollector
+   * @param {@link StreamEventsArgs}
    * @throws ScnNotFoundException
    */
-  public int streamEvents(Checkpoint checkPoint, boolean streamFromLatestScn, int batchFetchSize,
-                          WritableByteChannel writeChannel, Encoding encoding,
-                          DbusFilter filter, StreamingMode sMode,
-                          DbusEventsStatisticsCollector statsCollector)
+  public StreamEventsResult streamEvents(Checkpoint checkPoint,
+                                         WritableByteChannel writeChannel,
+                                         StreamEventsArgs args
+                                         )
   throws ScnNotFoundException, OffsetNotFoundException
   {
     long startTimeTs = System.nanoTime();
 
-    int numEventsStreamed = 0;
-    boolean isDebugEnabled = LOG.isDebugEnabled();
-    boolean oneWindowAtATime = sMode == StreamingMode.WINDOW_AT_TIME; // window at a time
+    StreamEventsResult result = new StreamEventsResult(0, 0);
+    boolean isDebugEnabled = _log.isDebugEnabled();
+    boolean oneWindowAtATime = args.getSMode() == StreamingMode.WINDOW_AT_TIME; // window at a time
+    int batchFetchSize = args.getBatchFetchSize();
+    DbusEventsStatisticsCollector statsCollector = args.getDbusEventsStatisticsCollector();
+    int maxClientEventVersion = args.getMaxClientEventVersion();
 
     //int sleepTimeMs = RngUtils.randomPositiveInt()%3;
 
-    if (isDebugEnabled) LOG.debug("Stream:begin:" + checkPoint.toString());
+    if (isDebugEnabled)
+    {
+      _log.debug("Stream:begin:" + checkPoint.toString());
+    }
 
     if (empty())
     {
-      if (isDebugEnabled) LOG.debug("Nothing to send out. Buffer is empty");
-      return numEventsStreamed;
+      if (isDebugEnabled)
+        _log.debug("Nothing to send out. Buffer is empty");
+      return result;
     }
 
     long offset;
@@ -2207,8 +2258,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     try {
 
       ScnIndex.ScnIndexEntry entry = null;
-      if ( streamFromLatestScn )
+      if ( args.isStreamFromLatestScn() )
       {
+        // If streamFromLatestScn is set, then the checkpoint is not respected in the current implementation,
+        // but streaming starts from the last window available in the buffer. Hence, init() is invoked on
+        // checkpoint
         sinceScn = _lastWrittenSequence;
         messagesToSkip = 0;
         skipWindowScn = false;
@@ -2218,9 +2272,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       if (checkPoint.getFlexible())
       {
         long minScn = 0;
+        _queueLock.lock();
         try
         {
-          _queueLock.lock();
           eventIterator =
               acquireInternalIterator(_head.getPosition(),
                                       _bufferPositionParser.sanitize(_tail.getPosition(), _buffers),
@@ -2228,9 +2282,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           minScn = getMinScn();
 
           if (isDebugEnabled)
-            LOG.debug("Acquired read iterator from " + _head.toString() +
-                      " to " + _bufferPositionParser.toString(_bufferPositionParser.sanitize(_tail.getPosition(), _buffers))
-                      +  " minScn = " + minScn);
+          {
+            _log.debug("Acquired read iterator from " + _head.toString() + " to " +
+                       _bufferPositionParser.toString(_bufferPositionParser.sanitize(_tail.getPosition(), _buffers), _buffers)
+                       + " minScn = " + minScn);
+          }
         } finally {
           _queueLock.unlock();
         }
@@ -2239,9 +2295,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         {
           if (isDebugEnabled)
           {
-            LOG.debug("Nothing to send out. Buffer is empty");
+            _log.debug("Nothing to send out. Buffer is empty");
           }
-          return numEventsStreamed;
+          return result;
         }
 
         sinceScn = minScn;
@@ -2258,15 +2314,15 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           //DDS-737 : guards against the situation where first window is not completely written but buffer is deemed not empty;
           if (minScn < 0) {
             if (sinceScn >= prevScn) {
-              LOG.error("Buffer still not fully ready; please wait for new events: sinceScn=" + sinceScn + " Anticipating events from scn=" + prevScn);
+              _log.error("Buffer still not fully ready; please wait for new events: sinceScn=" + sinceScn + " Anticipating events from scn=" + prevScn);
             } else {
-              LOG.error("Buffer still not fully ready; but request will be obsolete sinceScn=" + sinceScn + " Anticipating events from scn=" + prevScn);
+              _log.error("Buffer still not fully ready; but request will be obsolete sinceScn=" + sinceScn + " Anticipating events from scn=" + prevScn);
               throw new ScnNotFoundException();
             }
           } else {
-            LOG.debug("No new events for SCN:" + sinceScn);
+            _log.debug("No new events for SCN:" + sinceScn);
           }
-          return 0;
+          return result;
         }
 
         if (sinceScn < minScn)
@@ -2280,8 +2336,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
             checkPoint.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
             try
             {
-              return streamEvents(checkPoint, streamFromLatestScn, batchFetchSize, writeChannel,encoding,
-                                  filter, statsCollector);
+              return streamEvents(checkPoint, writeChannel, args);
             }
             catch (ScnNotFoundException e1)
             {
@@ -2289,7 +2344,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
             }
           } else {
             //either ; sinceScn < prevScn or sinceScn=prevScn with offset >= 0;
-            LOG.error("sinceScn is less than minScn and prevScn : sinceScn=" + sinceScn + " minScn=" + minScn + " PrevScn= " + prevScn);
+            _log.error("sinceScn is less than minScn and prevScn : sinceScn=" + sinceScn + " minScn=" + minScn + " PrevScn= " + prevScn);
             throw new ScnNotFoundException();
           }
         }
@@ -2299,7 +2354,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         long endTimeTs1 = System.nanoTime();
         if (PERF_LOG.isDebugEnabled())
         {
-        	PERF_LOG.debug("getClosestOffset(sinceScn) took: sinceScn=" + sinceScn + " " + (endTimeTs1 - startTimeTs1) / _nanoSecsInMSec + "ms");
+          PERF_LOG.debug("getClosestOffset(sinceScn) took: sinceScn=" + sinceScn + " " + (endTimeTs1 - startTimeTs1) / _nanoSecsInMSec + "ms");
         }
 
         offset = entry.getOffset();
@@ -2309,11 +2364,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                                 "streamEventsIterator");
         if (isDebugEnabled)
         {
-          LOG.debug("Stream:offset:" + _bufferPositionParser.toString(offset));
-          DbusEventInternalWritable e = new DbusEventV1();
-          e.reset(_buffers[_bufferPositionParser.bufferIndex(offset)],
-                  _bufferPositionParser.bufferOffset(offset));
-          LOG.debug("Stream:Event@Offset:sequence:"+e.sequence());
+          _log.debug("Stream:offset:" + _bufferPositionParser.toString(offset, _buffers));
+          DbusEvent e = _eventFactory.createReadOnlyDbusEventFromBuffer(_buffers[_bufferPositionParser.bufferIndex(offset)],
+                                                                        _bufferPositionParser.bufferOffset(offset));
+          _log.debug("Stream:Event@Offset:sequence:"+e.sequence());
         }
       }
 
@@ -2322,35 +2376,48 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       // Iterate over the buffer to locate batchFetchSize events
       int batchSize = 0;
       boolean foundWindow = false;
-      long lastWindowScn = 0;
+      long currentWindowScn = 0;
       boolean isFirstEvent = true;
       long startTimeTs2 = System.nanoTime();
       boolean done = false;
+      // If we encounter the situation (SCN_A < checkpoint_windowSCN < SCN_B), then we end up changing the checkpoint
+      // windowScn value to SCN_B. In that case, we save SCN_A in prevWindowScn (for logging).
+      long prevWindowScn = 0;
       while (!done && eventIterator.hasNext()) {
         // for the first event, we need to validate that we got a "clean" read lock
         // since we intentionally split the getOffset from the getIterator call
         DbusEventInternalWritable e;
+        int eventVersion;
 
         try
         {
           e = eventIterator.next(isFirstEvent);
+          eventVersion = e.getVersion();
+
+          // Convert event to the supported version if possible (DDSDBUS-2063).
+          // For now we also assume that clientVersion equals to the eventVersion that the client understands
+          // if convertToDifferentVersion() cannot convert - it will throw a runtime exception
+          if (eventVersion > maxClientEventVersion) {
+            e = DbusEventInternalWritable.convertToDifferentVersion(e, (byte)maxClientEventVersion);
+          }
+
           if ( isFirstEvent)
           {
             if ((entry != null) && (entry.getScn() != e.sequence()))
             {
               String msg = "Concurrent Overwritting of Event. Expected sequence :" + entry.getScn()
                   + ", Got event=" + e.toString();
-              LOG.warn(msg);
+              _log.warn(msg);
               throw new OffsetNotFoundException(msg);
             }
           }
         }
         catch (InvalidEventException e2)
         {
-          LOG.warn("Found invalid event on getting iterator. This is not unexpected but should be investigated.");
-          LOG.warn("RangeBasedLocking :" + _rwLockProvider.toString(_bufferPositionParser, true));
+          _log.warn("Found invalid event on getting iterator. This is not unexpected but should be investigated.");
+          _log.warn("RangeBasedLocking :" + _rwLockProvider.toString(_bufferPositionParser, true));
           if (null != statsCollector)
-            statsCollector.registerEventError(EventScanStatus.ERR);
+            statsCollector.registerEventError(DbusEventInternalReadable.EventScanStatus.ERR);
           throw new DatabusRuntimeException(e2);
         }
 
@@ -2360,15 +2427,15 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         {
           if (e.sequence() > sinceScn)
           {
-            LOG.info("ScnIndex state = " + _scnIndex);
-            LOG.info("Iterator position = " + eventIterator._currentPosition.toString());
-            LOG.info("Iterator = " + eventIterator);
-            LOG.info("Found event " + e + " while looking for sinceScn = " + sinceScn);
-            /**while (eventIterator.hasNext())
-          {
-            e = eventIterator.next();
-            LOG.error("DbusEventBuffer:dump:" + e);
-          }**/
+            _log.info("ScnIndex state = " + _scnIndex);
+            _log.info("Iterator position = " + eventIterator._currentPosition.toString());
+            _log.info("Iterator = " + eventIterator);
+            _log.info("Found event " + e + " while looking for sinceScn = " + sinceScn);
+            /* while (eventIterator.hasNext())
+            {
+              e = eventIterator.next();
+              _log.error("DbusEventBuffer:dump:" + e);
+            } */
             throw new ScnNotFoundException();
           }
           else
@@ -2383,10 +2450,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           {
             if (e.sequence() < sinceScn)
             {
-              lastWindowScn = e.sequence();
+              currentWindowScn = e.sequence();
               continue;
             }
             else
+            {
               if (e.sequence() == sinceScn)
               {
                 // we are in the == zone
@@ -2404,19 +2472,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                   // we never found the window but reached a greater
                   // window
                   state = EventScanningState.MISSED_WINDOW_ZONE;
-                  lastWindowScn = e.sequence();
+                  prevWindowScn = currentWindowScn;
+                  currentWindowScn = e.sequence();
                 }
               }
-
+            }
           }
           else
           {
             if (e.sequence() < sinceScn)
             {
-              lastWindowScn = e.sequence();
+              currentWindowScn = e.sequence();
               continue;
             }
             else
+            {
               if (e.sequence() == sinceScn)
               {
                 foundWindow = true;
@@ -2427,9 +2497,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                 // we never found the window but reached a greater
                 // window
                 state = EventScanningState.MISSED_WINDOW_ZONE;
-                lastWindowScn = e.sequence();
-
+                prevWindowScn = currentWindowScn;
+                currentWindowScn = e.sequence();
               }
+            }
           }
         }
 
@@ -2448,9 +2519,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
         if (state == EventScanningState.VALID_ZONE)
         {
-          // paydirt !!
           boolean controlMessage = e.isControlMessage();
-          boolean filterAllowed = filter.allow(e);
+          boolean filterAllowed = args.getFilter().allow(e);
           if (controlMessage || filterAllowed)
           {
             if (batchSize + e.size() > batchFetchSize)
@@ -2458,18 +2528,19 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
               // sending this would violate our contract on upper bound of
               // bytes to send
               if (isDebugEnabled)
-                LOG.debug("streamEvents returning after streaming " + batchSize + " bytes because " + batchSize
-                          + " + " + e.size() + " > " + batchFetchSize);
+                _log.debug("streamEvents returning after streaming " + batchSize + " bytes because " + batchSize
+                           + " + " + e.size() + " > " + batchFetchSize);
+              result.setSizeOfPendingEvent(e.size());
               break;
             }
 
             long startTimeTs1 = System.nanoTime();
-            int bytesWritten = e.writeTo(writeChannel, encoding);
+            int bytesWritten = e.writeTo(writeChannel, args.getEncoding());
             long endTimeTs1 = System.nanoTime();
             if (PERF_LOG.isDebugEnabled())
             {
-                PERF_LOG.debug("writeTo(sinceScn=" + sinceScn + ", bytes=" + bytesWritten +
-                               ") took: " + ((endTimeTs1 - startTimeTs1) / _nanoSecsInMSec) + "ms");
+              PERF_LOG.debug("writeTo(sinceScn=" + sinceScn + ", bytes=" + bytesWritten +
+                             ") took: " + ((endTimeTs1 - startTimeTs1) / _nanoSecsInMSec) + "ms");
             }
 
             if (0 >= bytesWritten)
@@ -2486,9 +2557,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
               if (isDebugEnabled)
               {
                 if (e.isEndOfPeriodMarker())
-                  LOG.debug("Stream:sequence:"+e.sequence());
+                  _log.debug("Stream:sequence:"+e.sequence());
                 else
-                  LOG.debug("Stream:sequence:"+e.sequence()+":headerCrc:"+e.headerCrc());
+                  _log.debug("Stream:sequence:"+e.sequence()+":headerCrc:"+e.headerCrc());
               }
 
               /** When batch writing is implemented this becomes
@@ -2499,17 +2570,16 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                * }
                */
               batchSize += e.size();
-              numEventsStreamed += 1;
-              if(isDebugEnabled)
-                LOG.debug("buf.stream: GOT event scn="+e.sequence() + ";srcid=" + e.srcId() +
-                          ";eow=" + e.isEndOfPeriodMarker() + ";oneWindatTime=" + oneWindowAtATime);
+              result.incNumEventsStreamed(1);
+              if (isDebugEnabled)
+                _log.debug("buf.stream: GOT event scn="+e.sequence() + ";srcid=" + e.getSourceId() +
+                           ";eow=" + e.isEndOfPeriodMarker() + ";oneWindatTime=" + oneWindowAtATime);
             }
-
           }
           else
           {
             if (isDebugEnabled)
-              LOG.debug("Event was valid according to checkpoint, but was filtered out :" + e);
+              _log.debug("Event was valid according to checkpoint, but was filtered out :" + e);
           }
 
           // register both filtered and non-filtered events
@@ -2520,7 +2590,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
           // end of the window - don't send more
           if(e.isEndOfPeriodMarker() && oneWindowAtATime)
           {
-            LOG.info("buf.stream: reached end of a window. scn="+e.sequence());
+            _log.info("buf.stream: reached end of a window. scn="+e.sequence());
             break;
           }
         }
@@ -2528,19 +2598,18 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         if (state == EventScanningState.MISSED_WINDOW_ZONE)
         {
           // did not find the window that we were looking for
-          // set checkpoint to the lastWindowScn that is < the windowScn
-          // being searched for
-          // and start streaming from there.
-          LOG.info("Setting checkpoint to " + lastWindowScn
-                   + " could not serve " + checkPoint);
-          checkPoint.setWindowScn(lastWindowScn);
-          //get the lastWindowScn as well; not the next window; that's why the offset is 0 and not -1
+          // set checkpoint to the first window that we found > the windowScn
+          // being searched for and start streaming from there.
+          _log.info("Could not serve target SCN " + checkPoint + ". Setting checkpoint to " + currentWindowScn +
+                    " (target+" + (currentWindowScn-checkPoint.getWindowScn()) + "). Previous window SCN=" + prevWindowScn +
+                    " (target-" + (checkPoint.getWindowScn()-prevWindowScn) + ")");
+          checkPoint.setWindowScn(currentWindowScn);
+          //get the currentWindowScn as well; not the next window; that's why the offset is 0 and not -1
           checkPoint.setWindowOffset(0);
           checkPoint.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
           try
           {
-            return streamEvents(checkPoint, streamFromLatestScn, batchFetchSize, writeChannel,encoding,
-                                filter, statsCollector);
+            return streamEvents(checkPoint, writeChannel, args);
           }
           catch (ScnNotFoundException e1)
           {
@@ -2552,13 +2621,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       if (batchSize == 0)
       {
-        if (LOG.isDebugEnabled())
-          LOG.debug("No events were sent out.");
+        if (isDebugEnabled)
+          _log.debug("No events were sent out.");
       }
 
-      /**  DbusEvent e = new DbusEvent(_buffers.get(0), 0);
-    LOG.info("MinEvent:beforeRelease " + e);
-       **/
       long endTimeTs2 = System.nanoTime();
       if (PERF_LOG.isDebugEnabled())
       {
@@ -2570,21 +2636,16 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         releaseIterator(eventIterator);
     }
 
-    /**e.reset(_buffers.get(0), 0);
-    LOG.info("MinEvent:afterRelease " + e);
-     **/
-    if (LOG.isDebugEnabled())
-      LOG.debug("Stream:events:"+numEventsStreamed);
+    if (isDebugEnabled)
+      _log.debug("Stream:events:"+result.getNumEventsStreamed());
 
     long endTimeTs = System.nanoTime();
     if (PERF_LOG.isDebugEnabled())
     {
-      	PERF_LOG.debug("streamEvents took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec + "ms");
+      PERF_LOG.debug("streamEvents took:" + (endTimeTs - startTimeTs) / _nanoSecsInMSec + "ms");
     }
 
-
-    return numEventsStreamed;
-
+    return result;
   }
 
   /**
@@ -2607,7 +2668,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
     case BINARY :
     {
-      ByteBuffer writeBuf = buf.duplicate().order(DbusEventV1.byteOrder);
+      ByteBuffer writeBuf = buf.duplicate().order(_eventFactory.getByteOrder());
       writeBuf.position(startBufferOffset);
       writeBuf.limit(endBufferOffset);
       try
@@ -2623,12 +2684,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
     case JSON: case JSON_PLAIN_VALUE:
     {
-      DbusEventInternalWritable e = new DbusEventV1(buf, startBufferOffset);
+      DbusEventInternalReadable e = _eventFactory.createReadOnlyDbusEventFromBuffer(buf, startBufferOffset);
       int currentBufferOffset = startBufferOffset;
       while (currentBufferOffset != endBufferOffset)
       {
-        e.reset(buf, currentBufferOffset);
-
+        e = e.reset(buf, currentBufferOffset);
         e.writeTo(writeChannel, encoding);
         currentBufferOffset += e.size();
       }
@@ -2646,13 +2706,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   public boolean empty()
   {
     return (_empty);
-    //    return (_size.get()==0);
+//  return (_size.get()==0);
 
-    /**    if (_head < 0)
+/*
+    if (_head < 0)
       return true;
-
     return false;
-     **/
+ */
   }
 
   private void releaseWriteLock()
@@ -2671,11 +2731,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     _rwLockProvider.releaseWriterLock(_bufferPositionParser);
   }
 
-  private void acquireWriteLock() {
+  private void acquireWriteLock()
+  {
     _queueLock.lock();
   }
 
-  public int getReadStatus() {
+  public int getReadStatus()
+  {
     return readLocked.get();
   }
 
@@ -2692,7 +2754,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       BufferedReader in = new BufferedReader(Channels.newReader(readChannel, "UTF-8"));
       try
       {
-        return DbusEventV1.appendToEventBuffer(in , this, null, false);
+        return DbusEventSerializable.appendToEventBuffer(in, this, null, false);
       }
       catch (JsonParseException e)
       {
@@ -2786,15 +2848,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     /** the verification status of the current event in the staging buffer */
     ReadEventsScanStatus _scanStatus;
     /** The event currently being processed */
-    DbusEventInternalWritable _curEvent;
+    DbusEventInternalWritable _curEvent;  // TODO Make this DbusEventInternalReadable
     /** The scn of the last successfully processed window */
     long _lastSeenStgWin;
     /** A flag if _scnRegress flag has to be reset after the current event is processed */
     boolean _resetScnRegress;
+    /**
+     * used for reading bytes into a staging area
+     * before inserting into the primary buffer
+     */
+    private ByteBuffer _readBuffer;
 
     public ReadEventsReadPosition()
     {
       _lastSeenStgWin = _seenEndOfPeriodScn;
+      _readBuffer = ByteBuffer.allocate(_initReadBufferSize).order(_eventFactory.getByteOrder());
     }
 
     /** This should be called after the data in the buffer changes: reading from network*/
@@ -2805,8 +2873,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _skippedEvents = 0;
       _end = _readBuffer.position();
       _lastProcessedSeq = _lastWrittenSequence;
-      if (null == _curEvent) _curEvent = new DbusEventV1(_readBuffer, _pos);
-      else _curEvent.reset(_readBuffer, _pos);
+      if (_curEvent == null) {
+        // TODO Change this call to createReadOnly, but that is a bigger change.
+        _curEvent = _eventFactory.createWritableDbusEventFromBuffer(_readBuffer, _pos);
+      } else {
+        _curEvent = (DbusEventInternalWritable)_curEvent.reset(_readBuffer, _pos);
+      }
     }
 
     public int getReadStart()
@@ -2928,42 +3000,51 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
       _start = _pos;
       _resetScnRegress = false;
-      _curEvent.reset(_readBuffer, _pos);
-      final EventScanStatus eventScanStatus = _curEvent.scanEvent(true);
-      switch (eventScanStatus)
+      try
       {
-        case PARTIAL:
+        _curEvent = (DbusEventInternalWritable)_curEvent.reset(_readBuffer, _pos);
+        final EventScanStatus eventScanStatus = _curEvent.scanEvent(false);
+        switch (eventScanStatus)
         {
-          _scanStatus = ReadEventsScanStatus.PARTIAL_EVENT;
-          break;
-        }
-        case ERR:
-        {
-          _scanStatus = ReadEventsScanStatus.INVALID_EVENT;
-          break;
-        }
-        case OK:
-        {
-          _nextPos = _pos + _curEvent.size();
-          checkForReadEventsScnRegress();
-
-          if (_log.isDebugEnabled()) {
-            long eventSrcId = _curEvent.srcId();
-            LOG.debug("scan event:position:"+ getPosition() +
-                      ";size:" + _curEvent.size() +
-                      ";seq:" + _curEvent.sequence() +
-                      ";evSrcId:" + eventSrcId);
+          case PARTIAL:
+          {
+            _scanStatus = ReadEventsScanStatus.PARTIAL_EVENT;
+            break;
           }
+          case ERR:
+          {
+            _scanStatus = ReadEventsScanStatus.INVALID_EVENT;
+            break;
+          }
+          case OK:
+          {
+            _nextPos = _pos + _curEvent.size();
+            checkForReadEventsScnRegress();
 
-          _scanStatus = ReadEventsScanStatus.OK;
-          if (_dropOldEvents && (!_scnRegress) && hasEventWithOldScn())
-            _scanStatus = ReadEventsScanStatus.SCN_REGRESSION;
-          else if (_dropOldEvents && (!_scnRegress) && hasMissingEOP())
-            _scanStatus = ReadEventsScanStatus.MISSING_EOP;
-          break;
+            if (_log.isDebugEnabled())
+            {
+              long eventSrcId = _curEvent.getSourceId();
+              LOG.debug("scan event:position:"+ getPosition() +
+                        ";size:" + _curEvent.size() +
+                        ";seq:" + _curEvent.sequence() +
+                        ";evSrcId:" + eventSrcId);
+            }
+
+            _scanStatus = ReadEventsScanStatus.OK;
+            if (_dropOldEvents && (!_scnRegress) && hasEventWithOldScn())
+              _scanStatus = ReadEventsScanStatus.SCN_REGRESSION;
+            else if (_dropOldEvents && (!_scnRegress) && hasMissingEOP())
+              _scanStatus = ReadEventsScanStatus.MISSING_EOP;
+            break;
+          }
+          default:
+            throw new IllegalStateException("unknown event scan status: " + eventScanStatus);
         }
-        default:
-          throw new IllegalStateException("unknown event scan status: " + eventScanStatus);
+      }
+      catch (UnsupportedDbusEventVersionRuntimeException e)
+      {
+        _log.fatal("Unknown dbus event version:", e);
+        _scanStatus = ReadEventsScanStatus.INVALID_EVENT;
       }
 
       return _scanStatus;
@@ -3018,6 +3099,39 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 	public long getLastSeenStgWin() {
 		return _lastSeenStgWin;
 	}
+
+  /**
+   * @return the readBuffer
+   */
+  public ByteBuffer getReadBuffer()
+  {
+    return _readBuffer;
+  }
+
+  /**
+   * Grows the read buffer to a new size. The _curEvent object is reset to null in the process. The method does not
+   * enforce an upper-bound of the new size. This is responsibility of the caller.
+   */
+  public ByteBuffer growReadBuffer(int newSize)
+  {
+    assert 0 == _readBuffer.position() : "readBuffer position not 0; data before it will be lost!";
+
+    if (newSize <= _readBuffer.capacity())
+    {
+      throw new DatabusRuntimeException("invalid new event staging buffer size: " + newSize + "; current buffer: "
+                                        + _readBuffer);
+    }
+    if (_log.isDebugEnabled())
+    {
+      _log.debug("growing event staging buffer from " + _readBuffer.capacity() + " to " + newSize);
+    }
+    ByteBuffer newBuf = ByteBuffer.allocate(newSize).order(_eventFactory.getByteOrder());
+    newBuf.put(_readBuffer);
+    _curEvent = null;
+    _readBuffer = newBuf;
+
+    return newBuf;
+  }
 
   }
 
@@ -3079,7 +3193,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
       //while calculating endPosition, discount the bufferLimit since we will resize the limit
       //to capacity if needed
-      setNextFreePos(_bufferPositionParser.incrementOffset(getCurPos(), increment, _buffers, false));
+      setNextFreePos(_bufferPositionParser.incrementOffset(getCurPos(), increment, _buffers));
       if ( _log.isDebugEnabled() )
       {
         _log.debug("readEvents: _empty :" + _empty + ", " + this + ", Head:" + _head +
@@ -3155,19 +3269,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   }
 
+  private static final double LN_5 = Math.log(5.0);
+
   private int readEventsInternal(ReadableByteChannel readChannel,
                                  Iterable<InternalDatabusEventsListener> eventListeners,
                                  DbusEventsStatisticsCollector statsCollector)
           throws InvalidEventException
   {
-    final boolean logDebugEnabled = LOG.isDebugEnabled();
+    final boolean logDebugEnabled = _log.isDebugEnabled();
 
     ReadEventsReadPosition readPos = new ReadEventsReadPosition();
     ReadEventsWritePosition writePos = new ReadEventsWritePosition();
 
+    _readBufferLock.lock();
     try
     {
-      _readBufferLock.lock();
       _eventState = WindowState.IN_READ;
 
       boolean mightHaveMoreData = true;
@@ -3181,21 +3297,25 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       {
         while (mightHaveMoreData)
         {
-          boolean success = readEventsFromChannel(readChannel, logDebugEnabled);
+          final ByteBuffer readBuffer = readPos.getReadBuffer();
+          boolean success = readEventsFromChannel(readChannel, readBuffer, logDebugEnabled);
           readPos.startIteration();
 
           final int numBytesRead = readPos.bytesRemaining();
 
           //if there is an error we'll try to process whatever was read but stop after that
           mightHaveMoreData = success && (numBytesRead > 0) &&
-              (_readBuffer.position() == _readBuffer.limit());
+              (readBuffer.position() == readBuffer.limit());
 
           if (numBytesRead > 0)
           {
+            _queueLock.lock();
             try
             {
-              _queueLock.lock();
-
+              if(isClosed()) {
+                LOG.warn("stopping attempt to read more events into a buffer while it is closed. readPos=" + readPos + "; buf=" + this.toString());
+                return 0;
+              }
               try
               {
                 _scnIndex.assertHeadPosition(_head.getRealPosition());
@@ -3203,13 +3323,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                                  _currentWritePosition.getPosition(),
                                                  logDebugEnabled);
               } catch (RuntimeException re) {
-                LOG.fatal("Got runtime Exception :", re);
-                LOG.fatal("Event Buffer is :" + toString());
-                _scnIndex.printVerboseString(LOG, Level.DEBUG);
+                _log.fatal("Got runtime Exception :", re);
+                _log.fatal("Event Buffer is :" + toString());
+                _scnIndex.printVerboseString(_log, Level.DEBUG);
                 throw re;
               }
 
-              _readBuffer.flip();
+              readBuffer.flip();
               boolean hasMoreInStgBuffer = true;
               while (hasMoreInStgBuffer && readPos.hasNext())
               {
@@ -3228,38 +3348,37 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                 case OK:
                 {
                   final int curEventSize = readPos.getCurEvent().size();
-                  if (readPos.bytesProcessed()+ curEventSize > contiguousCapacity)
+                  if (readPos.bytesProcessed() + curEventSize > contiguousCapacity)
                   {
                     //not enough space to fit event in the target buffer
                     if (0 == writePos.getCurOfs())
                     {
                       //event bigger than the ByteBuffer capacity
-                      throw new InvalidEventException("event too big to fit into buffer;"
-                          + "size:" + curEventSize +
+                      throw new InvalidEventException("event too big to fit into buffer" +
+                          "; size:" + curEventSize +
                           "; event:" + readPos.getCurEvent() +
+                          "; " + readPos +
                           "; buffer.capacity:" + writePos.getCurBuf().capacity());
                     }
                     else
                     {
                       if (logDebugEnabled)
-                        LOG.debug("unable to fit event with size " + readPos.getCurEvent().size());
+                        _log.debug("unable to fit event with size " + readPos.getCurEvent().size());
 
                       //if we could not fit all the data in the destination ByteBuffer,
                       //we should ensure that we clear up any remaining data in the
                       //ByteBuffer.
-                      long bufferLimitWithGenId  =
-                          _bufferPositionParser.setOffset(writePos.getCurPos(),
-                                                          writePos.getCurBuf().limit());
+                      long nextBufferPos =
+                          _bufferPositionParser.incrementIndex(writePos.getCurPos(), _buffers);
                       boolean interrupted = ensureFreeSpace(writePos.getCurPos(),
-                                                            bufferLimitWithGenId,
+                                                            nextBufferPos,
                                                             logDebugEnabled);
                       if (interrupted)
                       {
-                        _log.warn("ensureFree space interrupted:" + readPos + " " + writePos);
+                        _log.warn("ensureFree space interrupted: " + readPos + " " + writePos);
                         return readPos.getNumReadEvents();
                       }
-                      assert writePos.getCurBuf().limit() == writePos.getCurBuf().capacity() :
-                          writePos.getCurBuf().toString();
+                      assert assertBuffersLimits();
 
                       writePos.moveToNextBuffer();
                       _tail.copy(_currentWritePosition);
@@ -3291,22 +3410,38 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                 }
                 case PARTIAL_EVENT:
                 {
+                  final int curCapacity = readBuffer.capacity();
                   if (logDebugEnabled)
-                    LOG.debug("partial event at " + readPos);
-                  if (0 == readPos.getReadStart())
-                  {
-                    //we couldn't read an entire event in the staging buffer and we are already
-                    //at the beginning so we cannot compact
-                    //just give up
-                    throw new InvalidEventException("event too big to fit in staging buffer: "
-                        + "size:" + readPos.getCurEvent().size() +
-                        "; event:" + readPos.getCurEvent() +
-                        "; buffer.capacity:" + _readBuffer.capacity());
-                  }
-                  else
+                    _log.debug("partial event at " + readPos);
+                  if (0 != readPos.getReadStart())
                   {
                     //compact stg buffer and try to read more data from the network
                     compactStgBuffer(readPos, logDebugEnabled);
+                    hasMoreInStgBuffer = false;
+                  }
+                  else if (curCapacity >= getMaxReadBufferCapacity())
+                  {
+                    //we couldn't read an entire event in the staging buffer and we are already
+                    //at max allowed size of the read buffer
+                    throw new InvalidEventException("event too big to fit in staging buffer with capacity : " +
+                        curCapacity
+                        + "; readPos:" + readPos + "; consider increasing connectionDefaults.eventBuffer.maxSize" +
+                           " or connectionDefaults.eventBuffer.maxEventSize if set explicitly.");
+                  }
+                  else
+                  {
+                    //grow the staging buffer faster for small sizes and slower for big sizes
+                    //intuitively: <= 5K - 3x, 25K - 2x, 125K - 1.6x, 625K - 1.5x and so on
+                    final double growFactor = curCapacity <= 5 * 1024 ? 3.0
+                        : 1.0 + 2.0 * LN_5 / Math.log(curCapacity / 1024.0);
+                    final int newSize = Math.min(getMaxReadBufferCapacity(), (int)(growFactor * curCapacity));
+                    if (newSize < curCapacity)
+                    {
+                      throw new DatabusRuntimeException("unexpected readbuffer size: " + newSize +
+                                                        "; readBuffer=" + readBuffer + "; readBufferCapacity=" +
+                                                        getMaxReadBufferCapacity());
+                    }
+                    readPos.growReadBuffer(newSize);
                     hasMoreInStgBuffer = false;
                   }
                   break;
@@ -3317,30 +3452,31 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                   // skipping the event and all the events before it (same buffer should have
                   // only increasing events)
                   String errMsg = logSequenceErrorPackets(readPos);
-                  LOG.warn("got an old event: " + errMsg);
+                  _log.warn("got an old event: seq=" + readPos.getSeq() + ", " + errMsg);
                   readPos.eventSkipped();
                   break;
                 }
                 case INVALID_EVENT:
                 {
                   if (null != statsCollector)
-                    statsCollector.registerEventError(EventScanStatus.ERR);
+                    statsCollector.registerEventError(DbusEventInternalReadable.EventScanStatus.ERR);
                   throw new InvalidEventException();
                 }
                 case MISSING_EOP:
                 {
                   String errMsg = logSequenceErrorPackets(readPos);
-                  LOG.error("detected missing EOP: " + errMsg);
+                  _log.error("detected missing EOP: " + errMsg);
                   throw new InvalidEventException(errMsg);
                 }
                 default:
-                    throw new IllegalStateException("unknow scan status: " + eventScanStatus);
+                  throw new IllegalStateException("unknown scan status: " + eventScanStatus);
                 }
-
-                if (!hasMoreInStgBuffer) break;
               }
 
-              if (!readPos.hasNext()) _readBuffer.clear();
+              if (!readPos.hasNext())
+              {
+                readBuffer.clear();
+              }
             } finally {
               _queueLock.unlock();
             }
@@ -3349,12 +3485,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       }
       finally
       {
-        if (_readBuffer.position() > 0)
-        {
-          LOG.error("Clearing partial event left in buffer: " + _readBuffer.position());
-        }
-        _readBuffer.clear();
-
         if (null != statsCollector) {
           statsCollector.registerBufferMetrics(getMinScn(), this.lastWrittenScn(),
                                                this.getPrevScn(),
@@ -3363,10 +3493,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         }
         _eventState = WindowState.ENDED;
       }
-    } catch ( RuntimeException re) {
-      LOG.error("Got runtime exception in readEvents. Might set Logging to debug !!: " +
-                re.getMessage(), re);
-      LOG.error("Buffer State :" + toString());
+    } catch (RuntimeException re) {
+      _log.error("Got runtime exception in readEvents: " + re.getMessage(), re);
+      _log.error("Buffer State: " + toString());
       throw re;
     } finally {
       _readBufferLock.unlock();
@@ -3374,7 +3503,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
 
     if (logDebugEnabled)
-      _log.debug("readEvents result:" + readPos + " " + writePos);
+      _log.debug("readEvents result: " + readPos + " " + writePos);
 
     return readPos.getNumReadEvents();
   }
@@ -3383,32 +3512,33 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Read events from a channel for readEvents().
    *
    * @param readChannel      the channel to read from
+   * @param readBuffer       the buffer to read into
    * @param logDebugEnabled  if debug logging is enabled
    * @return true the read succeeded
    */
   private boolean readEventsFromChannel(ReadableByteChannel readChannel,
-                                        boolean logDebugEnabled)
+                                        ByteBuffer readBuffer, boolean logDebugEnabled)
   {
     if (logDebugEnabled)
-      _log.debug("reading events from channel to " + _readBuffer);
+      _log.debug("reading events from channel to " + readBuffer);
     boolean success = true;
     long oneread = 1;
-    while (oneread > 0)
+    while (success && oneread > 0)
     {
       try
       {
-        oneread = readChannel.read(_readBuffer);
+        oneread = readChannel.read(readBuffer);
         if (logDebugEnabled)
-          LOG.debug("Read " + oneread + " bytes");
+          _log.debug("Read " + oneread + " bytes");
       }
       catch (IOException e)
       {
-        LOG.error("readEvents error: " + e.getMessage(), e);
+        _log.error("readEvents error: " + e.getMessage(), e);
         success = false;
       }
     }
     if (logDebugEnabled)
-      _log.debug("read events from channel success=" + success + " to " + _readBuffer);
+      _log.debug("read events from channel success=" + success + " to " + readBuffer);
 
     return success;
   }
@@ -3422,23 +3552,25 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   private void compactStgBuffer(ReadEventsReadPosition readPos, boolean logDebugEnabled)
   {
-    _readBuffer.clear();//despite its name, clear() does not remove the data
+    final ByteBuffer readBuffer = readPos.getReadBuffer();
+
+    readBuffer.clear();//despite its name, clear() does not remove the data
     if (readPos.hasNext())
     {
       if (logDebugEnabled)
       {
-        LOG.debug("Copying " + readPos.bytesRemaining() + " bytes to the start of the readBuffer");
+        _log.debug("Copying " + readPos.bytesRemaining() + " bytes to the start of the readBuffer");
       }
 
       for (int i=0; i < readPos.bytesRemaining(); ++i)
       {
-        _readBuffer.put(_readBuffer.get(readPos.getPosition() + i));
+        readBuffer.put(readBuffer.get(readPos.getPosition() + i));
       }
       readPos.startIteration();
 
       if (logDebugEnabled)
       {
-        _log.debug("readBuffer after compaction: " + _readBuffer + "; " + readPos);
+        _log.debug("readBuffer after compaction: " + readBuffer + "; " + readPos);
       }
     }
   }
@@ -3447,28 +3579,54 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * Makes sure that we have enough space at the destination write buffer. Depending on the
    * queuing policy, we can either wait for space to free up or will overwrite it.
    *
-   * @param writeStartPos       the gen-id starting write position
+   * @param writeStartPos     the gen-id starting write position
    * @param writeEndPos       the gen-id ending write position (after the last byte written)
-   * @param logDebugEnabled     a flag if debug logging messages are enabled
+   * @param logDebugEnabled   a flag if debug logging messages are enabled
    * @return true if the wait for free space was interrupted prematurely
    */
   private boolean ensureFreeSpace(long writeStartPos, long writeEndPos, boolean logDebugEnabled)
   {
-    if (empty()) return false;
+    // Normalize the write end position to make sure that if we have to move
+    // the head, it points to real data.  This deals with two code-path
+    // variants of the same basic bug.  Specifically, if the head points at the
+    // current bytebuffer's limit (i.e., at invalid data at the end of it), and
+    // the proposed end position is exactly equal to that, BufferPositionParser's
+    // incrementOffset() (a.k.a. sanitize()) advances the position to the start
+    // of the next buffer.  Since this is beyond (or "overruns") the head, the
+    // subsequent call to setNextFreePos(), which calls moveCurrentWritePosition(),
+    // blows up.  By normalizing the end position, we effectively block until the
+    // head can advance to the same position (or beyond), i.e., until all iterators
+    // have caught up, which allows setNextFreePos()/moveCurrentWritePosition() to
+    // succeed.  See DDSDBUS-1816 for even more details.
+    final BufferPosition normalizedWriteEndPos = new BufferPosition(writeEndPos,
+                                                                    _bufferPositionParser,
+                                                                    _buffers);
+    normalizedWriteEndPos.skipOverFreeSpace();
 
     boolean interrupted = false;
-    if (QueuePolicy.BLOCK_ON_WRITE == _queueingPolicy)
+
+    if (!empty())
     {
-      interrupted = waitForReadEventsFreeSpace(logDebugEnabled, writeStartPos, writeEndPos);
-    } else {
-      freeUpSpaceForReadEvents(logDebugEnabled, writeStartPos, writeEndPos);
+      if (QueuePolicy.BLOCK_ON_WRITE == _queueingPolicy)
+      {
+        interrupted = waitForReadEventsFreeSpace(logDebugEnabled, writeStartPos,
+                                                 normalizedWriteEndPos.getPosition());
+      }
+      else
+      {
+        freeUpSpaceForReadEvents(logDebugEnabled, writeStartPos,
+                                 normalizedWriteEndPos.getPosition());
+      }
     }
     if (logDebugEnabled)
-      _log.debug("ensureFreeSpace: writeStart:" + _bufferPositionParser.toString(writeStartPos) +
-                 " writeEnd:" + _bufferPositionParser.toString(writeEndPos) +
+    {
+      _log.debug("ensureFreeSpace: writeStart:" + _bufferPositionParser.toString(writeStartPos, _buffers) +
+                 "; writeEnd:" + _bufferPositionParser.toString(writeEndPos, _buffers) +
+                 "; normalizedWriteEnd:" + normalizedWriteEndPos +
                  "; head:" + _head + "; tail:" + _tail +
                  "; interrupted:" + interrupted);
-    assert interrupted || !overwritesHead(writeStartPos, writeEndPos);
+    }
+    assert interrupted || !overwritesHead(writeStartPos, normalizedWriteEndPos.getPosition());
 
     return interrupted;
   }
@@ -3493,26 +3651,26 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     // If we detect that we are overwriting head, wait till we have space available
     while (!interrupted && overwritesHead(writeStartPosition, writeEndPosition))
     {
-      LOG.warn("Waiting for more space to be available to avoid overwriting head. WriteStart :"
-               + _bufferPositionParser.toString(writeStartPosition) + " to "
-               + _bufferPositionParser.toString(writeEndPosition) + " head = "
-               + _head.toString());
+      _log.info("Waiting for more space to be available. WriteStart: "
+                + _bufferPositionParser.toString(writeStartPosition, _buffers) + " to "
+                + _bufferPositionParser.toString(writeEndPosition, _buffers) + " head = " + _head);
 
       try
       {
         _notFull.await();
       } catch (InterruptedException ie) {
-        LOG.warn("readEvents interrupted", ie);
+        _log.warn("readEvents interrupted", ie);
         interrupted = true;
       }
 
       if (logDebugEnabled)
       {
-        LOG.debug("Coming out of Wait for more space. WriteStart :"
-                  + _bufferPositionParser.toString(writeStartPosition) + " to "
-                  + _bufferPositionParser.toString(writeEndPosition) + " head = " +
-                  _head.toString());
+        _log.debug("Coming out of wait for more space. WriteStart: "
+                   + _bufferPositionParser.toString(writeStartPosition, _buffers) + " to "
+                   + _bufferPositionParser.toString(writeEndPosition, _buffers) + " head = " + _head);
       }
+      if(isClosed())
+        throw new DatabusRuntimeException("Coming out of wait for more space, but buffer has been closed");
 
     }
     return interrupted;
@@ -3524,11 +3682,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * write will not overwrite event data.
    * @return true iff the given range contains the head
    */
+  // TODO:  add (debug-only?) sanity check that no part of write-range overlaps any active portion of buffer?
+  //        (for example, could be contained entirely between head and tail, or overwriting only tail end)
   private boolean overwritesHead(long writeStartPosition, long writeEndPosition)
   {
-    if (empty()) return false;
-    return Range.containsReaderPosition(writeStartPosition,  writeEndPosition, _head.getPosition(),
-                                  _bufferPositionParser);
+    return empty()? false : Range.containsReaderPosition(writeStartPosition,  writeEndPosition,
+                                                         _head.getPosition(), _bufferPositionParser);
   }
 
   /**
@@ -3548,28 +3707,30 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   {
     if (logDebugEnabled)
       _log.debug("freeUpSpaceForReadEvents: start:" +
-                 _bufferPositionParser.toString(writeStartPosition)
-                 + "; end:" + _bufferPositionParser.toString(writeEndPosition)
-                 + "; head:" + _head);
+                  _bufferPositionParser.toString(writeStartPosition, _buffers)
+                  + "; end:" + _bufferPositionParser.toString(writeEndPosition, _buffers)
+                  + "; head:" + _head);
     if (overwritesHead(writeStartPosition, writeEndPosition))
     {
       if (logDebugEnabled)
       {
-        LOG.debug("free space from " + _bufferPositionParser.toString(writeStartPosition)
-                  + " to " + _bufferPositionParser.toString(writeEndPosition) + " head = "
-                  + _head);
+        _log.debug("free space from " + _bufferPositionParser.toString(writeStartPosition, _buffers)
+                   + " to " + _bufferPositionParser.toString(writeEndPosition, _buffers) + " head = "
+                   + _head);
       }
 
       long proposedHead = _scnIndex.getLargerOffset(writeEndPosition);
       if (proposedHead < 0)
       {
+        // Unless there is a bug in scn index code, the reason to get here is if
+        // the transaction is too big to fit in one buffer.
         String error = "track(ScnIndex.head): failed to get larger window offset:" +
-            "nextFreePosition=" + _bufferPositionParser.toString(writeEndPosition) +
+            "nextFreePosition=" + _bufferPositionParser.toString(writeEndPosition, _buffers) +
             " ;Head=" + _head + "; Tail=" + _tail +
             " ;CurrentWritePosition=" + _currentWritePosition +
             " ;MinScn=" + getMinScn();
-        LOG.error(error);
-        _scnIndex.printVerboseString(LOG, Level.ERROR);
+        _log.error(error);
+        _scnIndex.printVerboseString(_log, Level.ERROR);
 
         throw new DatabusRuntimeException(error);
       }
@@ -3601,8 +3762,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     assert oldHeadPos <= _head.getPosition() : "oldHeaPos:" + oldHeadPos + " " +  toString();
     assert newHeadGenid - oldHeadGenid <= 1 : "oldHeaPos:" + oldHeadPos + " " +  toString();
 
-    boolean resetLimit = (newHeadIdx != oldHeadIdx) /* head moves to a different ByteBuffer*/
-          || (newHeadOfs < oldHeadOfs) /* wrap around in the same ByteBuffer */;
+    final boolean resetLimit = (newHeadIdx != oldHeadIdx) || /* head moves to a different ByteBuffer */
+                               (newHeadOfs < oldHeadOfs);    /* wrap around in the same ByteBuffer */
 
     if (resetLimit)
     {
@@ -3617,7 +3778,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
             _buffers.length + newHeadIdx - oldHeadIdx :
             newHeadIdx - oldHeadIdx;
         assert 0 <= bufferNumDiff && bufferNumDiff <= _buffers.length  :
-            "oldHeaPos:" + oldHeadPos + " " +  toString();
+            "oldHeadPos:" + oldHeadPos + " " +  toString();
 
         for (int i = 0; i < bufferNumDiff; ++i)
         {
@@ -3641,6 +3802,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                                           DbusEventsStatisticsCollector statsCollector,
                                           boolean logDebugEnabled)
   {
+    final ByteBuffer readBuffer = readPos.getReadBuffer();
     final int numBytesToWrite = readPos.bytesProcessed();
     final int writeStartOfs = writePos.getCurOfs();
     final ByteBuffer curBuf = writePos.getCurBuf();
@@ -3651,21 +3813,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     assert curBuf.limit() >= writePos.getNextFreeOfs() :
         "curBuf:" + curBuf + "; " + writePos;
 
-    final int oldLimit = _readBuffer.limit();
-    _readBuffer.mark();
-    _readBuffer.position(readPos.getReadStart());
-    _readBuffer.limit(readPos.getPosition());
+    final int oldLimit = readBuffer.limit();
+    readBuffer.mark();
+    readBuffer.position(readPos.getReadStart());
+    readBuffer.limit(readPos.getPosition());
 
     // Set the limit/position
     curBuf.position(writeStartOfs);
     if (LOG.isDebugEnabled())
     {
-        LOG.debug("copying from " + _readBuffer + " into " + writePos.getCurBuf() +
+        LOG.debug("copying from " + readBuffer + " into " + writePos.getCurBuf() +
                   "head:" + _head + " tail:" + _tail);
     }
-    curBuf.put(_readBuffer); // copy _readBuffer
-    _readBuffer.limit(oldLimit);
-    _readBuffer.reset();
+    curBuf.put(readBuffer); // copy _readBuffer
+    readBuffer.limit(oldLimit);
+    readBuffer.reset();
 
     if (numBytesToWrite > 0)
     {
@@ -3818,14 +3980,14 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   /**
    * Creates an event at given gen-id position in the buffer. The position must be a valid position.
-   * @param  pos     the deisred position
+   * @param  pos     the desired position
    * @return the event object
    */
   private DbusEvent eventAtPosition(long pos)
   {
     final int proposedHeadIdx = _bufferPositionParser.bufferIndex(pos);
     final int proposedHeadOfs = _bufferPositionParser.bufferOffset(pos);
-    DbusEvent e = new DbusEventV1(_buffers[proposedHeadIdx], proposedHeadOfs);
+    DbusEvent e = _eventFactory.createReadOnlyDbusEventFromBuffer(_buffers[proposedHeadIdx], proposedHeadOfs);
     assert e.isValid();
     return e;
   }
@@ -3837,11 +3999,14 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   private String logSequenceErrorPackets(ReadEventsReadPosition readPos)
   {
-      String k;
+      String k="UNINITIALIZED";
       if ( readPos.getCurEvent().isKeyString() )
-    	 k = new String(readPos.getCurEvent().keyBytes());
-      else
+        try {
+          k = new String(readPos.getCurEvent().keyBytes(), "UTF-8");
+        } catch (UnsupportedEncodingException e){ }
+      else {
          k = Long.toString(readPos.getCurEvent().key());
+      }
       String errMsg = "" + _physicalPartition.getName()  +
     		  " _lastWrittenSequence=" + _lastWrittenSequence +
     		  " _seenEndOfPeriodScn=" + _seenEndOfPeriodScn + " key=" + k +
@@ -3863,8 +4028,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
     final long oldHeadPos = _head.getPosition();
     if (logDebugEnabled)
-      LOG.debug("about to move head to " + _bufferPositionParser.toString(proposedHead) +
-                "; scn=" + newScn + "; oldhead=" + _head);
+      _log.debug("about to move head to " + _bufferPositionParser.toString(proposedHead, _buffers) +
+                 "; scn=" + newScn + "; oldhead=" + _head);
 
     try
     {
@@ -3881,10 +4046,12 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
     try
     {
-      assert proposedHead <= _tail.getPosition() :
-          "newHead:" + proposedHead + " " + toString();
-      assert _tail.bufferGenId() - _bufferPositionParser.bufferGenId(proposedHead) <= 1 :
-          "newHead:" + proposedHead + " " + toString();
+      if (proposedHead > _tail.getPosition())
+        throw new DatabusRuntimeException("moveHead assert failure: newHead > tail: newHead:" +
+                                          proposedHead + " " + toString());
+      if (_tail.bufferGenId() - _bufferPositionParser.bufferGenId(proposedHead) > 1)
+        throw new DatabusRuntimeException("moveHead assert failure: gen mismatch: newHead:" +
+                                          proposedHead + " " + toString());
 
       this.setPrevScn(getMinScn());
       _head.setPosition(proposedHead);
@@ -3902,7 +4069,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       adjustByteBufferLimit(oldHeadPos);
 
       if (logDebugEnabled)
-          LOG.debug("moved head to " + _head.toString() + "; scn=" + newScn);
+          _log.debug("moved head to " + _head.toString() + "; scn=" + newScn);
       _notFull.signalAll();
     }
     finally
@@ -3933,10 +4100,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       }
       if (!found) {
         _minScn = -1;
-      _timestampOfFirstEvent = 0;
+        _timestampOfFirstEvent = 0;
       }
     } finally {
-      it.close();
+      if (null != it) it.close();
     }
   }
 
@@ -3948,11 +4115,18 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   protected void moveCurrentWritePosition(long newWritePos)
   {
     //no write position regressions
-    assert _currentWritePosition.getPosition() < newWritePos :
-        "_currentWritePosition:" + _currentWritePosition + "; newWritePos:" +
-        _bufferPositionParser.toString(newWritePos);
+    if (_currentWritePosition.getPosition() >= newWritePos)
+    {
+      throw new DatabusRuntimeException("moveCurrentWritePosition: assert regression: " +
+           " _currentWritePosition:" + _currentWritePosition + "; newWritePos:" +
+           _bufferPositionParser.toString(newWritePos, _buffers));
+    }
     //make sure head is not overwritten
-    assert !overwritesHead(_currentWritePosition.getPosition(), newWritePos);
+    if(overwritesHead(_currentWritePosition.getPosition(), newWritePos))
+    {
+      throw new DatabusRuntimeException("moveCurrentWritePosition: overwritesHead assert:" +
+                                        this);
+    }
 
     final int curWriteIdx = _currentWritePosition.bufferIndex();
     final int curWriteOfs = _currentWritePosition.bufferOffset();
@@ -3962,17 +4136,34 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     final long newWriteGenid = _bufferPositionParser.bufferGenId(newWritePos);
 
     //don't skip ByteBuffers
-    assert newWriteIdx == curWriteIdx || ((curWriteIdx + 1) % _buffers.length) == newWriteIdx :
-      "_currentWritePosition:" + _currentWritePosition + "; newWritePos:" +
-      _bufferPositionParser.toString(newWritePos);
+    if (!( newWriteIdx == curWriteIdx ||
+           ((curWriteIdx + 1) % _buffers.length) == newWriteIdx))
+    {
+       throw new DatabusRuntimeException("buffer skip: _currentWritePosition:" +
+                                         _currentWritePosition +
+                                         "; newWritePos:" +
+                                         _bufferPositionParser.toString(newWritePos, _buffers));
+    }
     //don't skip generations
-    assert newWriteGenid - curWriteGenid <= 1 :
-      "_currentWritePosition:" + _currentWritePosition + "; newWritePos:" +
-      _bufferPositionParser.toString(newWritePos);
-    assert newWriteGenid - _head.bufferGenId() <= 1;
+    if (newWriteGenid - curWriteGenid > 1)
+    {
+      throw new DatabusRuntimeException("generation skip: _currentWritePosition:" +
+                                        _currentWritePosition +
+                                        "; newWritePos:" +
+                                       _bufferPositionParser.toString(newWritePos, _buffers) +
+                                       "; this=" + this);
+    }
 
-    //move to a new ByteBuffer or wrap-around in current?
-    boolean resetLimit = newWriteIdx != curWriteIdx || newWriteOfs < curWriteOfs;
+    if ((newWriteGenid - _head.bufferGenId()) > 1)
+    {
+      throw new DatabusRuntimeException("new write position too far ahead: " +
+                                        _bufferPositionParser.toString(newWritePos, _buffers) +
+                                        "; this=" + this);
+    }
+
+    // move to a new ByteBuffer or wrap around in current?
+    final boolean resetLimit = newWriteIdx != curWriteIdx ||
+                               newWriteOfs < curWriteOfs;
     if (resetLimit)
     {
       _buffers[curWriteIdx].limit(curWriteOfs);
@@ -3984,7 +4175,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   /** Asserts the ByteBuffers limit() invariant. {@see #_buffers} */
-  protected boolean assertBuffersLimits()
+  boolean assertBuffersLimits()
   {
     boolean success = _tail.getPosition() <= _currentWritePosition.getPosition();
 
@@ -4016,14 +4207,16 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         }
       }
 
-      if (2 == zone && _buffers[bufIdx].limit() != _buffers[bufIdx].capacity())
-      {
-        success = false;
-        _log.error("assertBuffersLimits failure: buf[" + bufIdx + "]=" +
-                   _buffers[bufIdx] + "; head:" + _currentWritePosition +
-                   "; tail:" + _tail +
-                   "; _currentWritePosition:" + _currentWritePosition +
-                   "; _tail:" + _tail);
+      if (2 == zone) {  // empty zone, not readable
+        if(_buffers[bufIdx].limit() != _buffers[bufIdx].capacity() // in empty zone limit should be equal to capacity
+            &&  _head.bufferOffset() != _buffers[bufIdx].limit()    // unless head is at the limit (at the end but wasn't sanitized yet)
+            ) {
+          success = false;
+          _log.error("assertBuffersLimits failure: buf[" + bufIdx + "]=" +
+              _buffers[bufIdx] + "; head:" + _head +
+              "; _currentWritePosition:" + _currentWritePosition +
+              "; _tail:" + _tail);
+        }
       }
     }
 
@@ -4033,37 +4226,34 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   @Override
   public String toString()
   {
-	return "DbusEventBuffer [_numDebugOnErrorIterations="
-			+ _numDebugOnErrorIterations + ", _oldLogLevel=" + _oldLogLevel
-			+ ", _alreadyDebugonErrorEnabled=" + _alreadyDebugonErrorEnabled
-			+ ", _queueLock=" + _queueLock + ", _readBufferLock="
-			+ _readBufferLock + ", _notFull=" + _notFull + ", _notEmpty="
-			+ _notEmpty + ", _rwLockProvider=" + _rwLockProvider
-			+ ", readLocked=" + readLocked
-			+ ", _currentWritePosition=" + _currentWritePosition
-			+ ", _scnIndex=" + _scnIndex + ", _buffers="
-			+ Arrays.toString(_buffers) + ", _maxBufferSize=" + _maxBufferSize
-			+ ", _readBuffer=" + _readBuffer + ", _head=" + _head + ", _tail="
-			+ _tail + ", _empty=" + _empty + ", _allocatedSize="
-			+ _allocatedSize + ", _internalListeners=" + _internalListeners
-			+ ", _allocationPolicy=" + _allocationPolicy + ", _queueingPolicy="
-			+ _queueingPolicy + ", _mmapSessionDirectory="
-			+ _mmapSessionDirectory + ", _writingEvent=" + _writingEvent
-			+ ", _busyIteratorPool=" + _busyIteratorPool + ", _eventState="
-			+ _eventState + ", _eventStartIndex=" + _eventStartIndex
-			+ ", _numEventsInWindow=" + _numEventsInWindow
-			+ ", _lastWrittenSequence=" + _lastWrittenSequence + ", _prevScn="
-			+ _prevScn + ", _bufferPositionParser=" + _bufferPositionParser
-			+ "]";
+    return "DbusEventBuffer ["
+           + ",_rwLockProvider=" + _rwLockProvider + ", readLocked=" + readLocked
+           + ",_scnIndex=" + _scnIndex + ", _buffers=" + Arrays.toString(_buffers)
+           + ",_maxBufferSize=" + _maxBufferSize
+           + "," + bufPositionInfo()
+           + ",_allocatedSize=" + _allocatedSize + ", _internalListeners=" + _internalListeners
+           + ",_allocationPolicy=" + _allocationPolicy + ", _queueingPolicy=" + _queueingPolicy
+           + ",_mmapSessionDirectory=" + _mmapSessionDirectory
+           + ",_busyIteratorPool.size=" + _busyIteratorPool.size() + ", _eventState=" + _eventState
+           + ",_eventStartIndex=" + _eventStartIndex + ", _numEventsInWindow=" + _numEventsInWindow
+           + ",_lastWrittenSequence=" + _lastWrittenSequence + ", _prevScn=" + _prevScn
+           + ",_bufferPositionParser=" + _bufferPositionParser
+           + "]";
   }
 
-/**
-   * Returns the amount of free space left in the event buffer.
-   * No guarantees of atomicity.
-   */
-  public long getBufferFreeSpace() {
-    long remaining = remaining();
-    return remaining;
+  public String bufPositionInfo()
+  {
+    return "_head=" + _head + ",_tail=" + _tail + ",_empty=" + _empty
+        + ",_currentWritePosition=" + _currentWritePosition;
+  }
+
+  public String toShortString() {
+    StringBuffer sb = new StringBuffer();
+    sb.append("h=" + _head);
+    sb.append(";t=" + _tail);
+    sb.append(";cwp=" + _currentWritePosition);
+
+    return sb.toString();
   }
 
   /**
@@ -4095,24 +4285,37 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private void waitForFreeSpace(long freeSpaceThreshold, boolean interruptCaller)
   throws InterruptedException
   {
+    _queueLock.lock();
+    int blocked = 0;// counts number of minutes we are blocked in the wait,prints message if waited more then a minute
     try
     {
-      _queueLock.lock();
-
       while ( true )
       {
         int freeReadSpace = getBufferFreeReadSpace();
 
-        if ( freeReadSpace >= freeSpaceThreshold )
+        if ( freeReadSpace >= freeSpaceThreshold ) {
+          if(blocked>1) {
+            LOG.info("we have enough space in the buffer in waitForFreeSpace(). freeSpace="
+                + freeReadSpace + ",threshold=" + freeSpaceThreshold + ",bl=" + blocked
+                + ",bufPosInfo=" + bufPositionInfo());
+          }
           return;
+        }
+        if(blocked>0)
+          LOG.warn("waiting for free space in the buffer in waitForFreeSpace(). freeSpace="
+            + freeReadSpace + ",threshold=" + freeSpaceThreshold + ",bl=" + blocked
+            + ",bufPosInfo=" + bufPositionInfo());
 
+        blocked++;
         try
         {
-          _notFull.await();
+          _notFull.await(60, TimeUnit.SECONDS); // if blocked will print warning every minute
         } catch (InterruptedException ie) {
           if ( interruptCaller)
             throw ie;
         }
+        if(isClosed())
+          throw new DatabusRuntimeException("Coming out of wait, and the buffer is closed");
       }
     } finally {
       _queueLock.unlock();
@@ -4120,24 +4323,38 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
 
+/**
+   * Returns the amount of free space left in the event buffer.
+   * No guarantees of atomicity.
+   */
+  public long getBufferFreeSpace()
+  {
+    long remaining = remaining();
+    return remaining;
+  }
+
   /**
    * Returns the amount of space left in the buffer that can be safely read
    * from a channel.
    * No guarantees of atomicity.
    */
-  public int getBufferFreeReadSpace() {
-
+  public int getBufferFreeReadSpace()
+  {
     // While in readEvents, _readBuffer could be in inconsistent state
 
     assert(_eventState != WindowState.IN_READ);
 
     long remaining = remaining();
-    int readRemaining = _readBuffer.remaining();
-    return (int) Math.min(remaining, readRemaining);
+    return (int)Math.min(remaining, getMaxReadBufferCapacity());
   }
 
+  public int getMaxReadBufferCapacity()
+  {
+    return _maxEventSize;
+  }
 
-  private long remaining() {
+  private long remaining()
+  {
     if (LOG.isDebugEnabled())
     {
       LOG.debug("Remaining query : head = " + _head.toString() + " tail =" + _tail.toString());
@@ -4207,9 +4424,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       while (refIter.hasNext())
       {
         WeakReference<BaseEventIterator> curRef = refIter.next();
-        if (null == curRef.get())
+        BaseEventIterator iter = curRef.get();
+        if (null == iter)
           refIter.remove();
-        else if (curRef.get().equals(eventIterator))
+        else if (iter.equals(eventIterator))
           refIter.remove();
       }
     }
@@ -4247,8 +4465,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   /**
-   * Acquires an iterator over a fixed range of events with no range locking (it is responsibility
-   * of the caller to ensure this is safe, e.g. by holding another range lock over the desired
+   * Acquires an iterator over a fixed range of events with no range-locking (it is responsibility
+   * of the caller to ensure this is safe, e.g., by holding another range-lock over the desired
    * iterator range). This iterator cannot block waiting for more
    * events. It is responsibility of the caller to free the iterator
    * using {@link #releaseIterator(BaseEventIterator)}.
@@ -4261,31 +4479,19 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   /**
-   * Copies a passed in iterator and hands the copy back out
-   * The same acquire/release rules apply to this copied iterator :
-   * if you acquired the srcIterator with acquireIterator, then you have to call releaseIterator on the copied iterator as well
-   * @param srcIterator
-   * @param iteratorName
-   */
-  public DbusEventIterator copyIterator(DbusEventIterator srcIterator, String iteratorName)
-  {
-    DbusEventIterator destinationIterator = srcIterator.copy(null, iteratorName);
-    return destinationIterator;
-  }
-
-  /**
    * Creates a "short-lived" iterator. The set of events that it is going to iterate over is
    * pre-determined at the time of the iterator creation. Subsequent additions of events to the
    * buffer will not be visible.
    *
    * <b>Important: any resources associated with the iterator will
-   * be released once it goes over all events, i.e. when {@link Iterator#hasNext()} returns
+   * be released once it goes over all events, i.e., when {@link Iterator#hasNext()} returns
    * false.</b>
    *
    * The iterator is meant to be used mostly in for-each loops.
    */
   @Override
-  public Iterator<DbusEventInternalWritable> iterator() {
+  public Iterator<DbusEventInternalWritable> iterator()
+  {
     _queueLock.lock();
     try
     {
@@ -4299,7 +4505,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
   }
 
-  public void releaseIterator(BaseEventIterator e) {
+  public void releaseIterator(BaseEventIterator e)
+  {
     e.close();
   }
 
@@ -4337,22 +4544,23 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   ByteBuffer[] getBuffer()
   {
-	  return _buffers;
+      return _buffers;
   }
 
   /**
    * package private to allow helper classes to inspect internal details
    */
-  ScnIndex getScnIndex() {
-	return _scnIndex;
+  ScnIndex getScnIndex()
+  {
+    return _scnIndex;
   }
 
-/*
-   * @return the bufferPositionParser for this eventBuffer
+  /**
+   * @return the bufferPositionParser for this event buffer
    */
   public BufferPositionParser getBufferPositionParser()
   {
-	  return _bufferPositionParser;
+    return _bufferPositionParser;
   }
 
 
@@ -4380,26 +4588,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   {
     _tail.setPosition(offset) ;
     _currentWritePosition.setPosition(offset);
-  }
-
-  /**
-   * package private to allow helper/tester classes to modify event formats
-   * this does not update the scnIndex
-   * return dbusEvent
-   */
-  DbusEvent getWritingEvent()
-  {
-	return _writingEvent;
-  }
-
-  /**
-   * package private to allow tester classes to set the writingEventObject
-   * this does not update the scnIndex
-   * @param writingEvent DbusEvent
-   */
-  void setWritingEvent(DbusEventInternalWritable writingEvent)
-  {
-	this._writingEvent = writingEvent;
   }
 
   /**
@@ -4447,7 +4635,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
   }
 
-  /**
+  /*
   public boolean persist()
   {
     acquireWriteRangeLock(0, _maxBufferSize);
@@ -4515,8 +4703,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     }
     return true;
   }
+  */
 
-   **/
 
   public long getAllocatedSize()
   {
@@ -4528,6 +4716,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     private final long _maxSize;
     private final int _maxIndividualBufferSize;
     private final int _readBufferSize;
+    private final int _maxEventSize;
     private final int _scnIndexSize;
     private final AllocationPolicy _allocationPolicy;
     private final File  _mmapDirectory;
@@ -4545,6 +4734,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     public StaticConfig(long maxSize,
                         int maxIndividualBufferSize,
                         int readBufferSize,
+                        int maxEventSize,
                         int scnIndexSize,
                         AllocationPolicy allocationPolicy,
                         File mmapDirectory,
@@ -4562,6 +4752,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _maxSize = maxSize;
       _maxIndividualBufferSize = maxIndividualBufferSize;
       _readBufferSize = readBufferSize;
+      _maxEventSize = maxEventSize;
       _scnIndexSize = scnIndexSize;
       _allocationPolicy = allocationPolicy;
       _mmapDirectory = mmapDirectory;
@@ -4619,8 +4810,9 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
     /**
      * The amount of memory to be used for the event buffer for read buffering.
-     *
-     * Default: 10% of the databus.relay.eventBuffer.defaultMemUsage * Runtime.getRuntime().maxMemory()
+     * The value is the inital size of the readBuffer : min(Config.averageEventSize,Config.maxEventSize)
+     * Note that the actual value of readBufferSize at runtime is v, getReadBufferSize()<= v <= Config.maxEventSize
+     * Default: 20K
      * */
     public int getReadBufferSize()
     {
@@ -4695,23 +4887,23 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       return _trace;
     }
 
-    public DbusEventBuffer getOrCreateEventBuffer()
+    public DbusEventBuffer getOrCreateEventBuffer(DbusEventFactory eventFactory)
     {
       DbusEventBuffer result = getExistingBuffer();
       if (null == result)
       {
-        result = new DbusEventBuffer(this);
+        result = new DbusEventBuffer(this, null /* physicalPartition */, eventFactory);
       }
 
       return result;
     }
 
-    public DbusEventBuffer getOrCreateEventBufferWithPhyPartition(PhysicalPartition pp)
+    public DbusEventBuffer getOrCreateEventBufferWithPhyPartition(PhysicalPartition pp, DbusEventFactory eventFactory)
     {
       DbusEventBuffer result = getExistingBuffer();
       if (null == result)
       {
-        result = new DbusEventBuffer(this, pp);
+        result = new DbusEventBuffer(this, pp, eventFactory);
       }
 
       return result;
@@ -4722,11 +4914,20 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
       return _assertLevel;
     }
+
+    /**
+     * @return the maximum allowed event size; if -1, an automatic determination will be done: see
+     * {@link Config#setMaxEventSize(int)}.
+     */
+    public int getMaxEventSize()
+    {
+      return _maxEventSize;
+    }
   }
 
   public static class Config implements ConfigBuilder<StaticConfig>
   {
-
+    public static final int DEFAULT_MAX_EVENT_SIZE = -1;
     public static final double DEFAULT_DEFAULT_MEMUSAGE = 0.75;
     public static final double DEFAULT_EVENT_BUFFER_MAX_SIZE_QUOTA = 0.8;
     public static final double DEFAULT_EVENT_BUFFER_READ_BUFFER_QUOTA = 0.1;
@@ -4736,10 +4937,13 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     public static final int DEFAULT_INDIVIDUAL_BUFFER_SIZE = FIVE_HUNDRED_MEGABYTES_IN_BYTES;
     public static final String DEFAULT_MMAP_DIRECTORY = "mmappedBuffer";
     private static final long BUFFER_REMOVE_WAIT_PERIOD = 3600*24;
+    private static final int DEFAULT_AVERAGE_EVENT_SIZE=20*1024;
 
     protected long _maxSize;
     protected int _maxIndividualBufferSize;
     protected int _readBufferSize;
+    private int _maxEventSize;
+    private int _averageEventSize=DEFAULT_AVERAGE_EVENT_SIZE;
     protected int _scnIndexSize;
     protected String _allocationPolicy;
     protected String _mmapDirectory;
@@ -4758,7 +4962,6 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
       super();
       _defaultMemUsage = DEFAULT_DEFAULT_MEMUSAGE;
-
       deriveSizesFromMemPct();
       _allocationPolicy = getMaxSize() > 10000 ? "DIRECT_MEMORY":"HEAP_MEMORY";
       _mmapDirectory = DEFAULT_MMAP_DIRECTORY;
@@ -4767,6 +4970,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _bufferRemoveWaitPeriodSec = BUFFER_REMOVE_WAIT_PERIOD;
       _restoreMMappedBuffers = false;
       _enableScnIndex = true;
+      _maxEventSize = DEFAULT_MAX_EVENT_SIZE;
     }
 
     public Config(Config other)
@@ -4774,6 +4978,8 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _maxSize = other._maxSize;
       _maxIndividualBufferSize = other._maxIndividualBufferSize;
       _readBufferSize = other._readBufferSize;
+      _maxEventSize = other._maxEventSize;
+      _averageEventSize=other._averageEventSize;
       _scnIndexSize = other._scnIndexSize;
       _allocationPolicy = other._allocationPolicy;
       _mmapDirectory = other._mmapDirectory;
@@ -4786,11 +4992,11 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _enableScnIndex = other._enableScnIndex;
     }
 
-    /** Computes the buffer sizes based on a the curent {@link #getDefaultMemUsage()} percentage*/
+    /** Computes the buffer sizes based on the current {@link #getDefaultMemUsage()} percentage */
     private void deriveSizesFromMemPct()
     {
       long maxMem = Runtime.getRuntime().maxMemory();
-      long memForEventBuffer = (long)(_defaultMemUsage * maxMem);
+      long memForEventBuffer = Math.min((long)(_defaultMemUsage * maxMem), 10 * 1024 * 1024);
       _maxSize = (long)(DEFAULT_EVENT_BUFFER_MAX_SIZE_QUOTA * memForEventBuffer);
       _maxIndividualBufferSize = DEFAULT_INDIVIDUAL_BUFFER_SIZE;
       _readBufferSize = (int) (DEFAULT_EVENT_BUFFER_READ_BUFFER_QUOTA * memForEventBuffer);
@@ -4838,9 +5044,20 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _maxIndividualBufferSize = individualBufferMaxSize;
     }
 
+    @Deprecated
     public void setReadBufferSize(int eventBufferReadBufferSize)
     {
-      _readBufferSize = eventBufferReadBufferSize;
+      LOG.warn("Unable to set readBufferSize to " + eventBufferReadBufferSize +
+            " as this has been deprecated! Use averageEventSize instead!");
+    }
+
+    /**
+     * Size in bytes of
+     * @param averageEventSize
+     */
+    public void setAverageEventSize(int averageEventSize)
+    {
+      _averageEventSize = averageEventSize;
     }
 
     public void setScnIndexSize(int eventBufferScnIndexSize)
@@ -4926,12 +5143,21 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     {
       //TODO (DDSDBUS-59) add verification for the config
       LOG.info("Event buffer max size: " + _maxSize);
-      LOG.info("Event buffer individual buffer size: " + _maxIndividualBufferSize);
-      LOG.info("Event buffer read buffer size: " + _readBufferSize);
-      LOG.info("Event buffer scn index size: " + _scnIndexSize);
+
+      if (_readBufferSize > _averageEventSize)
+      {
+        LOG.warn("Ignoring staging event buffer size because it is deprecated: req size= " + _readBufferSize + " " +
+        		"is larger than " + _averageEventSize);
+      }
+      _readBufferSize=_averageEventSize;
+      LOG.info("Staging event buffer size: " + _readBufferSize);
+
+      if (_enableScnIndex)
+      {
+        LOG.info("Event buffer scn index size: " + _scnIndexSize);
+      }
       LOG.info("Event buffer allocation policy: " + _allocationPolicy.toString());
       LOG.info("Using queue policy: " + _queuePolicy.toString());
-      LOG.info("ScnIndex enabled:" + _enableScnIndex);
 
       AllocationPolicy allocPolicy;
 
@@ -4978,7 +5204,23 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         throw new InvalidConfigException("Invalid assert level:" + _assertLevel);
       }
 
-      return new StaticConfig(_maxSize, _maxIndividualBufferSize, _readBufferSize, _scnIndexSize, allocPolicy,
+      //the biggest event we can process is the one that we can fit in the smallest ByteBuffer in the main event buffer,
+      // i.e. the last ByteBuffer
+      //int maxMaxEventSize = _maxSize % _maxIndividualBufferSize == 0 ? _maxIndividualBufferSize
+      //                                                               : (int)(_maxSize % _maxIndividualBufferSize);
+      //Although the above is safer, there are a bunch of unit test with specific sizing that fail due to the
+      //automatic _initReadBufferSize adjustment in the constructor. Since small last buffer fragments are rare,
+      //it is unlikely that to have to read an event that is > last buffer capacity and < the first buffer capacity.
+      int maxMaxEventSize = maxMaxEventSize();
+
+      int realMaxEventsSize = (DEFAULT_MAX_EVENT_SIZE == _maxEventSize)
+          ? maxMaxEventSize
+          : Math.min(_maxEventSize, maxMaxEventSize);
+
+      int initReadBufferSize = Math.min(_readBufferSize, realMaxEventsSize);
+      LOG.info("Initial staging event buffer size: " + initReadBufferSize);
+      return new StaticConfig(_maxSize, _maxIndividualBufferSize, initReadBufferSize, realMaxEventsSize,
+                              _scnIndexSize, allocPolicy,
                               mmapDirectory, _defaultMemUsage, queuePolicy, _existingBuffer,
                               _trace.build(), assertLevel, _bufferRemoveWaitPeriodSec,
                               _restoreMMappedBuffers, _restoreMMappedBuffersValidateEvents,
@@ -5003,6 +5245,45 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
     public void setAssertLevel(String assertLevel)
     {
       _assertLevel = assertLevel;
+    }
+
+    /**
+     * The maximum event size; -1 if it will be determined automatically (see {@link #setMaxEventSize(int)}.
+     */
+    public int getMaxEventSize()
+    {
+      return _maxEventSize;
+    }
+
+    /**
+     * Change the maximum allowed event size. Set to a value <= 0 for automatic determination based on other parameters:
+     * maxEventSize = maxSize * (100 - CheckpointThresholdPct) / 100
+     */
+    public void setMaxEventSize(int maxEventSize)
+    {
+      _maxEventSize = maxEventSize > 0 ? maxEventSize : DEFAULT_MAX_EVENT_SIZE;
+    }
+
+    public int getAverageEventSize()
+    {
+      return _averageEventSize;
+    }
+
+    /** The maximum possible event size */
+    public int maxMaxEventSize()
+    {
+
+      //the biggest event we can process is the one that we can fit in the smallest ByteBuffer in the main event buffer,
+      // i.e. the last ByteBuffer
+      //int maxMaxEventSize = _maxSize % _maxIndividualBufferSize == 0 ? _maxIndividualBufferSize
+      //                                                               : (int)(maxSize  % _maxIndividualBufferSize);
+      //Although the above is safer, there are a bunch of unit test with specific sizing that fail due to the
+      //automatic _initReadBufferSize adjustment in the constructor. Since small last buffer fragments are rare,
+      //it is unlikely that to have to read an event that is > last buffer capacity and < the first buffer capacity.
+      int maxMaxEventSize = (int)Math.min(_maxSize, _maxIndividualBufferSize);
+
+      //we have to account to the last byte in the ByteBuffer being unused for data
+      return maxMaxEventSize - 1;
     }
   }
 
@@ -5030,12 +5311,26 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
   /**
    * perform various closing duties
+   * @param persistBuffer - if true save metainfo, if false delete sessionId dir and metainfo file
    */
-  public void closeBuffer() {
-    // in case it is a MMAPED buffer
-    if(_isClosed) {
-      LOG.warn("calling close on already closed buffer " + toString());
-      return;
+  public void closeBuffer(boolean persistBuffer) {
+
+    acquireWriteLock();
+    try {
+
+      // after this try-catch no new modifications of the buffer should start
+      // but we need to check for some modifications in progress
+      if(_eventState != WindowState.ENDED && _eventState != WindowState.INIT) { // ongoing append
+        rollbackEvents();
+      }
+
+      setClosed(); // done under writelock
+
+    } catch (DatabusException e) {
+      _log.warn("for buffer " + toString(), e);
+      return; // buffer already closed
+    } finally {
+      releaseWriteLock();
     }
 
     // some listeners are appenders to a file
@@ -5044,25 +5339,27 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         try {
          l.close();
         } catch (IOException ioe) {
-          LOG.warn("Couldn't close channel/file for listener=" + l, ioe);
+          _log.warn("Couldn't close channel/file for listener=" + l, ioe);
         } catch (RuntimeException re) {
-          LOG.warn("Couldn't close channel/file for listener=" + l, re);
+          _log.warn("Couldn't close channel/file for listener=" + l, re);
         }
       }
     }
 
-    try {
-      saveBufferMetaInfo(false);
-    } catch (IOException e) {
-      LOG.error("error saving meta info for buffer for partition: " +
-                getPhysicalPartition() + ": " + e.getMessage(), e);
-    } catch (RuntimeException e) {
-      LOG.error("error saving meta info for buffer for partition: " +
-                getPhysicalPartition() + ": " + e.getMessage(), e);
+    if(persistBuffer) {
+      try {
+        saveBufferMetaInfo(false);
+      } catch (IOException e) {
+        _log.error("error saving meta info for buffer for partition: " +
+            getPhysicalPartition() + ": " + e.getMessage(), e);
+      } catch (RuntimeException e) {
+        _log.error("error saving meta info for buffer for partition: " +
+            getPhysicalPartition() + ": " + e.getMessage(), e);
+      }
+    } else {
+      // remove the content of mmap directory and the directory itself
+      cleanUpPersistedBuffers();
     }
-
-
-    _isClosed = true;
   }
 
   /**
@@ -5073,7 +5370,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    */
   public void removeMMapFiles() {
 	  if(_allocationPolicy != AllocationPolicy.MMAPPED_MEMORY) {
-		  LOG.warn("Skipping removal of MMap files because allocation policy is " + _allocationPolicy);
+		  _log.warn("Skipping removal of MMap files because allocation policy is " + _allocationPolicy);
 		  return;
 	  }
 
@@ -5086,16 +5383,48 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
 
   private void flushMMappedBuffers() {
-    LOG.info("flushing buffers to disk for partition: " + _physicalPartition + "; allocation_policy=" + _allocationPolicy);
+    _log.info("flushing buffers to disk for partition: " + _physicalPartition + "; allocation_policy=" + _allocationPolicy);
     if(_allocationPolicy == AllocationPolicy.MMAPPED_MEMORY) {
       for (ByteBuffer buf: _buffers)
       {
         if (buf instanceof MappedByteBuffer) ((MappedByteBuffer)buf).force();
       }
-      if (_readBuffer instanceof MappedByteBuffer) ((MappedByteBuffer)_readBuffer).force();
 
       _scnIndex.flushMMappedBuffers();
-      LOG.info("done flushing buffers to disk for partition: " + _physicalPartition);
+      _log.info("done flushing buffers to disk for partition: " + _physicalPartition);
+    }
+  }
+
+  public void cleanUpPersistedBuffers() {
+    if(_allocationPolicy != AllocationPolicy.MMAPPED_MEMORY ) {
+      _log.info("Not cleaning up buffer mmap directory because allocation policy is " + _allocationPolicy
+               + "; bufferPersistenceEnabled:" + _bufferPersistenceEnabled);
+      return;
+    }
+
+    // remove all the content of the session id for this buffer
+    _log.warn("Removing mmap directory for buffer(" + _physicalPartition + "): " + _mmapSessionDirectory);
+    if(! _mmapSessionDirectory.exists() ||  !_mmapSessionDirectory.isDirectory()) {
+      _log.warn("cannot cleanup _mmap=" + _mmapSessionDirectory + " directory because it doesn't exist or is not a directory");
+      return;
+    }
+
+    try {
+      FileUtils.cleanDirectory(_mmapSessionDirectory);
+    } catch (IOException e) {
+      _log.error("failed to cleanup buffer session directory " + _mmapSessionDirectory);
+    }
+    // delete the directory itself
+    if(!_mmapSessionDirectory.delete()) {
+      _log.error("failed to delete buffer session directory " + _mmapSessionDirectory);
+    }
+
+    File metaFile = new File(_mmapDirectory, metaFileName());
+    if(metaFile.exists()) {
+      _log.warn("Removing meta file " + metaFile);
+      if(!metaFile.delete()) {
+        _log.error("failed to delete metafile " + metaFile);
+      }
     }
   }
 
@@ -5104,100 +5433,109 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
    * @param infoOnly - if true, will create a meta file that will NOT be used when loading the buffers
    * @throws IOException
    */
-  public void saveBufferMetaInfo(boolean infoOnly) throws IOException {
 
-    if(_allocationPolicy != AllocationPolicy.MMAPPED_MEMORY || !_bufferPersistenceEnabled) {
-      LOG.info("Not saving state metaInfoFile, because allocation policy is " + _allocationPolicy
-               + "; bufferPersistenceEnabled:" + _bufferPersistenceEnabled);
-      return;
-    }
+  public void saveBufferMetaInfo(boolean infoOnly) throws IOException {
 
     acquireWriteLock(); // uses _queue lock, same lock used by readevents()
     try {
-      // first make sure to flush all the data
+      // first make sure to flush all the data including scn index data
       flushMMappedBuffers();
 
-      String fileName = metaFileName() + (infoOnly?MMAP_META_INFO_SUFFIX:"");
-      DbusEventBufferMetaInfo mi = new DbusEventBufferMetaInfo(new File(_mmapDirectory, fileName));
-      LOG.info("about to save DbusEventBuffer for PP " + _physicalPartition + " state into " + mi.toString());
-
-      // record session id - to figure out directory for the buffers
-      mi.setSessionId(_sessionId);
-
-      // write buffers specific info - num of buffers, pos and limit of each one
-      mi.setVal("ByteBufferNum",Integer.toString(_buffers.length));
-      StringBuilder bufferInfo = new StringBuilder("");
-      for (ByteBuffer b : _buffers) {
-        DbusEventBufferMetaInfo.BufferInfo bi = new DbusEventBufferMetaInfo.BufferInfo(b.position() , b.limit(), b.capacity());
-        bufferInfo.append(bi.toString());
-        bufferInfo.append(" ");
-      }
-      mi.setVal("ByteBufferInfo", bufferInfo.toString());
-
-      String currentWritePosition = Long.toString(_currentWritePosition.getPosition());
-      mi.setVal("currentWritePosition", currentWritePosition);
-
+      // save index metadata
       //  scnIndex file will be located in the session directory
       _scnIndex.saveBufferMetaInfo();
 
-      // _maxBufferSize
-      mi.setVal("maxBufferSize", Integer.toString(_maxBufferSize));
 
-      //NOTE. no need to save readBuffer and rwChannel
-
-      String head = Long.toString(_head.getPosition());
-      mi.setVal("head", head);
-
-      String tail = Long.toString(_tail.getPosition());
-      mi.setVal("tail", tail);
-
-      String empty = Boolean.toString(_empty);
-      mi.setVal("empty", empty);
-
-      mi.setVal("allocatedSize", Long.toString(_allocatedSize));
-
-      mi.setVal("eventStartIndex", Long.toString(_eventStartIndex.getPosition()));
-
-      // _numEventsInWindow
-      mi.setVal("numEventsInWindow", Integer.toString(_numEventsInWindow));
-      // _lastWrittenSequence
-      mi.setVal("lastWrittenSequence", Long.toString(_lastWrittenSequence));
-
-      mi.setVal("seenEndOfPeriodScn", Long.toString(_seenEndOfPeriodScn));
-      // _prevScn
-      mi.setVal("prevScn", Long.toString(_prevScn));
-      // _timestampOfFirstEvent
-      mi.setVal("timestampOfFirstEvent", Long.toString(_timestampOfFirstEvent));
-      // _timestampOfLatestDataEvent
-      mi.setVal("timestampOfLatestDataEvent", Long.toString(_timestampOfLatestDataEvent));
-      // eventState
-      mi.setVal("eventState", _eventState.toString());
-
-      mi.saveAndClose();
+      saveDataBufferMetaInfo(infoOnly);
     } finally {
       releaseWriteLock();
     }
   }
 
+  private void saveDataBufferMetaInfo(boolean infoOnly) throws IOException {
+
+    if(_allocationPolicy != AllocationPolicy.MMAPPED_MEMORY || !_bufferPersistenceEnabled) {
+      _log.info("Not saving state metaInfoFile, because allocation policy is " + _allocationPolicy
+               + "; bufferPersistenceEnabled:" + _bufferPersistenceEnabled);
+      return;
+    }
+
+    String fileName = metaFileName() + (infoOnly?MMAP_META_INFO_SUFFIX:"");
+    DbusEventBufferMetaInfo mi = new DbusEventBufferMetaInfo(new File(_mmapDirectory, fileName));
+    _log.info("about to save DbusEventBuffer for PP " + _physicalPartition + " state into " + mi.toString());
+
+    // record session id - to figure out directory for the buffers
+    mi.setSessionId(_sessionId);
+
+    // write buffers specific info - num of buffers, pos and limit of each one
+    mi.setVal(DbusEventBufferMetaInfo.NUM_BYTE_BUFFER,Integer.toString(_buffers.length));
+    StringBuilder bufferInfo = new StringBuilder("");
+    for (ByteBuffer b : _buffers) {
+      DbusEventBufferMetaInfo.BufferInfo bi = new DbusEventBufferMetaInfo.BufferInfo(b.position() , b.limit(), b.capacity());
+      bufferInfo.append(bi.toString());
+      bufferInfo.append(" ");
+    }
+    mi.setVal(DbusEventBufferMetaInfo.BYTE_BUFFER_INFO, bufferInfo.toString());
+
+    String currentWritePosition = Long.toString(_currentWritePosition.getPosition());
+    mi.setVal(DbusEventBufferMetaInfo.CURRENT_WRITE_POSITION, currentWritePosition);
+
+    // _maxBufferSize
+    mi.setVal(DbusEventBufferMetaInfo.MAX_BUFFER_SIZE, Integer.toString(_maxBufferSize));
+
+    //NOTE. no need to save readBuffer and rwChannel
+
+    String head = Long.toString(_head.getPosition());
+    mi.setVal(DbusEventBufferMetaInfo.BUFFER_HEAD, head);
+
+    String tail = Long.toString(_tail.getPosition());
+    mi.setVal(DbusEventBufferMetaInfo.BUFFER_TAIL, tail);
+
+    String empty = Boolean.toString(_empty);
+    mi.setVal(DbusEventBufferMetaInfo.BUFFER_EMPTY, empty);
+
+    mi.setVal(DbusEventBufferMetaInfo.ALLOCATED_SIZE, Long.toString(_allocatedSize));
+
+    mi.setVal(DbusEventBufferMetaInfo.EVENT_START_INDEX, Long.toString(_eventStartIndex.getPosition()));
+
+    // _numEventsInWindow
+    mi.setVal(DbusEventBufferMetaInfo.NUM_EVENTS_IN_WINDOW, Integer.toString(_numEventsInWindow));
+    // _lastWrittenSequence
+    mi.setVal(DbusEventBufferMetaInfo.LAST_WRITTEN_SEQUENCE, Long.toString(_lastWrittenSequence));
+
+    mi.setVal(DbusEventBufferMetaInfo.SEEN_END_OF_PERIOD_SCN, Long.toString(_seenEndOfPeriodScn));
+    // _prevScn
+    mi.setVal(DbusEventBufferMetaInfo.PREV_SCN, Long.toString(_prevScn));
+    // _timestampOfFirstEvent
+    mi.setVal(DbusEventBufferMetaInfo.TIMESTAMP_OF_FIRST_EVENT, Long.toString(_timestampOfFirstEvent));
+    // _timestampOfLatestDataEvent
+    mi.setVal(DbusEventBufferMetaInfo.TIMESTAMP_OF_LATEST_DATA_EVENT, Long.toString(_timestampOfLatestDataEvent));
+    // eventState
+    mi.setVal(DbusEventBufferMetaInfo.EVENT_STATE, _eventState.toString());
+
+    mi.saveAndClose();
+
+  }
+
   public void initBuffersWithMetaInfo(DbusEventBufferMetaInfo mi) throws DbusEventBufferMetaInfo.DbusEventBufferMetaInfoException {
 
     if(mi.isValid()) {
-      _head.setPosition(mi.getLong("head"));
-      _tail.setPosition(mi.getLong("tail"));
+      _head.setPosition(mi.getLong(DbusEventBufferMetaInfo.BUFFER_HEAD));
+      _tail.setPosition(mi.getLong(DbusEventBufferMetaInfo.BUFFER_TAIL));
 
-      _currentWritePosition.setPosition(mi.getLong("currentWritePosition"));
-      _empty = mi.getBool("empty");
+      _currentWritePosition.setPosition(mi.getLong(DbusEventBufferMetaInfo.CURRENT_WRITE_POSITION));
+      _empty = mi.getBool(DbusEventBufferMetaInfo.BUFFER_EMPTY);
       // _eventStartIndex
-      _eventStartIndex.setPosition(mi.getLong("eventStartIndex"));
-      _numEventsInWindow = mi.getInt("numEventsInWindow");
-      _eventState = DbusEventBuffer.WindowState.valueOf(mi.getVal("eventState"));
+      _eventStartIndex.setPosition(mi.getLong(DbusEventBufferMetaInfo.EVENT_START_INDEX));
+      _numEventsInWindow = mi.getInt(DbusEventBufferMetaInfo.NUM_EVENTS_IN_WINDOW);
+      _eventState = DbusEventBuffer.WindowState.valueOf(mi.getVal(DbusEventBufferMetaInfo.EVENT_STATE));
 
-      _lastWrittenSequence = mi.getLong("lastWrittenSequence");
-      _seenEndOfPeriodScn = mi.getLong("seenEndOfPeriodScn");
+      _lastWrittenSequence = mi.getLong(DbusEventBufferMetaInfo.LAST_WRITTEN_SEQUENCE);
+      _seenEndOfPeriodScn = mi.getLong(DbusEventBufferMetaInfo.SEEN_END_OF_PERIOD_SCN);
 
-      _prevScn = mi.getLong("prevScn");
-      _timestampOfFirstEvent = mi.getLong("timestampOfFirstEvent");
-      _timestampOfLatestDataEvent = mi.getLong("timestampOfLatestDataEvent");
+      _prevScn = mi.getLong(DbusEventBufferMetaInfo.PREV_SCN);
+      _timestampOfFirstEvent = mi.getLong(DbusEventBufferMetaInfo.TIMESTAMP_OF_FIRST_EVENT);
+      _timestampOfLatestDataEvent = mi.getLong(DbusEventBufferMetaInfo.TIMESTAMP_OF_LATEST_DATA_EVENT);
     }
   }
 
@@ -5214,5 +5552,76 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   public Logger getLog()
   {
     return _log;
+  }
+
+  /**
+   * Dumps as a hex string the contents of a buffer around a position. Useful for debugging
+   * purposes.
+   * @param pos         gen-id position in the event buffer
+   * @param length      number of bytes to print
+   * @return the string; if it starts with "!", an error occurred
+   */
+  public String hexdumpByteBufferContents(long pos, int length)
+  {
+    try
+    {
+      if (length < 0)
+      {
+        return "! invalid length: " + length;
+      }
+
+      final int bufIdx = _bufferPositionParser.bufferIndex(pos);
+      if (bufIdx >= _buffers.length)
+      {
+        return "! invalid buffer position: " + pos;
+      }
+
+      final int bufOfs = _bufferPositionParser.bufferOffset(pos);
+      return StringUtils.hexdumpByteBufferContents(_buffers[bufIdx], bufOfs, length);
+    }
+    catch (RuntimeException e)
+    {
+      return "! unable to generate dump for position " + pos + ": " + e;
+    }
+  }
+
+  //TODO HACK need better API
+  /**
+   * Injects an event in the regular stream of events
+   * @return true iff successful
+   * @throws InvalidEventException
+   */
+  public boolean injectEvent(DbusEventInternalReadable event)
+         throws InvalidEventException
+  {
+    final ByteBuffer eventBuf = event.getRawBytes();
+    byte[] cpEventBytes = null;
+    if (eventBuf.hasArray())
+    {
+      cpEventBytes = eventBuf.array();
+    }
+    else
+    {
+      cpEventBytes = new byte[event.getRawBytes().limit()];
+      eventBuf.get(cpEventBytes);
+    }
+    ByteArrayInputStream cpIs = new ByteArrayInputStream(cpEventBytes);
+    ReadableByteChannel cpRbc = Channels.newChannel(cpIs);
+    int ecnt = readEvents(cpRbc);
+
+    return ecnt > 0;
+  }
+
+  public synchronized byte getEventSerializationVersion()
+  {
+    return _eventSerializationVersion;
+  }
+
+  // For Testing ONLY
+  // TODO:  nuke this; incompatible with _eventFactory var (sole caller is DbusEventBufferForThisTest
+  //        in TestSendEventsExecHandler:  nuke that, too)
+  protected synchronized void setEventSerializationVersion(byte eventSerializationVersion)
+  {
+    _eventSerializationVersion = eventSerializationVersion;
   }
 }

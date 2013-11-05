@@ -47,7 +47,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.relay.OracleEventProducerFactory;
 import com.linkedin.databus2.relay.config.LogicalSourceConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceConfig;
@@ -73,7 +73,7 @@ public class BootstrapAvroFileSeederMain
 	private static Properties  _sBootstrapConfigProps = null;
 	private static String      _sSourcesConfigFile    = null;
 	private static StaticConfig _sStaticConfig        = null;
-	private static List<MonitoredSourceInfo> _sources = null;
+	private static List<OracleTriggerMonitoredSourceInfo> _sources = null;
 	private static BootstrapDBSeeder _sSeeder         = null;
 	private static BootstrapAvroFileEventReader _sReader = null;
 	private static BootstrapSeederWriterThread _sWriterThread = null;
@@ -104,7 +104,7 @@ public class BootstrapAvroFileSeederMain
       return _sStaticConfig;
     }
 
-    public static List<MonitoredSourceInfo> getSources()
+    public static List<OracleTriggerMonitoredSourceInfo> getSources()
     {
       return _sources;
     }
@@ -150,17 +150,17 @@ public class BootstrapAvroFileSeederMain
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());
 	    
 	    // Parse each one of the logical sources
-	    _sources = new ArrayList<MonitoredSourceInfo>();
+	    _sources = new ArrayList<OracleTriggerMonitoredSourceInfo>();
 	    FileSystemSchemaRegistryService schemaRegistryService =
 	    	    FileSystemSchemaRegistryService.build(_sStaticConfig.getSchemaRegistry().getFileSystem());
 
 	    for(LogicalSourceConfig sourceConfig : physicalSourceConfig.getSources())
 	    {
-	      MonitoredSourceInfo source =
+	      OracleTriggerMonitoredSourceInfo source =
 	          factory.buildOracleMonitoredSourceInfo(sourceConfig.build(), physicalSourceConfig.build(), schemaRegistryService);
 	      _sources.add(source);
 	    }
-	    _sSeeder = new BootstrapDBSeeder(_sStaticConfig.getBootstrap(),_sources,_sStaticConfig.getCheckpointPersistanceScript());
+	    _sSeeder = new BootstrapDBSeeder(_sStaticConfig.getBootstrap(),_sources);
 
 	    _sBootstrapBuffer = new BootstrapEventBuffer(_sStaticConfig.getController().getCommitInterval() * 2);
 

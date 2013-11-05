@@ -26,8 +26,6 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 /**
  * A callback for processing HTTP responses. The sequence of events is startResponse -> ( addChunk*
  * -> addTrailer?)? -> finishResponse
- * @author cbotev
- *
  */
 public interface HttpResponseProcessor
 {
@@ -36,5 +34,4 @@ public interface HttpResponseProcessor
   public void addTrailer(HttpChunkTrailer trailer) throws Exception;
   public void finishResponse() throws Exception;
   public void channelException(Throwable cause);
-  public void channelClosed();
 }

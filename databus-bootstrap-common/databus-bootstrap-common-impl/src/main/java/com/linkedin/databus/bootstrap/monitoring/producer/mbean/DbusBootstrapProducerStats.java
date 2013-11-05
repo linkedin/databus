@@ -60,10 +60,10 @@ public class DbusBootstrapProducerStats extends
 		_event.numDataEventsPerWindow = 0;
 		_event.numErrFellOffRelay = 0;
 		_event.numErrSqlException = 0;
-	    _event.timestampLastResetMs = System.currentTimeMillis();
-	    _event.timeSinceLastResetMs = 0;
-	    _event.latencyPerWindow = 0;
-	    _event.numWindows = 0;
+		_event.timestampLastResetMs = System.currentTimeMillis();
+		_event.timeSinceLastResetMs = 0;
+		_event.latencyPerWindow = 0;
+		_event.numWindows = 0;
 	}
 
 	@Override

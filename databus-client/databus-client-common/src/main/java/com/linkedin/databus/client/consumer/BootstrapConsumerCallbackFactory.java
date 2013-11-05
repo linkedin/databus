@@ -19,7 +19,6 @@ package com.linkedin.databus.client.consumer;
 */
 
 
-import com.linkedin.databus.core.DbusEventInternalWritable;
 import org.apache.avro.Schema;
 
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
@@ -28,6 +27,7 @@ import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventInternalWritable;
 
 /**
  * A factory for bootstrap consumer callbacks.
@@ -174,8 +174,10 @@ class BootstrapCheckpointCallable extends ConsumerCallable<ConsumerCallbackResul
   @Override
   protected ConsumerCallbackResult doCall() throws Exception
   {
-    return _consumer.onBootstrapCheckpoint(_scn);
+     ConsumerCallbackResult res = _consumer.onBootstrapCheckpoint(_scn);
+     return ConsumerCallbackResult.isFailure(res) ? ConsumerCallbackResult.SKIP_CHECKPOINT : res;
   }
+
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {

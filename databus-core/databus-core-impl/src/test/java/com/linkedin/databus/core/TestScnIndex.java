@@ -19,9 +19,8 @@ package com.linkedin.databus.core;
 */
 
 
-import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
-import com.linkedin.databus.core.util.BufferPositionParser;
-import com.linkedin.databus2.core.AssertLevel;
+import java.nio.ByteOrder;
+
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -29,6 +28,10 @@ import org.easymock.EasyMock;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
+
+import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.util.BufferPositionParser;
+import com.linkedin.databus2.core.AssertLevel;
 
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.fail;
@@ -57,25 +60,25 @@ public class TestScnIndex
     Logger.getRootLogger().setLevel(Level.ERROR);
   }
 
-/**
+/*
   @Test
   public void testScnIndexUtilities() {
     ScnIndex index = new ScnIndex(10240000, 20000000000L, 500 * ByteSizeConstants.ONE_MEGABYTE_IN_BYTES);
     assertTrue("blockNumber = "+index.getBlockNumber(17327387028L), index.getBlockNumber(17327387028L) > 0);
   }
-  **/
-  @Test
-  public void testScnIndexOnEventWithLargeBatch() {
+ */
 
+  @Test
+  public void testScnIndexOnEventWithLargeBatch()
+  {
     /**
      * Index is broken up into 3 entries for offsets
      * 0-1000, 1001-2000, 2001-3000
      */
-
 	BufferPositionParser parser = new BufferPositionParser(3000,3);
 	ScnIndex index = new ScnIndex(3 * ScnIndex.SIZE_OF_SCN_OFFSET_RECORD, 3000, 10000,
 	                              parser, AllocationPolicy.DIRECT_MEMORY, false, null, DEFAULT_ASSERT_LEVEL,
-                                true /* enabled */);
+	                              true /* enabled */, ByteOrder.BIG_ENDIAN);
 	DbusEvent eopEvent = EasyMock.createNiceMock(DbusEvent.class);
 	EasyMock.expect(eopEvent.isEndOfPeriodMarker()).andReturn(true).anyTimes();
 	EasyMock.expect(eopEvent.isControlMessage()).andReturn(true).anyTimes();

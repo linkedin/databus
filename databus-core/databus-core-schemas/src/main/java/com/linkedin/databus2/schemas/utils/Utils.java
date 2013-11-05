@@ -26,18 +26,14 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.codec.binary.Hex;
+
 /**
  * "Borrowed" largely from com.linkedin.avro.utils.Utils
  */
 public class Utils
 {
-
-  public static String hex(byte[] bytes)
-  {
-    StringBuilder builder = new StringBuilder(2 * bytes.length);
-    for(int i = 0; i < bytes.length; i++) builder.append(Integer.toHexString(0xFF & bytes[i]));
-    return builder.toString();
-  }
+  public static final Hex HEX = new Hex();
 
   public static byte[] md5(byte[] bytes)
   {

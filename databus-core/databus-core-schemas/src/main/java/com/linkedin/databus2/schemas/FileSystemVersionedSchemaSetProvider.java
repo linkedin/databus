@@ -102,7 +102,7 @@ public class FileSystemVersionedSchemaSetProvider implements VersionedSchemaSetP
         try
         {
           String schemaJson = IOUtils.toString(input);
-          schemas.add(new VersionedSchema(verSchemaId, Schema.parse(schemaJson)));
+          schemas.add(new VersionedSchema(verSchemaId, Schema.parse(schemaJson), null));
         }
         finally
         {

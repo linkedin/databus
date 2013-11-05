@@ -46,12 +46,14 @@ public class TestExtendedWriteTimeoutHandler
   @Test
   public void testClientSimpleRequestResponse()
   {
-    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(DbusEventV1.byteOrder);
+    DbusEventFactory eventFactory = new DbusEventV1Factory();
+
+    SimpleTestServerConnection srvConn = new SimpleTestServerConnection(eventFactory.getByteOrder());
     srvConn.setPipelineFactory(new SimpleServerPipelineFactory());
     boolean serverStarted = srvConn.startSynchronously(101, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(serverStarted, "server started");
 
-    final SimpleTestClientConnection clientConn = new SimpleTestClientConnection(DbusEventV1.byteOrder);
+    final SimpleTestClientConnection clientConn = new SimpleTestClientConnection(eventFactory.getByteOrder());
     clientConn.setPipelineFactory(new SimpleClientPipelineFactoryWithSleep(200));
     boolean clientConnected = clientConn.startSynchronously(101, CONNECT_TIMEOUT_MS);
     Assert.assertTrue(clientConnected, "client connected");

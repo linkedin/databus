@@ -20,6 +20,14 @@ package com.linkedin.databus.container.request;
 
 
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+
+import org.apache.log4j.Logger;
+import org.jboss.netty.channel.Channel;
+
 import com.linkedin.databus.container.netty.HttpRelay;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus2.core.BufferNotFoundException;
@@ -28,12 +36,6 @@ import com.linkedin.databus2.core.container.request.AbstractRequestProcesser;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.InvalidRequestParamValueException;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import org.apache.log4j.Logger;
-import org.jboss.netty.channel.Channel;
 
 
 public class RelayCommandRequestProcessor extends AbstractRequestProcesser
@@ -75,11 +77,15 @@ public class RelayCommandRequestProcessor extends AbstractRequestProcesser
       throw new InvalidRequestParamValueException(COMMAND_NAME, "command", "null");
     }
 
-    String reply = new String("Command " + command  + " completed ");
+    String reply = "Command " + command  + " completed ";
     LOG.info("got relayCommand = " + command);
     if(command.equals(SAVE_META_STATE_PARAM)) {
       _relay.saveBufferMetaInfo(true);
     } else if (command.equals(SHUTDOWN_RELAY_PARAM)) {
+      String msg = "received shutdown curl request from: " + request.getRemoteAddress() + ". Shutting down\n";
+      LOG.warn(msg);
+      request.getResponseContent().write(ByteBuffer.wrap(msg.getBytes("UTF-8")));
+      request.getResponseContent().close();
       _relay.shutdown();
     } else if (command.equals(VALIDATE_RELAY_BUFFER_PARAM)) {
       _relay.validateRelayBuffers();
@@ -162,7 +168,7 @@ public class RelayCommandRequestProcessor extends AbstractRequestProcesser
 
     byte[] responseBytes = new byte[(reply.length() + 2)];
 
-    System.arraycopy(reply.getBytes(), 0, responseBytes, 0, reply.length());
+    System.arraycopy(reply.getBytes("UTF-8"), 0, responseBytes, 0, reply.length());
     int idx = reply.length();
     responseBytes[idx] = (byte)'\r';
     responseBytes[idx + 1] = (byte)'\n';

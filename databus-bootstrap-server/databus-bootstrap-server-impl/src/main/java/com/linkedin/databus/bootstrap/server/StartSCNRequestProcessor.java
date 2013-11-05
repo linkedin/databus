@@ -33,17 +33,15 @@ import java.util.concurrent.ExecutorService;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO.SourceStatusInfo;
 import com.linkedin.databus.bootstrap.common.BootstrapHttpStatsCollector;
-import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus.core.Checkpoint;
+import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
+import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooYoungException;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
 
-/**
- * @author lgao
- *
- */
 public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
 {
   public static final String MODULE = StartSCNRequestProcessor.class.getName();
@@ -52,7 +50,7 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
   public final static String COMMAND_NAME = "startSCN";
   public final static String SOURCES_PARAM = "sources";
   public final static String SOURCE_DELIMITER = ",";
-  
+
   public StartSCNRequestProcessor(ExecutorService executorService,
 		  						  BootstrapServerStaticConfig config,
                                   BootstrapHttpServer bootstrapServer)
@@ -61,17 +59,18 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
 	  super(executorService,config,bootstrapServer);
   }
 
+
   @Override
   protected DatabusRequest doProcess(DatabusRequest request) throws IOException,
       RequestProcessingException
   {
     BootstrapHttpStatsCollector bootstrapStatsCollector = _bootstrapServer.getBootstrapStatsCollector();
     long startTime = System.currentTimeMillis();
-	String sources = request.getRequiredStringParam(SOURCES_PARAM);
-	List<String> srcList =  getSources(sources);
-	
+    String sources = request.getRequiredStringParam(SOURCES_PARAM);
+    List<String> srcList =  getSources(sources);
+
 	Checkpoint ckpt = new Checkpoint(request.getRequiredStringParam(CHECKPOINT_PARAM));
-	
+
     LOG.info("StartSCN requested for sources : (" + sources + "). CheckPoint is :" + ckpt);
     long sinceScn = ckpt.getBootstrapSinceScn();
     ObjectMapper mapper = new ObjectMapper();
@@ -87,29 +86,67 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
     	{
     		srcStatusPairs = processor.getSourceIdAndStatusFromName(srcList);
     		startSCN = processor.getMinApplierWindowScn(sinceScn, srcStatusPairs);
-    		
     		if (processor.shouldBypassSnapshot(sinceScn, startSCN, srcStatusPairs))
     		{
     			LOG.info("Bootstrap Snapshot phase will be bypassed for startScn request :" + request);
     			LOG.info("Original startSCN is:" + startSCN + ", Setting startSCN to the sinceSCN:" + sinceScn);
     			startSCN = sinceScn;
     		}
-    		
+    		else
+    		{
+    		  if (startSCN == BootstrapDBMetaDataDAO.DEFAULT_WINDOWSCN)
+    		  {
+    		    throw new RequestProcessingException("Bootstrap DB is being initialized! startSCN=" + startSCN);
+    		  }
+
+    		  if (_config.isEnableMinScnCheck())
+    		  {
+    		    //snapshot isn't bypassed. Check if snapshot is possible from sinceScn by checking minScn
+    		    long minScn = processor.getBootstrapMetaDataDAO().getMinScnOfSnapshots(srcStatusPairs);
+    		    LOG.info("Min scn for tab tables is: " + minScn);
+    		    if (minScn == BootstrapDBMetaDataDAO.DEFAULT_WINDOWSCN)
+    		    {
+    		      throw new BootstrapDatabaseTooYoungException("BootstrapDB has no minScn for these sources, but minScn check is enabled! minScn=" + minScn);
+    		    }
+
+            //Note: The cleaner deletes rows less than or equal to scn: BootstrapDBCleaner::doClean
+    		    //sinceSCN should be greater than minScn, unless sinceScn=minScn=0
+    		    if ((sinceScn <= minScn) && !(sinceScn==0 && minScn==0))
+    		    {
+    		      LOG.error("Bootstrap Snapshot doesn't have requested data . sinceScn too old! sinceScn is " + sinceScn +  " but minScn available is " + minScn);
+    		      throw new BootstrapDatabaseTooYoungException("Min scn=" + minScn + " Since scn=" + sinceScn);
+    		    }
+    		  }
+    		  else
+    		  {
+    		    LOG.debug("Bypassing minScn check! ");
+    		  }
+        }
     	}
     	catch (BootstrapDatabaseTooOldException tooOldException)
     	{
-    		if (bootstrapStatsCollector != null) 
+    		if (bootstrapStatsCollector != null)
     		{
     			bootstrapStatsCollector.registerErrStartSCN();
     			bootstrapStatsCollector.registerErrDatabaseTooOld();
     		}
-    		
+
     		LOG.error("The bootstrap database is too old!", tooOldException);
     		throw new RequestProcessingException(tooOldException);
     	}
+    	catch (BootstrapDatabaseTooYoungException e)
+    	{
+    	  if (bootstrapStatsCollector != null)
+        {
+          bootstrapStatsCollector.registerErrStartSCN();
+          bootstrapStatsCollector.registerErrBootstrap();
+        }
+        LOG.error("The bootstrap database is too young!", e);
+        throw new RequestProcessingException(e);
+    	}
     	catch (SQLException e)
     	{
-    	    if (bootstrapStatsCollector != null) 
+    	    if (bootstrapStatsCollector != null)
     	    {
     	    	bootstrapStatsCollector.registerErrStartSCN();
     	        bootstrapStatsCollector.registerErrSqlException();
@@ -119,8 +156,8 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
     	}
     	mapper.writeValue(out, String.valueOf(startSCN));
     	byte[] resultBytes = out.toString().getBytes();
-    	request.getResponseContent().write(ByteBuffer.wrap(resultBytes)); 
-    	LOG.info("startSCN: " + startSCN + "with server Info :" + _serverHostPort);
+    	request.getResponseContent().write(ByteBuffer.wrap(resultBytes));
+    	LOG.info("startSCN: " + startSCN + " with server Info :" + _serverHostPort);
     } catch (Exception ex) {
     	LOG.error("Got exception while calculating startSCN", ex);
     	throw new RequestProcessingException(ex);
@@ -128,8 +165,8 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
     	if ( null != processor)
     		processor.shutdown();
     }
-    
-    if (bootstrapStatsCollector != null) 
+
+    if (bootstrapStatsCollector != null)
     {
         bootstrapStatsCollector.registerStartSCNReq(System.currentTimeMillis()-startTime);
     }

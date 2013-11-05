@@ -30,7 +30,6 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.KeyBasedPartitioningConfig;
 import com.linkedin.databus2.core.filter.KeyFilterConfig.IDConfigEntry;
 import com.linkedin.databus2.core.filter.KeyFilterConfigHolder.PartitionType;
 
@@ -56,6 +55,7 @@ public class DbusKeyFilter implements DbusFilter
 {
 	public static final String MODULE = DbusKeyFilter.class.getName();
 	public static final Logger LOG = Logger.getLogger(MODULE);
+	private static final Long UPPER_END_UNLIMITED = Long.MAX_VALUE;
 
 	private PartitionType partitionType;
 	private ArrayList<DbusFilter> filters;
@@ -116,7 +116,7 @@ public class DbusKeyFilter implements DbusFilter
 				long keyMin = entry.getIdMin()*rangeSize;
 				long keyMax = 0;
 
-				if ( entry.getIdMax() == KeyBasedPartitioningConfig.UPPER_END_UNLIMITED )
+				if ( entry.getIdMax() == UPPER_END_UNLIMITED )
 				{
 					keyMax = Long.MAX_VALUE;
 				} else {
@@ -144,7 +144,7 @@ public class DbusKeyFilter implements DbusFilter
 				long bktMin = entry.getIdMin();
 				long bktMax = 0;
 
-				if ( entry.getIdMax() == KeyBasedPartitioningConfig.UPPER_END_UNLIMITED )
+				if ( entry.getIdMax() == UPPER_END_UNLIMITED )
 				{
 					bktMax = Long.MAX_VALUE;
 				} else {

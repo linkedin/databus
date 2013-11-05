@@ -78,14 +78,14 @@ public class ExtendedReadTimeoutHandler extends SimpleChannelUpstreamHandler
     }
   }
 
-  public void start(ChannelHandlerContext ctx)
+  public synchronized void start(ChannelHandlerContext ctx)
   {
     updateLastReadTime();
     _timeoutTask = new ReadTimeoutTask(ctx);
     createTimeout(_timeoutTask, _timeoutMs);
   }
 
-  public void stop()
+  public synchronized void stop()
   {
     _lastReadTs = -1;
     if (null != _timeout)  _timeout.cancel();
@@ -103,7 +103,7 @@ public class ExtendedReadTimeoutHandler extends SimpleChannelUpstreamHandler
     }
   }
 
-  public boolean isStarted()
+  public synchronized boolean isStarted()
   {
     return null != _timeoutTask;
   }
@@ -161,7 +161,7 @@ public class ExtendedReadTimeoutHandler extends SimpleChannelUpstreamHandler
 
   private void createTimeout(ReadTimeoutTask task, long timeoutMs)
   {
-    if (timeoutMs > 0)
+    if (timeoutMs > 0 && task != null)
     {
       _timeout = _timer.newTimeout(task, timeoutMs, TimeUnit.MILLISECONDS);
     }

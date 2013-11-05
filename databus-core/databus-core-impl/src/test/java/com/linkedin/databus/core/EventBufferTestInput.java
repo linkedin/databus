@@ -22,7 +22,7 @@ package com.linkedin.databus.core;
 import java.lang.reflect.Field;
 
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
-import com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType;
+import com.linkedin.databus.core.test.DbusEventCorrupter.EventCorruptionType;
 import com.linkedin.databus2.core.AssertLevel;
 /**
  *
@@ -33,7 +33,7 @@ public class EventBufferTestInput
 {
 
   public EventBufferTestInput() {
-    _corruptionType = com.linkedin.databus.core.util.DbusEventCorrupter.EventCorruptionType.NONE;
+    _corruptionType = com.linkedin.databus.core.test.DbusEventCorrupter.EventCorruptionType.NONE;
     _corruptIndexList = new int[0];
     _consQueuePolicy = _prodQueuePolicy = QueuePolicy.OVERWRITE_ON_WRITE;
     _payloadSize = 20;
@@ -46,6 +46,7 @@ public class EventBufferTestInput
     _individualBufferSize = _sharedBufferSize;
     _indexSize = _sharedBufferSize / 2;
     _deleteInterval = 0;
+    _testName = "UnknownTest";
   }
 
   /**
@@ -278,9 +279,10 @@ public class EventBufferTestInput
     return null != _consBufferAssertLevel ? _consBufferAssertLevel : AssertLevel.NONE;
   }
 
-  public void setConsBufferAssertLevel(AssertLevel consBufferAssertLevel)
+  public EventBufferTestInput setConsBufferAssertLevel(AssertLevel consBufferAssertLevel)
   {
     _consBufferAssertLevel = consBufferAssertLevel;
+    return this;
   }
 
   public AssertLevel getProdBufferAssertLevel()
@@ -288,9 +290,27 @@ public class EventBufferTestInput
     return null != _prodBufferAssertLevel ? _prodBufferAssertLevel : AssertLevel.ALL;
   }
 
-  public void setProdBufferAssertLevel(AssertLevel prodBufferAssertLevel)
+  public EventBufferTestInput setProdBufferAssertLevel(AssertLevel prodBufferAssertLevel)
   {
     _prodBufferAssertLevel = prodBufferAssertLevel;
+    return this;
+  }
+
+  /**
+   * @return the test name
+   */
+  public String getTestName()
+  {
+    return _testName;
+  }
+
+  /**
+   * @param testName  change the test name (for debugging purposes)
+   */
+  public EventBufferTestInput setTestName(String testName)
+  {
+    _testName = testName;
+    return this;
   }
 
   private EventCorruptionType _corruptionType;
@@ -309,4 +329,5 @@ public class EventBufferTestInput
   private int _individualBufferSize;
   private int _indexSize;
   private int _deleteInterval;
+  private String _testName;
 }

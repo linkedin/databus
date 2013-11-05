@@ -44,7 +44,7 @@ import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.EventProducer;
 import com.linkedin.databus2.producers.PartitionFunction;
 import com.linkedin.databus2.producers.db.EventFactory;
-import com.linkedin.databus2.producers.db.MonitoredSourceInfo;
+import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.producers.db.OracleAvroGenericEventFactory;
 import com.linkedin.databus2.producers.db.OracleEventProducer;
 import com.linkedin.databus2.relay.config.LogicalSourceStaticConfig;
@@ -77,17 +77,17 @@ public class OracleEventProducerFactory
     }
 
     // Parse each one of the logical sources
-    List<MonitoredSourceInfo> sources = new ArrayList<MonitoredSourceInfo>();
+    List<OracleTriggerMonitoredSourceInfo> sources = new ArrayList<OracleTriggerMonitoredSourceInfo>();
     for(LogicalSourceStaticConfig sourceConfig : physicalSourceConfig.getSources())
     {
-      MonitoredSourceInfo source = buildOracleMonitoredSourceInfo(sourceConfig, physicalSourceConfig, schemaRegistryService);
+      OracleTriggerMonitoredSourceInfo source = buildOracleMonitoredSourceInfo(sourceConfig, physicalSourceConfig, schemaRegistryService);
       sources.add(source);
     }
 
     DataSource ds = null;
     try
     {
-        ds = OracleJarUtils.createOracleDataSource(uri);    	
+        ds = OracleJarUtils.createOracleDataSource(uri);
     } catch (Exception e)
     {
     	String errMsg = "Oracle URI likely not supported. Trouble creating OracleDataSource";
@@ -116,17 +116,17 @@ public class OracleEventProducerFactory
       throws EventCreationException, UnsupportedKeyException
   {
 	  return new OracleAvroGenericEventFactory(sourceConfig.getId(), (short)pConfig.getId(),
-              eventSchema, partitionFunction);
+              eventSchema, partitionFunction,pConfig.getReplBitSetter());
   }
 
-  public MonitoredSourceInfo buildOracleMonitoredSourceInfo(
+  public OracleTriggerMonitoredSourceInfo buildOracleMonitoredSourceInfo(
       LogicalSourceStaticConfig sourceConfig, PhysicalSourceStaticConfig pConfig, SchemaRegistryService schemaRegistryService)
       throws DatabusException, EventCreationException, UnsupportedKeyException,
              InvalidConfigException
   {
     String schema = null;
 	try {
-		schema = schemaRegistryService.fetchLatestSchemaByType(sourceConfig.getName());
+		schema = schemaRegistryService.fetchLatestSchemaBySourceName(sourceConfig.getName());
 	} catch (NoSuchSchemaException e) {
 	      throw new InvalidConfigException("Unable to load the schema for source (" + sourceConfig.getName() + ").");
 	}
@@ -165,7 +165,7 @@ public class OracleEventProducerFactory
     EventSourceStatistics statisticsBean = new EventSourceStatistics(sourceConfig.getName());
 
 
-    MonitoredSourceInfo sourceInfo = new MonitoredSourceInfo(sourceConfig.getId(),
+    OracleTriggerMonitoredSourceInfo sourceInfo = new OracleTriggerMonitoredSourceInfo(sourceConfig.getId(),
                                                              sourceConfig.getName(),
                                                              eventViewSchema,
                                                              eventView, factory,
@@ -201,6 +201,6 @@ public class OracleEventProducerFactory
       throw new InvalidConfigException("Invalid partition configuration (" + partitionFunction + ").");
     }
   }
-  
+
 
 }

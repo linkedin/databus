@@ -20,6 +20,7 @@ package com.linkedin.databus.container.request;
 
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -27,11 +28,15 @@ import org.apache.log4j.Logger;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import com.linkedin.databus.container.netty.HttpRelay;
+import com.linkedin.databus.monitoring.mbean.GGParserStatistics;
 import com.linkedin.databus2.core.container.monitoring.mbean.DbusHttpTotalStats;
 import com.linkedin.databus2.core.container.request.AbstractStatsRequestProcessor;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.InvalidRequestParamValueException;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
+import com.linkedin.databus2.producers.EventProducer;
+import com.linkedin.databus2.relay.DatabusRelayMain;
+import com.linkedin.databus2.relay.GoldenGateEventProducer;
 
 public class RelayStatsRequestProcessor extends AbstractStatsRequestProcessor
 {
@@ -45,6 +50,8 @@ public class RelayStatsRequestProcessor extends AbstractStatsRequestProcessor
   private final static String OUTBOUND_HTTP_SOURCE_PREFIX = "outbound/http/source/";
   private final static String OUTBOUND_HTTP_CLIENTS_KEY = "outbound/http/clients";
   private final static String OUTBOUND_HTTP_CLIENT_PREFIX = "outbound/http/client/";
+  private final static String INBOUND_GG_PSOURCES_PREFIX = "inbound/gg/psources/";
+  private final static String INBOUND_GG_PSOURCE_PREFIX = "inbound/gg/psource/";
 
   private final HttpRelay _relay;
 
@@ -80,6 +87,14 @@ public class RelayStatsRequestProcessor extends AbstractStatsRequestProcessor
     {
       processOutboundHttpClientStats(request);
     }
+    else if (category.startsWith(INBOUND_GG_PSOURCES_PREFIX))
+    {
+      processInboundGGStats(request, category);
+    }
+    else if (category.startsWith(INBOUND_GG_PSOURCE_PREFIX)) // specific source
+    {
+      processInboundGGStats(request, category);
+    }
     else
     {
       success = false;
@@ -88,6 +103,43 @@ public class RelayStatsRequestProcessor extends AbstractStatsRequestProcessor
     return success;
   }
 
+  private void processInboundGGStats(DatabusRequest request, String category) throws IOException, RequestProcessingException
+  {
+    if(!(_relay instanceof DatabusRelayMain)) {
+      throw new IllegalArgumentException(category + " for relay which is not DatabusRelayMain");
+    }
+
+    String psourceName = null;
+    if(category.startsWith(INBOUND_GG_PSOURCE_PREFIX)) {
+      psourceName = category.substring(INBOUND_GG_PSOURCE_PREFIX.length());
+      if(psourceName == null || psourceName.length() <= 0) {
+        throw new InvalidRequestParamValueException(request.getName(), INBOUND_GG_PSOURCE_PREFIX, null);
+      }
+      LOG.info("get parser stats for source " + psourceName);
+    }
+
+    List<String> phSourceNames = new ArrayList<String>();
+    EventProducer [] prods = ((DatabusRelayMain)_relay).getProducers();
+    GGParserStatistics stat = null;
+    for(EventProducer prod : prods) {
+      if (prod != null && (prod instanceof GoldenGateEventProducer)) {
+        GoldenGateEventProducer ggProducer = (GoldenGateEventProducer)prod;
+        String pSrcName = ggProducer.getParserStats().getPhysicalSourceName();
+        phSourceNames.add(pSrcName);
+        if(psourceName != null && psourceName.equals(pSrcName)) // remember the stats object
+          stat = ggProducer.getParserStats();
+      }
+    }
+
+    if(psourceName != null) {
+      if(stat == null)
+        throw new InvalidRequestParamValueException(request.getName(), INBOUND_GG_PSOURCE_PREFIX, psourceName);
+      writeJsonObjectToResponse(stat, request);
+    } else {
+      writeJsonObjectToResponse(phSourceNames, request);
+    }
+
+  }
 
   private void processOutboundHttpTotalStats(DatabusRequest request) throws IOException
   {

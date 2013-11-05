@@ -163,7 +163,8 @@ class CheckpointCallable extends ConsumerCallable<ConsumerCallbackResult>
   @Override
   protected ConsumerCallbackResult doCall() throws Exception
   {
-    return _consumer.onCheckpoint(_scn);
+     ConsumerCallbackResult res =  _consumer.onCheckpoint(_scn);
+     return ConsumerCallbackResult.isFailure(res) ? ConsumerCallbackResult.SKIP_CHECKPOINT : res;
   }
 
   @Override

@@ -40,4 +40,5 @@ public interface SubscriptionUriCodec
 
   /** Creates a URI from a subscription */
   URI encode(DatabusSubscription sub);
+
 }

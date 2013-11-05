@@ -21,9 +21,11 @@ package com.linkedin.databus.client;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ReadableByteChannel;
 import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -39,7 +41,8 @@ import org.jboss.netty.handler.codec.http.HttpHeaders;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
 import com.linkedin.databus.client.netty.HttpResponseProcessor;
-import com.linkedin.databus2.core.container.request.DatabusRequest;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
+
 
 /**
  * Provides a {@link ReadableByteChannel} interface over a stream of incoming {@link HttpChunk}s.
@@ -59,7 +62,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
 
   //TODO MED make these configurable
   private static final int MAX_BUFFERED_CHUNKS = 1000;
-  private static final int MAX_BUFFERED_BYTES = 4096000;
+  static final int MAX_BUFFERED_BYTES = 8192000;  // package-private for tests
 
   static final int MAX_CHUNK_SPACE_WAIT_MS = 15000;
 
@@ -312,7 +315,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
 
     if (debugEnabled)
     {
-      String dbusReqLatencyStr = getMetadata(DatabusRequest.DATABUS_REQUEST_LATENCY_HEADER);
+      String dbusReqLatencyStr = getMetadata(DatabusHttpHeaders.DATABUS_REQUEST_LATENCY_HEADER);
       if (null != dbusReqLatencyStr)
       {
         LOG.debug("Databus request processing latency (ms): " + dbusReqLatencyStr);
@@ -329,7 +332,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
 
     if (debugEnabled)
     {
-      String dbusReqId = response.getHeader(DatabusRequest.DATABUS_REQUEST_ID_HEADER);
+      String dbusReqId = response.getHeader(DatabusHttpHeaders.DATABUS_REQUEST_ID_HEADER);
       if (null != dbusReqId) LOG.debug("Received response for databus reqid: " + dbusReqId);
     }
 
@@ -384,8 +387,19 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
   @Override
   public void channelException(Throwable cause)
   {
-    LOG.error("channel exception(" + cause.getClass().getSimpleName() + "):" +
-              cause.getMessage(), cause);
+    if (cause instanceof ClosedChannelException)
+    {
+      LOG.warn("channel unexpectedly closed.");
+    }
+    else if (cause instanceof RejectedExecutionException)
+    {
+      LOG.info("shutdown in progress");
+    }
+    else
+    {
+      LOG.error("channel exception(" + cause.getClass().getSimpleName() + "):" +
+                cause.getMessage(), cause);
+    }
     try
     {
       close();
@@ -394,12 +408,6 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
     {
       LOG.error("Error closing channel:" + ioe.getMessage(), ioe);
     }
-  }
-
-  @Override
-  public void channelClosed()
-  {
-    signalNoMoreChunksWithLock();
   }
 
   private void signalNoMoreChunks()
@@ -424,7 +432,7 @@ public class ChunkedBodyReadableByteChannel implements ReadableByteChannel, Http
 
   public boolean hasNoMoreChunks()
   {
-	  return _noMoreChunks;
+    return _noMoreChunks;
   }
 
 }

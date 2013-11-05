@@ -94,10 +94,10 @@ public class DbusErrorEvent
 
     switch (_errorId)
     {
-      case DbusEvent.BOOTSTRAPTOOOLD_ERROR_SRCID:
+      case DbusEventInternalWritable.BOOTSTRAPTOOOLD_ERROR_SRCID:
         error = new ScnNotFoundException(_error);
         break;
-      case DbusEvent.PULLER_RETRIES_EXPIRED:
+      case DbusEventInternalWritable.PULLER_RETRIES_EXPIRED:
     	error = new PullerRetriesExhaustedException(_error);
     	break;
       default:

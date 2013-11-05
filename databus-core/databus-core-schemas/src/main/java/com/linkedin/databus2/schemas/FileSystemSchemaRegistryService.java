@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.log4j.Logger;
 
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.DatabusException;
@@ -54,6 +55,11 @@ public class FileSystemSchemaRegistryService extends VersionedSchemaSetBackedReg
   {
     FileSystemSchemaRegistryService service = new FileSystemSchemaRegistryService(config);
     service.initializeSchemaSet();
+    if (0 == service.getCurSchemaSet().size())
+    {
+      throw new DatabusRuntimeException("no schemas loaded; please check the schemas directory: " +
+                                        config.getSchemaDir().getAbsolutePath() );
+    }
 
     if (config.getRefreshPeriodMs() > 0)
     {

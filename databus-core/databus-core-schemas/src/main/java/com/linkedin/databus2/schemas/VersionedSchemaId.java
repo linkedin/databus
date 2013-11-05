@@ -18,8 +18,11 @@ package com.linkedin.databus2.schemas;
  *
 */
 
-
-
+/**
+ * VersionedSchemaId has no connection with SchemaId.
+ *
+ * VersionedSchemaId holds the "name" (source/table name) and the schema version.
+ */
 public class VersionedSchemaId
 {
   private final String _baseSchemaName;

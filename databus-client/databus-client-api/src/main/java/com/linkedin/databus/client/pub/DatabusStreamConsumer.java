@@ -77,7 +77,8 @@ public interface DatabusStreamConsumer
   ConsumerCallbackResult onRollback(SCN rollbackScn);
 
   /**
-   * Denotes the start of a new Databus source.
+   * This callback indicates that the next set of onEvent() callbacks is from the source
+   * table indicated in this call.
    *
    * @param  source             the source name
    * @param  sourceSchema       the Avro schema used for serialization of the events
@@ -87,7 +88,10 @@ public interface DatabusStreamConsumer
   ConsumerCallbackResult onStartSource(String source, Schema sourceSchema);
 
   /**
-   * Denotes the end of a Databus source.
+   * This callback indicates that there are no more events from 'source' in the current
+   * transaction.  The 'source' and 'sourceSchema' parameters match those in the
+   * onStartSource() call above.
+   *
    * @param  source             the source name
    * @param  sourceSchema       the Avro schema used for serialization of the events
    * @return the callback result code; ERROR causes a rollback
@@ -98,9 +102,9 @@ public interface DatabusStreamConsumer
   /**
    * Denotes a new data event.
    *
-   * <b>IMPORTANT:</b> The consumer should not save the event object passed as it is not guaranteed
-   * the event contents will not be overwritten in the future. Instead the consumer should copy
-   * the data payload before returning from the callback.
+   * <b>IMPORTANT:</b> The consumer should not save the returned event object (reference) as
+   * there is no guarantee the event contents won't be overwritten in the future.  Instead,
+   * the consumer should copy the data payload before returning from the callback.
    *
    * @param  e                  provides access to the payload of the data event
    * @param  eventDecoder       A converter that can be used for access to the SpecificRecord

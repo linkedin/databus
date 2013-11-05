@@ -36,6 +36,9 @@ public class ErrorResponse extends SimpleDatabusResponse
   private final String _causeClassName;
   private final String _causeMessage;
 
+  // A boolean to indicate whether this response is expected. If so, we don't want to log exception stack.
+  private boolean _isExpected = false;
+
   public ErrorResponse(byte errorCode, Throwable cause)
   {
     super((byte)1);
@@ -52,6 +55,16 @@ public class ErrorResponse extends SimpleDatabusResponse
     _cause = null;
     _causeClassName = causeClassName;
     _causeMessage = causeMessage;
+  }
+
+  public boolean isExpected()
+  {
+    return _isExpected;
+  }
+
+  public void setExpected(boolean expected)
+  {
+    _isExpected = expected;
   }
 
   public static ErrorResponse decodeFromChannelBuffer(ChannelBuffer buffer)
@@ -103,6 +116,12 @@ public class ErrorResponse extends SimpleDatabusResponse
   {
     return new ErrorResponse(BinaryProtocol.RESULT_ERR_UNKNOWN_COMMAND,
                              new UnknownCommandException(Integer.toHexString(opcode & 0xFF)));
+  }
+
+  public static ErrorResponse createMismatchingMetadata(String cmd, String param, String value)
+  {
+    return new ErrorResponse(BinaryProtocol.RESULT_ERR_INVALID_METADATA,
+                         new InvalidRequestParamValueException(cmd, param, value));
   }
 
   public static ErrorResponse createUnexpectedControlEventErrorResponse(String msg)
@@ -162,6 +181,12 @@ public class ErrorResponse extends SimpleDatabusResponse
   public static ErrorResponse createInvalidEvent(String errMsg)
   {
     return new ErrorResponse(BinaryProtocol.RESULT_ERR_INVALID_EVENT,
+                             new DatabusException(errMsg));
+  }
+
+  public static ErrorResponse createUnsupportedDbusEventVersion(String errMsg)
+  {
+    return new ErrorResponse(BinaryProtocol.RESULT_ERR_UNSUPPORTED_DBUS_EVENT_VERSION,
                              new DatabusException(errMsg));
   }
 

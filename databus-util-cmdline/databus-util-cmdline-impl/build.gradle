@@ -8,4 +8,18 @@ dependencies {
   compile externalDependency.log4j
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
+  compile externalDependency.jline
+  
+  compile project(':databus-core:databus-core-impl')
+  compile project(':databus-core:databus-core-schemas')
+  testCompile project(':databus-core:databus-core-fwk-test')
+
+  testCompile externalDependency.testng
+  testCompile externalDependency.easymock
+
+  runtime externalDependency.ojdbc6
 }
+
+test.useTestNG()
+test.workingDir = "${project.rootDir}"
+

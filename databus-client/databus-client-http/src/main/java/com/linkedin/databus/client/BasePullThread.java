@@ -32,8 +32,10 @@ import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DatabusComponentStatus.Status;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.async.LifecycleMessage;
+import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 import com.linkedin.databus2.core.mbean.DatabusReadOnlyStatus;
 
 public abstract class BasePullThread extends AbstractActorMessageQueue
@@ -45,9 +47,11 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
 	protected final ConnectionState _currentState;
 	protected final DatabusComponentStatus _status;
 	protected final DatabusReadOnlyStatus _statusMbean;
-    protected final Logger _log;
+	protected final Logger _log;
 
 	protected DatabusSourcesConnection _sourcesConn;
+
+	private final DbusEventFactory _eventFactory;
 
 	/* Flag to mark delaying tear connection after server-set change if client is waiting for response */
 	private boolean tearConnAfterResponse = false;
@@ -58,25 +62,30 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
 	private final MessageQueueFilter pickServerFilter = new PickServerEnqueueFilter();
 
 	public BasePullThread(String name,
+      BackoffTimerStaticConfig pullerRetries,
 			DatabusSourcesConnection sourcesConn,
-			DbusEventBuffer dataEventsBuffer,
+      DbusEventBuffer dbusEventBuffer,
+			ConnectionStateFactory connStateFactory,
 			Set<ServerInfo> servers,
-			MBeanServer mbeanServer)
+			MBeanServer mbeanServer,
+			DbusEventFactory eventFactory
+  )
 	{
 		super(name,
-			  sourcesConn.getConnectionConfig().getPullerRetries(),
+			  pullerRetries,
 			  sourcesConn.getConnectionConfig().isPullerMessageQueueLoggingEnabled());
 		_log = Logger.getLogger(getClass().getName() + "." + name);
 		_sourcesConn = sourcesConn;
-		_currentState = ConnectionState.create(dataEventsBuffer, sourcesConn.getSourcesNames(), sourcesConn.getSubscriptions());
+		_currentState = connStateFactory.create(dbusEventBuffer);
 
 	    if ( null != servers)
-	    	_servers = new TreeSet<ServerInfo>(servers);
+        _servers = new TreeSet<ServerInfo>(servers);
 	    else
-	    	_servers = new TreeSet<ServerInfo>();
+        _servers = new TreeSet<ServerInfo>();
 
+		_eventFactory = eventFactory;
 		_mbeanServer = mbeanServer;
-		_status = new DatabusComponentStatus(name, sourcesConn.getConnectionConfig().getPullerRetries());
+		_status = new DatabusComponentStatus(name, pullerRetries);
 		_statusMbean = new DatabusReadOnlyStatus(getName(), _status, -1);
 		_statusMbean.registerAsMbean(_mbeanServer);
 		resetServerRetries();
@@ -354,7 +363,7 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
 	protected void tearConnectionAndEnqueuePickServer()
 	{
 		tearConnection();
-        enqueuePickServer(_currentState);
+		enqueuePickServer(_currentState);
 	}
 
 	protected boolean toTearConnAfterHandlingResponse()
@@ -424,4 +433,18 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
 		}
 		return ret;
 	}
+
+  /**
+   * @return the log
+   */
+  protected Logger getLog()
+  {
+    return _log;
+  }
+
+  protected DbusEventFactory getEventFactory()
+  {
+    return _eventFactory;
+  }
+
 }

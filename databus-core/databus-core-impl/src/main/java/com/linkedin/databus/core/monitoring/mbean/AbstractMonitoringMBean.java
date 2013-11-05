@@ -44,6 +44,11 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
   public static final Logger LOG = Logger.getLogger(MODULE);
   public static final String JMX_DOMAIN = "com.linkedin.databus2";
   private static final Pattern BAD_CHARS_PATTERN = Pattern.compile("[:,?=]");
+  
+  // we use -1 in both cases(instead of real MAX and MIN) because we want to 
+  // avoid spikes on the graphs.
+  public static final long DEFAULT_MAX_LONG_VALUE = -1;
+  public static final long DEFAULT_MIN_LONG_VALUE = -1;
 
   protected final AtomicBoolean _enabled;
   protected T _event;
@@ -254,5 +259,34 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
     mbeanProps.put("type", this.getClass().getSimpleName());
 
     return mbeanProps;
+  }
+  
+  /**
+   * @param val1
+   * @param val2
+   * @return max of two (takes into account default value)
+   */
+  protected long maxValue(long val1, long val2) {
+    if(val1 == DEFAULT_MAX_LONG_VALUE)
+      return val2;
+    if(val2 == DEFAULT_MAX_LONG_VALUE)
+      return val1;
+    
+    return Math.max(val1, val2);
+  }
+  
+  /**
+   * 
+   * @param val1
+   * @param val2
+   * @return min of two (takes into account default value)
+   */
+  protected long minValue(long val1, long val2) {
+    if(val1 == DEFAULT_MIN_LONG_VALUE)
+      return val2;
+    if(val2 == DEFAULT_MIN_LONG_VALUE)
+      return val1;
+    
+    return Math.min(val1, val2);
   }
 }

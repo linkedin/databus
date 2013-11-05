@@ -22,7 +22,9 @@ package com.linkedin.databus.core;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
+import java.util.Date;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.apache.log4j.ConsoleAppender;
@@ -126,7 +128,8 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
   public ScnIndex(int maxIndexSize, long totalAddressedSpace, int individualBufferSize,
                   BufferPositionParser parser, AllocationPolicy allocationPolicy,
                   boolean restoreBuffer, File mmapSessionDirectory, AssertLevel assertLevel,
-                  boolean enabled) {
+                  boolean enabled, ByteOrder byteOrder)
+  {
     _enabled = enabled;
     _assertLevel = null != assertLevel ? assertLevel : AssertLevel.NONE;
     rwLock = new ReentrantReadWriteLock();
@@ -145,9 +148,9 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
 
     if (isEnabled())
     {
-      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, DbusEventV1.byteOrder, allocationPolicy,
-                                           restoreBuffer, mmapSessionDirectory,
-                                           new File(mmapSessionDirectory, "scnIndex"));
+      buffer = DbusEventBuffer.allocateByteBuffer(bufSize, byteOrder,
+                                                  allocationPolicy, restoreBuffer, mmapSessionDirectory,
+                                                  new File(mmapSessionDirectory, "scnIndex"));
     }
     else
     {
@@ -162,7 +165,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     updateOnNext = false;
     if (!isEnabled())
     {
-      LOG.info("ScnIndex not enblaed");
+      LOG.info("ScnIndex not enabled");
       return;
     }
 
@@ -183,7 +186,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
           throw new RuntimeException(e);
         }
       } else {
-        LOG.warn("restoreMMapedBuffer is set to true, but file " + metaFile + " does't exist");
+        LOG.warn("restoreMMappedBuffer is set to true, but file " + metaFile + " does't exist");
       }
     }
 
@@ -366,6 +369,7 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     long currentScn = -1;
     currentOffset = -1;
     endBlock = beginBlock = 0;
+    newLog.log(l, "logger name: " + log.getName() + " ts:" + (new Date()));
     for (int position = 0; position < buffer.limit();  position += SIZE_OF_SCN_OFFSET_RECORD)
     {
       long nextOffset = getOffset(position);
@@ -406,9 +410,9 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     {
       throw new RuntimeException("ScnIndex not enabled");
     }
+    acquireReadLock();
     try
     {
-      acquireReadLock();
       if (empty())
       {
         return -1;
@@ -617,57 +621,76 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
    *
    */
   public ScnIndexEntry getClosestOffset(long searchScn) throws OffsetNotFoundException {
-
-    if (!isEnabled())
+    acquireReadLock();
+    try
     {
-      throw new RuntimeException("ScnIndex not enabled");
-    }
-    if (empty()) {
-      LOG.info("ScnIndex is empty");
-      throw new OffsetNotFoundException();
-    }
-    // binary search
-    int left = head;
-    int right = tail;
-    int index;
-    index = midPoint(left, right, buffer.limit());
-
-    long currScn = getScn(index);
-    boolean found = false;
-    while (!found)
-    {
-      if (isClosestScn(currScn, searchScn, index)) {
-        int lessIndex = decrement(index, buffer.limit());
-        long lessScn = getScn(lessIndex);
-        while ((index!=head) && (currScn == lessScn))
-        {
-          index = lessIndex;
-          currScn = lessScn;
-          lessIndex = decrement(index, buffer.limit());
-          lessScn = getScn(lessIndex);
-        }
-        found = true;
-        return  new ScnIndexEntry(currScn,getOffset(index));
+      if (!isEnabled())
+      {
+        throw new RuntimeException("ScnIndex not enabled");
       }
-      else {
-        if (currScn > searchScn) {
-          if ((index == right) || ((left + SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit() == right)){
-            LOG.error("Case 1 : currScn > searchScn and index == right" +
-            		  "index = " + index +
-                      " right = " + right +
-                      " left = " + left +
-                      " buffer.limit = " + buffer.limit() +
-                      " searchScn = " + searchScn +
-                      " currScn = " + currScn);
-            printVerboseString(LOG, Level.ERROR);
-            throw new OffsetNotFoundException();
+      if (empty()) {
+        LOG.info("ScnIndex is empty");
+        throw new OffsetNotFoundException();
+      }
+      // binary search
+      final int startRightOfs = tail;
+      int left = head;
+      int right = startRightOfs;
+      int index;
+      index = midPoint(left, right, buffer.limit());
+
+      long currScn = getScn(index);
+      boolean found = false;
+      while (!found)
+      {
+        if (isClosestScn(currScn, searchScn, index, startRightOfs)) {
+          int lessIndex = decrement(index, buffer.limit());
+          long lessScn = getScn(lessIndex);
+          while ((index!=head) && (currScn == lessScn))
+          {
+            index = lessIndex;
+            currScn = lessScn;
+            lessIndex = decrement(index, buffer.limit());
+            lessScn = getScn(lessIndex);
           }
-          right = index;
+          found = true;
+          return  new ScnIndexEntry(currScn,getOffset(index));
         }
         else {
-          if (index == left) {
-            LOG.error("Case 2 : currScn <= searchScn and index == left" +
-            		  "index = " + index +
+          if (currScn > searchScn) {
+            if ((index == right) || ((left + SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit() == right)){
+              LOG.error("Case 1 : currScn > searchScn and index == right" +
+              		  "index = " + index +
+                        " right = " + right +
+                        " left = " + left +
+                        " buffer.limit = " + buffer.limit() +
+                        " searchScn = " + searchScn +
+                        " currScn = " + currScn);
+              printVerboseString(LOG, Level.ERROR);
+              throw new OffsetNotFoundException();
+            }
+            right = index;
+          }
+          else {
+            if (index == left) {
+              LOG.error("Case 2 : currScn <= searchScn and index == left" +
+              		  "index = " + index +
+                        " right = " + right +
+                        " left = " + left +
+                        " buffer.limit = " + buffer.limit() +
+                        " searchScn = " + searchScn +
+                        " currScn = " + currScn);
+              printVerboseString(LOG, Level.ERROR);
+              throw new OffsetNotFoundException();
+            }
+            left = index;
+          }
+          int prevIndex = index;
+          index = midPoint(left, right, buffer.limit());
+          if (prevIndex == index) {
+            LOG.error("Case 3 : currScn > searchScn and prevIndex == index" +
+          		    "index = " + index +
+                      " prevIndex = " + prevIndex +
                       " right = " + right +
                       " left = " + left +
                       " buffer.limit = " + buffer.limit() +
@@ -676,28 +699,17 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
             printVerboseString(LOG, Level.ERROR);
             throw new OffsetNotFoundException();
           }
-          left = index;
-        }
-        int prevIndex = index;
-        index = midPoint(left, right, buffer.limit());
-        if (prevIndex == index) {
-          LOG.error("Case 3 : currScn > searchScn and prevIndex == index" +
-        		    "index = " + index +
-                    " prevIndex = " + prevIndex +
-                    " right = " + right +
-                    " left = " + left +
-                    " buffer.limit = " + buffer.limit() +
-                    " searchScn = " + searchScn +
-                    " currScn = " + currScn);
-          printVerboseString(LOG, Level.ERROR);
-          throw new OffsetNotFoundException();
-        }
-        currScn = getScn(index);
+          currScn = getScn(index);
 
+        }
       }
-    }
 
-    return  new ScnIndexEntry(currScn,getOffset(index));
+      return  new ScnIndexEntry(currScn,getOffset(index));
+    }
+    finally
+    {
+      releaseReadLock();
+    }
   }
 
 
@@ -749,28 +761,21 @@ public class ScnIndex extends InternalDatabusEventsListenerAbstract
     return getOffset(entryIndexOfs(entryIndex));
   }
 
-  private boolean isClosestScn(long indexScn, long searchScn, int index) {
-    try
-    {
-      acquireReadLock();
-      if (indexScn == searchScn) {
+  private boolean isClosestScn(long indexScn, long searchScn, int index, int maxIndex)
+  {
+    if (indexScn == searchScn) {
+      return true;
+    }
+    if (indexScn < searchScn) {
+      if ((index + SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit() == maxIndex) {
         return true;
       }
-      if (indexScn < searchScn) {
-        if ((index + SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit() == tail) {
-          return true;
-        }
-        else
-        {
-          return (getScn((index+SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit()) > searchScn);
-        }
+      else
+      {
+        return (getScn((index+SIZE_OF_SCN_OFFSET_RECORD)%buffer.limit()) > searchScn);
       }
-      return false;
     }
-    finally
-    {
-      releaseReadLock();
-    }
+    return false;
   }
 
   private int size()

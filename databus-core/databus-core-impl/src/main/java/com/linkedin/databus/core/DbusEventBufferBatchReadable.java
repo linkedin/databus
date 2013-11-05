@@ -30,20 +30,31 @@ import com.linkedin.databus2.core.filter.DbusFilter;
 public interface DbusEventBufferBatchReadable
 {
   /**
-  *
-  * @param checkPoint
-  * @param streamFromLatestScn
-  * @param batchFetchSize
-  * @param writeChannel
-  * @param encoding
-  * @param filter
-  * @return
+  * Modifies the CheckpointMult contained in the object.
+   *
+   * @param streamFromLatestScn
+   * @param batchFetchSize
+   * @param writeChannel
+   * @param encoding
+   * @param filter
+   * @return
   * @throws ScnNotFoundException
   */
 
- public int streamEvents(boolean streamFromLatestScn,
-                         int batchFetchSize,
-                         WritableByteChannel writeChannel, Encoding encoding,
-                         DbusFilter filter)
+ public StreamEventsResult streamEvents(boolean streamFromLatestScn,
+                                        int batchFetchSize,
+                                        WritableByteChannel writeChannel,
+                                        Encoding encoding,
+                                        DbusFilter filter)
  throws ScnNotFoundException, DatabusException, OffsetNotFoundException;
+
+  /**
+   * @return CheckpointMult containing the current checkpoints.
+   */
+ public CheckpointMult getCheckpointMult();
+
+ /**
+  * specify max DbusEvent version client supports
+  */
+ public void setClientMaxEventVersion(int version);
 }

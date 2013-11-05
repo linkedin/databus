@@ -208,7 +208,7 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     }
     DbusEventBuffer.Config eventBufferConfig = clientConfigBuilder.getConnectionDefaults().getEventBuffer();
     eventBufferConfig.setMaxSize(_maxEventBufferSize);
-    eventBufferConfig.setReadBufferSize(_maxReadBufferSize);
+    eventBufferConfig.setAverageEventSize(_maxReadBufferSize);
 
 
     // TODO: the following shall be used once we can set eventbuffer for bootstrap throught the config builder (DDSDBUS-82)

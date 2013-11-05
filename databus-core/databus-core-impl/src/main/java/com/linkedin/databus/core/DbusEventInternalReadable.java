@@ -18,39 +18,107 @@ package com.linkedin.databus.core;
  *
 */
 
-
-
-
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
 
+
 /**
  * Read-only interface for Databus events, used by
- * internal databus classes.
+ * internal Databus classes.
  **/
-public interface DbusEventInternalReadable extends DbusEvent
+public abstract class DbusEventInternalReadable extends DbusEvent
 {
-  public boolean isErrorEvent();
-  /** Resets this object to point to a bytebuffer that holds an event */
-  public void reset(ByteBuffer buf, int position);
+  /**
+   * @return version of the event. Currently supported versions are 0 and 2.
+   * @Note this is the version of the DbusEvent serialization and has nothing to do with
+   * Databus 2.0 or Databus 3.0.
+   */
+  public abstract byte getVersion();
+  public abstract int getMagic();
 
-  public void unsetInited();
-  public long headerCrc();
-  public EventScanStatus scanEvent();
-  public EventScanStatus scanEvent(boolean logErrors);
-  // TODO What is the difference between payliadLength() and valueLength()?
-  public int payloadLength();
-  public long valueCrc();
-  public DbusEventInternalWritable createCopy();
-  public int writeTo(WritableByteChannel writeChannel, Encoding encoding);
+  public abstract boolean isErrorEvent();
+  /** Resets this object to point to a ByteBuffer that holds an event */
+  public abstract DbusEventInternalReadable reset(ByteBuffer buf, int position);
+
+  public abstract long headerCrc();
+  protected abstract EventScanStatus scanEvent(boolean logErrors);
 
   /**
-   * @return the versionof the payload schema
+   * <pre>
+   * In DbusEventV1:
+   *   For String keys, payloadLength() returns the length of key plus length of payload.
+   *   For long keys, payloadlength() returns the length of payload.
+   *   payloadLength() is the number of bytes that span the "payload" CRC in DbusEventV1.
+   * In DbusEventV2:
+   *   payloadLength() and valueLength will return the same, because we do not do any special
+   *   CRC computation depending depending on string or long (or other) key types.
+   * </pre>
    */
-  public short schemaVersion();
-  public boolean isValid(boolean logErrors);
-  public HeaderScanStatus scanHeader();
-  public boolean isPartial (boolean logErrors);
-  public boolean isPartial();
+  public abstract int payloadLength();
+
+  public abstract long bodyCrc();
+  public abstract long getCalculatedValueCrc();
+  public abstract DbusEventInternalWritable createCopy();
+  public abstract int writeTo(WritableByteChannel writeChannel, Encoding encoding);
+
+  /**
+   * @return the version of the payload schema
+   */
+  public abstract short schemaVersion();
+  public abstract boolean isValid(boolean logErrors);
+  protected abstract HeaderScanStatus scanHeader(boolean logErrors);
+  protected abstract boolean isPartial();
+  public abstract boolean isControlSrcId();
+  /** length of the string key */
+  public abstract int keyBytesLength();
+
+  public abstract HeaderScanStatus scanHeader();
+  public abstract EventScanStatus scanEvent();
+  /**
+   *
+   * @author snagaraj
+   *  used to determine status of event when it is read;
+   */
+  public enum HeaderScanStatus {
+    OK,
+    ERR,
+    PARTIAL,
+  }
+
+  /**
+   *
+   * @author snagaraj
+   * used to signal status of event when it is read;
+   */
+  public enum EventScanStatus {
+    OK,
+    ERR,
+    PARTIAL,
+  }
+
+  /**
+   *
+   * Return DbusEventKey object containing key for the event.
+   *
+   * @returns key present in the event as DbusEventKey object.
+   *          null if event type is not one of (String, Number or Schema)
+   */
+  public DbusEventKey getDbusEventKey()
+  {
+    if ( isKeyNumber())
+      return new DbusEventKey(key());
+    else if ( isKeyString())
+      return new DbusEventKey(keyBytes());
+    else if ( isKeySchema())
+    {
+      try
+      {
+        return new DbusEventKey(getKeyPart());
+      } catch (UnsupportedKeyException uke) {
+        return null;
+      }
+    }
+    return null;
+  }
 }

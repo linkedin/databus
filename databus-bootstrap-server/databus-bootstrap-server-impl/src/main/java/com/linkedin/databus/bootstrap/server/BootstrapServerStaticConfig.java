@@ -28,7 +28,7 @@ public class BootstrapServerStaticConfig
 	  // if the number of events between sinceSCN and start SCN is less than this threshold, then snapshot could be disabled.
 	  private final Long defaultRowsThresholdForSnapshotBypass;
 
-	  // Per Source num-rows threshold overrides 
+	  // Per Source num-rows threshold overrides
 	  // if the number of events between sinceSCN and start SCN is less than this threshold, then snapshot could be disabled.
 	  private final Map<String, Long> rowsThresholdForSnapshotBypass;
 
@@ -37,21 +37,34 @@ public class BootstrapServerStaticConfig
 
 	  //Bootstrap DB Config
 	  private final BootstrapReadOnlyConfig db;
-	  
-	  //Predicate push down 
-	  private final boolean predicatePushDown;
 
+	  //Predicate push down
+	  private final boolean predicatePushDown;
+    //Source level override for predicate pushdown
+    private final Map<String, Boolean> predicatePushDownBypass;
+
+    //Max query timeout in sec
+    private final int queryTimeoutInSec;
+
+    //Enable minScn query
+    private final boolean enableMinScnCheck;
 
     public BootstrapServerStaticConfig(Long defaultRowsThresholdForSnapshotBypass,
 			  Map<String, Long> rowsThresholdForSnapshotBypass,
 			  Map<String, Boolean> disableSnapshotBypass,
 			  boolean predicatePushDown,
+              Map<String, Boolean> predicatePushDownBypass,
+              int queryTimeoutInSec,
+              boolean enableMinScnCheck,
 			  BootstrapReadOnlyConfig db) {
 		  super();
 		  this.defaultRowsThresholdForSnapshotBypass = defaultRowsThresholdForSnapshotBypass;
 		  this.rowsThresholdForSnapshotBypass = rowsThresholdForSnapshotBypass;
 		  this.disableSnapshotBypass = disableSnapshotBypass;
 		  this.predicatePushDown = predicatePushDown;
+          this.predicatePushDownBypass = predicatePushDownBypass;
+          this.queryTimeoutInSec = queryTimeoutInSec;
+          this.enableMinScnCheck = enableMinScnCheck;
 		  this.db = db;
 	  }
 
@@ -61,7 +74,11 @@ public class BootstrapServerStaticConfig
 				  + defaultRowsThresholdForSnapshotBypass
 				  + ", rowsThresholdForSnapshotBypass="
 				  + rowsThresholdForSnapshotBypass + ", disableSnapshotBypass="
-				  + disableSnapshotBypass + ", db=" + db + "]";
+				  + disableSnapshotBypass + " , queryTimeoutInSec="
+				  + queryTimeoutInSec
+				  + " predicatePushDown= " + predicatePushDown
+				  + " enableMinScnCheck= " + enableMinScnCheck
+				  + ", db=" + db + "]";
 	  }
 
 
@@ -69,9 +86,19 @@ public class BootstrapServerStaticConfig
       {
         return predicatePushDown;
       }
-	  
+
+      public Map<String, Boolean> predicatePushDownBypass()
+      {
+           return predicatePushDownBypass;
+      }
+
 	  public Long getDefaultRowsThresholdForSnapshotBypass() {
 		  return defaultRowsThresholdForSnapshotBypass;
+	  }
+
+	  public int getQueryTimeoutInSec()
+	  {
+	      return queryTimeoutInSec;
 	  }
 
 	  public Map<String, Long> getRowsThresholdForSnapshotBypass() {
@@ -85,28 +112,44 @@ public class BootstrapServerStaticConfig
 	  public BootstrapReadOnlyConfig getDb() {
 		  return db;
 	  }
-	  
+
 	  public boolean isBypassSnapshotDisabled(String source)
 	  {
 		  Boolean byPass = disableSnapshotBypass.get(source);
-		  
+
 		  if ( null == byPass)
 			  return false;
-		  
+
 		  return byPass;
 	  }
-	  
+
+      public boolean isPredicatePushDownEnabled(String source)
+      {
+          if(source == null)
+              return getPredicatePushDown();
+          Boolean predicateOverride = predicatePushDownBypass.get(source);
+          if(predicateOverride == null)
+              return getPredicatePushDown();
+
+          return predicateOverride;
+      }
+
+    public boolean isEnableMinScnCheck()
+    {
+      return enableMinScnCheck;
+    }
+
 	  public long getRowsThresholdForSnapshotBypass(String source)
 	  {
 		  long threshold = defaultRowsThresholdForSnapshotBypass;
-		  
+
 		  Long t = rowsThresholdForSnapshotBypass.get(source);
-		  
+
 		  if ( null != t)
 			  threshold = t;
-		  
+
 		  return threshold;
 	  }
-	  
+
 }
 

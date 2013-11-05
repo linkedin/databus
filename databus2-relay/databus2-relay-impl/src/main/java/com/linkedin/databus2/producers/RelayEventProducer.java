@@ -37,6 +37,7 @@ import org.jboss.netty.handler.execution.OrderedMemoryAwareThreadPoolExecutor;
 import org.jboss.netty.util.HashedWheelTimer;
 import org.jboss.netty.util.Timer;
 
+import com.linkedin.databus.client.ConnectionStateFactory;
 import com.linkedin.databus.client.DatabusBootstrapConnectionFactory;
 import com.linkedin.databus.client.DatabusRelayConnectionFactory;
 import com.linkedin.databus.client.DatabusSourcesConnection;
@@ -51,6 +52,8 @@ import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBufferAppendable;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV2Factory;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.util.InvalidConfigException;
@@ -120,8 +123,11 @@ public class RelayEventProducer implements EventProducer
 
 			int largestEventSize = config.getLargestEventSizeInBytes();
 			//let the internal buffer contain at least 2 windows
+			//Assumption: internalBufferSize > largestEventSize; enforced in PhysicalSourcesConfig
 			long internalBufferSize = 2 * config.getLargestWindowSizeInBytes() ;
 			//10s : write to buffers should be fast; the only exception is when scn's are saved. That's why 10s
+			//average event size : assumed to be 10% of largestEventSize or 20K whichever is higher
+			int averageEventSize = Math.max((int)(largestEventSize*0.1), 20*1024);
 			long consumerTimeoutMs = 10 * 1000;
 			//15s
 			long connTimeoutMs = 15 * 1000;
@@ -146,7 +152,7 @@ public class RelayEventProducer implements EventProducer
 					subscriptionString, _consumerEventBuffer,
 					internalBufferSize, largestEventSize, consumerTimeoutMs,
 					pollIntervalMs, connTimeoutMs, consumerParallelism, true,
-					_nettyThreadPools);
+					_nettyThreadPools, 15*60, DbusEventFactory.DBUS_EVENT_V2,averageEventSize);
 
 		}
 		catch (InvalidConfigException e)
@@ -156,7 +162,25 @@ public class RelayEventProducer implements EventProducer
 	}
 
 	public static DatabusSourcesConnection createDatabusSourcesConnection(
-	        String producerName,
+      String producerName,
+      String serverName, String subscriptionString,
+      DatabusCombinedConsumer consumer, long internalBufferMaxSize,
+      int largestEventSize, long consumerTimeoutMs, long pollIntervalMs,
+      long connTimeoutMs, int consumerParallelism, boolean blockingBuffer,int initReadBufferSize)
+      throws InvalidConfigException
+  {
+     int id = (RngUtils.randomPositiveInt() % 10000) + 1;
+     return createDatabusSourcesConnection(
+            producerName,
+            id,serverName, subscriptionString, consumer,
+        internalBufferMaxSize, largestEventSize, consumerTimeoutMs,
+        pollIntervalMs, connTimeoutMs, consumerParallelism, blockingBuffer,
+        DatabusClientNettyThreadPools.createNettyThreadPools(id), 0, DbusEventFactory.DBUS_EVENT_V2,initReadBufferSize);
+
+  }
+
+	public static DatabusSourcesConnection createDatabusSourcesConnection(
+	    String producerName,
 			String serverName, String subscriptionString,
 			DatabusCombinedConsumer consumer, long internalBufferMaxSize,
 			int largestEventSize, long consumerTimeoutMs, long pollIntervalMs,
@@ -169,17 +193,18 @@ public class RelayEventProducer implements EventProducer
 		        id,serverName, subscriptionString, consumer,
 				internalBufferMaxSize, largestEventSize, consumerTimeoutMs,
 				pollIntervalMs, connTimeoutMs, consumerParallelism, blockingBuffer,
-				DatabusClientNettyThreadPools.createNettyThreadPools(id));
+				DatabusClientNettyThreadPools.createNettyThreadPools(id), 0, DbusEventFactory.DBUS_EVENT_V2,0);
 
 	}
 
 	public static DatabusSourcesConnection createDatabusSourcesConnection(
-            String producerName,
+      String producerName,
 			int id,String serverName, String subscriptionString,
 			DatabusCombinedConsumer consumer, long internalBufferMaxSize,
 			int largestEventSize, long consumerTimeoutMs, long pollIntervalMs,
 			long connTimeoutMs, int consumerParallelism, boolean blockingBuffer,
-			DatabusClientNettyThreadPools nettyThreadPools)
+			DatabusClientNettyThreadPools nettyThreadPools, int noEventsTimeoutSec, int maxEventVersion,
+			int initReadBufferSize)
 			throws InvalidConfigException
 	{
 		// the assumption here is that the list of subscriptions will become the
@@ -205,15 +230,12 @@ public class RelayEventProducer implements EventProducer
 		// setup sources connection config
 		DatabusSourcesConnection.Config confBuilder = new DatabusSourcesConnection.Config();
 
-        LOG.info("Chained Relay Id=" + id);
 		confBuilder.setId(id);
 		// consume whatever is in relay
 		confBuilder.setConsumeCurrent(true);
 		//this is set to false as the behaviour is to read the latest SCN when SCN is not found, the buffer isn't cleared
 		//as such , so a possibility of gaps in events arises. What we want ideally is to clear existing buffer and then consume from latest SCN
 		confBuilder.setReadLatestScnOnError(false);
-		// set size of largest expected event
-		confBuilder.setFreeBufferThreshold(largestEventSize);
 		// 10s max consumer timeout
 		confBuilder.setConsumerTimeBudgetMs(consumerTimeoutMs);
 		// poll interval in ms and infinite retry;
@@ -225,18 +247,45 @@ public class RelayEventProducer implements EventProducer
 		// internal buffer conf
 		DbusEventBuffer.Config bufferConf = new DbusEventBuffer.Config();
 		bufferConf.setMaxSize(internalBufferMaxSize);
-		int readBufferSize = Math.max((int)(0.2*internalBufferMaxSize), 2*largestEventSize);
-		bufferConf.setReadBufferSize(readBufferSize);
 		bufferConf.setAllocationPolicy("DIRECT_MEMORY");
-		//client buffer's scn index- not used
+		if (initReadBufferSize > 0)
+		{
+		  bufferConf.setAverageEventSize(initReadBufferSize);
+		}
+    bufferConf.setMaxEventSize(largestEventSize);
+
+	  //client buffer's scn index- not used
 		bufferConf.setScnIndexSize(64*1024);
 		String queuePolicy = blockingBuffer ? "BLOCK_ON_WRITE"
 				: "OVERWRITE_ON_WRITE";
 		bufferConf.setQueuePolicy(queuePolicy);
+
+		//get appropriate checkpointThresholdPct
+		double newCkptPct = confBuilder.computeSafeCheckpointThresholdPct(bufferConf);
+		if (newCkptPct < 5.0 || newCkptPct > 95.0)
+		{
+		  LOG.warn("Not setting required checkpointThresholdPct : " + newCkptPct + "to  accommodate largestEventSize= "
+		      + largestEventSize + " in buffer of size " + bufferConf.getMaxSize());
+		  if (newCkptPct <= 0.0)
+		  {
+		    //unlikely to happen: if it does retain default
+		    newCkptPct = confBuilder.getCheckpointThresholdPct();
+		  }
+		  if (newCkptPct < 5.0)
+		  {
+		     newCkptPct = 5.0;
+		  }
+		  else if (newCkptPct > 95.0)
+		  {
+		     newCkptPct = 95.0;
+		  }
+		}
+		LOG.info("Setting checkpointThresholdPct:" + newCkptPct);
+		confBuilder.setCheckpointThresholdPct(newCkptPct);
 		confBuilder.setEventBuffer(bufferConf);
+		confBuilder.setNoEventsConnectionResetTimeSec(noEventsTimeoutSec);
 
 		DatabusSourcesConnection.StaticConfig connConfig = confBuilder.build();
-
 		// internal buffers of databus client library
 		DbusEventBuffer buffer = new DbusEventBuffer(
 				connConfig.getEventBuffer());
@@ -247,13 +296,14 @@ public class RelayEventProducer implements EventProducer
 		// read - write timeout in ms
 		long readTimeoutMs = connTimeoutMs;
 		long writeTimeoutMs = connTimeoutMs;
-		int version = 2;
+		long bstReadTimeoutMs = connTimeoutMs;
+		int protocolVersion = 2;
 
 		// connection factory
-		NettyHttpConnectionFactory defaultConnFacory = new NettyHttpConnectionFactory(
+		NettyHttpConnectionFactory defaultConnFactory = new NettyHttpConnectionFactory(
 				nettyThreadPools.getBossExecutorService(),
 				nettyThreadPools.getIoExecutorService(), null, nettyThreadPools.getTimer(),
-				writeTimeoutMs, readTimeoutMs, version,
+				writeTimeoutMs, readTimeoutMs, bstReadTimeoutMs, protocolVersion, maxEventVersion,
 				nettyThreadPools.getChannelGroup());
 
 		// Create Thread pool for consumer threads
@@ -280,8 +330,10 @@ public class RelayEventProducer implements EventProducer
                                       null,
                                       ManagementFactory.getPlatformMBeanServer());
 
-		DatabusRelayConnectionFactory relayConnFactory = defaultConnFacory;
-		DatabusBootstrapConnectionFactory bootstrapConnFactory = defaultConnFacory;
+		DatabusRelayConnectionFactory relayConnFactory = defaultConnFactory;
+		DatabusBootstrapConnectionFactory bootstrapConnFactory = defaultConnFactory;
+    ConnectionStateFactory connStateFactory = new ConnectionStateFactory(
+        sourcesStrList);
 		DatabusSourcesConnection conn = new DatabusSourcesConnection(
 				connConfig,
 				subsList,
@@ -302,7 +354,11 @@ public class RelayEventProducer implements EventProducer
 				bootstrapConnFactory,
 				null, // getHttpStatsCollector(),
 				null, // RegistrationId
-				null);
+				null,
+				new DbusEventV2Factory(),
+ connStateFactory); // TODO Get the ref
+                                                           // to factory from
+                                                           // HttpRelay.
 
 		return conn;
 	}
@@ -405,7 +461,7 @@ public class RelayEventProducer implements EventProducer
 				//note that the restartScnOffset comes into the picture only iff the buffer is empty
 				long savedScn = cp.getWindowScn();
 				LOG.info("Checkpoint read = " + savedScn + " restartScnOffset=" + _restartScnOffset);
-				
+
 				long newScn = (savedScn >= _restartScnOffset) ? savedScn - _restartScnOffset : 0;
 				cp.setWindowScn(newScn);
 

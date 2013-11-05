@@ -22,6 +22,8 @@ package com.linkedin.databus.bootstrap.test;
 import java.io.IOException;
 import java.sql.SQLException;
 
+import com.linkedin.databus.bootstrap.server.BootstrapServerConfig;
+import com.linkedin.databus.bootstrap.server.BootstrapServerStaticConfig;
 import org.apache.log4j.Appender;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
@@ -55,8 +57,8 @@ public class TestFilterToSQL {
     Logger.getRootLogger().addAppender(defApp);
     Logger.getRootLogger().setLevel(Level.INFO);
 
-    BootstrapConfig config = new BootstrapConfig();
-    BootstrapReadOnlyConfig staticConfig = config.build();
+    BootstrapServerConfig configBuilder = new BootstrapServerConfig();
+    BootstrapServerStaticConfig staticConfig = configBuilder.build();
     processor = new BootstrapProcessor(staticConfig, null);
     partConf =  new KeyFilterConfigHolder.Config();
   } 

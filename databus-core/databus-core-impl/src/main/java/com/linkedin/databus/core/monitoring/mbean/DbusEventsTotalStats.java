@@ -19,7 +19,6 @@ package com.linkedin.databus.core.monitoring.mbean;
 */
 
 
-import com.linkedin.databus.core.DbusEventInternalReadable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.HashSet;
@@ -34,7 +33,8 @@ import org.apache.avro.specific.SpecificDatumWriter;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.core.DbusEvent;
-import com.linkedin.databus.core.DbusEvent.EventScanStatus;
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalReadable.EventScanStatus;
 import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
 
 public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTotalStatsEvent>
@@ -67,8 +67,8 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     _event.maxWinScn = 0;
     _event.sinceWinScn = Long.MAX_VALUE;
     _event.numFreeBytes = 0;
-    _event.timestampMinScnEvent = Long.MAX_VALUE;
-    _event.timestampMaxScnEvent = 0;
+    _event.timestampMinScnEvent = DEFAULT_MIN_LONG_VALUE;
+    _event.timestampMaxScnEvent = DEFAULT_MAX_LONG_VALUE;
 
   }
 
@@ -332,7 +332,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
         _event.maxSeenWinScn = e.sequence();
         _event.timeLag = (now > eventTsInMs) ? now - eventTsInMs : 0;
       }
-      _event.minSeenWinScn = Math.min(_event.minSeenWinScn,e.sequence());
+      _event.minSeenWinScn = minValue(_event.minSeenWinScn,e.sequence());
     }
     finally
     {
@@ -370,7 +370,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
       long now = System.currentTimeMillis();
       if (e.isEndOfPeriodMarker())
       {
-        _event.minSeenWinScn = Math.min(_event.minSeenWinScn,e.sequence());
+        _event.minSeenWinScn = minValue(_event.minSeenWinScn,e.sequence());
         long eventTsInMs = e.timestampInNanos()/(1000*1000);
         _event.timestampMaxScnEvent = Math.max(_event.timestampMaxScnEvent,eventTsInMs);
         if (e.sequence() > _event.maxSeenWinScn)
@@ -392,7 +392,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
   protected void resetData()
   {
     _event.timestampLastResetMs = System.currentTimeMillis();
-    _event.timestampAccessed = 0;
+    _event.timestampAccessed = DEFAULT_MAX_LONG_VALUE;
     _event.timeSinceLastResetMs = 0;
     _event.numPeers = 0;
     _event.numDataEvents = 0;
@@ -401,8 +401,8 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     _event.numDataEventsFiltered = 0;
     _event.sizeDataEventsFiltered = 0;
     _event.sizeDataEventsPayloadFiltered = 0;
-    _event.maxSeenWinScn = Long.MIN_VALUE;
-    _event.minSeenWinScn = Long.MAX_VALUE;
+    _event.maxSeenWinScn = DEFAULT_MAX_LONG_VALUE;
+    _event.minSeenWinScn = DEFAULT_MIN_LONG_VALUE;
     _event.numSysEvents = 0;
     _event.sizeSysEvents = 0;
     _event.numErrHeader = 0;
@@ -410,15 +410,15 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     _event.numInvalidEvents = 0;
     _event.maxFilteredWinScn = 0;
     _event.latencyEvent = 0;
-    _event.maxTimeSpan = Long.MIN_VALUE;    // Makes sense only in the aggregated class.
-    _event.minTimeSpan = Long.MAX_VALUE;    // Makes sense only in the aggregated class.
-    _event.maxTimestampAccessed = Long.MIN_VALUE;   // Makes sense only in the aggregated class.
-    _event.minTimestampAccessed = Long.MAX_VALUE;   // Makes sense only in the aggregated class.
-    _event.maxTimestampMaxScnEvent = Long.MIN_VALUE;    // Makes sense only in the aggregated class.
-    _event.minTimestampMaxScnEvent = Long.MAX_VALUE;    // Makes sense only in the aggregated class.
+    _event.maxTimeSpan = DEFAULT_MAX_LONG_VALUE;    // Makes sense only in the aggregated class.
+    _event.minTimeSpan = DEFAULT_MIN_LONG_VALUE;    // Makes sense only in the aggregated class.
+    _event.maxTimestampAccessed = DEFAULT_MAX_LONG_VALUE;   // Makes sense only in the aggregated class.
+    _event.minTimestampAccessed = DEFAULT_MIN_LONG_VALUE;   // Makes sense only in the aggregated class.
+    _event.maxTimestampMaxScnEvent = DEFAULT_MAX_LONG_VALUE;    // Makes sense only in the aggregated class.
+    _event.minTimestampMaxScnEvent = DEFAULT_MIN_LONG_VALUE;    // Makes sense only in the aggregated class.
     _event.timeLag = 0;
-    _event.maxTimeLag = 0;
-    _event.minTimeLag = Long.MAX_VALUE;
+    _event.maxTimeLag = DEFAULT_MAX_LONG_VALUE; // Makes sense only in the aggregated class.
+    _event.minTimeLag = DEFAULT_MIN_LONG_VALUE; // Makes sense only in the aggregated class.
     resetBufferStats();
     _peers.clear();
   }
@@ -429,13 +429,13 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     return new JsonEncoder(_event.getSchema(), out);
   }
 
-  /** clone this event to otherEvent atomically **/ 
+  /** clone this event to otherEvent atomically **/
   public void cloneData(DbusEventsTotalStats otherEvent)
   {
       Lock writeLock = acquireWriteLock();
       try
       {
-    	  //note: otherEvent is RHS - and is read; _event is written to 
+    	  //note: otherEvent is RHS - and is read; _event is written to
     	  otherEvent.cloneData(_event);
       }
       finally
@@ -443,10 +443,10 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     	 releaseLock(writeLock);
       }
   }
-  
+
   @Override
   protected void cloneData(DbusEventsTotalStatsEvent event)
-  { 
+  {
 	  event.ownerId = _event.ownerId;
 	  event.dimension = _event.dimension;
 	  event.timestampLastResetMs = _event.timestampLastResetMs;
@@ -475,8 +475,16 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
 	  event.maxFilteredWinScn = _event.maxFilteredWinScn;
 	  event.latencyEvent = _event.latencyEvent;
 	  event.timeLag = _event.timeLag;
+
+	  // aggregate fields
 	  event.minTimeLag = _event.minTimeLag;
 	  event.maxTimeLag = _event.maxTimeLag;
+	  event.maxTimeSpan = _event.maxTimeSpan;
+	  event.minTimeSpan = _event.minTimeSpan;
+	  event.maxTimestampAccessed = _event.maxTimestampAccessed;
+	  event.minTimestampAccessed = _event.minTimestampAccessed;
+	  event.maxTimestampMaxScnEvent = _event.maxTimestampMaxScnEvent;
+	  event.minTimestampMaxScnEvent = _event.minTimestampMaxScnEvent;
   }
 
   @Override
@@ -564,7 +572,7 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
 
   public void registerEventError(EventScanStatus writingEventStatus)
   {
-    if (writingEventStatus != EventScanStatus.OK) {
+    if (writingEventStatus != DbusEventInternalReadable.EventScanStatus.OK) {
       if (! _enabled.get()) return;
       Lock writeLock = acquireWriteLock();
       try
@@ -683,6 +691,9 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     Lock readLock = acquireReadLock();
     try
     {
+      if(_event.timestampAccessed <= 0)
+        return DEFAULT_MAX_LONG_VALUE;
+
       return System.currentTimeMillis() - _event.timestampAccessed;
     }
     finally
@@ -806,6 +817,9 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     Lock readLock = acquireReadLock();
     try
     {
+      if(_event.timestampMaxScnEvent <=0 || _event.timestampMinScnEvent <= 0) // not a valid timestamps
+        return DEFAULT_MAX_LONG_VALUE;
+
       return (_event.timestampMaxScnEvent - _event.timestampMinScnEvent);
     }
     finally
@@ -820,7 +834,14 @@ public class DbusEventsTotalStats extends AbstractMonitoringMBean<DbusEventsTota
     Lock readLock = acquireReadLock();
     try
     {
-      return System.currentTimeMillis() - _event.timestampMaxScnEvent ;
+      if (_event.timestampMaxScnEvent <= 0)
+      {
+        return DEFAULT_MAX_LONG_VALUE;
+      }
+      else
+      {
+        return System.currentTimeMillis() - _event.timestampMaxScnEvent ;
+      }
     }
     finally
     {

@@ -1,6 +1,3 @@
-/*
- * $Id: OracleTxlogEventReader.java 266719 2011-05-04 20:14:36Z cbotev $
- */
 package com.linkedin.databus2.producers.db;
 /*
  *
@@ -31,8 +28,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import javax.sql.DataSource;
 
@@ -53,8 +48,9 @@ import com.linkedin.databus2.util.DBHelper;
  * a given SCN. Each call to the readEventsFromAllSources will perform one event cycle against all
  * sources. That is, it will fetch any existing events starting at the given SCN and then return.
  *
- * @author Jemiah Westerman<jwesterman@linkedin.com>
- * @version $Revision: 266719 $
+ * Semantics : If a connection / PreparedStmt is a created within a method, and not cached in a member variable,
+ * the method is responsible for closing it. If not, it should NOT close it.
+ *
  */
 public class OracleTxlogEventReader
 	implements SourceDBEventReader
@@ -62,7 +58,7 @@ public class OracleTxlogEventReader
   public static final String MODULE = OracleTxlogEventReader.class.getName();
 
   private final String _name;
-  private final List<MonitoredSourceInfo> _sources;
+  private final List<OracleTriggerMonitoredSourceInfo> _sources;
   private final String _selectSchema;
 
   private final DataSource _dataSource;
@@ -78,16 +74,12 @@ public class OracleTxlogEventReader
   private final Map<Short, String> _eventChunkedTxnQueriesBySource;
 
   private PreparedStatement _txnChunkJumpScnStmt;
-  
-  private final Map<String, Integer> _sourceBitmasks = new HashMap<String, Integer>();
-  private int _allSourcesMask = 0;
 
   /** Logger for error and debug messages. */
   private final Logger _log;
   private final Logger _eventsLog;
 
   private Connection _eventSelectConnection;
-  private Connection _filterSourcesConnection;
   private final DbusEventsStatisticsCollector _relayInboundStatsCollector;
   private final MaxSCNWriter _maxScnWriter;
   private long _lastquerytime;
@@ -101,14 +93,13 @@ public class OracleTxlogEventReader
   private final long _maxScnDelayMs;
 
   private long _lastSeenEOP = EventReaderSummary.NO_EVENTS_SCN;
-  private String _currEventQuery = null;
 
   private volatile boolean _inChunkingMode = false;
   private volatile long _catchupTargetMaxScn = -1L;
 
 
   public OracleTxlogEventReader(String name,
-                              List<MonitoredSourceInfo> sources,
+                              List<OracleTriggerMonitoredSourceInfo> sources,
                              DataSource dataSource,
                              DbusEventBufferAppendable eventBuffer,
                              boolean enableTracing,
@@ -121,7 +112,7 @@ public class OracleTxlogEventReader
                              long chunkedScnThreshold,
                              long maxScnDelayMs)
   {
-    List<MonitoredSourceInfo> sourcesTemp = new ArrayList<MonitoredSourceInfo>();
+    List<OracleTriggerMonitoredSourceInfo> sourcesTemp = new ArrayList<OracleTriggerMonitoredSourceInfo>();
     sourcesTemp.addAll(sources);
     _name = name;
     _sources = Collections.unmodifiableList(sourcesTemp);
@@ -141,7 +132,7 @@ public class OracleTxlogEventReader
 
     _lastquerytime = System.currentTimeMillis() ;
     // Make sure all logical sources come from the same database schema
-    for(MonitoredSourceInfo source : sourcesTemp)
+    for(OracleTriggerMonitoredSourceInfo source : sourcesTemp)
     {
       if(!source.getEventSchema().equals(sourcesTemp.get(0).getEventSchema()))
       {
@@ -152,7 +143,7 @@ public class OracleTxlogEventReader
 
     // Generate the event queries for each source
     _eventQueriesBySource = new  HashMap<Short, String>();
-    for(MonitoredSourceInfo sourceInfo : sources)
+    for(OracleTriggerMonitoredSourceInfo sourceInfo : sources)
     {
       String eventQuery = generateEventQuery(sourceInfo);
       _log.info("Generated events query. source: " + sourceInfo + " ; eventQuery: " + eventQuery);
@@ -160,7 +151,7 @@ public class OracleTxlogEventReader
     }
 
     _eventChunkedTxnQueriesBySource = new HashMap<Short, String>();
-    for(MonitoredSourceInfo sourceInfo : sources)
+    for(OracleTriggerMonitoredSourceInfo sourceInfo : sources)
     {
       String eventQuery = generateTxnChunkedQuery(sourceInfo,_selectSchema);
       _log.info("Generated Chunked Txn events query. source: " + sourceInfo + " ; chunkTxnEventQuery: " + eventQuery);
@@ -168,12 +159,12 @@ public class OracleTxlogEventReader
     }
 
     _eventChunkedScnQueriesBySource = new HashMap<Short, String>();
-    for(MonitoredSourceInfo sourceInfo : sources)
+    for(OracleTriggerMonitoredSourceInfo sourceInfo : sources)
     {
       String eventQuery = generateScnChunkedQuery(sourceInfo);
       _log.info("Generated Chunked Scn events query. source: " + sourceInfo + " ; chunkScnEventQuery: " + eventQuery);
       _eventChunkedScnQueriesBySource.put(sourceInfo.getSourceId(), eventQuery);
-    }    
+    }
   }
 
   @Override
@@ -242,8 +233,13 @@ public class OracleTxlogEventReader
         _catchupTargetMaxScn = sinceSCN = getMaxTxlogSCN(_eventSelectConnection);
         _log.debug("sinceSCN was <= 0. Overriding with the current max SCN=" + sinceSCN);
         _eventBuffer.setStartSCN(sinceSCN);
-
-        _eventSelectConnection.commit();
+        try
+        {
+            DBHelper.commit(_eventSelectConnection);
+        } catch (SQLException s)
+        {
+            DBHelper.rollback(_eventSelectConnection);
+        }
       } else if ((_chunkingType.isChunkingEnabled()) && (_catchupTargetMaxScn <= 0)) {
     	_catchupTargetMaxScn = getMaxTxlogSCN(_eventSelectConnection);
         _log.debug("catchupTargetMaxScn was <= 0. Overriding with the current max SCN=" + _catchupTargetMaxScn);
@@ -253,10 +249,10 @@ public class OracleTxlogEventReader
     	  _inChunkingMode = false;
 
       // Get events for each source
-      List<MonitoredSourceInfo> filteredSources = filterSources(sinceSCN);
+      List<OracleTriggerMonitoredSourceInfo> filteredSources = filterSources(sinceSCN);
 
       long endOfPeriodScn = EventReaderSummary.NO_EVENTS_SCN;
-      for(MonitoredSourceInfo source : _sources)
+      for(OracleTriggerMonitoredSourceInfo source : _sources)
       {
         if(filteredSources.contains(source))
         {
@@ -298,26 +294,50 @@ public class OracleTxlogEventReader
       long curtime = System.currentTimeMillis();
       if(endOfPeriodScn == EventReaderSummary.NO_EVENTS_SCN)
       {
+
           // If in SCN Chunking mode, its possible to get empty batches for a SCN range,
           if ((sinceSCN + _scnChunkSize <= _catchupTargetMaxScn) &&
                (ChunkingType.SCN_CHUNKING == _chunkingType))
           {
             endOfPeriodScn = sinceSCN + _scnChunkSize;
   	        _lastquerytime = curtime;
-          }  else if (ChunkingType.TXN_CHUNKING == _chunkingType) {
-        	long nextBatchScn = getMaxScnSkippedForTxnChunked(_eventSelectConnection, sinceSCN, _txnsPerChunk);  
+          }  else if (ChunkingType.TXN_CHUNKING == _chunkingType && _inChunkingMode) {
+        	long nextBatchScn = getMaxScnSkippedForTxnChunked(_eventSelectConnection, sinceSCN, _txnsPerChunk);
         	_log.info("No events while in txn chunking. CurrScn : " + sinceSCN + ", jumping to :" + nextBatchScn);
         	endOfPeriodScn = nextBatchScn;
   	        _lastquerytime = curtime;
           } else if ((curtime - _lastquerytime) > _slowQuerySourceThreshold) {
     	      _lastquerytime = curtime;
     	      //get new start scn for subsequent calls;
-    		  endOfPeriodScn = getMaxTxlogSCN(_eventSelectConnection);
+    	      final long maxTxlogSCN = getMaxTxlogSCN(_eventSelectConnection);
+    	      //For performance reasons, getMaxTxlogSCN() returns the max scn only among txlog rows
+    	      //which have their scn rewritten (i.e. scn < infinity). This allows the getMaxTxlogSCN
+    	      //query to be evaluated using only the SCN index. Getting the true max SCN requires
+    	      //scanning the rows where scn == infinity which is expensive.
+    	      //On the other hand, readEventsFromOneSource will read the latter events. So it is
+    	      //possible that maxTxlogSCN < scn of the last event in the buffer!
+    	      //We use max() to guarantee that there are no SCN regressions.
+    		  endOfPeriodScn = Math.max(maxTxlogSCN, sinceSCN);
+              _log.info("SlowSourceQueryThreshold hit. currScn : " + sinceSCN +
+                        ". Advanced endOfPeriodScn to " + endOfPeriodScn +
+                        " and added the event to relay");
     		  if (debugEnabled)
     		  {
     		    _log.debug("No events processed. Read max SCN from txlog table for endOfPeriodScn. endOfPeriodScn=" + endOfPeriodScn);
     		  }
     	  }
+
+          if (endOfPeriodScn != EventReaderSummary.NO_EVENTS_SCN && endOfPeriodScn > sinceSCN)
+          {
+        	  // If the SCN has moved forward in the above if/else loop, then
+        	  _log.info("The endOfPeriodScn has advanced from to " + endOfPeriodScn);
+              _eventBuffer.endEvents(endOfPeriodScn,_relayInboundStatsCollector);
+              eventBufferNeedsRollback = false;
+          }
+          else
+          {
+        	  eventBufferNeedsRollback = true;
+          }
       }
       else
       {
@@ -340,7 +360,7 @@ public class OracleTxlogEventReader
         {
           _maxScnWriter.saveMaxScn(endOfPeriodScn);
         }
-        for(MonitoredSourceInfo source : _sources) {
+        for(OracleTriggerMonitoredSourceInfo source : _sources) {
           //update maxDBScn here
           source.getStatisticsBean().addMaxDBScn(endOfPeriodScn);
           source.getStatisticsBean().addTimeOfLastDBAccess(System.currentTimeMillis());
@@ -373,14 +393,22 @@ public class OracleTxlogEventReader
       ReadEventCycleSummary summary = new ReadEventCycleSummary(_name, summaries,
                                                                 Math.max(endOfPeriodScn, sinceSCN),
                                                                 (cycleEndTS - cycleStartTS));
+      // Have to commit the transaction since we are in serializable isolation level
+      DBHelper.commit(_eventSelectConnection);
 
       // Return the event summaries
       return summary;
     }
     catch(SQLException ex)
     {
-      handleExceptionInReadEvents(ex);
-      throw new DatabusException(ex);
+        try {
+       	    DBHelper.rollback(_eventSelectConnection);
+         } catch (SQLException s) {
+             throw new DatabusException(s.getMessage());
+         };
+
+          handleExceptionInReadEvents(ex);
+          throw new DatabusException(ex);
     }
     catch(Exception e)
     {
@@ -389,18 +417,6 @@ public class OracleTxlogEventReader
     }
     finally
     {
-      try
-      {
-        // Have to commit the transaction since we are in serializable isolation level
-        if(_eventSelectConnection != null && !_eventSelectConnection.isClosed())
-        {
-          _eventSelectConnection.commit();
-        }
-      }
-      catch(SQLException ex)
-      {
-        // Ignore this. The commit is just to end the read TX.
-      }
       // If events were not processed successfully then eventBufferNeedsRollback will be true.
       // If that happens, rollback the event buffer.
       if(eventBufferNeedsRollback)
@@ -417,24 +433,22 @@ public class OracleTxlogEventReader
   private void handleExceptionInReadEvents(Exception e)
   {
       DBHelper.close(_eventSelectConnection);
-      DBHelper.close(_filterSourcesConnection);
 
       _eventSelectConnection = null;
-      _filterSourcesConnection = null;
 
       // If not in chunking mode, resetting _catchupTargetMaxScn may enforce chunking mode to overcome ORA-1555 if this was the reason for exception
       if ((!_inChunkingMode) && (_chunkingType.isChunkingEnabled()) )
     	  _catchupTargetMaxScn = -1;
-      
+
       _log.error("readEventsFromAllSources exception:" + e.getMessage(), e);
-      for(MonitoredSourceInfo source : _sources) {
+      for(OracleTriggerMonitoredSourceInfo source : _sources) {
         //update maxDBScn here
         source.getStatisticsBean().addError();
       }
   }
-  
+
   private PreparedStatement createQueryStatement(Connection conn,
-		                            MonitoredSourceInfo source,
+		                            OracleTriggerMonitoredSourceInfo source,
 		  							long sinceScn,
 		  							int currentFetchSize,
 		  							boolean useChunking)
@@ -453,8 +467,6 @@ public class OracleTxlogEventReader
 		  else
 			  eventQuery = _eventChunkedTxnQueriesBySource.get(source.getSourceId());
 	  }
-
-	  _currEventQuery = eventQuery;
 
 	  if (debugEnabled) _log.debug("source[" + source.getEventView() + "]: " + eventQuery +
 					"; skipInfinityScn=" + source.isSkipInfinityScn() + " ; sinceScn=" + sinceScn);
@@ -482,7 +494,7 @@ public class OracleTxlogEventReader
 	  return pStmt;
   }
 
-  private EventReaderSummary readEventsFromOneSource(Connection con, MonitoredSourceInfo source, long sinceScn)
+  private EventReaderSummary readEventsFromOneSource(Connection con, OracleTriggerMonitoredSourceInfo source, long sinceScn)
   throws SQLException, UnsupportedKeyException, EventCreationException
   {
 	boolean useChunking = false; // do not use chunking by default
@@ -567,67 +579,6 @@ public class OracleTxlogEventReader
       DBHelper.close(rs, pstmt, null);
     }
   }
-  void loadSourceBitmasks()
-  throws DatabusException
-  {
-    Connection con = null;
-    PreparedStatement pstmt = null;
-    ResultSet rs = null;
-    try
-    {
-      // Empty the member variables, even though they should be empty already
-      _allSourcesMask = 0;
-      _sourceBitmasks.clear();
-
-      // Read the bitmask data for all sources in sy$sources
-      con = _dataSource.getConnection();
-      pstmt = con.prepareStatement("select name, bitnum from " + _selectSchema + "sy$sources");
-      rs = pstmt.executeQuery();
-      while(rs.next())
-      {
-        int sourceMask = 1 << rs.getInt(2);
-        _allSourcesMask |= sourceMask;
-        _sourceBitmasks.put(rs.getString(1).toLowerCase(), sourceMask);
-      }
-
-      // Make sure we have bitmasks for all sources
-      for(MonitoredSourceInfo source : _sources)
-      {
-        String eventView = source.getEventView().toLowerCase();
-        if(!_sourceBitmasks.containsKey(eventView))
-        {
-          // handle the case the event_view is versioned. e.g., liar_job_relay_1
-          String origSourceName = null;
-          Pattern pattern = Pattern.compile("_[0-9]+$");
-          boolean sourceExist = false;
-          Matcher matcher = pattern.matcher(eventView);
-          if(matcher.find())
-          {
-            origSourceName = matcher.replaceAll("");
-            sourceExist = _sourceBitmasks.containsKey(origSourceName);
-          }
-          if(sourceExist)
-          {
-            int sourceMask = _sourceBitmasks.remove(origSourceName);
-            _sourceBitmasks.put(eventView, sourceMask);
-            _log.info("Use versioned view name " + eventView + " to replace " + origSourceName + " in sourceBitmask");
-          }
-          else
-          {
-            throw new DatabusException("Databus source (" + source + ") does not exist. ");
-          }
-        }
-      }
-    }
-    catch(SQLException ex)
-    {
-      throw new DatabusException("Unable to load source bitmasks.", ex);
-    }
-    finally
-    {
-      DBHelper.close(rs, pstmt, con);
-    }
-  }
 
   /**
    *
@@ -636,7 +587,7 @@ public class OracleTxlogEventReader
    * @return
    * @throws DatabusException
    */
-  List<MonitoredSourceInfo> filterSources(long startSCN)
+  List<OracleTriggerMonitoredSourceInfo> filterSources(long startSCN)
   throws DatabusException
   {
     return _sources;
@@ -646,14 +597,13 @@ public class OracleTxlogEventReader
   	throws SQLException
   {
       _eventSelectConnection = _dataSource.getConnection();
-      _filterSourcesConnection = _dataSource.getConnection();
       _log.info("JDBC Version is: " + _eventSelectConnection.getMetaData().getDriverVersion());
       _eventSelectConnection.setAutoCommit(false);
       _eventSelectConnection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
   }
 
 
-  String generateEventQuery(MonitoredSourceInfo sourceInfo)
+  String generateEventQuery(OracleTriggerMonitoredSourceInfo sourceInfo)
   {
     String sql = generateEventQuery(sourceInfo, _selectSchema);
 
@@ -661,7 +611,7 @@ public class OracleTxlogEventReader
     return sql;
   }
 
-  static String generateSkipInfScnQuery(MonitoredSourceInfo sourceInfo, String selectSchema)
+  static String generateSkipInfScnQuery(OracleTriggerMonitoredSourceInfo sourceInfo, String selectSchema)
   {
     StringBuilder sql = new StringBuilder();
 
@@ -687,7 +637,7 @@ public class OracleTxlogEventReader
     return sql.toString();
   }
 
-  static String generateNoSkipInfScnQuery(MonitoredSourceInfo sourceInfo, String selectSchema)
+  static String generateNoSkipInfScnQuery(OracleTriggerMonitoredSourceInfo sourceInfo, String selectSchema)
   {
     StringBuilder sql = new StringBuilder();
 
@@ -714,7 +664,7 @@ public class OracleTxlogEventReader
     return sql.toString();
   }
 
-  static String generateEventQuery(MonitoredSourceInfo sourceInfo, String selectSchema)
+  static String generateEventQuery(OracleTriggerMonitoredSourceInfo sourceInfo, String selectSchema)
   {
     if (sourceInfo.isSkipInfinityScn()) return generateSkipInfScnQuery(sourceInfo, selectSchema);
     else return generateNoSkipInfScnQuery(sourceInfo, selectSchema);
@@ -722,15 +672,15 @@ public class OracleTxlogEventReader
 
   /**
    * TXN Chunking Query
-   * 
+   *
    * Query to select a chunk of rows by txn ids.
    * This query goes hand-in-hand with getMaxScnSkippedForTxnChunked.
    * You would need to change the  getMaxScnSkippedForTxnChunked query when you change this query
-   * 
+   *
    * @param sourceInfo Source Info for which chunk query is needed
    * @return
    */
-  static String generateTxnChunkedQuery(MonitoredSourceInfo sourceInfo, String selectSchema)
+  static String generateTxnChunkedQuery(OracleTriggerMonitoredSourceInfo sourceInfo, String selectSchema)
   {
     StringBuilder sql = new StringBuilder();
 
@@ -751,7 +701,7 @@ public class OracleTxlogEventReader
   }
 
 
-  static String generateScnChunkedQuery(MonitoredSourceInfo sourceInfo)
+  static String generateScnChunkedQuery(OracleTriggerMonitoredSourceInfo sourceInfo)
   {
     StringBuilder sql = new StringBuilder();
     sql.append("SELECT ");
@@ -769,38 +719,55 @@ public class OracleTxlogEventReader
   private long getMaxScnSkippedForTxnChunked(Connection db, long currScn, long txnsPerChunk)
   	throws SQLException
   {
-	  PreparedStatement stmt = generateMaxScnSkippedForTxnChunkedQuery(db);
+	  // Generate the PreparedStatement and cache it in a member variable.
+	  // Owned by the object, hence do not close it
+	  generateMaxScnSkippedForTxnChunkedQuery(db);
+	  PreparedStatement stmt = _txnChunkJumpScnStmt;
 	  long retScn = currScn;
 	  if (_log.isDebugEnabled()) _log.debug("Executing MaxScnSkippedForTxnChunked query with currScn :" + currScn + " and txnsPerChunk :" + txnsPerChunk);
 	  ResultSet rs = null;
 	  try
 	  {
 		  stmt.setLong(1, currScn);
-		  stmt.setLong(2, currScn);
-		  stmt.setLong(3, txnsPerChunk);
+		  stmt.setLong(2, txnsPerChunk);
 		  rs = stmt.executeQuery();
-		  
+
 		  if (rs.next())
-			  retScn = rs.getLong(1);
+		  {
+			  long scnFromQuery = rs.getLong(1);
+			  if ( scnFromQuery == 0)
+			  {
+                  if (_log.isDebugEnabled())
+				      _log.debug("Ignoring SCN obtained from txn chunked query as there may be no update. currScn = " + currScn + " scnFromQuery = " + scnFromQuery);
+			  }
+			  else if ( scnFromQuery < currScn)
+			  {
+				  _log.error("ERROR: SCN obtained from txn chunked query is less than currScn. currScn = " + currScn + " scnFromQuery = " + scnFromQuery);
+			  }
+			  else
+			  {
+				  retScn = rs.getLong(1);
+			  }
+		  }
 	  } finally {
 		  DBHelper.close(rs);
 	  }
 	  return retScn;
   }
-  
-  
+
+
   /**
    * Max SCN Query for TXN Chunking.
-   * 
+   *
    * When no rows are returned for a given chunk of txns, this query is used to find the beginning of the next batch.
-   * 
+   *
    * This query goes hand-in-hand with generateTxnChunkedQuery.
    * You would need to change this query when you change generateTxnChunkedQuery query.
-   * 
+   *
    * @param db Connection instance
-   * @return prepared statement for the query
+   * @return None
    */
-  private PreparedStatement generateMaxScnSkippedForTxnChunkedQuery(Connection db)
+  private void generateMaxScnSkippedForTxnChunkedQuery(Connection db)
   	throws SQLException
   {
 	if ( null == _txnChunkJumpScnStmt)
@@ -808,15 +775,15 @@ public class OracleTxlogEventReader
 		StringBuilder sql = new StringBuilder();
 
 		sql.append("SELECT max(t.scn) from (");
-		sql.append("select tx.scn, row_number() OVER (ORDER BY tx.scn) r FROM ");
+		sql.append("select /*+ index(tx) */ tx.scn, row_number() OVER (ORDER BY tx.scn) r FROM ");
 		sql.append(_selectSchema +  "sy$txlog tx ");
-		sql.append("WHERE tx.scn >  ? AND tx.ora_rowscn > ? AND tx.scn < 9999999999999999999999999999) t ");
-		sql.append("WHERE r <= ? ORDER BY r");
-		
+		sql.append("WHERE tx.scn >  ? AND tx.scn < 9999999999999999999999999999) t ");
+		sql.append("WHERE r <= ?");
+
 		_txnChunkJumpScnStmt = db.prepareStatement(sql.toString());
 	}
-	
-	return _txnChunkJumpScnStmt;
+
+	return;
   }
 
   /**
@@ -847,7 +814,11 @@ public class OracleTxlogEventReader
 
       if(rs.next())
       {
-        maxScn = rs.getLong(1);
+    	long testScn = rs.getLong(1);
+    	if (testScn != 0)
+    	{
+            maxScn = testScn;
+    	}
       }
     }
     finally
@@ -861,13 +832,12 @@ public class OracleTxlogEventReader
   }
 
   @Override
-  public List<MonitoredSourceInfo> getSources() {
+  public List<OracleTriggerMonitoredSourceInfo> getSources() {
 	  return _sources;
   }
 
   public void close()
   {
-    if (null != _filterSourcesConnection) DBHelper.close(_filterSourcesConnection);
     if (null != _eventSelectConnection) DBHelper.close(_eventSelectConnection);
   }
 

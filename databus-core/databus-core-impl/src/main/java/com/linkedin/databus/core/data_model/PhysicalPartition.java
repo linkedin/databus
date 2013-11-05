@@ -32,7 +32,7 @@ import com.linkedin.databus.core.NamedObject;
  *
  * @see <a href="https://iwww.corp.linkedin.com/wiki/cf/display/ENGS/Databus+2.0+and+Databus+3.0+Data+Model">Databus 2.0 and Databus 3.0 Data Model</a>
  */
-public class PhysicalPartition implements NamedObject
+public class PhysicalPartition implements NamedObject, Comparable<PhysicalPartition>
 {
   private final Integer _id;
   private final String _name;
@@ -165,19 +165,8 @@ public class PhysicalPartition implements NamedObject
   {
     if (null == _simpleStringCache)
     {
-      StringBuilder res = new StringBuilder(_name);
-      res.append(DBNAME_PARTID_SEPARATOR);
-      if (isAnyPartitionWildcard())
-      {
-        res.append("*");
-      }
-      else
-      {
-        res.append(_id);
-      }
-      _simpleStringCache = res.toString();
+      _simpleStringCache = toSimpleString(null).toString();
     }
-
     return _simpleStringCache;
   }
 
@@ -202,6 +191,10 @@ public class PhysicalPartition implements NamedObject
   @Override
   public boolean equals(Object other)
   {
+    if (this == other)
+    {
+      return true;
+    }
     if (null == other || !(other instanceof PhysicalPartition)) return false;
     return equalsPartition((PhysicalPartition)other);
   }
@@ -219,6 +212,17 @@ public class PhysicalPartition implements NamedObject
   public String getName()
   {
     return _name;
+  }
+
+  @Override
+  public int compareTo(PhysicalPartition other)
+  {
+    int cv = getName().compareTo((other.getName()));
+    if (cv == 0)
+    {
+      return getId() - other.getId();
+    }
+    return cv;
   }
 
   public static class Builder
@@ -257,6 +261,29 @@ public class PhysicalPartition implements NamedObject
       return new PhysicalPartition(_id, _name);
     }
 
+  }
+
+  /**
+   * Converts the physical partition to a human-readable string
+   * @param   sb        a StringBuilder to accumulate the string representation; if null, a new one will be allocated
+   * @return  the StringBuilder
+   */
+  public StringBuilder toSimpleString(StringBuilder sb)
+  {
+    if (null == sb)
+    {
+      sb = new StringBuilder(20);
+    }
+    sb.append(_name).append(DBNAME_PARTID_SEPARATOR);
+    if (isAnyPartitionWildcard())
+    {
+      sb.append("*");
+    }
+    else
+    {
+      sb.append(_id);
+    }
+    return sb;
   }
 
 }

@@ -3,6 +3,7 @@
  */
 package com.linkedin.databus2.relay.config;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public static final long DEFAULT_SCN_CHUNKED_THRESHOLD = 20000;
   public static final long DEFAULT_MAX_SCN_DELAY_MS = 300000;
   public static final int DEFAULT_LARGEST_EVENT_SIZE = 1 * 1024*1024; //1MB
-  public static final long DEFAULT_LARGEST_WINDOW_SIZE = 5*1024*1024; //10MB
+  public static final long DEFAULT_LARGEST_WINDOW_SIZE = 5*1024*1024; //5MB
 
   private String _name; // for example - database name
   private int _id;      // physical partition
@@ -70,16 +71,43 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   private List<LogicalSourceConfig> _sources;
   private BackoffTimerStaticConfigBuilder _retries;
   private String _chunkingType;
-  private long _txnsPerChunk;  
+  private long _txnsPerChunk;
   private long _scnChunkSize;
   private long _chunkedScnThreshold;
   private long _maxScnDelayMs;
   private  DbusEventBuffer.Config _dbusEventBuffer;
-  private long _eventRatePerSec; //used mainly by simulator; could be useful in the general case to anticipate size of window
-  //used by chained relays to estimate the largest event , but could be used by regular relays for appropriate dynamic sizing or checks 
+  // Used mainly by simulator
+  // Used for GG relays to throttle rate at which events are read from trail files
+  private long _eventRatePerSec;
+  // Used for GG relays to specify the duration for which throttling be in effect after startup
+  // When not specified, or equal to zero means that throttling is disabled
+  private long _maxThrottleDurationInSecs;
+
+ //used by chained relays to estimate , but could be used by regular relays for appropriate dynamic sizing or checks
   private int _largestEventSizeInBytes;
-  //used by chained relays to estimate , but could be used by regular relays for appropriate dynamic sizing or checks
   private long _largestWindowSizeInBytes;
+
+  //Golden gate relay specific configs
+  /**
+   *   If _errorOnMissingFields set to true, then the parser will terminate on missing fields in xmlTrail file,
+   *   if set to false, then the parser will not terminate on missing fields (will use null value for the missing fields),
+   *   provided it's NOT the primary key.
+   */
+  private boolean _errorOnMissingFields;
+  /**
+   * The config is used to specify what would be the xml version that the trail files are based on. The default value is 1.1
+   * Accepts 1.0/1.1
+   */
+  private String _xmlVersion;
+  /**
+   * The type of encoding used by the xml, the default value for this config is ISO-8859-1
+   */
+  private String _xmlEncoding;
+
+  /**
+   * Config for deciding if an event is replicated or not !!
+   */
+  private ReplicationBitSetterConfig _replBitSetter;
 
   public PhysicalSourceConfig()
   {
@@ -103,7 +131,12 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
     _largestEventSizeInBytes = DEFAULT_LARGEST_EVENT_SIZE;
     _largestWindowSizeInBytes = DEFAULT_LARGEST_WINDOW_SIZE;
     _eventRatePerSec=10;
+    _maxThrottleDurationInSecs = 0;
+    _errorOnMissingFields = true;
     _dbusEventBuffer = null; //This buffer is per physical source, if not initialized in multi-tenant source config, the global eventbuffer config is used.
+    _xmlEncoding = "ISO-8859-1";
+    _replBitSetter = new ReplicationBitSetterConfig();
+    _xmlVersion = "1.0";
   }
 
   /** create a PhysicalSourceConfiguration without any logical sources
@@ -306,10 +339,10 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public void setRestartScnOffset(long r) {
     _restartScnOffset = r;
   }
-  
-  
-  
-  
+
+
+
+
   public int getLargestEventSizeInBytes() {
 	  return _largestEventSizeInBytes;
   }
@@ -326,7 +359,18 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
 	  _largestWindowSizeInBytes = largestWindowSizeInBytes;
   }
 
-@Override
+
+  public boolean getErrorOnMissingFields()
+  {
+    return _errorOnMissingFields;
+  }
+
+  public void setErrorOnMissingFields(boolean errorOnMissingFields)
+  {
+    _errorOnMissingFields = errorOnMissingFields;
+  }
+
+  @Override
   public String toString()
   {
     try
@@ -370,6 +414,22 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
     return config;
   }
 
+
+
+  /**
+   * Converse of toString; populate this object from a File handle pointing to a json file
+   * @throws IOException
+   * @throws JsonMappingException
+   * @throws JsonParseException
+   */
+  public static PhysicalSourceConfig fromFile(File f) throws JsonParseException, JsonMappingException, IOException
+  {
+    ObjectMapper mapper = new ObjectMapper();
+    PhysicalSourceConfig config = mapper.readValue(f,PhysicalSourceConfig.class);
+    return config;
+  }
+
+
   /**
    * Represents obj in map; rather obj->json->map
    * @return Map representation of object
@@ -408,16 +468,19 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public PhysicalSourceStaticConfig build() throws InvalidConfigException
   {
     checkForNulls();
+    //check config options for chained relays
+    if (_largestEventSizeInBytes >= _largestWindowSizeInBytes)
+    {
+      throw new InvalidConfigException("Invalid relay config: largestEventSizeInBytes has to be lesser than largestWindowSizeInBytes:"
+          + " largestEventSizeInBytes=" + _largestEventSizeInBytes + " largestWindowSizeInBytes=" + _largestWindowSizeInBytes);
+    }
 
     LogicalSourceStaticConfig[] sourcesStaticConfigs = new LogicalSourceStaticConfig[_sources.size()];
     for (int i = 0 ; i < _sources.size(); ++i)
     {
       sourcesStaticConfigs[i] = _sources.get(i).build();
     }
-    
     ChunkingType chunkingType = ChunkingType.valueOf(_chunkingType);
-    
-
     return new PhysicalSourceStaticConfig(_name, _id, _uri, _resourceKey,
                                           sourcesStaticConfigs, _role,
                                           _slowSourceQueryThreshold,
@@ -429,10 +492,14 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
                                           _chunkedScnThreshold,
                                           _maxScnDelayMs,
                                           _eventRatePerSec,
+                                          _maxThrottleDurationInSecs,
                                           isDbusEventBufferSet()?_dbusEventBuffer.build():null,
                                           _largestEventSizeInBytes,
-                                          _largestWindowSizeInBytes
-                                        		  );
+                                          _largestWindowSizeInBytes,
+                                          _errorOnMissingFields,
+                                          _xmlVersion,
+                                          _xmlEncoding,
+                                          _replBitSetter.build());
   }
 
   public BackoffTimerStaticConfigBuilder getRetries()
@@ -484,7 +551,7 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public void setMaxScnDelayMs(long maxScnDelayMs) {
 	this._maxScnDelayMs = maxScnDelayMs;
   }
-  
+
   public long getEventRatePerSec()
   {
 	  return _eventRatePerSec;
@@ -493,6 +560,16 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public void setEventRatePerSec(long eventRatePerSec)
   {
 	  _eventRatePerSec = eventRatePerSec;
+  }
+
+  public long getMaxThrottleDurationInSecs()
+  {
+    return _maxThrottleDurationInSecs;
+  }
+
+  public void setMaxThrottleDurationInSecs(long maxThrottleDurationInSecs)
+  {
+    _maxThrottleDurationInSecs = maxThrottleDurationInSecs;
   }
 
   @JsonIgnore
@@ -512,5 +589,35 @@ public class PhysicalSourceConfig implements ConfigBuilder<PhysicalSourceStaticC
   public boolean isDbusEventBufferSet()
   {
     return _dbusEventBuffer!=null?true:false;
+  }
+
+  public String getXmlVersion()
+  {
+    return _xmlVersion;
+  }
+
+  public void setXmlVersion(String xmlVersion)
+  {
+    _xmlVersion = xmlVersion;
+  }
+
+  public String getXmlEncoding()
+  {
+    return _xmlEncoding;
+  }
+
+  public void setXmlEncoding(String xmlEncoding)
+  {
+    _xmlEncoding = xmlEncoding;
+  }
+
+  public ReplicationBitSetterConfig getReplBitSetter()
+  {
+    return _replBitSetter;
+  }
+
+  public void setReplBitSetter(ReplicationBitSetterConfig replBitSetter)
+  {
+    this._replBitSetter = replBitSetter;
   }
 }

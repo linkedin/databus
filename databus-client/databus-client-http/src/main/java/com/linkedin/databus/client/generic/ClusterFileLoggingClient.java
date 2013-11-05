@@ -237,9 +237,6 @@ public abstract class ClusterFileLoggingClient
 
 		// set up listeners
 		DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
-		LoggingConsumer logConsumer = client.getLoggingListener();
-		logConsumer.enableEventFileTrace(_eventDumpFile);
-
 
 		List<DatabusRegistration> regs = new ArrayList<DatabusRegistration>();
 		for (String cluster : _clusters)

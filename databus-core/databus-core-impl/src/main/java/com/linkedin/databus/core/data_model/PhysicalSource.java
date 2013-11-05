@@ -25,8 +25,6 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
-import com.linkedin.databus.core.data_model.Role;
-
 /**
  * Represents a Databus physical source
  *
@@ -111,11 +109,11 @@ public class PhysicalSource
     return _role;
   }
 
-  public String getResourceKey() 
+  public String getResourceKey()
   {
 	return _resourceKey;
   }
- 
+
   @Override
   public String toString()
   {
@@ -146,6 +144,7 @@ public class PhysicalSource
   public boolean equals(Object other)
   {
     if (null == other || !(other instanceof PhysicalSource)) return false;
+    if (this == other) return true;
     return equalsSource((PhysicalSource)other);
   }
 
@@ -232,6 +231,47 @@ public class PhysicalSource
       return new PhysicalSource(_uri, _role, _resourceKey);
     }
 
+  }
+
+  /**
+   * Converts the physical source to a human-readable string
+   * @param   sb        a StringBuilder to accumulate the string representation; if null, a new one will be allocated
+   * @return  the StringBuilder
+   */
+  public StringBuilder toSimpleString(StringBuilder sb)
+  {
+    if (null == sb)
+    {
+      sb = new StringBuilder(20);
+    }
+    sb.append("[");
+    if (isAnySourceWildcard())
+    {
+      sb.append(ANY_PHISYCAL_SOURCE);
+    }
+    else if (isMasterSourceWildcard())
+    {
+      sb.append(MASTER_PHISYCAL_SOURCE);
+    }
+    else if (isSlaveSourceWildcard())
+    {
+      sb.append(SLAVE_PHISYCAL_SOURCE);
+    }
+    else
+    {
+      sb.append("uri=").append(_uri);
+    }
+    sb.append("]");
+
+    return sb;
+  }
+
+  /**
+   * Converts the physical source to a human-readable string
+   */
+  public String toSimpleString()
+  {
+    return toSimpleString(null).toString();
   }
 
 }

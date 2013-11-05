@@ -85,10 +85,9 @@ import org.jboss.netty.handler.timeout.WriteTimeoutException;
  *
  * The handler relies on the logging facility to add timestamps to log records.
  *
- * <p>NOTE: The implementation is not thread-safe and is meant to be instatiated for each channel
+ * <p>NOTE: The implementation is not thread-safe and is meant to be instantiated for each channel
  * pipeline.
  *
- * @author cbotev
  */
 public class HttpRequestLoggingHandler extends SimpleChannelHandler
 {
@@ -116,10 +115,12 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     OUTBOUND_REQUEST,
     INBOUND_RESPONSE,
     OUTBOUND_RESPONSE,
-    INBOUND_RESPONSE_END
+    INBOUND_RESPONSE_END,
+    OUTBOUND_RESPONSE_END
   }
 
   private String _peerIp = "N/A";
+  private String _peerId = "N/A";
   private long _connRequestNano = - 1;
   private long _connStartNano = -1;
   private long _reqStartNano = -1;
@@ -130,7 +131,7 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
   private long _connBytes = 0;
   private String _channelStatusCode = "AOK";
   private State _state = State.WAIT;
-  private HttpRequest _request;
+  private volatile HttpRequest _request;
   private HttpResponse _response;
   private String _lastLogLine = "";
   private int _lastLogLineRepeat = 0;
@@ -153,6 +154,7 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     {
       _peerIp = remoteAddress.toString();
     }
+    _peerId = _peerIp;
 
     _connStartNano = System.nanoTime();
     _connBytes = 0;
@@ -172,7 +174,8 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
       case INBOUND_RESPONSE:
       case INBOUND_RESPONSE_END: endHttpResponse(false); break;
       case OUTBOUND_REQUEST:
-      case OUTBOUND_RESPONSE: endHttpResponse(true); break;
+      case OUTBOUND_RESPONSE:
+      case OUTBOUND_RESPONSE_END: endHttpResponse(true); break;
       case WAIT: break; //NOOP
       }
     }
@@ -185,11 +188,15 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
   {
     if (e.getMessage() instanceof HttpRequest)
     {
+      // HttpRequest is for a relay from client/bootstrap, hence it is an inbound request
+      //( outbound = false )
       HttpRequest req = (HttpRequest)e.getMessage();
       startHttpRequest(false, req);
     }
     else if (e.getMessage() instanceof HttpResponse)
     {
+      // HttpResponse is from a relay to a client/bootstrap, hence it is an outbound request
+      //( outbound = true )
       HttpResponse resp = (HttpResponse)e.getMessage();
       startHttpResponse(true, resp);
     }
@@ -197,6 +204,10 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     {
       HttpChunk chunk = (HttpChunk)e.getMessage();
       processHttpChunk(true, chunk);
+      if (State.OUTBOUND_RESPONSE_END == _state)
+      {
+        endHttpResponse(true);
+      }
     }
     super.messageReceived(ctx, e);
   }
@@ -241,6 +252,33 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     _response = null;
     _channelStatusCode = null;
     _state = outbound ? State.OUTBOUND_REQUEST : State.INBOUND_REQUEST;
+
+    //update tracking info
+    String hostHdr = null;
+    String svcHdr = null;
+    if (outbound)
+    {
+      if (req.containsHeader(DatabusHttpHeaders.DBUS_SERVER_HOST_HDR) ||
+          req.containsHeader(DatabusHttpHeaders.DBUS_SERVER_SERVICE_HDR))
+      {
+        hostHdr = req.getHeader(DatabusHttpHeaders.DBUS_SERVER_HOST_HDR);
+        svcHdr = req.getHeader(DatabusHttpHeaders.DBUS_SERVER_SERVICE_HDR);
+      }
+    }
+    else
+    {
+      if (req.containsHeader(DatabusHttpHeaders.DBUS_CLIENT_HOST_HDR) ||
+          req.containsHeader(DatabusHttpHeaders.DBUS_CLIENT_SERVICE_HDR))
+      {
+        hostHdr = req.getHeader(DatabusHttpHeaders.DBUS_CLIENT_HOST_HDR);
+        svcHdr = req.getHeader(DatabusHttpHeaders.DBUS_CLIENT_SERVICE_HDR);
+      }
+    }
+    if (null != hostHdr || null != svcHdr)
+    {
+      updateTrackingInfo(hostHdr, svcHdr);
+    }
+
   }
 
   private void startHttpResponse(boolean outbound, HttpResponse resp)
@@ -251,17 +289,45 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
       _respBytes = resp.getContent().readableBytes();
       _connBytes += _respBytes;
     }
+
     _response = resp;
     if (outbound)
     {
-      _state = resp.isChunked() ? State.OUTBOUND_RESPONSE : State.WAIT;
+      _state = resp.isChunked() ? State.OUTBOUND_RESPONSE : State.OUTBOUND_RESPONSE_END;
     }
     else
     {
       _state = resp.isChunked() ? State.INBOUND_RESPONSE : State.INBOUND_RESPONSE_END;
     }
 
-    if (State.WAIT == _state)
+    //update tracking info
+    String hostHdr = null;
+    String svcHdr = null;
+    if (outbound)
+    {
+      if (resp.containsHeader(DatabusHttpHeaders.DBUS_SERVER_HOST_HDR) ||
+          resp.containsHeader(DatabusHttpHeaders.DBUS_SERVER_SERVICE_HDR))
+      {
+      	  hostHdr = resp.getHeader(DatabusHttpHeaders.DBUS_SERVER_HOST_HDR);
+       	  svcHdr = resp.getHeader(DatabusHttpHeaders.DBUS_SERVER_SERVICE_HDR);
+       }
+    }
+    else
+    {
+      if (resp.containsHeader(DatabusHttpHeaders.DBUS_CLIENT_HOST_HDR) ||
+          resp.containsHeader(DatabusHttpHeaders.DBUS_CLIENT_SERVICE_HDR))
+      {
+      	  hostHdr = resp.getHeader(DatabusHttpHeaders.DBUS_CLIENT_HOST_HDR);
+      	  svcHdr = resp.getHeader(DatabusHttpHeaders.DBUS_CLIENT_SERVICE_HDR);
+      }
+    }
+    if (null != hostHdr || null != svcHdr)
+    {
+      updateTrackingInfo(hostHdr, svcHdr);
+    }
+
+    if (State.WAIT == _state || State.INBOUND_RESPONSE_END == _state ||
+        State.OUTBOUND_RESPONSE_END == _state)
     {
       endHttpResponse(outbound);
     }
@@ -282,9 +348,20 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
       {
         _respBytes += chunk.getContent().readableBytes();
         _connBytes += chunk.getContent().readableBytes();
-        if (State.INBOUND_RESPONSE == _state && chunk.isLast()) _state = State.INBOUND_RESPONSE_END;
+        if (chunk.isLast())
+        {
+          if (State.INBOUND_RESPONSE == _state)
+          {
+            _state = State.INBOUND_RESPONSE_END;
+          }
+          else if (State.OUTBOUND_RESPONSE == _state)
+          {
+            _state = State.OUTBOUND_RESPONSE_END;
+          }
+        }
         break;
       }
+      case OUTBOUND_RESPONSE_END:
       case INBOUND_RESPONSE_END:
       case WAIT: break; //NOOP
     }
@@ -292,8 +369,14 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
 
   private void endHttpResponse(boolean outbound)
   {
-    String method = (null != _request) ? _request.getMethod().getName() : "ERR";
-    String uri = (null != _request) ? _request.getUri() : "ERR";
+    // HACK
+    // Workaround a netty bug in which writeCompleted() and channelClosed() get called
+    // at the same time in different threads. We pull a local copy of _request and deal
+    // with it, so that even if _request is set to null during processing, we are fine.
+    HttpRequest req = _request;
+
+    String method = (null != req) ? req.getMethod().getName() : "ERR";
+    String uri = (null != req) ? req.getUri() : "ERR";
     int respCode = (null != _response) ? _response.getStatus().getCode() : 0;
 
     _respFinishNano = System.nanoTime();
@@ -302,7 +385,7 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     java.util.Formatter logFormatter = new Formatter(logLineBuilder);
     logFormatter.format(LOG_LINE_FORMAT,
                         outbound ? OUTBOUND_DIR : INBOUND_DIR,
-                        _peerIp,
+                        _peerId,
                         method,
                         uri,
                         _reqBytes,
@@ -325,7 +408,7 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     java.util.Formatter logFormatter = new Formatter(logLineBuilder);
     logFormatter.format(CONNECT_LINE_FORMAT,
                         outbound ? OUTBOUND_DIR : INBOUND_DIR,
-                        _peerIp,
+                        _peerId,
                         "CONNECT",
                         "/START",
                         0,
@@ -345,7 +428,7 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
     Formatter logFormatter = new Formatter(logLineBuilder);
     logFormatter.format(CONNECT_LINE_FORMAT,
                         outbound ? OUTBOUND_DIR : INBOUND_DIR,
-                        _peerIp,
+                        _peerId,
                         "CONNECT",
                         "/END",
                         0,
@@ -407,6 +490,14 @@ public class HttpRequestLoggingHandler extends SimpleChannelHandler
       else _channelStatusCode="UKE";
     }
     super.exceptionCaught(ctx, e);
+  }
+
+  private void updateTrackingInfo(String hostHdr, String svcHdr)
+  {
+    _peerId = (null == hostHdr ? _peerIp : hostHdr) + (null == svcHdr ? "" : "[" + svcHdr + "]");
+
+    if(LOG.isDebugEnabled())
+      LOG.debug("updateTrackingInfo: host=" + hostHdr + ",service=" + svcHdr + ",id=" + _peerId);
   }
 
 }

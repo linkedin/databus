@@ -21,11 +21,6 @@ package com.linkedin.databus.bootstrap.api;
  *
 */
 
-
-/**
- * @author lgao
- *
- */
 public class BootstrapProcessingException extends Exception
 {
   private static final long serialVersionUID = 1L;

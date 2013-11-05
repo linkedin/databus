@@ -19,28 +19,36 @@ package com.linkedin.databus.groupleader.impl.zkclient;
 */
 
 
+import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.fail;
+
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.ZkServer;
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.testng.Assert;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus.core.util.FileUtils;
+import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus.groupleader.pub.AcceptLeadershipCallback;
 import com.linkedin.databus.groupleader.pub.GroupLeadershipConnection;
 import com.linkedin.databus.groupleader.pub.GroupLeadershipConnectionFactory;
 import com.linkedin.databus.groupleader.pub.GroupLeadershipSession;
-
-import static org.testng.Assert.*;
+import com.linkedin.databus2.test.TestUtil;
 
 /*
  * IMPORTANT NOTE : If you add any new test case methods, make sure you wrap it with LockObject.
  * This class is NOT thread-safe without it but TestNg expects the test class to be thread-safe.
  */
-public class TestLeaderElect 
+public class TestLeaderElect
 {
 	private static final Logger LOG = Logger.getLogger(TestLeaderElect.class);
 
@@ -86,17 +94,29 @@ public class TestLeaderElect
 	protected GroupLeadershipConnection _adminLeadershipConn;
 	protected ZkClient _adminZkClient;
 
+	@BeforeClass
+	public void classSetup()
+	{
+	  TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestLeaderElect_", ".log",
+	                                           Level.INFO);
+	}
+
 	protected void setUp() throws Exception
 	{
 		//temporary
 
 		System.setProperty("startLocalZookeeper","true");
 		//.setProperty("zkServerList","localhost:2191,localhost:3192,localhost:4193");
-		System.setProperty("zkServerList","localhost:2191");
+		final int zkPort = Utils.getAvailablePort(2191);
+        File zkroot = FileUtils.createTempDir("TestLeaderElect_zkroot");
+        LOG.info("starting ZK on port " + zkPort + " and datadir " + zkroot.getAbsolutePath());
+
+		System.setProperty("zkServerList","localhost:" + zkPort);
 
 		System.setProperty("sessionTimeoutMillis","10000");
 		System.setProperty("connectTimeoutMillis","5000");
-		System.setProperty("zkTestDataParentDir",".");
+
+		System.setProperty("zkTestDataParentDir", zkroot.getAbsolutePath());
 
 		_startLocalZookeeper = getRequiredBooleanProperty("startLocalZookeeper");
 		_zkTestDataParentDir = getRequiredStringProperty("zkTestDataParentDir");
@@ -144,16 +164,18 @@ public class TestLeaderElect
 
 	}
 
-	protected void tearDown()
-			throws Exception
-			{
-		_adminLeadershipConn.close();
+    protected void tearDown() throws Exception
+    {
+      if (null != _adminLeadershipConn)
+      {
+        _adminLeadershipConn.close();
+      }
 
-		if (_startLocalZookeeper)
-		{
-			LeaderElectUtils.stopLocalZookeeper(_localZkServers);
-		}
-			}
+      if (_startLocalZookeeper && null != _localZkServers)
+      {
+        LeaderElectUtils.stopLocalZookeeper(_localZkServers);
+      }
+    }
 
 	protected String cleanZkGroupInfo(String zkBasePath, String groupName)
 	{

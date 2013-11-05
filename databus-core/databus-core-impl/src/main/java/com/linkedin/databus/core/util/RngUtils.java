@@ -22,9 +22,13 @@ package com.linkedin.databus.core.util;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
-import com.linkedin.databus.core.DbusEventV1;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusEventV1Factory;
+import com.linkedin.databus.core.DbusEventInfo;
+import com.linkedin.databus.core.DbusEventInternalReadable;
 import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.DbusOpcode;
 import com.linkedin.databus.core.KeyTypeNotImplementedException;
 
 public class RngUtils {
@@ -35,6 +39,7 @@ public class RngUtils {
   /* A consistent random number generator to make tests repeatable */
   public static final Random seededRandom = new Random(192348092834L);
   public static final Random random = new Random();
+  public static final DbusEventFactory _eventFactory = new DbusEventV1Factory();
   public static final byte[] schemaMd5 = "abcdefghijklmnop".getBytes();
 
 
@@ -91,21 +96,30 @@ public class RngUtils {
     return randomShort;
   }
 
-  public static DbusEvent randomEvent(short srcId) {
-    ByteBuffer serBuf = ByteBuffer.allocate(1000).order(DbusEventV1.byteOrder);
+  public static DbusEvent randomEvent(short srcId)
+  {
+    ByteBuffer serBuf = ByteBuffer.allocate(1000).order(_eventFactory.getByteOrder());
     try
     {
-      DbusEventV1.serializeEvent(new DbusEventKey(randomLong()), (short) 0, // physical Partition
-                               randomPositiveShort(), System.currentTimeMillis(), srcId, schemaMd5,
-                               randomString(20).getBytes(), (randomPositiveShort()%100 <=1), serBuf);
+      DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT,
+                                                  0L,  // Sequence number
+                                                  (short) 0, // physical Partition
+                                                  randomPositiveShort(),
+                                                  System.currentTimeMillis(),
+                                                  srcId,
+                                                  schemaMd5,
+                                                  randomString(20).getBytes(),
+                                                  randomPositiveShort() % 100 <= 1,
+                                                  false /* autoCommit */);
+      eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
+      DbusEventFactory.serializeEvent(new DbusEventKey(randomLong()), serBuf, eventInfo);
     }
     catch (KeyTypeNotImplementedException e1)
     {
       throw new RuntimeException(e1);
     }
     serBuf.rewind();
-    DbusEventV1 e = new DbusEventV1();
-    e.reset(serBuf, serBuf.position());
+    DbusEventInternalReadable e = _eventFactory.createReadOnlyDbusEventFromBuffer(serBuf, serBuf.position());
     return e;
   }
 

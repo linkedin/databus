@@ -81,7 +81,7 @@ public class TestRange {
     public void testContainsReaderPositionDiffGenId()
     {
       // start and end differ only in GenId
-      BufferPositionParser parser = new BufferPositionParser(100240000 ,1);
+      BufferPositionParser parser = new BufferPositionParser(100240000, 3);
 
       long start = parser.setGenId(0, 1);
       start = parser.setIndex(start, 0);

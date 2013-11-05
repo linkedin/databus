@@ -16,7 +16,7 @@ package com.linkedin.databus.client.pub;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
+ */
 
 
 import java.util.List;
@@ -28,163 +28,258 @@ import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollectorMBean;
 
+/**
+ * A "registration" represents an identifier for a set of consumer(s) interested in
+ * subscription(s). When we say a "registration object" is returned, we mean an object of
+ * DatabusV3Registration.
+ *
+ * The user of the client library can specify a "RegistrationId" for the registration.
+ * If the "id" is available, it is used for the returned DatabusV3Registration object. The library
+ * currently assigns the same ID upon a restart.
+ *
+ * The persisted checkpoint for this particular consumerGroup is identified
+ * through the RegistrationId, which is a hash generated off the consumer subscriptions.
+ */
+
 public interface DatabusV3Registration {
 
-	/**
-	 *
- 	 * Start the traffic ( if available ) for this registration.
-	 */
-	public StartResult start();
+  /**
+   * Initiates traffic consumption. After a consumer is registered, and until this call is invoked no
+   * events will be seen
+   *
+   * <pre>
+   * The following functionality is provided :
+   * 1. Initiate a connection to the respective relay
+   * 2. Obtains streaming data from the relay
+   * 3. Events are delivered to the consumer
+   * </pre>
+   */
+  public StartResult start();
 
-	/**
-	 *
-	 * Get state of registration
-	 */
-	public RegistrationState getState();
+  /**
+   * Returns the internal registration state of the object
+   *
+   * An object of DatabusV3Registration obeys a state-machine with states such as CREATED,
+   * STARTED, DEREGISTERED. The transitions happen on invocations of API calls within this interface
+   *
+   * <pre>
+   * For example, a new instance is created in "CREATED" state
+   * From CREATED state, it can go to STARTED state, when a start() method is called
+   *                   , it can go to DEREGISTER state, when deregister() is called
+   * From STARTED state, it can only go to DEREGISTERED state, when deregister() is called
+   * From DEREGISTER state, it can only go to STARTED state, when a start() method is called
+   * </pre>
+   */
+  public RegistrationState getState();
 
-	/**
-	 *  Obtains the database name corresponding to this registration
-	 */
-	public String getDBName();
+  /**
+   *  Obtains the (Espresso) database name corresponding to this registration.
+   *
+   *  A single registration cannot span more than one Espresso database. This method returns
+   *  the name of that unique database
+   */
+  public String getDBName();
 
-	/**
-	 * Every registration (performed through a registerXXX call @see DatabusEspressoClient ) is associated with a unique id.
-	 *
-	 * An Id is specified for every registration, during the registerXXX call).
-	 * If Id is not specified, the client library will generate one. This can be retrieved by invoking the method below
-	 */
-	public RegistrationId getId();
+  /**
+   * Retrieves the underlying registration id.
+   *
+   * Every registration (performed through a registerXXX call {@link DatabusHttpV3ClientImpl})
+   * is associated with a unique id.
+   */
+  public RegistrationId getId();
 
-	/**
-	 * set parent registration id for this registration if it is part of MP registration
-	 * @param rid
-	 */
-	public void setParentRegId(RegistrationId rid);
+  /**
+   * Internal-use only. Please do not use. DDSDBUS-2623.
+   *
+   * This call sets parent registration id for this (child) registration.
+   * Applicable for Multi-Partition Consumers only
+   *
+   * For e.g., if the subscription is for all the partitions on TestDB and TestDB has
+   * 2 partitions, then two individual registrations are created for each of the registrations
+   * In addition a "parent" registration is created, that assimilates information across
+   * all the partitions, and encapsulates the sub-partition level information.
+   *
+   * @param rid RegistrationId of the parent
+   */
+  public void setParentRegId(RegistrationId rid);
 
-	/**
-   * get parent registration id for this registration if it is part of MP registration
+  /**
+   * Internal-use only. Please do not use. DDSDBUS-2623.
+   *
+   * Get parent registration id of this registration.
+   *
+   * Applicable for Multi-Partition Consumers only.
    */
   public RegistrationId getParentRegId();
 
-	/**
-	 * Fetch the most recent sequence number across all relays
-	 * @param FetchMaxSCNRequest : Request params for fetchMaxSCN
-	 * @return RelayFindMaxSCNResult
-	 */
-	public RelayFindMaxSCNResult fetchMaxSCN(FetchMaxSCNRequest request)
-					throws InterruptedException;
+  /**
+   * Fetch the most recent sequence number across all relays.
+   *
+   * Applicable for Espresso internal replication only.
+   *
+   * @param FetchMaxSCNRequest : Request params for fetchMaxSCN
+   * @return RelayFindMaxSCNResult : Contains the result of the fetch call and some useful meta information
+   *                                 like minScn / maxScn across all the relays
+   */
+  public RelayFindMaxSCNResult fetchMaxSCN(FetchMaxSCNRequest request)
+      throws InterruptedException;
 
 
-	/**
-	 *
-	 * Makes the Client point to the relays (specified in RelayFindMaxSCNResult) with the most recent sequence number
-	 * and waits (with timeout) for the consumer callback to reach this SCN. This is a
-	 * bounded blocking call. It will wait for timeout milliseconds for the consumer
-	 * callback to reach the maxScn before returning from this method
-	 *
-	 * @param fetchSCNResult : FetchMaxScn result object.
-	 * @param flushRequest : Request params for flush.
-	 */
-	public RelayFlushMaxSCNResult flush(RelayFindMaxSCNResult fetchSCNResult, FlushRequest flushRequest)
-					throws InterruptedException;
+  /**
+   * Flush from available relays to be able to catch up with the highest SCN.
+   *
+   * Applicable for Espresso internal replication only.
+   *
+   * Makes the Client point to the relays (specified in RelayFindMaxSCNResult) with the most recent sequence
+   * number and waits (with timeout) for the consumer callback to reach this SCN. This is a
+   * bounded blocking call. It will wait for timeout milliseconds for the consumer
+   * callback to reach the maxScn before returning from this method
+   *
+   * @param fetchSCNResult : FetchMaxScn result object.
+   * @param flushRequest : Request params for flush.
+   */
+  public RelayFlushMaxSCNResult flush(RelayFindMaxSCNResult fetchSCNResult, FlushRequest flushRequest)
+      throws InterruptedException;
 
-	/**
-	 *
-	 * Discovers the most recent sequence number across all relays for the given subscriptions and uses flush
-	 * on the relay with that max SCN.
-	 * @param FetchMaxSCNRequest : Request params for fetchMaxSCN.
-	 * @param flushRequest : Request params for flush.
-	 */
-	public RelayFlushMaxSCNResult flush(FetchMaxSCNRequest maxScnRequest, FlushRequest flushRequest)
-					throws InterruptedException;
+  /**
+   * Discovers the most recent sequence number across all relays for the given subscriptions and uses flush
+   * on the relay with that max SCN. This is a variant of the API call:
+   * RelayFlushMaxSCNResult flush(RelayFindMaxSCNResult fetchSCNResult, FlushRequest flushRequest)
+   *
+   * Applicable for Espresso internal replication only
+   *
+   * @param FetchMaxSCNRequest : Request params for fetchMaxSCN.
+   * @param flushRequest : Request params for flush.
+   */
+  public RelayFlushMaxSCNResult flush(FetchMaxSCNRequest maxScnRequest, FlushRequest flushRequest)
+      throws InterruptedException;
 
 
-	/**
-	 *
- 	 * De-register from the client library. If this is the only registration for which the pull threads
- 	 * are serving then the pipeline will be shutdown.
-	 */
-	public DeregisterResult deregister();
+  /**
+   * <pre>
+   * Stop the data processing of the consumer(s) on the registration. Specifically, it does the following.
+   * 1. Shuts down the connections from the relay puller to the relay servers.
+   * 2. Shuts down the dispatcher state-machine ( and thereby the consumer-side event processing loop ).
+   *
+   * If this is the only registration for which the pull threads, then a shutdown is invoked on the
+   * underlying serverContainer.
+   * </pre>
+   *
+   * @return DeregisterResult
+   */
+  public DeregisterResult deregister();
 
-	/**
-	 *
- 	 * Add subscriptions to a given registration object
-	 * Adding an already existent subscription, will be a no-op.
-	 *
-	 * This does not create a new the DatabusEspressoRegistration object ( only modifies the current one ).
-	 * Hence the id of the registration remains the same
-	 *
-	 * The checkpoint for a given registration is created based on the RegistrationId. This has a 8-byte hash
-	 * generated off of subscriptions. Changing a registration, will require changing the checkpoint directory
-	 * location
-	 */
-	public void addSubscriptions(DatabusSubscription ... subs)
-	throws DatabusClientException;
+  /**
+   * Add subscriptions to a given registration object. Adding an already existent subscription,
+   * will be a no-op.
+   *
+   * Currently unimplemented.
+   *
+   * This does not create a new the DatabusEspressoRegistration object, but only modifies the existing
+   * object. Hence the registration id remains the same.
+   *
+   * The checkpoint for a given registration is created based on the RegistrationId. This has a 8-byte hash
+   * generated off of subscriptions. Changing a registration, will require changing the checkpoint directory
+   * location.
+   *
+   * @subs The list of subscriptions to add
+   */
+  public void addSubscriptions(DatabusSubscription ... subs)
+      throws DatabusClientException;
 
-	/**
-	 *
- 	 * Remove subscriptions from a given registration object
-	 * Removing a non-existent subscription, will be a no-op.
-	 *
-	 * This does not create a new the DatabusEspressoRegistration object ( only modifies the current one ).
-	 * Hence the id of the registration remains the same
-	 *
- 	 * The checkpoint for a given registration is created based on the RegistrationId. This has a 8-byte hash
-	 * generated off of subscriptions. Changing a registration, will require changing the checkpoint directory
-	 * location
-	 */
+  /**
+   * Remove subscriptions from a given registration object. Removing a non-existent subscription,
+   * will be a no-op.
+   *
+   * Currently unimplemented.
+   *
+   * This does not create a new the DatabusEspressoRegistration object ( only modifies the current one ).
+   * Hence the registration id remains the same.
+   *
+   * The checkpoint for a given registration is created based on the RegistrationId. This has a 8-byte hash
+   * generated off of subscriptions. Changing a registration, will require changing the checkpoint directory
+   * location.
+   *
+   * @subs The list of subscriptions to remove.
+   */
 
-	public void removeSubscriptions(DatabusSubscription ... subs)
-	throws DatabusClientException;
+  public void removeSubscriptions(DatabusSubscription ... subs)
+      throws DatabusClientException;
 
-	/**
-	 * Obtains a list of all subscriptions associated with this registration
-	 */
-	public List<DatabusSubscription> getSubscriptions();
+  /**
+   * Obtains a list of all subscriptions associated with this registration.
+   */
+  public List<DatabusSubscription> getSubscriptions();
 
-	/**
-	 *
-	 * Adds the specified consumers associated with this registration
-	 * The added consumers will have the same subscription(s) and filter parameters as the other consumers
-	 * associated with this registration
-	 *
-	 * TBD : Any requirements, on if we should make the consumer start from a specified sequence number ?
-	 */
-	public void addDatabusConsumers(DatabusV3Consumer[] consumers);
+  /**
+   * Adds the specified consumers associated with this registration.
+   * The added consumers will have the same subscription(s) and filter parameters as the other consumers
+   * associated with this registration
+   *
+   * Currently unimplemented
+   *
+   * TBD : Any requirements, on if we should make the consumer start from a specified sequence number ?
+   */
+  public void addDatabusConsumers(DatabusV3Consumer[] consumers);
 
-	/**
-	 *
-	 * Removes the specified consumers associated with this registration
-	 * Closes the connections associated with each of the consumers
-	 *
-	 * TBD : Any guarantees, on if we should make the consumer reach a specified sequence number ?
-	 */
-	public void removeDatabusConsumers(DatabusV3Consumer[] consumers);
+  /**
+   * Removes the specified consumers associated with this registration
+   * Closes the connections associated with each of the consumers
+   *
+   * Currently unimplemented
+   *
+   * TBD : Any guarantees, on if we should make the consumer reach a specified sequence number ?
+   */
+  public void removeDatabusConsumers(DatabusV3Consumer[] consumers);
 
-	/**
-	 * Returns an object that implements DatabusComponentStatus
-	 * Helpful for obtaining diagnostics regarding the registration
-	 * The mapping between a registration and a
-	 */
-	public DatabusComponentStatus getStatus();
+  /**
+   * Returns an object that implements DatabusComponentStatus.
+   * Helpful for obtaining diagnostics regarding the registration, and for invoking dignostic operations
+   * via JMX like pausing a consumer.
+   */
+  public DatabusComponentStatus getStatus();
 
-	/**
-	 * Returns a checkpoint provider object
-	 */
-	public CheckpointPersistenceProvider getCheckpoint();
+  /**
+   * Exposes functionality to read / write a checkpoint with a checkpoint provider object.
+   *
+   * A typical example of how checkpoint is manipulated on the client library to start from newScn
+   * {@code
+     CheckpointPersistenceProvider ckp = reg.getCheckpoint();
+     Checkpoint cp = Checkpoint.createOnlineConsumption(newScn);
+     ckp.storeCheckpointV3(getSubscriptions(), cp, getId());
+     }
+   */
+  public CheckpointPersistenceProvider getCheckpointPersistenceProvider();
 
-	/** Obtains a logger used by databus for logging messages associated with this registration */
-	public Logger getLogger();
+  /**
+   * This method will be deprecated in a future release.
+   * @deprecated Please use {@link #getCheckpointPersistenceProvider() instead}
+   */
+  @Deprecated
+  public CheckpointPersistenceProvider getCheckpoint();
 
-	/** Obtains the inbound relay event statistics for the registration */
-	public DbusEventsStatisticsCollectorMBean getRelayEventStats();
+  /**
+   * Obtains a logger used by databus for logging messages associated with this registration
+   */
+  public Logger getLogger();
 
-    /** Obtains the inbound bootstrap event statistics */
-    public DbusEventsStatisticsCollectorMBean getBootstrapEventStats();
+  /**
+   * Obtains the inbound relay event statistics for the registration
+   */
+  public DbusEventsStatisticsCollectorMBean getRelayEventStats();
 
-    /** Obtain statistics for the callbacks for relay events*/
-    public ConsumerCallbackStatsMBean getRelayCallbackStats();
+  /**
+   * Obtains the inbound bootstrap event statistics
+   */
+  public DbusEventsStatisticsCollectorMBean getBootstrapEventStats();
 
-    /** Obtain statistics for the callbacks for bootstrap events*/
-    public ConsumerCallbackStatsMBean getBootstrapCallbackStats();
+  /**
+   * Obtain statistics for the callbacks for relay events
+   */
+  public ConsumerCallbackStatsMBean getRelayCallbackStats();
+
+  /**
+   * Obtain statistics for the callbacks for bootstrap events
+   */
+  public ConsumerCallbackStatsMBean getBootstrapCallbackStats();
 }

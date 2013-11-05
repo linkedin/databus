@@ -45,9 +45,6 @@ import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
 /**
  * Wraps the OracleEventsMonitor in an event producer with a thread that can be started, paused, and
  * stopped.
- *
- * @author Jemiah Westerman<jwesterman@linkedin.com>
- * @version $Revision: 272015 $
  */
 public class OracleEventProducer extends AbstractEventProducer
 {
@@ -55,7 +52,7 @@ public class OracleEventProducer extends AbstractEventProducer
   private ArrayList<ObjectName> _registeredMbeans;
 
   public OracleEventProducer(
-    List<MonitoredSourceInfo> sources,
+    List<OracleTriggerMonitoredSourceInfo> sources,
     DataSource dataSource,
     DbusEventBufferAppendable eventBuffer,
     boolean enableTracing,
@@ -65,10 +62,9 @@ public class OracleEventProducer extends AbstractEventProducer
     MBeanServer mbeanServer
     ) throws DatabusException
   {
-    super(eventBuffer, enableTracing, dbusEventsStatisticsCollector, maxScnReaderWriter,
-          physicalSourceConfig, mbeanServer);
+    super(eventBuffer, maxScnReaderWriter, physicalSourceConfig, mbeanServer);
     _registeredMbeans = new ArrayList<ObjectName>(sources.size());
-    for (MonitoredSourceInfo source:sources)
+    for (OracleTriggerMonitoredSourceInfo source:sources)
     {
     	try
     	{
@@ -108,19 +104,13 @@ public class OracleEventProducer extends AbstractEventProducer
 
   }
 
-  public OracleEventProducer(DbusEventBufferAppendable eventBuffer,
-                             OracleTxlogEventReader oracleEventsMonitor,
-                             MaxSCNReaderWriter maxScnReaderWriter,
-                             PhysicalSourceStaticConfig physicalSourceConfig,
-                             MBeanServer mbeanServer)
-  {
-    super(eventBuffer, maxScnReaderWriter, physicalSourceConfig, mbeanServer);
-    _sourceDBEventReader = oracleEventsMonitor;
+  @Override
+  public List<? extends EventSourceStatisticsIface> getSources() {
+	  return _sourceDBEventReader.getSources();
   }
 
-  @Override
-  public List<MonitoredSourceInfo> getSources() {
-	  return _sourceDBEventReader.getSources();
+  public List<OracleTriggerMonitoredSourceInfo> getMonitoredSourceInfos() {
+    return _sourceDBEventReader.getSources();
   }
 
   @Override
@@ -129,7 +119,7 @@ public class OracleEventProducer extends AbstractEventProducer
   {
     return _sourceDBEventReader.readEventsFromAllSources(sinceSCN);
   }
-  
+
   @Override
   public synchronized void shutdown()
   {
@@ -141,7 +131,7 @@ public class OracleEventProducer extends AbstractEventProducer
 		} catch (MBeanRegistrationException e) {
 			_log.warn("Exception when unregistering source statistics mbean: " + name + e) ;
 		} catch (InstanceNotFoundException e) {
-			_log.warn("Exception when unregistering source statistics mbean: " + name + e) ;	
+			_log.warn("Exception when unregistering source statistics mbean: " + name + e) ;
 		}
 	  }
 	  super.shutdown();

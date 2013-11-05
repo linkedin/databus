@@ -23,7 +23,7 @@ import com.linkedin.databus.core.CheckpointMult;
 import com.linkedin.databus.core.util.Range;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilter;
 
-public interface DatabusRelayConnection 
+public interface DatabusRelayConnection
    extends DatabusServerConnection
 {
 
@@ -37,4 +37,5 @@ public interface DatabusRelayConnection
 
   /* Callback to let the Relay client request streamFromLatestSCN from the relay */
   void enableReadFromLatestScn(boolean enable);
+
 }

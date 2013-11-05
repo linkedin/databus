@@ -45,7 +45,7 @@ public class DatabusBootstrapDummyConsumer extends AbstractDatabusBootstrapConsu
     config.setMaxSize(maxEventBufferSize);
     config.setMaxIndividualBufferSize(maxIndividualBufferSize);
     config.setScnIndexSize(maxIndexSize);
-    config.setReadBufferSize(maxReadBufferSize);
+    config.setAverageEventSize(maxReadBufferSize);
     config.setAllocationPolicy(allocationPolicy.name());
     config.setQueuePolicy(policy.toString());
     return config.build();

@@ -55,6 +55,6 @@ public class BootstrapSeederOracleEventProducerFactory extends
 	{
 		_log.info("Creating OracleAvroGenericEventFactory with seeder Chunk Key :" + _seederChunkKeyColumnNamesMap.get(eventView));
 		return new BootstrapSeederOracleAvroGenericEventFactory(sourceConfig.getId(), (short)pConfig.getId(),
-				eventSchema, partitionFunction, _seederChunkKeyColumnNamesMap.get(eventView));
+				eventSchema, partitionFunction, _seederChunkKeyColumnNamesMap.get(eventView),pConfig.getReplBitSetter());
 	}
 }

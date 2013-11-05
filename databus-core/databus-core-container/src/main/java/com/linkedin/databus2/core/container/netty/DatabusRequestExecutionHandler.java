@@ -20,13 +20,17 @@ package com.linkedin.databus2.core.container.netty;
 
 
 
-import com.linkedin.databus.core.data_model.PhysicalPartition;
-import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
-import com.linkedin.databus2.core.container.request.DatabusRequest;
-import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
+import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+
 import java.util.Set;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
 import org.apache.log4j.Logger;
 import org.jboss.netty.channel.ChannelHandlerContext;
 import org.jboss.netty.channel.ChannelStateEvent;
@@ -39,12 +43,13 @@ import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.COOKIE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.SET_COOKIE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import com.linkedin.databus.core.DbusConstants;
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus.core.util.DbusHttpUtils;
+import com.linkedin.databus2.core.container.DatabusHttpHeaders;
+import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatisticsCollector;
+import com.linkedin.databus2.core.container.request.DatabusRequest;
+import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 
 /**
  * Expects DatabusRequest objects and runs them
@@ -114,7 +119,7 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
         if (LOG.isDebugEnabled())
         {
           //We are debugging -- let's add some more info to the response
-          response.addHeader(DatabusRequest.DATABUS_REQUEST_ID_HEADER,
+          response.addHeader(DatabusHttpHeaders.DATABUS_REQUEST_ID_HEADER,
                              Long.toString(_dbusRequest.getId()));
         }
 
@@ -176,7 +181,7 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
             {
               //Add some more debugging info
               long curTimeMs = System.currentTimeMillis();
-              responseChannel.addMetadata(DatabusRequest.DATABUS_REQUEST_LATENCY_HEADER,
+              responseChannel.addMetadata(DatabusHttpHeaders.DATABUS_REQUEST_LATENCY_HEADER,
                                           Long.toString(curTimeMs - _dbusRequest.getCreateTimestampMs()));
             }
             responseChannel.close();
@@ -242,6 +247,8 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
     response.setHeader(CONTENT_TYPE, "text/plain; charset=UTF-8");
     response.setHeader("Access-Control-Allow-Origin", "*");
 
+    setTrackingInfo(response);
+
     // Encode the cookie.
     String cookieString = _httpRequest.getHeader(COOKIE);
     if (cookieString != null)
@@ -259,5 +266,26 @@ public class DatabusRequestExecutionHandler extends SimpleChannelUpstreamHandler
     }
 
     return response;
+  }
+
+  /**
+   * Set headers to allow clients to trace information of relays across VIPs
+   * @param response
+   */
+  private void setTrackingInfo(HttpResponse response)
+  {
+	  String hostname = DbusConstants.getMachineName();
+	  if (null == hostname || DbusConstants.UNKNOWN_HOST.equals(hostname))
+	  {
+	    hostname = DbusHttpUtils.getLocalHostName();
+	  }
+	  response.setHeader(DatabusHttpHeaders.DBUS_SERVER_HOST_HDR, hostname);
+
+	  String serviceId = DbusConstants.getServiceIdentifier();
+	  if (! DbusConstants.UNKNOWN_SERVICE_ID.equals(serviceId))
+	  {
+	    response.setHeader(DatabusHttpHeaders.DBUS_SERVER_SERVICE_HDR,
+	                       DbusConstants.getServiceIdentifier());
+	  }
   }
 }

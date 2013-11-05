@@ -7,7 +7,8 @@ dependencies {
   compile project(':databus-client:databus-client-api')
   compile project(':databus-client:databus-client-common')
   compile project(':databus-client:databus-client-http')
-  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
+  compile project(':databus2-relay:databus2-event-producer-common')
+  compile project(':databus2-relay:databus2-event-producer-mock')
 
   compile externalDependency.avro
   compile externalDependency.commonsBeanutils
@@ -23,6 +24,7 @@ dependencies {
   runtime externalDependency.ojdbc6
 
   testCompile project(':databus-core:databus-core-fwk-test')
+  testCompile project(':databus-core:databus-core-impl')
   testCompile externalDependency.testng
   testCompile externalDependency.easymock
 }

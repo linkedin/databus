@@ -83,7 +83,7 @@ public class TestDbusPhysicalPartitionEventBuffer  {
     config2.setUri("testuri");
     config2.getDbusEventBuffer().setMaxSize(eventBufferMaxSize);
     config2.getDbusEventBuffer().setScnIndexSize(scnIndexSize);
-    config2.getDbusEventBuffer().setReadBufferSize(eventBufferReadBufferSize);
+    config2.getDbusEventBuffer().setAverageEventSize(eventBufferReadBufferSize);
     PhysicalSourcesStaticConfigWithEBuffer = config2.build();
     PhysicalSourcesConfigWithEBuffer = config2;
 
@@ -105,7 +105,9 @@ public class TestDbusPhysicalPartitionEventBuffer  {
   {
     PhysicalSourceStaticConfig[] physicalSourcesConfig = new PhysicalSourceStaticConfig[1];
     physicalSourcesConfig[0] = PhysicalSourcesStaticConfigWithEBuffer;
-    DbusEventBufferMult multBuf = new DbusEventBufferMult(physicalSourcesConfig,GlobalDbusEbufferStaticConfig);
+    DbusEventBufferMult multBuf = new DbusEventBufferMult(physicalSourcesConfig,
+                                                          GlobalDbusEbufferStaticConfig,
+                                                          new DbusEventV2Factory());
 
     //Verify if it addNewBuffer has honored the physicalSourcesConfig event buffer
     DbusEventBuffer buffer = multBuf.getOneBuffer(PhysicalSourcesStaticConfigWithEBuffer.getPhysicalPartition());
@@ -119,7 +121,9 @@ public class TestDbusPhysicalPartitionEventBuffer  {
   {
     PhysicalSourceStaticConfig[] physicalSourcesConfig = new PhysicalSourceStaticConfig[1];
     physicalSourcesConfig[0] = PhysicalSourcesStaticConfigWithoutEbuffer;
-    DbusEventBufferMult multBuf = new DbusEventBufferMult(physicalSourcesConfig,GlobalDbusEbufferStaticConfig);
+    DbusEventBufferMult multBuf = new DbusEventBufferMult(physicalSourcesConfig,
+                                                          GlobalDbusEbufferStaticConfig,
+                                                          new DbusEventV2Factory());
 
     //Verify if it addNewBuffer has honored the globaleventbuffer config
     DbusEventBuffer buffer = multBuf.getOneBuffer(PhysicalSourcesStaticConfigWithoutEbuffer.getPhysicalPartition());

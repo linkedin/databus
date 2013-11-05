@@ -29,7 +29,7 @@ import org.apache.avro.util.Utf8;
 public class MapFieldGenerate extends SchemaFiller
 {
 
-  public static int maxNumberOfMapFields = 10;
+  private static int maxNumberOfMapFields = 10;
 
   public static int getMaxNumberOfMapFields()
   {

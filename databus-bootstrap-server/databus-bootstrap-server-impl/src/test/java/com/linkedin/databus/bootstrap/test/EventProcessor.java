@@ -25,7 +25,6 @@ package com.linkedin.databus.bootstrap.test;
 import com.linkedin.databus.bootstrap.api.BootstrapEventCallback;
 import com.linkedin.databus.bootstrap.api.BootstrapEventProcessResult;
 import com.linkedin.databus.bootstrap.api.BootstrapProcessingException;
-import com.linkedin.databus.bootstrap.common.BootstrapEventProcessResultImpl;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 
@@ -58,7 +57,7 @@ public class EventProcessor implements BootstrapEventCallback
 		  throw new BootstrapProcessingException(ex);
 	  }
 	  
-	  return new BootstrapEventProcessResultImpl(1, false, false);
+	  return new BootstrapEventProcessResult(1, false, false);
 	}
 	
 	

@@ -20,11 +20,12 @@ package com.linkedin.databus2.test;
 
 
 import java.io.File;
-
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.Socket;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import org.I0Itec.zkclient.IDefaultNameSpace;
@@ -42,6 +43,21 @@ import org.testng.Assert;
 
 public class TestUtil
 {
+  public static final SimpleDateFormat SIMPLE_TIMESTAMP_FORMAT =
+      new SimpleDateFormat("yyyyMMdd-HHmmss");
+
+  public static void setupLoggingWithTimestampedFile(boolean logToConsole,
+                                                     String fileNamePrefix,
+                                                     String fileNameSuffix,
+                                                     Level logLevel)
+  {
+    final String fileName = fileNamePrefix + SIMPLE_TIMESTAMP_FORMAT.format(new Date()) +
+        fileNameSuffix;
+    setupLogging(logToConsole, fileName, logLevel);
+  }
+  public static void setupLogging(Level logLevel) {
+    setupLogging(true, "", logLevel);
+  }
 
   public static void setupLogging(boolean logToConsole, String fileLogPath, Level logLevel)
   {
@@ -91,6 +107,21 @@ public class TestUtil
   }
 
   /**
+   * in case we are running in Eclipse - adjust base dir
+   * @return true if running in eclipse
+   */
+  public static final String ECLIPSE_TEST_BASE_DIR = "ECLIPSE_TEST_BASE_DIR";
+  public static boolean setupEclipsePath() {
+    String prop = System.getProperty("java.class.path");
+    if(prop!=null && prop.contains("eclipse")) {
+      System.setProperty(ECLIPSE_TEST_BASE_DIR, "../..");
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  /**
    * Perform an assert on a condition with exponentially increasing timeouts between checks. Useful
    * for checking asynchronous conditions. The timeouts start from 1 ms and double on every failure
    * of the condition check until a maximum threshold is reached.
@@ -111,7 +142,7 @@ public class TestUtil
                                 + message);
       sleep(sleepDuration);
       done = check.check();
-      sleepDuration *= 2;
+      sleepDuration = (long)(1.3 * sleepDuration + 1);
     }
 
     Assert.assertTrue(check.check(), message);
@@ -168,11 +199,11 @@ public class TestUtil
 
     return success;
   }
-  
+
 	/**
-	 * 
+	 *
 	 * @author snagaraj (originally by mitch stuart)
-	 * 
+	 *
 	 */
 
 
@@ -228,6 +259,21 @@ public class TestUtil
 		{
 			zkServer.shutdown();
 		}
+	}
+
+	static public String join(String[] name, String delim)
+	{
+	  StringBuilder joined = new StringBuilder();
+	  if (name.length > 0)
+	  {
+	    joined.append(name[0]);
+	    for (int i = 1; i < name.length; ++i)
+	    {
+	      joined.append(delim);
+	      joined.append(name[i]);
+	    }
+	  }
+	  return joined.toString();
 	}
 
 }

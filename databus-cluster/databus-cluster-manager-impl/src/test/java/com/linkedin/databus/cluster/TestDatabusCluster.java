@@ -19,6 +19,7 @@ package com.linkedin.databus.cluster;
 */
 
 
+import java.io.File;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -30,39 +31,42 @@ import junit.framework.Assert;
 
 import org.I0Itec.zkclient.ZkServer;
 import org.apache.log4j.Level;
-import org.testng.annotations.AfterSuite;
-import org.testng.annotations.BeforeSuite;
+import org.apache.log4j.Logger;
+import org.testng.annotations.AfterClass;
+import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus.client.registration.ClusterRegistrationStaticConfig;
 import com.linkedin.databus.cluster.DatabusCluster.DatabusClusterMember;
+import com.linkedin.databus.core.util.FileUtils;
+import com.linkedin.databus.core.util.Utils;
 import com.linkedin.databus2.test.TestUtil;
 
 public class TestDatabusCluster
 {
-	
+    protected static final Logger LOG = Logger.getLogger(TestDatabusCluster.class);
 
-	static
-	{
-		TestUtil.setupLogging(true, null, Level.ERROR); 
-	}
-	
-	static final int localZkPort = 2191;
+	static final int localZkPort = Utils.getAvailablePort(2192);
 	static final String zkAddr = "localhost:" + localZkPort;
 	static final String clusterName = "test-databus-cluster";
 	static List<ZkServer> _localZkServers = null;
-	
-	@BeforeSuite
+
+	@BeforeClass
 	public void startZookeeper() throws IOException
 	{
-		ZkServer zkServer = TestUtil.startZkServer(".", 0, localZkPort , 2000);
-		if (zkServer != null)
-		{
-		    _localZkServers  = new Vector<ZkServer>(1);
-		    _localZkServers.add(zkServer);
-		}
+      TestUtil.setupLogging(true, null, Level.WARN);
+	  File zkroot = FileUtils.createTempDir("TestDatabusCluster_zkroot");
+	  LOG.info("starting ZK on port " + localZkPort + " and datadir " + zkroot.getAbsolutePath());
+
+	  ZkServer zkServer = TestUtil.startZkServer(zkroot.getAbsolutePath(), 0, localZkPort, 2000);
+	  if (zkServer != null)
+	  {
+	    _localZkServers  = new Vector<ZkServer>(1);
+	    _localZkServers.add(zkServer);
+	  }
 	}
-	
-	@AfterSuite
+
+	@AfterClass
 	public void stopZookeeper()
 	{
 	    if (_localZkServers != null)
@@ -70,71 +74,81 @@ public class TestDatabusCluster
 	        TestUtil.stopLocalZookeeper(_localZkServers);
 	    }
 	}
-	
+
+	public void runBasicDatabusClusterExpt(boolean createClusterConcurrently)
+	{
+	    try
+        {
+            String cluster = clusterName;
+            int startId = 100;
+            int numClients = 4;
+            int numPartitions = 10;
+            int quorum=1;
+
+            Vector<TestDatabusClusterNode> testClients = new Vector<TestDatabusClusterNode>(10);
+            for (int i=0;i < numClients; i++)
+            {
+                Integer id = startId + i;
+                TestDatabusClusterNode node = new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum);
+                if (!createClusterConcurrently)
+                {
+                    node.createCluster();
+                }
+                testClients.add(node);
+            }
+
+            //start the clients;
+            for (TestDatabusClusterNode node: testClients)
+            {
+                node.start();
+            }
+
+            Thread.sleep(6*1000);
+
+            LOG.info("Shutting down one of the clients ");
+            testClients.get(numClients-1).shutdown();
+            testClients.get(numClients-1).join();
+
+            Thread.sleep(2*1000);
+
+            //Start another client;
+            Integer id = startId + numClients;
+            testClients.add(new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum));
+            testClients.get(numClients).start();
+
+            Thread.sleep(10*1000);
+
+            //stop the clients;
+            int assignedPartitions = 0;
+            for (TestDatabusClusterNode node: testClients)
+            {
+                node.shutdown();
+                node.join(2000);
+                Assert.assertTrue(!node.isAlive());
+                Vector<Integer> p = node.getPartitions();
+                assignedPartitions += p.size();
+                LOG.info("Node: " + node.getIdentifier() + " received " + p.size() + " partitions ");
+            }
+            Assert.assertTrue(assignedPartitions>=numPartitions);
+        }
+        catch(InterruptedException e)
+        {
+            Assert.assertTrue(false);
+        }
+        catch (Exception e)
+        {
+            LOG.error("run failed! " + e.getMessage());
+            Assert.assertTrue(false);
+        }
+
+	}
+
 	@Test
 	public void testDatabusCluster()
 	{
-		try
-		{
-			String cluster = clusterName;
-			int startId = 100;
-			int numClients = 4;
-			int numPartitions = 10;
-			int quorum=1;
-
-			Vector<TestDatabusClusterNode> testClients = new Vector<TestDatabusClusterNode>(10);
-			for (int i=0;i < numClients; i++)
-			{
-				Integer id = startId + i;
-				testClients.add(new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum));
-			}
-
-			//start the clients;
-			for (TestDatabusClusterNode node: testClients)
-			{
-				node.start();
-			}
-			
-			Thread.sleep(6*1000);
-			
-			System.out.println("Shutting down one of the clients ");
-			testClients.get(numClients-1).shutdown();
-			testClients.get(numClients-1).join();
-			
-			Thread.sleep(2*1000);
-			
-			//Start another client;
-			Integer id = startId + numClients;
-			testClients.add(new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum));
-			testClients.get(numClients).start();
-			
-			Thread.sleep(10*1000);
-            
-			//stop the clients;
-			int assignedPartitions = 0;
-			for (TestDatabusClusterNode node: testClients)
-			{
-				node.shutdown();
-				node.join(2000);
-				Assert.assertTrue(!node.isAlive());
-				Vector<Integer> p = node.getPartitions();
-				assignedPartitions += p.size();
-				System.out.println("Node: " + node.getIdentifier() + " received " + p.size() + " partitions ");
-			}
-			Assert.assertTrue(assignedPartitions>=numPartitions);
-			
-		}
-		catch(InterruptedException e)
-		{
-			Assert.assertTrue(false);
-		}
-		catch (Exception e)
-		{
-		    Assert.assertTrue(false);
-		}
-
+		runBasicDatabusClusterExpt(false);
 	}
-	
+
 	@Test
 	public void testLeaderFollower()
 	{
@@ -150,7 +164,9 @@ public class TestDatabusCluster
             for (int i=0;i < numClients; i++)
             {
                 Integer id = startId + i;
-                testClients.add(new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum));
+                TestDatabusClusterNode node = new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum);
+                node.createCluster();
+                testClients.add(node);
             }
 
             //start the clients;
@@ -158,19 +174,19 @@ public class TestDatabusCluster
             {
                 node.start();
             }
-            
+
             Thread.sleep(6*1000);
-            
-            System.out.println("Shutting down one of the clients ");
+
+            LOG.info("Shutting down one of the clients ");
             testClients.get(numClients-1).shutdown();
             testClients.get(numClients-1).join();
-            
+
             Thread.sleep(2*1000);
             //Start another client;
             Integer id = startId + numClients;
             testClients.add(new TestDatabusClusterNode(id.toString(), cluster, numPartitions, quorum));
             testClients.get(numClients).start();
-            
+
             Thread.sleep(10*1000);
 
             //stop the clients;
@@ -182,10 +198,10 @@ public class TestDatabusCluster
                 Assert.assertTrue(!node.isAlive());
                 Vector<Integer> p = node.getPartitions();
                 assignedPartitions += p.size();
-                System.out.println("Node: " + node.getIdentifier() + " received " + p.size() + " partitions ");
+                LOG.info("Node: " + node.getIdentifier() + " received " + p.size() + " partitions ");
             }
             Assert.assertTrue(assignedPartitions>=numPartitions);
-            
+
         }
         catch(InterruptedException e)
         {
@@ -196,110 +212,155 @@ public class TestDatabusCluster
 	        Assert.assertTrue(false);
 	    }
 	}
-	
+
+	@Test
+	public void testConcurrentClusterCreation()
+	{
+	    //create TestNode concurrently;
+	    runBasicDatabusClusterExpt(true);
+	}
+
 	/**
-	 * 
+	 *
 	 * @author snagaraj
 	 *	client nodes;
 	 */
 	public class TestDatabusClusterNode extends Thread
 	{
-		
-		private final DatabusCluster _cluster;
-		private final DatabusClusterMember _member;
-		private final TestDatabusClusterNotifier _notifier;
+
+		private DatabusCluster _cluster = null;
+		private DatabusClusterMember _member = null;
+		private TestDatabusClusterNotifier _notifier = null;
 		private final String _id;
-		boolean _shutdown = false;
-		
-		public TestDatabusClusterNode(String id,String clusterName,int numPartitions, int quorum) throws Exception
+		private volatile boolean _shutdown = false;
+		private final int _quorum;
+		private final int _numPartitions;
+		private final String _clusterName;
+		private boolean _error = false;
+
+		public TestDatabusClusterNode(String id,String clusterName, int numPartitions, int quorum)
 		{
 		    super("testClusterNode_"+id);
-			_id =id;
-			_cluster = new DatabusCluster(zkAddr, clusterName, "default-resource", numPartitions, quorum);
-			_notifier = new TestDatabusClusterNotifier(id);
-			//get global and local allocation notifications
-			_cluster.addDataNotifier(_notifier);
-			_member = _cluster.addMember(id,_notifier);
+		    _id = id;
+            _clusterName = clusterName;
+		    _numPartitions = numPartitions;
+		    _quorum = quorum;
 		}
-		
+
+		public  void createCluster() throws Exception
+		{
+		    ClusterRegistrationStaticConfig c = 
+		              new ClusterRegistrationStaticConfig(_clusterName, zkAddr, _numPartitions, _quorum, 0,5*60*1000, 30*1000, 60*100);
+		    _cluster = new DatabusCluster(c);
+		    LOG.warn("Created cluster object! " + _clusterName + " id = " + _id);
+            _notifier = new TestDatabusClusterNotifier(_id);
+            //get global and local allocation notifications
+            _cluster.addDataNotifier(_notifier);
+            _member = _cluster.addMember(_id,_notifier);
+		}
+
 		public String getIdentifier()
 		{
 		    return _id;
 		}
-		
+
+		public boolean isError()
+		{
+		    return _error;
+		}
+
 		@Override
 		public void run()
 		{
-			System.out.println("Started TestDatabusClusterNode for id= " + _id);
-			_cluster.start();
-			if (_member==null)
-			{
-			    System.err.println("No member handle for  " + _id);
-			    return;
-			}
-			boolean t = _member.join();
-			if (t)
-			{
-				System.out.println("TestDatabusClusterNode: Awaiting shutdown for " + _id);
-				synchronized(this)
-				{
-					while (!_shutdown)
-					{
-						try
-						{
-							wait();
-						}
-						catch (InterruptedException e)
-						{
-							
-						}
-					}
-				}
-			}
-			else
-			{
-				System.err.println("Join failed for client node:" + _id);
-			}
-			System.out.println("Exiting client node: " + _id);
+		    try
+		    {
+		        LOG.warn("Started TestDatabusClusterNode for id= " + _id);
+		        if (_cluster==null)
+		        {
+		            createCluster();
+		        }
+	             LOG.warn("Created TestDatabusClusterNode for id= " + _id);
+		        _cluster.start();
+		        if (_member==null)
+		        {
+		            LOG.error("No member handle for  " + _id);
+		            _error=true;
+		            return;
+		        }
+		        boolean t = _member.join();
+		        if (t)
+		        {
+		            synchronized(this)
+		            {
+		                while (!_shutdown)
+		                {
+		                    try
+		                    {
+		                        wait();
+		                    }
+		                    catch (InterruptedException e)
+		                    {
+
+		                    }
+		                }
+		            }
+		        }
+		        else
+		        {
+		            LOG.error("Join failed for client node:" + _id);
+  	               _error=true;
+		        }
+		    }
+		    catch (Exception e)
+		    {
+		        LOG.error("Exception in thread: " + _id + " = " + e.getMessage());
+		        _error=true;
+		    }
 		}
-		
+
+
+
 		public void shutdown()
 		{
-		    if (_member==null)
-		    {
-		        System.err.println("Shutting down failed for member " + _id);
-		        return;
-		    }
-			_member.leave();
-			System.out.println("Shutting down ClusterNode id = " + _id);
-			_cluster.removeDataNotifier(_notifier);
-			synchronized(this)
+			if (!_shutdown)
 			{
-				_shutdown = true;
-				notifyAll();
+
+				if (_member==null)
+				{
+					LOG.error("Shutting down failed for member " + _id);
+					return;
+				}
+				_member.leave();
+				_cluster.removeDataNotifier(_notifier);
+				_cluster.shutdown();
+				synchronized(this)
+				{
+					_shutdown = true;
+					notifyAll();
+				}
 			}
 		}
-		
+
 		public Vector<Integer> getPartitions()
 		{
 			return _notifier.getPartitions();
 		}
-		
+
 	}
-	
+
 	public class TestDatabusClusterNotifier implements DatabusClusterNotifier,  DatabusClusterDataNotifier
 	{
 
 		final private String _id ;
 		final private HashSet<Integer> _partitions;
 		private String _leader;
-		
+
 		public TestDatabusClusterNotifier(String id)
 		{
 			_id = id;
 			_partitions = new HashSet<Integer>(10);
 		}
-		
+
 		@Override
 		public void onGainedPartitionOwnership(int partition)
 		{
@@ -311,7 +372,7 @@ public class TestDatabusCluster
 			    }
 			    else
 			    {
-			        System.err.println("Node " + _id + " Adding partition before removing. p=" + partition);
+			        LOG.warn("Node " + _id + " Adding partition before removing. p=" + partition);
 			    }
 			}
 		}
@@ -321,7 +382,7 @@ public class TestDatabusCluster
 		{
 			 synchronized (this)
 			 {
-                 System.err.println("Node " + _id + " Removing partition  p=" + partition);
+                 LOG.warn("Node " + _id + " Removing partition  p=" + partition);
 				 _partitions.remove(partition);
 			 }
 		}
@@ -329,15 +390,15 @@ public class TestDatabusCluster
 		@Override
 		public void onError(int partition)
 		{
-			System.out.println("Node " + _id + " removed error " + partition );
+			LOG.warn("Node " + _id + " removed error " + partition );
 		}
 
 		@Override
 		public void onReset(int partition)
 		{
-			System.out.println("Node " + _id + " received reset " + partition );
+			LOG.warn("Node " + _id + " received reset " + partition );
 		}
-		
+
 		public synchronized Vector<Integer> getPartitions()
 		{
 			Vector<Integer> p = new Vector<Integer>(_partitions.size());
@@ -353,7 +414,7 @@ public class TestDatabusCluster
         public void onInstanceChange(List<String> activeNodes)
         {
             //no op
-            
+
         }
 
         @Override
@@ -366,17 +427,17 @@ public class TestDatabusCluster
                 if ((leader != null) && (_leader==null || !_leader.equals(leader)))
                 {
                     _leader=leader;
-                    System.out.println("Id: " + _id + " New Leader found! " + _leader );
+                    LOG.warn("Id: " + _id + " New Leader found! " + _leader );
                 }
             }
         }
-        
+
         synchronized String getLeader()
         {
             return _leader;
         }
-		
+
 	}
-	
-	
+
+
 }
