@@ -1,0 +1,100 @@
+{
+  "name" : "Settings",
+  "doc" : "Auto-generated Avro schema for settings. Generated at Mar 10, 2013 08:31:14 PM PST",
+  "type" : "record",
+  "meta" : "dbFieldName=settings;",
+  "namespace" : "com.linkedin.events.example",
+  "fields" : [ {
+    "name" : "txn",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=TXN;dbFieldPosition=0;"
+  }, {
+    "name" : "key",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=KEY;dbFieldPosition=1;"
+  }, {
+    "name" : "id",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ID;dbFieldPosition=2;"
+  }, {
+    "name" : "lastName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LAST_NAME;dbFieldPosition=3;"
+  }, {
+    "name" : "display",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DISPLAY;dbFieldPosition=4;"
+  }, {
+    "name" : "testSettings",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=TEST_SETTINGS;dbFieldPosition=5;"
+  }, {
+    "name" : "accept",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ACCEPT;dbFieldPosition=6;"
+  }, {
+    "name" : "location",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LOCATION;dbFieldPosition=7;"
+  }, {
+    "name" : "allowBrowse",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=ALLOW__BROWSE;dbFieldPosition=8;"
+  }, {
+    "name" : "isReferred",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=IS_REFERRED;dbFieldPosition=9;"
+  }, {
+    "name" : "showImage",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=SHOW_IMAGE;dbFieldPosition=10;"
+  }, {
+    "name" : "allowOpen",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=ALLOW_OPEN;dbFieldPosition=11;"
+  }, {
+    "name" : "allowSearch",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=ALLOW_SEARCH;dbFieldPosition=12;"
+  }, {
+    "name" : "exclude",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=EXCLUDE;dbFieldPosition=13;"
+  }, {
+    "name" : "hide",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=HIDE;dbFieldPosition=14;"
+  }, {
+    "name" : "disclose",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DISCLOSE;dbFieldPosition=15;"
+  }, {
+    "name" : "picture",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=PICTURE;dbFieldPosition=16;"
+  }, {
+    "name" : "status",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=STATUS;dbFieldPosition=17;"
+  }, {
+    "name" : "feed",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=FEED;dbFieldPosition=18;"
+  }, {
+    "name" : "seeker",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=SEEKER;dbFieldPosition=19;"
+  }, {
+    "name" : "geo",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=GEO;dbFieldPosition=20;"
+  }, {
+    "name" : "map",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=MAP;dbFieldPosition=21;"
+  }, {
+    "name" : "moreBrowse",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=MORE_BROWSE;dbFieldPosition=22;"
+  } ]
+}

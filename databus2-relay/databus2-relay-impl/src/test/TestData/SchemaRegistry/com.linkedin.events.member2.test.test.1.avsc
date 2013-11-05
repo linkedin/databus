@@ -1,0 +1,32 @@
+{
+  "name" : "test_V1",
+  "doc" : "Auto-generated Avro schema for sy$Test. Generated at Nov 29, 2012 04:40:36 PM PST",
+  "type" : "record",
+  "meta" : "dbFieldName=sy$_Test;pk=id",
+  "namespace" : "com.linkedin.events.member2.test",
+  "fields" : [ {
+    "name" : "id",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ID;dbFieldPosition=0;dbFieldType=LONG;"
+  }, {
+    "name" : "fname",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=FNAME;dbFieldPosition=1;dbFieldType=VARCHAR2;"
+  }, {
+    "name" : "lname",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LNAME;dbFieldPosition=2;dbFieldType=VARCHAR2;"
+  }, {
+    "name" : "X1",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=X1;dbFieldPosition=3;dbFieldType=XMLType;"
+  }, {
+    "name" : "ggModiTs",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=GG_MODI_TS;dbFieldPosition=4;dbFieldType=TIMESTAMP;"
+  }, {
+    "name" : "ggStatus",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=GG_STATUS;dbFieldPosition=5;dbFieldType=VARCHAR2;"
+  } ]
+}

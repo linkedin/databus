@@ -1,0 +1,7 @@
+<!-- Exclude false positives -->
+<FindBugsFilter>
+	<Match>
+		<Class name="com.linkedin.databus.util.InteractiveSchemaGenerator" />
+        <Bug pattern="OBL_UNSATISFIED_OBLIGATION" />
+    </Match>
+</FindBugsFilter>

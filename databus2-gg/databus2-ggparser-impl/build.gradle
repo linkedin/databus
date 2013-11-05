@@ -1,0 +1,20 @@
+apply plugin: 'java'
+
+dependencies {
+
+  compile project(':databus-core:databus-core-schemas')
+  compile project(':databus-core:databus-core-impl')
+
+    compile externalDependency.avro
+  compile externalDependency.commonsBeanutils
+  compile externalDependency.commonsCli
+  compile externalDependency.commonsIo
+  compile externalDependency.commonsLogging
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+  compile externalDependency.log4j
+  compile externalDependency.netty
+  compile externalDependency.json
+  runtime externalDependency.ojdbc6
+
+}

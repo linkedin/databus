@@ -1,0 +1,16 @@
+apply plugin: 'java'
+
+test.workingDir = "${project.rootDir}"
+
+dependencies {
+  compile project(':databus-client:databus-client-http')
+  
+  compile externalDependency.log4j
+  compile externalDependency.jacksonCoreAsl
+  compile externalDependency.jacksonMapperAsl
+
+  testCompile externalDependency.testng
+}
+
+test.useTestNG()
+

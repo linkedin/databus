@@ -1,0 +1,72 @@
+  <transaction timestamp="2013-02-06:23:49:23.000000">
+    <dbupdate table="MEMBER2.TEST" type="insert">
+      <columns>
+        <column name="ID" key="true">10</column>
+        <column name="FNAME">test492441</column>
+        <column name="LNAME">test492441</column>
+        <column name="X1">&lt;xml&gt;test&lt;/xml&gt;</column>
+        <column name="GG_MODI_TS">2013-02-06:23:49:23.147940000</column>
+        <column name="GG_STATUS">O</column>
+      </columns>
+      <tokens>
+        <token name="TK-XID">1.9.1730</token>
+        <token name="TK-CSN">242679030635</token>
+      </tokens>
+    </dbupdate>
+    <dbupdate table="MEMBER2.TEST2" type="insert">
+      <columns>
+        <column name="ID" key="true">20</column>
+        <column name="FNAME">test492441</column>
+        <column name="LNAME">test492441</column>
+        <column name="X1">&lt;xml&gt;test&lt;/xml&gt;</column>
+        <column name="GG_MODI_TS">2013-02-06:23:49:23.147940000</column>
+        <column name="GG_STATUS">O</column>
+      </columns>
+      <tokens>
+        <token name="TK-XID">1.9.1730</token>
+        <token name="TK-CSN">242679030635</token>
+      </tokens>
+    </dbupdate>
+    <dbupdate table="MEMBER2.TEST3" type="insert">
+      <columns>
+        <column name="ID" key="true">30</column>
+        <column name="FNAME">test492440</column>
+        <column name="LNAME">test492440</column>
+        <column name="X1">&lt;xml&gt;test&lt;/xml&gt;</column>
+        <column name="GG_MODI_TS">2013-02-06:23:49:23.147940000</column>
+        <column name="GG_STATUS">O</column>
+      </columns>
+      <tokens>
+        <token name="TK-XID">1.9.1730</token>
+        <token name="TK-CSN">242679030635</token>
+      </tokens>
+    </dbupdate>
+    <dbupdate table="MEMBER2.TEST" type="insert">
+      <columns>
+        <column name="ID" key="true">11</column>
+        <column name="FNAME">test492441</column>
+        <column name="LNAME">test492441</column>
+        <column name="X1">&lt;xml&gt;test&lt;/xml&gt;</column>
+        <column name="GG_MODI_TS">2013-02-06:23:49:23.147940000</column>
+        <column name="GG_STATUS">O</column>
+      </columns>
+      <tokens>
+        <token name="TK-XID">1.9.1730</token>
+        <token name="TK-CSN">242679030635</token>
+      </tokens>
+    </dbupdate>
+    <dbupdate table="MEMBER2.TEST2" type="insert">
+      <columns>
+        <column name="ID" key="true">21</column>
+        <column name="FNAME">test492441</column>
+        <column name="LNAME">test492441</column>
+        <column name="X1">&lt;xml&gt;test&lt;/xml&gt;</column>
+        <column name="GG_MODI_TS">2013-02-06:23:49:23.147940000</column>
+        <column name="GG_STATUS">O</column>
+      </columns>
+      <tokens>
+        <token name="TK-XID">1.9.1730</token>
+        <token name="TK-CSN">242679030635</token>
+      </tokens>
+    </dbupdate>
+  </transaction>

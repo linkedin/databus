@@ -1,0 +1,144 @@
+{
+  "name" : "Account",
+  "doc" : "Auto-generated Avro schema for Account. Generated at Feb 25, 2013 07:31:39 PM PST",
+  "type" : "record",
+  "meta" : "dbFieldName=account;",
+  "namespace" : "com.linkedin.events.example",
+  "fields" : [ {
+    "name" : "txn",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=TXN;dbFieldPosition=0;"
+  }, {
+    "name" : "key",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=KEY;dbFieldPosition=1;"
+  }, {
+    "name" : "id",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ID;dbFieldPosition=2;"
+  }, {
+    "name" : "createdDate",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=CREATED_DATE;dbFieldPosition=3;"
+  }, {
+    "name" : "modifiedDate",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=MODIFIED_DATE;dbFieldPosition=4;"
+  }, {
+    "name" : "login",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LOGIN;dbFieldPosition=5;"
+  }, {
+    "name" : "dummy",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DUMMY;dbFieldPosition=6;"
+  }, {
+    "name" : "isActive",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=IS_ACTIVE;dbFieldPosition=7;"
+  }, {
+    "name" : "num",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=NUM;dbFieldPosition=8;"
+  }, {
+    "name" : "catId",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=CAT_ID;dbFieldPosition=9;"
+  }, {
+    "name" : "hireDate",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=HIRE_DATE;dbFieldPosition=10;"
+  }, {
+    "name" : "firstName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=FIRST_NAME;dbFieldPosition=11;"
+  }, {
+    "name" : "lastName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LAST_NAME;dbFieldPosition=12;"
+  }, {
+    "name" : "maidenName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=MAIDEN_NAME;dbFieldPosition=13;"
+  }, {
+    "name" : "dummy2",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=DUMMY_2;dbFieldPosition=14;"
+  }, {
+    "name" : "until",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=UNTIL;dbFieldPosition=15;"
+  }, {
+    "name" : "dummy3",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=DUMMY_3;dbFieldPosition=16;"
+  }, {
+    "name" : "ipTest",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=IP_TEST;dbFieldPosition=17;"
+  }, {
+    "name" : "enum_test",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ENUM_TEST;dbFieldPosition=18;"
+  }, {
+    "name" : "gid",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=GID;dbFieldPosition=19;"
+  }, {
+    "name" : "code",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=CODE;dbFieldPosition=20;"
+  }, {
+    "name" : "callingCode",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=CALLING_CODE;dbFieldPosition=21;"
+  }, {
+    "name" : "pin",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=PIN;dbFieldPosition=22;"
+  }, {
+    "name" : "geoTest",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=GEO_TEST;dbFieldPosition=23;"
+  }, {
+    "name" : "geoCodeTest",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=GEO_CODE_TEST;dbFieldPosition=24;"
+  }, {
+    "name" : "lat_deg",
+    "type" : [ "float", "null" ],
+    "meta" : "dbFieldName=LAT_DEG;dbFieldPosition=25;"
+  }, {
+    "name" : "long_deg",
+    "type" : [ "float", "null" ],
+    "meta" : "dbFieldName=LONG_DEG;dbFieldPosition=26;"
+  }, {
+    "name" : "dummy4",
+    "type" : [ "int", "null" ],
+    "meta" : "dbFieldName=DUMMY_4;dbFieldPosition=27;"
+  }, {
+    "name" : "offset",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=OFFSET;dbFieldPosition=28;"
+  }, {
+    "name" : "boolTest",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=BOOL_TEST;dbFieldPosition=29;"
+  }, {
+    "name" : "town",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=TOWN;dbFieldPosition=30;"
+  }, {
+    "name" : "maskTest",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=MASK_TEST;dbFieldPosition=31;"
+  }, {
+    "name" : "locale",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LOCALE;dbFieldPosition=32;"
+  }, {
+    "name" : "deleted",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DELETED;dbFieldPosition=33;"
+  } ]
+}

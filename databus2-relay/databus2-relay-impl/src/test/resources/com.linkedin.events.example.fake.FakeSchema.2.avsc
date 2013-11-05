@@ -1,0 +1,49 @@
+{
+  "name" : "Fake",
+  "doc" : "Auto-generated Avro schema for FAKE 2. Generated at Apr 19, 2011 06:22:31 PM PDT",
+  "type" : "record",
+  "meta" : "dbFieldName=SY$FAKE;pk=id",
+  "namespace" : "com.linkedin.events.example.fake",
+  "fields" : [ {
+    "name" : "txn",
+    "type" : [ "int", "null" ],
+    "meta" : "dbFieldName=TXN;dbFieldPosition=0;"
+  }, {
+    "name" : "id",
+    "type" : [ "int", "null" ],
+    "meta" : "dbFieldName=ID;dbFieldPosition=1;"
+  }, {
+    "name" : "notifyOptions",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=NOTIFY_OPTIONS;dbFieldPosition=4;"
+  }, {
+    "name" : "notifyNus",
+    "type" : [ "int", "null" ],
+    "meta" : "dbFieldName=NOTIFY_NUS;dbFieldPosition=5;"
+  }, {
+    "name" : "source",
+    "type" : [ "double", "null" ],
+    "meta" : "dbFieldName=SOURCE;dbFieldPosition=6;"
+  }, {
+    "name" : "status",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=STATUS;dbFieldPosition=7;"
+  }, {
+    "name" : "createdOn",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=CREATED_ON;dbFieldPosition=8;"
+  }, {
+    "name" : "superField",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=SUPER_FIELD;dbFieldPosition=9;"
+  }, {
+    "name" : "lastModified",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=LAST_MODIFIED;dbFieldPosition=10;"
+  }, {
+    "name" : "creatorName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=CREATOR_NAME;dbFieldPosition=11;",
+    "default": ""
+  } ]
+}

@@ -1,0 +1,3 @@
+com.linkedin.events.example.fake.FakeSchema.1.avsc
+com.linkedin.events.example.fake.FakeSchema.2.avsc
+com.linkedin.events.example.person.Person.1.avsc
