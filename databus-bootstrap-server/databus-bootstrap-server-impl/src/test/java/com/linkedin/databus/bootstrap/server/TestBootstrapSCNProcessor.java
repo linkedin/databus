@@ -53,8 +53,17 @@ public class TestBootstrapSCNProcessor
     int queryTimeoutInSec = 10;
     BootstrapReadOnlyConfig db = null;
     boolean enableMinScnCheck=false;
+    final long longestDbTxnTimeMins = 240L;
 
-    BootstrapServerStaticConfig bssc = new BootstrapServerStaticConfig(defaultRowsThresholdForSnapshotBypass, rowsThresholdForSnapshotBypass, disableSnapshotBypass,  predicatePushDown, predicatePushDownBypass, queryTimeoutInSec, enableMinScnCheck,db);
+    BootstrapServerStaticConfig bssc = new BootstrapServerStaticConfig(defaultRowsThresholdForSnapshotBypass,
+                                                                       rowsThresholdForSnapshotBypass,
+                                                                       disableSnapshotBypass,
+                                                                       predicatePushDown,
+                                                                       predicatePushDownBypass,
+                                                                       queryTimeoutInSec,
+                                                                       enableMinScnCheck,
+                                                                       db,
+                                                                       longestDbTxnTimeMins);
 
     Field field = bsp.getClass().getDeclaredField("_config");
     field.setAccessible(true);
@@ -85,7 +94,15 @@ public class TestBootstrapSCNProcessor
     // case 2. Single source, defaultRowsThresholdForSnapshotBypass set to finite value,
     // individual overrides set for the source
     rowsThresholdForSnapshotBypass.put(name, Long.MAX_VALUE);
-    BootstrapServerStaticConfig bssc2 = new BootstrapServerStaticConfig(defaultRowsThresholdForSnapshotBypass, rowsThresholdForSnapshotBypass, disableSnapshotBypass,  predicatePushDown, predicatePushDownBypass, queryTimeoutInSec,enableMinScnCheck, db);
+    BootstrapServerStaticConfig bssc2 = new BootstrapServerStaticConfig(defaultRowsThresholdForSnapshotBypass,
+                                                                        rowsThresholdForSnapshotBypass,
+                                                                        disableSnapshotBypass,
+                                                                        predicatePushDown,
+                                                                        predicatePushDownBypass,
+                                                                        queryTimeoutInSec,
+                                                                        enableMinScnCheck,
+                                                                        db,
+                                                                        longestDbTxnTimeMins);
     field.set(bsp, bssc2);
     sbs = bsp.shouldBypassSnapshot(sinceScn, startScn, srcList);
     Assert.assertEquals(true, sbs);

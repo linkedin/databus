@@ -68,7 +68,7 @@ public class TestMultiConsumerCallback
 
   static
   {
-    TestUtil.setupLogging(true, "TestMultiConsumerCallback-testng.txt", Level.OFF);
+    TestUtil.setupLogging(true, "/tmp/TestMultiConsumerCallback.txt", Level.OFF);
   }
 
   private void initMockStreamConsumer3EventFullLifecycle(DatabusStreamConsumer mockConsumer,
@@ -327,6 +327,7 @@ public class TestMultiConsumerCallback
   @Test
   public void testPerf() throws Exception
   {
+    LOG.info("\n\nstarting testPerf()");
 
     List<String> sources = new ArrayList<String>();
     Map<Long, IdNamePair> sourcesMap = new HashMap<Long, IdNamePair>();
@@ -368,7 +369,8 @@ public class TestMultiConsumerCallback
             executor,
             60000,
             new StreamConsumerCallbackFactory(),
-            statsCollector);
+            statsCollector,
+            null);
     callback.setSourceMap(sourcesMap);
 
     callback.onStartConsumption();
@@ -393,6 +395,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test1StreamConsumerHappyPath()
   {
+    LOG.info("\n\nstarting test1StreamConsumerHappyPath()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -424,7 +428,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             60000,
-            new StreamConsumerCallbackFactory(),null);
+            new StreamConsumerCallbackFactory(),
+            null,
+            null);
     callback.setSourceMap(sourcesMap);
 
     DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
@@ -448,6 +454,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test1StreamConsumerCallFailure()
   {
+    LOG.info("\n\nstarting test1StreamConsumerCallFailure()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -480,6 +488,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(),
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -506,6 +515,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void testConsumersWithException()
   {
+    LOG.info("\n\nstarting testConsumersWithException()");
+
     testConsumersWithException(new SomeApplicationException());
     testConsumersWithException(new TimeoutException("Application timed out processing some call but refused to field it"));
   }
@@ -544,6 +555,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(),
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -568,6 +580,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test3IndependentStreamConsumersHappyPath()
   {
+    LOG.info("\n\nstarting test3IndependentStreamConsumersHappyPath()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -615,7 +629,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),null);
+            new StreamConsumerCallbackFactory(),
+            null,
+            null);
     callback.setSourceMap(sourcesMap);
 
     DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
@@ -644,6 +660,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test3IndependentStreamConsumersWithFailure()
   {
+    LOG.info("\n\nstarting test3IndependentStreamConsumersWithFailure()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -690,7 +708,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),null);
+            new StreamConsumerCallbackFactory(),
+            null,
+            null);
     callback.setSourceMap(sourcesMap);
 
     DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
@@ -719,6 +739,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test3GroupedStreamConsumersHappyPath()
   {
+    LOG.info("\n\nstarting test3GroupedStreamConsumersHappyPath()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -762,7 +784,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),null);
+            new StreamConsumerCallbackFactory(),
+            null,
+            null);
     callback.setSourceMap(sourcesMap);
 
     DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
@@ -791,6 +815,8 @@ public class TestMultiConsumerCallback
   @Test(groups = {"small", "functional"})
   public void test3GroupedStreamConsumersWithFailure()
   {
+    LOG.info("\n\nstarting test3GroupedStreamConsumersWithFailure()");
+
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
     DbusEventBuffer eventsBuf = new DbusEventBuffer(_generic100KBufferStaticConfig);
@@ -834,7 +860,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),null);
+            new StreamConsumerCallbackFactory(),
+            null,
+            null);
     callback.setSourceMap(sourcesMap);
 
     DbusEventBuffer.DbusEventIterator iter = eventsBuf.acquireIterator("myIter1");
@@ -866,6 +894,8 @@ public class TestMultiConsumerCallback
   @Test
   public void test1ConsumerTimeout()
   {
+    LOG.info("\n\nstarting test1ConsumerTimeout()");
+
     //create dummy events
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
 
@@ -951,7 +981,8 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             100,
             new StreamConsumerCallbackFactory(),
-            statsCollector);
+            statsCollector,
+            null);
     callback.setSourceMap(sourcesMap);
 
     ConsumerCallbackResult startConsumptionRes = callback.onStartConsumption();
@@ -1031,7 +1062,7 @@ public class TestMultiConsumerCallback
     Logger log = Logger.getLogger("TestMultiConsumerCallback.test2ConsumerTimeout");
 
     //Logger.getRootLogger().setLevel(Level.INFO);
-    log.info("test2ConsumerTimeout: start");
+    log.info("\n\nstarting test2ConsumerTimeout()");
 
     log.info("create dummy events");
     Hashtable<Long, AtomicInteger> keyCounts = new Hashtable<Long, AtomicInteger>();
@@ -1227,7 +1258,7 @@ public class TestMultiConsumerCallback
         ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
         ConsumerCallbackStats consumerStats,
         int errorCallNumber) {
-      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats);
+      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats, null);
       _failOnCall = errorCallNumber;
     }
 

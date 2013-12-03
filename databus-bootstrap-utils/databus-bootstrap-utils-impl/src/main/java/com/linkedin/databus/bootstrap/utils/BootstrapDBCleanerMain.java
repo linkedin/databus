@@ -39,7 +39,6 @@ import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Logger;
-
 import org.apache.log4j.PatternLayout;
 import org.apache.log4j.PropertyConfigurator;
 
@@ -49,13 +48,12 @@ import com.linkedin.databus.bootstrap.common.BootstrapConfig;
 import com.linkedin.databus.bootstrap.common.BootstrapDBCleaner;
 import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
 import com.linkedin.databus.core.util.ConfigLoader;
-import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.util.DBHelper;
 
 /*
  *
  * Bootstrap DB Cleaner StandAlone Script.
- * 
+ *
  * Used for manually cleaning bootstrap DB.
  *
  */
@@ -78,7 +76,7 @@ public class BootstrapDBCleanerMain
   private static BootstrapCleanerStaticConfig _sCleanerConfig        = null;
   private static BootstrapReadOnlyConfig _sBootstrapConfig        = null;
   private static List<String>            _sSources  = null;
-  
+
   private static Properties  _sBootstrapConfigProps = null;
 
   /**
@@ -90,37 +88,22 @@ public class BootstrapDBCleanerMain
     parseArgs(args);
     BootstrapCleanerConfig config = new BootstrapCleanerConfig();
     BootstrapConfig bsConfig = new BootstrapConfig();
-    
+
     ConfigLoader<BootstrapCleanerStaticConfig> configLoader =
                 new ConfigLoader<BootstrapCleanerStaticConfig>("databus.bootstrap.cleaner.", config);
 
     ConfigLoader<BootstrapReadOnlyConfig> configLoader2 =
             new ConfigLoader<BootstrapReadOnlyConfig>("databus.bootstrap.db.", bsConfig);
-    
+
     _sCleanerConfig = configLoader.loadConfig(_sBootstrapConfigProps);
     _sBootstrapConfig = configLoader2.loadConfig(_sBootstrapConfigProps);
 
-    
-    BootstrapDBCleaner cleaner = new BootstrapDBCleaner("StandAloneCleaner", 
-    													_sCleanerConfig, 
-    													_sBootstrapConfig, 
-    													null, 
+    BootstrapDBCleaner cleaner = new BootstrapDBCleaner("StandAloneCleaner",
+    													_sCleanerConfig,
+    													_sBootstrapConfig,
+    													null,
     													_sSources);
-    
-    
-    if ((null == _sSources) || (_sSources.isEmpty()))
-    {
-    	_sSources = getSourceNames(cleaner.getBootstrapDao().getBootstrapConn().getDBConn());
-    	LOG.info("Going to run cleaner for all sources :" + _sSources);
-		try
-		{
-			cleaner.setSources(cleaner.getBootstrapDao().getSourceIdAndStatusFromName(_sSources,false));
-		} catch (BootstrapDatabaseTooOldException bto) {
-			LOG.error("Not expected to receive this exception as activeCheck is turned-off", bto);
-			throw new RuntimeException(bto);
-		}	
-    }
-   
+
     cleaner.doClean();
   }
 
@@ -140,25 +123,25 @@ public class BootstrapDBCleanerMain
                                   .hasArg()
                                   .withArgName("property_file")
                                   .create(BOOTSTRAP_DB_PROP_OPT_CHAR);
-      
+
       Option cmdLinePropsOption1 = OptionBuilder.withLongOpt(CLEANER_CMD_LINE_PROPS_OPT_LONG_NAME)
       								.withDescription("Cmd line override of cleaner config properties. Semicolon separated.")
       								.hasArg()
       								.withArgName("Semicolon_separated_properties")
       								.create(CLEANER_CMD_LINE_PROPS_OPT_CHAR);
-      
+
 	  Option log4jPropsOption = OptionBuilder.withLongOpt(LOG4J_PROPS_OPT_LONG_NAME)
 									.withDescription("Log4j properties to use")
 									.hasArg()
 									.withArgName("property_file")
 									.create(LOG4J_PROPS_OPT_CHAR);
-	  
+
       Option sourcesOption = OptionBuilder.withLongOpt(BOOTSTRAP_SOURCES_OPT_LONG_NAME)
-              .withDescription("Comma seperated list of sourceNames. If not provided, will cleanup all sources in the bootstrap DB.")
+              .withDescription("Comma seperated list of sourceNames. If not provided, no source will be cleaned up")
               .hasArg()
               .withArgName("comma-seperated sources")
               .create(BOOTSTRAP_SOURCES_PROP_OPT_CHAR);
-      
+
       Options options = new Options();
       options.addOption(helpOption);
       options.addOption(dbOption);
@@ -193,7 +176,7 @@ public class BootstrapDBCleanerMain
 
     	  LOG.info("Using default logging settings");
       }
-      
+
       if (cmd.hasOption(HELP_OPT_CHAR))
       {
         printCliHelp(options);
@@ -209,7 +192,7 @@ public class BootstrapDBCleanerMain
           for (String s: srcList)
         	  _sSources.add(s);
       }
-      
+
       if (!cmd.hasOption(BOOTSTRAP_DB_PROP_OPT_CHAR) )
           throw new RuntimeException("Bootstrap config is not provided");
 
@@ -254,7 +237,7 @@ public class BootstrapDBCleanerMain
       }
     }
   }
-  
+
   /*
    * Get the sourceIds which are bootstrapped in this DB
    *

@@ -15,4 +15,20 @@ Bug fixes:
 Operability Improvements:
 - Command-line packages to read events from bootstrap database
 
+11/05/2013 : Open release from internal version 2.1.190
+
+Features:
+- A new GoldenGate adapter using XML trail files
+- Client networking simplification
+- Refactored buffer management code to support multiple binary event format.
+  - Added a new binary format to support source-specific metadata
+- Connection tracking of requests coming in/out from relays/bootstrap services 
+  ( making it easier to debug when connected over hardware VIPs )
+
+Bug fixes:
+- Bug fixes across all components.
+
+Operability Improvements:
+- Command-line packages to read events from bootstrap database
+
 02/26/2013 : Initial commit

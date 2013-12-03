@@ -1414,6 +1414,8 @@ public class TestBootstrapPullThread
     // getting the pending-event-size header is called twice, once for checking and once for logging.
     EasyMock.expect(channel.getMetadata(DatabusHttpHeaders.DATABUS_PENDING_EVENT_SIZE)).andReturn("1000000").times(2);
     EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(null).times(2);
+    EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(null).times(2);
+
 
     EasyMock.replay(channel);
 
@@ -2384,9 +2386,11 @@ public class TestBootstrapPullThread
 	  {
 		  EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(null).anyTimes();
 		  EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(null).anyTimes();
+      EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(null).anyTimes();
 	  } else {
 		  EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(exceptionName).anyTimes();
 		  EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(exceptionName).anyTimes();
+		  EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(exceptionName).anyTimes();
 	  }
 
 	  if ( phaseCompleted)

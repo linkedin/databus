@@ -47,6 +47,8 @@ public class BootstrapDBPeriodicTriggerThread extends DatabusThreadBase
   @Override
   public void run()
   {
+    LOG.info("PeriodicTrigger Config :" + _config);
+
     long runNumber = 0;
     long roundBeginTime = System.currentTimeMillis();
     long roundEndTime = roundBeginTime;
@@ -72,16 +74,9 @@ public class BootstrapDBPeriodicTriggerThread extends DatabusThreadBase
 
       synchronized (_cleaner)
       {
-        if (!_cleaner.isCleanerRunning())
-        {
-          roundBeginTime = System.currentTimeMillis();
-          _cleaner.doClean();
-          roundEndTime = System.currentTimeMillis();
-        }
-        else
-        {
-          LOG.info("Skipping this round as cleaner is already running !!");
-        }
+        roundBeginTime = System.currentTimeMillis();
+        _cleaner.doClean();
+        roundEndTime = System.currentTimeMillis();
       }
 
       long timeTakenMs = roundEndTime - roundBeginTime;

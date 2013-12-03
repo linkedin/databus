@@ -25,6 +25,16 @@ import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
 
 public class BootstrapServerStaticConfig
 {
+    // Margin time for longest transaction.
+    // When a bootstrap server needs to filter events by time, it has the timestamp T1 of the last window (say, SCN 'S1')
+    // received on the client. However, it is possible that there are older events in a newer window, and vice versa. So
+    // the bootstrap server streams events starting from some old timestamp T2. The server chooses T2 such that T2 < T1
+    // and there are no events that meet the following criteria
+    //   a. event has timestamp T < T2
+    //   b. event has SCN S > S1
+    // T2 is computed as (T1 - _longestDbTxnTime)
+    // Default value of _longestDbTxnTimeHrs is 4 hours.
+    private final long _longestDbTxnTimeMins;
 	  // if the number of events between sinceSCN and start SCN is less than this threshold, then snapshot could be disabled.
 	  private final Long defaultRowsThresholdForSnapshotBypass;
 
@@ -50,13 +60,15 @@ public class BootstrapServerStaticConfig
     private final boolean enableMinScnCheck;
 
     public BootstrapServerStaticConfig(Long defaultRowsThresholdForSnapshotBypass,
-			  Map<String, Long> rowsThresholdForSnapshotBypass,
-			  Map<String, Boolean> disableSnapshotBypass,
-			  boolean predicatePushDown,
-              Map<String, Boolean> predicatePushDownBypass,
-              int queryTimeoutInSec,
-              boolean enableMinScnCheck,
-			  BootstrapReadOnlyConfig db) {
+                                       Map<String, Long> rowsThresholdForSnapshotBypass,
+                                       Map<String, Boolean> disableSnapshotBypass,
+                                       boolean predicatePushDown,
+                                       Map<String, Boolean> predicatePushDownBypass,
+                                       int queryTimeoutInSec,
+                                       boolean enableMinScnCheck,
+                                       BootstrapReadOnlyConfig db,
+                                       long longestDbTxnTimeMins)
+    {
 		  super();
 		  this.defaultRowsThresholdForSnapshotBypass = defaultRowsThresholdForSnapshotBypass;
 		  this.rowsThresholdForSnapshotBypass = rowsThresholdForSnapshotBypass;
@@ -66,6 +78,7 @@ public class BootstrapServerStaticConfig
           this.queryTimeoutInSec = queryTimeoutInSec;
           this.enableMinScnCheck = enableMinScnCheck;
 		  this.db = db;
+      this._longestDbTxnTimeMins = longestDbTxnTimeMins;
 	  }
 
 	  @Override
@@ -95,6 +108,11 @@ public class BootstrapServerStaticConfig
 	  public Long getDefaultRowsThresholdForSnapshotBypass() {
 		  return defaultRowsThresholdForSnapshotBypass;
 	  }
+
+    public long getLongestDbTxnTimeMins()
+    {
+      return _longestDbTxnTimeMins;
+    }
 
 	  public int getQueryTimeoutInSec()
 	  {

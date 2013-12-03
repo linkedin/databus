@@ -18,20 +18,17 @@ package com.linkedin.databus.client.consumer;
  *
 */
 
-
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.Formatter;
-
 import org.apache.avro.Schema;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonGenerationException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
-
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -39,6 +36,7 @@ import com.linkedin.databus.client.pub.DatabusV3Consumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.DbusEventPart;
 import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 import com.linkedin.databus.core.util.ConfigApplier;
 import com.linkedin.databus.core.util.ConfigBuilder;
@@ -385,12 +383,25 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
       if (_bstEventsNum % BOOTSTRAP_EVENT_LOG_FREQUENCY == 1)
       {
         final VersionedSchema payloadSchema = eventDecoder.getPayloadSchema(e);
-        String schemaName = (null == payloadSchema) ? "unknown source: " + e.srcId() :
+        String schemaName = (null == payloadSchema) ? "unknown source: " + e.getSourceId() :
                             payloadSchema.getSchema().getName();
-        String keyStr;
+        String keyStr = null;
         try
         {
-          keyStr = e.isKeyString() ? new String(e.keyBytes(), "UTF-8") : Long.toString(e.key());
+          if (e.isKeyString())
+          {
+            keyStr = new String(e.keyBytes(), "UTF-8");
+          }
+          else if (e.isKeyNumber())
+          {
+            keyStr = Long.toString(e.key());
+          }
+          else if (e.isKeySchema())
+          {
+            // TODO Fix to use a decoder (DDSDBUS-2076)
+            DbusEventPart keyPart = e.getKeyPart();
+            keyStr = keyPart.toString();
+          }
         }
         catch (UnsupportedEncodingException e1)
         {

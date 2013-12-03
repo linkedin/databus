@@ -76,6 +76,7 @@ public class BootstrapApplierThread extends DatabusThreadBase
   private final RateMonitor _totalRm;
   private final BackoffTimer _retryTimer;
   private long _minScn = -1L;
+  private boolean _isRunning = false;
 
   /**
    * @param config
@@ -118,7 +119,7 @@ public class BootstrapApplierThread extends DatabusThreadBase
   @Override
   public void run()
   {
-    boolean running = true;
+    _isRunning = true;
 
     try
     {
@@ -141,7 +142,7 @@ public class BootstrapApplierThread extends DatabusThreadBase
 
     int sleepTime = INITIAL_EVENT_WAIT_TIME;
     int totalRowsApplied = 0;
-    while (running && !isShutdownRequested())
+    while (_isRunning && !isShutdownRequested())
     {
       try
       {
@@ -217,7 +218,7 @@ public class BootstrapApplierThread extends DatabusThreadBase
             LOG.fatal(
                 "Unable to reset Bootstrap DB connections. Stopping Applier Thread !!",
                 e);
-            running = false;
+            _isRunning = false;
           }
         }
       }
@@ -228,13 +229,18 @@ public class BootstrapApplierThread extends DatabusThreadBase
     doShutdownNotify();
   }
 
+  public boolean isRunning()
+  {
+    return _isRunning;
+  }
+
   private void closeApplyStatements() throws SQLException
   {
     _sourcePositions.close();
   }
 
   private int applyLog(String source) throws BootstrapDatabaseTooOldException,
-      SQLException, InterruptedException
+      SQLException
   {
     PreparedStatement stmt = null;
 

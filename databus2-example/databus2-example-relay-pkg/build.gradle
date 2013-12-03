@@ -26,11 +26,28 @@ task myTar(type: Tar) {
     include('setup.inc')
   }
 
+  into("schemas-registry") {
+    from("schemas-registry")
+  }
+
   into("lib") {
-     from configurations.runtime
+    from configurations.runtime
+  }
+
+  into("schemas_registry") {
+    from "schemas_registry/"
   }
 }
 
 myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
 myTar.dependsOn ':databus2-example:databus2-example-relay:assemble'
-assemble.dependsOn myTar
+//assemble.dependsOn myTar
+artifacts {
+    archives myTar
+}
+
+if (!isDefaultEnvironment) {
+	generateModuleArtifactSpec {
+		exclude {proj, conf, artifact -> artifact.file.name.endsWith('.jar') }
+	}
+}

@@ -35,7 +35,6 @@ import org.apache.commons.cli.ParseException;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.DatabusHttpClientImpl;
-import com.linkedin.databus.client.consumer.LoggingConsumer;
 import com.linkedin.databus.client.pub.DatabusRegistration;
 import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
 import com.linkedin.databus.client.registration.DatabusV2RegistrationImpl;
@@ -188,9 +187,16 @@ public class SimpleFileLoggingConsumer {
     return _sources;
   }
 
-  protected DatabusFileLoggingConsumer createTypedConsumer(String valueDumpFile) throws IOException
+  protected DatabusFileLoggingConsumer createTypedConsumer(String valueDumpFile)
+  throws IOException
   {
-    return new DatabusFileLoggingConsumer(valueDumpFile, false);
+    return createTypedConsumer(valueDumpFile, null);
+  }
+
+  protected DatabusFileLoggingConsumer createTypedConsumer(String valueDumpFile, String eventDumpFile)
+  throws IOException
+  {
+    return new DatabusFileLoggingConsumer(valueDumpFile, null, eventDumpFile, false);
   }
 
   public void mainFunction(String args[]) throws Exception
@@ -268,26 +274,24 @@ public class SimpleFileLoggingConsumer {
 
     // set up listeners
     DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConfig);
-    
 
-    DatabusFileLoggingConsumer consumer = createTypedConsumer(_valueDumpFile);
+    // dump decoded payload values and raw (undecoded) events
+    DatabusFileLoggingConsumer consumer = createTypedConsumer(_valueDumpFile, _eventDumpFile);
+
     if (_eventPattern != null)
     {
       consumer.setEventPattern(_eventPattern);
     }
     DatabusRegistration reg = client.register(consumer, sources);
-    
-    if (null != filterConfig)
-    	reg.withServerSideFilter(filterConfig);
-    
-    if (reg instanceof DatabusV2RegistrationImpl)
+
+    if (!(reg instanceof DatabusV2RegistrationImpl))
     {
-    	DatabusV2RegistrationImpl r = (DatabusV2RegistrationImpl)reg;
-    	r.getLoggingConsumer().enableEventFileTrace(_eventDumpFile);
-    } else {
     	throw new RuntimeException("Unexpected type for registration Object !!");
     }
-    
+
+    if (null != filterConfig)
+    	reg.withServerSideFilter(filterConfig);
+
     // add pause processor
     try
     {

@@ -16,7 +16,7 @@ package com.linkedin.databus.client.pub;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
+ */
 
 
 import java.io.File;
@@ -44,9 +44,9 @@ import com.linkedin.databus2.test.TestUtil;
 
 public class TestClusterCheckpointPersistenceProvider
 {
-    protected static final Logger LOG = Logger.getLogger(TestClusterCheckpointPersistenceProvider.class);
+  protected static final Logger LOG = Logger.getLogger(TestClusterCheckpointPersistenceProvider.class);
 
-  static final int localZkPort = Utils.getAvailablePort(2193);
+  static int localZkPort = Utils.getAvailablePort(2193);
   static final String zkAddr = "localhost:" + localZkPort;
   static final String clusterName = "test-databus-cluster-cp";
   static List<ZkServer> _localZkServers = null;
@@ -54,247 +54,257 @@ public class TestClusterCheckpointPersistenceProvider
   @BeforeClass
   public void startZookeeper() throws IOException
   {
-     TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestClusterCheckpointPersistenceProvider_",
-                                              ".log", Level.WARN);
-     File zkroot = FileUtils.createTempDir("TestClusterCheckpointPersistenceProvider_zkroot");
-     LOG.info("starting ZK on port " + localZkPort + " and datadir " + zkroot.getAbsolutePath());
+    TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestClusterCheckpointPersistenceProvider_",
+        ".log", Level.WARN);
+    File zkroot = FileUtils.createTempDir("TestClusterCheckpointPersistenceProvider_zkroot");
+    LOG.info("starting ZK on port " + localZkPort + " and datadir " + zkroot.getAbsolutePath());
 
-     ZkServer zkServer = TestUtil.startZkServer(zkroot.getAbsolutePath(), 0,
-                                                localZkPort , 2000);
-     if (zkServer != null)
-     {
-       _localZkServers  = new Vector<ZkServer>(1);
-       _localZkServers.add(zkServer);
-     }
+    ZkServer zkServer = TestUtil.startZkServer(zkroot.getAbsolutePath(), 0,
+        localZkPort , 2000);
+    if (zkServer != null)
+    {
+      _localZkServers  = new Vector<ZkServer>(1);
+      _localZkServers.add(zkServer);
+    }
   }
 
   @AfterClass
   public void stopZookeeper()
   {
-      if (_localZkServers != null)
-      {
-          TestUtil.stopLocalZookeeper(_localZkServers);
-      }
+    if (_localZkServers != null)
+    {
+      TestUtil.stopLocalZookeeper(_localZkServers);
+    }
   }
 
 
   @Test
   public void testClusterCheckpointPersistence()
   {
-      Checkpoint cp = new Checkpoint();
-      cp.setWindowScn(50532L);
-      cp.setWindowOffset(-1);
-      cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+    Checkpoint cp = new Checkpoint();
+    cp.setWindowScn(50532L);
+    cp.setWindowOffset(-1);
+    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
 
-      String id = "4";
-      String clusterName = "test-cluster-persistence";
-	  ClusterCheckpointPersistenceProvider.createCluster(zkAddr,clusterName);
-      ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
-      conf.setClusterName(clusterName);
-      conf.setZkAddr(zkAddr);
+    String id = "4";
+    String clusterName = "test-cluster-persistence";
+    ClusterCheckpointPersistenceProvider.createCluster(zkAddr,clusterName);
+    ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
+    conf.setClusterName(clusterName);
+    conf.setZkAddr(zkAddr);
 
-      ArrayList<String> sources= new ArrayList<String>(3);
-      sources.add("source1");
-      sources.add("source2");
-      sources.add("source3");
+    ArrayList<String> sources= new ArrayList<String>(3);
+    sources.add("source1");
+    sources.add("source2");
+    sources.add("source3");
 
+    try
+    {
+      ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(id,conf);
+      ccp.storeCheckpoint(sources, cp);
+
+      Checkpoint newCp = ccp.loadCheckpoint(sources);
+      Assert.assertTrue(newCp != null);
+      Assert.assertTrue(newCp.getWindowOffset()==cp.getWindowOffset());
+      Assert.assertTrue(newCp.getWindowScn()==cp.getWindowScn());
+      Assert.assertTrue(newCp.getConsumptionMode()==cp.getConsumptionMode());
+
+    }
+    catch (InvalidConfigException e)
+    {
+      System.err.println("Invalid config: " + e);
+      Assert.assertTrue(false);
+    }
+    catch (IOException e)
+    {
+      System.err.println("Error storing checkpoint: " + e);
+      Assert.assertTrue(false);
+    }
+    catch (ClusterCheckpointException e)
+    {
+      Assert.assertTrue(false);
+    }
+    finally
+    {
+      ClusterCheckpointPersistenceProvider.close(clusterName);
+    }
+
+  }
+
+  @Test
+  public void testFrequencyOfCheckpoints() throws Exception
+  {
+    Checkpoint cp = new Checkpoint();
+    long startWindowScn = 50532L;
+    cp.setWindowScn(startWindowScn);
+    cp.setWindowOffset(-1);
+    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+
+    int checkPointIntervalMs = 200;
+
+    String id = "5";
+    String clusterName = "test-cluster-freq";
+    ClusterCheckpointPersistenceProvider.createCluster(zkAddr, clusterName);
+    ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
+    conf.setClusterName(clusterName);
+    conf.setZkAddr(zkAddr);
+    conf.setCheckpointIntervalMs(checkPointIntervalMs);
+
+    ArrayList<String> sources = new ArrayList<String>(3);
+    sources.add("source1");
+    sources.add("source2");
+    sources.add("source3");
+
+    try
+    {
+      ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(
+          id, conf);
+      long delayMs = 50;
+      int numAttemptedWrites = 100;
+      int numActualStores = 0;
+      int expectedActualStores = (delayMs >= checkPointIntervalMs) ? numAttemptedWrites
+          : (int) ((numAttemptedWrites / (checkPointIntervalMs / delayMs)));
+      for (int i = 0; i < numAttemptedWrites; ++i)
+      {
+        cp.setWindowScn(startWindowScn + i);
+        ccp.storeCheckpoint(sources, cp);
+        Checkpoint newCp = ccp.loadCheckpoint(sources);
+        // cp integrity checks
+        Assert.assertTrue(newCp != null);
+        Assert.assertTrue(newCp.getWindowOffset() == cp
+            .getWindowOffset());
+        Assert.assertTrue(newCp.getConsumptionMode() == cp
+            .getConsumptionMode());
+        // skipped store test;
+        if (newCp.getWindowScn() == cp.getWindowScn())
+        {
+          numActualStores++;
+        }
+        Thread.sleep(delayMs);
+      }
+      LOG.warn("Num actual stores=" + numActualStores
+          + " Num expected stores=" + expectedActualStores);
+      Assert.assertTrue((numActualStores == expectedActualStores)
+          || (numActualStores == expectedActualStores + 1));
+    }
+    finally
+    {
+      ClusterCheckpointPersistenceProvider.close(clusterName);
+    }
+  }
+
+  @Test
+  public void testMultipleClusterCheckpointPersistence()
+  {
+    try
+    {
+      String[] partitionIds = { "1", "2", "3", "4", "5", "6" };
+      String[] clusters = { "tcluster1", "tcluster2", "tcluster3" };
+      ArrayList<CheckpointRW> cpRws = new ArrayList<TestClusterCheckpointPersistenceProvider.CheckpointRW>();
+      for (String c : clusters)
+      {
+        // create clusters;
+        ClusterCheckpointPersistenceProvider.createCluster(zkAddr, c);
+        for (String p : partitionIds)
+        {
+          cpRws.add(new CheckpointRW(c, p, RngUtils
+              .randomPositiveLong()));
+        }
+      }
+      for (CheckpointRW cpRW : cpRws)
+      {
+        cpRW.start();
+      }
+      for (CheckpointRW cpRW : cpRws)
+      {
+        cpRW.join(10000);
+        Assert.assertFalse(cpRW.hasError());
+      }
+    }
+    catch (Exception e)
+    {
+      Assert.assertTrue(false);
+    }
+  }
+
+  /**
+   * thread that writes Checkpoints to clusters
+   *
+   */
+  public class CheckpointRW extends Thread
+  {
+    private final String _clusterName;
+    private final String _partitionId;
+    private final long _startScn;
+    private final long _durationMs = 5000;
+    private final long _delayMs = 200;
+    private boolean _hasError = false;
+
+    public CheckpointRW(String cluster, String partitionId, long startScn)
+    {
+      _clusterName = cluster;
+      _partitionId = partitionId;
+      _startScn = startScn;
+    }
+
+    public boolean hasError()
+    {
+      return _hasError;
+    }
+
+    public String getClusterName()
+    {
+      return _clusterName;
+    }
+
+    @Override
+    public void run()
+    {
       try
       {
-          ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(id,conf);
+        ArrayList<String> sources = new ArrayList<String>(3);
+        sources.add("src1");
+        sources.add("src2");
+        sources.add("src3");
+        long endTimeMs = System.currentTimeMillis() + _durationMs;
+        while (System.currentTimeMillis() < endTimeMs)
+        {
+          ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
+          conf.setClusterName(_clusterName);
+          conf.setZkAddr(zkAddr);
+          conf.setCheckpointIntervalMs(_delayMs - 10);
+
+          Checkpoint cp = new Checkpoint();
+          cp.setWindowScn(_startScn);
+          cp.setWindowOffset(-1);
+          cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+
+          // cluster creation code
+          ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(
+              _partitionId, conf);
           ccp.storeCheckpoint(sources, cp);
 
           Checkpoint newCp = ccp.loadCheckpoint(sources);
+
           Assert.assertTrue(newCp != null);
-          Assert.assertTrue(newCp.getWindowOffset()==cp.getWindowOffset());
-          Assert.assertTrue(newCp.getWindowScn()==cp.getWindowScn());
-          Assert.assertTrue(newCp.getConsumptionMode()==cp.getConsumptionMode());
-          ClusterCheckpointPersistenceProvider.close(clusterName);
+          Assert.assertTrue(newCp.getWindowOffset() == cp
+              .getWindowOffset());
+          Assert.assertTrue(newCp.getWindowScn() == cp.getWindowScn());
+          Assert.assertTrue(newCp.getConsumptionMode() == cp
+              .getConsumptionMode());
 
-      }
-      catch (InvalidConfigException e)
-      {
-          System.err.println("Invalid config: " + e);
-          Assert.assertTrue(false);
-      }
-      catch (IOException e)
-      {
-          System.err.println("Error storing checkpoint: " + e);
-          Assert.assertTrue(false);
-      }
-      catch (ClusterCheckpointException e)
-      {
-    	  Assert.assertTrue(false);
-      }
-
-  }
-
-  @Test
-    public void testFrequencyOfCheckpoints() throws Exception
-    {
-        Checkpoint cp = new Checkpoint();
-        long startWindowScn = 50532L;
-        cp.setWindowScn(startWindowScn);
-        cp.setWindowOffset(-1);
-        cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
-
-        int checkPointIntervalMs = 200;
-
-        String id = "5";
-        String clusterName = "test-cluster-freq";
-        ClusterCheckpointPersistenceProvider.createCluster(zkAddr, clusterName);
-        ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
-        conf.setClusterName(clusterName);
-        conf.setZkAddr(zkAddr);
-        conf.setCheckpointIntervalMs(checkPointIntervalMs);
-
-        ArrayList<String> sources = new ArrayList<String>(3);
-        sources.add("source1");
-        sources.add("source2");
-        sources.add("source3");
-        ClusterCheckpointPersistenceProvider.close(clusterName);
-
-        ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(
-                id, conf);
-        long delayMs = 50;
-        int numAttemptedWrites = 100;
-        int numActualStores = 0;
-        int expectedActualStores = (delayMs >= checkPointIntervalMs) ? numAttemptedWrites
-                : (int) ((numAttemptedWrites / (checkPointIntervalMs / delayMs)));
-        for (int i = 0; i < numAttemptedWrites; ++i)
-        {
-            cp.setWindowScn(startWindowScn + i);
-            ccp.storeCheckpoint(sources, cp);
-            Checkpoint newCp = ccp.loadCheckpoint(sources);
-            // cp integrity checks
-            Assert.assertTrue(newCp != null);
-            Assert.assertTrue(newCp.getWindowOffset() == cp
-                    .getWindowOffset());
-            Assert.assertTrue(newCp.getConsumptionMode() == cp
-                    .getConsumptionMode());
-            // skipped store test;
-            if (newCp.getWindowScn() == cp.getWindowScn())
-            {
-                numActualStores++;
-            }
-            Thread.sleep(delayMs);
+          Thread.sleep(_delayMs);
         }
-        LOG.warn("Num actual stores=" + numActualStores
-                + " Num expected stores=" + expectedActualStores);
-        Assert.assertTrue((numActualStores == expectedActualStores)
-                || (numActualStores == expectedActualStores + 1));
+      }
+      catch (Exception e)
+      {
+        LOG.error("Exception caught " + e, e);
+        _hasError = true;
+      }
+      finally
+      {
+        ClusterCheckpointPersistenceProvider.close(_clusterName);
+      }
     }
-
-  @Test
-    public void testMultipleClusterCheckpointPersistence()
-    {
-        try
-        {
-            String[] partitionIds = { "1", "2", "3", "4", "5", "6" };
-            String[] clusters = { "tcluster1", "tcluster2", "tcluster3" };
-            ArrayList<CheckpointRW> cpRws = new ArrayList<TestClusterCheckpointPersistenceProvider.CheckpointRW>();
-            for (String c : clusters)
-            {
-                // create clusters;
-                ClusterCheckpointPersistenceProvider.createCluster(zkAddr, c);
-                for (String p : partitionIds)
-                {
-                    cpRws.add(new CheckpointRW(c, p, RngUtils
-                            .randomPositiveLong()));
-                }
-            }
-            for (CheckpointRW cpRW : cpRws)
-            {
-                cpRW.start();
-            }
-            for (CheckpointRW cpRW : cpRws)
-            {
-                cpRW.join(10000);
-                Assert.assertFalse(cpRW.hasError());
-                ClusterCheckpointPersistenceProvider.close(cpRW
-                        .getClusterName());
-            }
-        }
-        catch (Exception e)
-        {
-            Assert.assertTrue(false);
-        }
   }
-
-    /**
-     * thread that writes Checkpoints to clusters
-     *
-     */
-    public class CheckpointRW extends Thread
-    {
-        private String _clusterName;
-        private String _partitionId;
-        private long _startScn;
-        private long _durationMs = 5000;
-        private long _delayMs = 200;
-        private boolean _hasError = false;
-
-        public CheckpointRW(String cluster, String partitionId, long startScn)
-        {
-            _clusterName = cluster;
-            _partitionId = partitionId;
-            _startScn = startScn;
-        }
-
-        public boolean hasError()
-        {
-            return _hasError;
-        }
-
-        public String getClusterName()
-        {
-            return _clusterName;
-        }
-
-        @Override
-        public void run()
-        {
-            try
-            {
-                ArrayList<String> sources = new ArrayList<String>(3);
-                sources.add("src1");
-                sources.add("src2");
-                sources.add("src3");
-                long endTimeMs = System.currentTimeMillis() + _durationMs;
-                while (System.currentTimeMillis() < endTimeMs)
-                {
-                    ClusterCheckpointPersistenceProvider.Config conf = new ClusterCheckpointPersistenceProvider.Config();
-                    conf.setClusterName(_clusterName);
-                    conf.setZkAddr(zkAddr);
-                    conf.setCheckpointIntervalMs(_delayMs - 10);
-
-                    Checkpoint cp = new Checkpoint();
-                    cp.setWindowScn(_startScn);
-                    cp.setWindowOffset(-1);
-                    cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
-
-                    // cluster creation code
-                    ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(
-                            _partitionId, conf);
-                    ccp.storeCheckpoint(sources, cp);
-
-                    Checkpoint newCp = ccp.loadCheckpoint(sources);
-
-                    Assert.assertTrue(newCp != null);
-                    Assert.assertTrue(newCp.getWindowOffset() == cp
-                            .getWindowOffset());
-                    Assert.assertTrue(newCp.getWindowScn() == cp.getWindowScn());
-                    Assert.assertTrue(newCp.getConsumptionMode() == cp
-                            .getConsumptionMode());
-
-                    Thread.sleep(_delayMs);
-                }
-            }
-            catch (Exception e)
-            {
-                LOG.error("Exception caught " + e, e);
-                _hasError = true;
-            }
-
-        }
-    }
 }

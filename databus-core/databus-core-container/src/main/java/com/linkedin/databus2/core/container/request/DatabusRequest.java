@@ -225,13 +225,28 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
     {
       //LOG.error("Response error: " + _responseThrowable);
       _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_CLASS_HEADER, _responseThrowable.getClass().getName());
+      if (_responseThrowable.getMessage() != null)
+      {
+        _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_MESSAGE_HEADER, _responseThrowable.getMessage());
+      }
+      else
+      {
+        _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_MESSAGE_HEADER, "No message provided");
+      }
       Throwable cause = _responseThrowable.getCause();
       if (null != cause)
       {
         //LOG.error("Response error caused by: " + cause);
         _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_CAUSE_CLASS_HEADER, cause.getClass().getName());
+        if (cause.getMessage() != null)
+        {
+          _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_CAUSE_MESSAGE_HEADER,cause.getMessage());
+        }
+        else
+        {
+          _responseContent.addMetadata(DatabusHttpHeaders.DATABUS_ERROR_CAUSE_MESSAGE_HEADER,"No message provided");
+        }
       }
-
       _responseContent.setResponseCode(HttpResponseStatus.INTERNAL_SERVER_ERROR);
 
       HashMap<String, String> exceptionInfo = new HashMap<String, String>();

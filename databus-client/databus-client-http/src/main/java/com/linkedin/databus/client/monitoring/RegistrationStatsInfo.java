@@ -69,7 +69,7 @@ public class RegistrationStatsInfo
 	public RegistrationStatsInfo(DatabusV3Registration reg, DatabusSourcesConnection sourcesConn)
     {
 	  setRegId(reg.getId());
-	  setParentRegId(reg.getParentRegId());
+	  setParentRegId(null != reg.getParentRegistration() ? reg.getParentRegistration().getId() : null);
 	  setSubscriptions(reg.getSubscriptions());
 
       if (reg instanceof DatabusV3MultiPartitionRegistration)

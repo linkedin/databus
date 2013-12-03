@@ -19,6 +19,11 @@ package com.linkedin.databus.client.generic;
 */
 
 
+import java.io.IOException;
+
+import org.apache.avro.Schema;
+import org.apache.log4j.Logger;
+
 import com.linkedin.databus.client.ClientFileBasedEventTrackingCallback;
 import com.linkedin.databus.client.ClientFileBasedMetadataTrackingCallback;
 import com.linkedin.databus.client.DbusEventAvroDecoder;
@@ -27,11 +32,9 @@ import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.DbusEvent;
+import com.linkedin.databus.core.FileBasedEventTrackingCallback;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
-import java.io.IOException;
-import org.apache.avro.Schema;
-import org.apache.log4j.Logger;
 
 public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 	implements DatabusConsumerPauseInterface
@@ -39,8 +42,9 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 
   public final static String MODULE = DatabusFileLoggingConsumer.class.getName();
   public final static Logger LOG = Logger.getLogger(MODULE);
-  private ClientFileBasedEventTrackingCallback _fileBasedCallback = null;
+  private ClientFileBasedEventTrackingCallback _fileBasedDecodedValueCallback = null;
   private ClientFileBasedMetadataTrackingCallback _fileBasedMetadataCallback = null;
+  private FileBasedEventTrackingCallback _fileBasedRawEventCallback = null;
   private boolean _isPaused;
   private String _EventPattern = null;
 
@@ -48,145 +52,193 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
   {
     private final String _valueDumpFile;
     private final String _metadataDumpFile;
+    private final String _eventDumpFile;
     private boolean _append;
-    
-    /** The file where to store the JSON values. If null, no values are to be stored. */
+
+    /** The file in which to store the payload values in JSON format. If null, no values are to be stored. */
     public String getValueDumpFile()
     {
       return _valueDumpFile;
     }
-    
-    /** The file where to store the decoded metadata info from v2 event. If null, no metadata are to be stored. */
+
+    /** The file in which to store the decoded metadata info from v2 events. If null, no metadata are to be stored. */
     public String getMetadataDumpFile()
     {
-    	return _metadataDumpFile;
+      return _metadataDumpFile;
+    }
+
+    /** The file in which to store the raw (undecoded) event in JSON format. If null, no raw events will be stored. */
+    public String getEventDumpFile()
+    {
+      return _eventDumpFile;
     }
 
     public boolean isAppendOnly()
     {
-    	return _append;
+      return _append;
     }
-    
-    public StaticConfig(String valueDumpFile, boolean append)
+
+//NOT USED?
+//  public StaticConfig(String valueDumpFile, boolean append)
+//  {
+//    this(valueDumpFile, null, append);
+//  }
+
+    public StaticConfig(String valueDumpFile, String metadataDumpFile, String eventDumpFile, boolean append)
     {
-      this(valueDumpFile, null, append);
-    }
-    
-    public StaticConfig(String valueDumpFile, String metadataDumpFile, boolean append)
-    {
-    	_valueDumpFile = valueDumpFile;
-    	_metadataDumpFile = metadataDumpFile;
-    	_append = append;
+      _valueDumpFile = valueDumpFile;
+      _metadataDumpFile = metadataDumpFile;
+      _eventDumpFile = eventDumpFile;
+      _append = append;
     }
   }
+
 
   public static class StaticConfigBuilder implements ConfigBuilder<StaticConfig>
   {
     private String _valueDumpFile;
     private String _metadataDumpFile;
+    private String _eventDumpFile;
     private boolean _appendOnly = false; // by default file logging is not append-only
-    
+
     public String getValueDumpFile()
     {
       return _valueDumpFile;
     }
-    
+
     public String getMetadataDumpFile()
     {
-    	return _metadataDumpFile;
+      return _metadataDumpFile;
+    }
+
+    public String getEventDumpFile()
+    {
+      return _eventDumpFile;
     }
 
     public void setValueDumpFile(String valueDumpFile)
     {
       _valueDumpFile = valueDumpFile;
     }
-    
+
     public void setMetadataDumpFile(String metadataDumpFile)
     {
-    	_metadataDumpFile = metadataDumpFile;
+      _metadataDumpFile = metadataDumpFile;
     }
-    
-    public boolean getAppendOnly() {
-		return _appendOnly;
-	}
 
-	public void setAppendOnly(boolean appendOnly) {
-		this._appendOnly = appendOnly;
-	}
+    public void setEventDumpFile(String eventDumpFile)
+    {
+      _eventDumpFile = eventDumpFile;
+    }
 
-	@Override
+    public boolean getAppendOnly()
+    {
+      return _appendOnly;
+    }
+
+    public void setAppendOnly(boolean appendOnly)
+    {
+      this._appendOnly = appendOnly;
+    }
+
+    @Override
     public StaticConfig build() throws InvalidConfigException
     {
-      return new StaticConfig(_valueDumpFile, _metadataDumpFile, _appendOnly);
+      return new StaticConfig(_valueDumpFile, _metadataDumpFile, _eventDumpFile, _appendOnly);
     }
-
   }
 
-  public DatabusFileLoggingConsumer(StaticConfigBuilder configBuilder)
-         throws IOException, InvalidConfigException
-  {
-    this(configBuilder.build());
-  }
+
+//NOT USED?
+//public DatabusFileLoggingConsumer() throws IOException
+//{
+//  this((String)null, false);
+//}
+
+//NOT USED?
+//public DatabusFileLoggingConsumer(StaticConfigBuilder configBuilder)
+//       throws IOException, InvalidConfigException
+//{
+//  this(configBuilder.build());
+//}
 
   public DatabusFileLoggingConsumer(StaticConfig config) throws IOException
   {
-    this(config.getValueDumpFile(), config.getMetadataDumpFile(), config.isAppendOnly());
+    this(config.getValueDumpFile(), config.getMetadataDumpFile(), config.getEventDumpFile(), config.isAppendOnly());
   }
 
-  public DatabusFileLoggingConsumer(String outputFilename, boolean appendOnly) throws IOException
+  public DatabusFileLoggingConsumer(String valueDumpFile, boolean appendOnly) throws IOException
   {
-    this( outputFilename, null, appendOnly);
-  }
-  
-  public DatabusFileLoggingConsumer(String outputFilename, String metadataDumpFile, boolean appendOnly) throws IOException
-  {
-    if (outputFilename != null)
-    {
-      LOG.info("DatabusFileLoggingConsumer instantiated with output file :" + outputFilename + ", appendOnly :" + appendOnly);	
-      _fileBasedCallback = new ClientFileBasedEventTrackingCallback(outputFilename, appendOnly);
-      _fileBasedCallback.init();
-    }
-    
-    if( metadataDumpFile != null )
-    {
-    	LOG.info("DatabusFileLoggingConsumer instantiated with output file: " + metadataDumpFile + ", appendOnly: " + appendOnly);
-    	_fileBasedMetadataCallback = new ClientFileBasedMetadataTrackingCallback(metadataDumpFile, appendOnly);
-    	_fileBasedMetadataCallback.init();
-    }
+    this(valueDumpFile, null, null, appendOnly);
   }
 
-  public DatabusFileLoggingConsumer() throws IOException
+  public DatabusFileLoggingConsumer(String valueDumpFile,
+                                    String metadataDumpFile,
+                                    String eventDumpFile,
+                                    boolean appendOnly)
+  throws IOException
   {
-    this((String)null, false);
+    LOG.info("DatabusFileLoggingConsumer instantiated with payload-value dump file: " + valueDumpFile +
+             ", metadata dump file: " + metadataDumpFile +
+             ", raw-event dump file: " + eventDumpFile +
+             ", appendOnly: " + appendOnly);
+
+    if (valueDumpFile != null)
+    {
+      _fileBasedDecodedValueCallback = new ClientFileBasedEventTrackingCallback(valueDumpFile, appendOnly);
+      _fileBasedDecodedValueCallback.init();
+    }
+
+    if (metadataDumpFile != null)
+    {
+      _fileBasedMetadataCallback = new ClientFileBasedMetadataTrackingCallback(metadataDumpFile, appendOnly);
+      _fileBasedMetadataCallback.init();
+    }
+
+    if (eventDumpFile != null)
+    {
+      _fileBasedRawEventCallback = new FileBasedEventTrackingCallback(eventDumpFile, appendOnly);
+      _fileBasedRawEventCallback.init();
+    }
   }
 
   @Override
-  public ConsumerCallbackResult onCheckpoint(SCN checkpointScn) {
+  public ConsumerCallbackResult onCheckpoint(SCN checkpointScn)
+  {
     waitIfPaused();
     LOG.info("startEvents:" + checkpointScn.toString());
     return ConsumerCallbackResult.SUCCESS;
   }
 
-  protected void LogTypedValue(DbusEvent e, DbusEventDecoder eventDecoder) {
+  protected void LogTypedValue(DbusEvent e, DbusEventDecoder eventDecoder)
+  {
     LOG.info("Log Typed Value");
   }
 
   @Override
-  public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder) {
+  public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
+  {
     waitIfPaused();
     if (!e.isValid())
     {
       throw new RuntimeException("Got invalid event!!!");
     }
-    if (_fileBasedCallback != null)
+
+    if (_fileBasedDecodedValueCallback != null)
     {
-      _fileBasedCallback.dumpEventValue(e, eventDecoder);
+      _fileBasedDecodedValueCallback.dumpEventValue(e, eventDecoder);
     }
-    
+
     if( _fileBasedMetadataCallback != null && eventDecoder instanceof DbusEventAvroDecoder )
     {
     	_fileBasedMetadataCallback.dumpEventMetadata(e, (DbusEventAvroDecoder) eventDecoder);
     }
+
+    if (_fileBasedRawEventCallback != null)
+    {
+      _fileBasedRawEventCallback.onEvent(e);
+    }
+
     LogTypedValue(e, eventDecoder);
     return ConsumerCallbackResult.SUCCESS;
   }
@@ -230,16 +282,22 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
   public ConsumerCallbackResult onBootstrapEvent(DbusEvent e, DbusEventDecoder eventDecoder)
   {
     waitIfPaused();
-    // The file based logging already done in LoggingConsumer, this one just deserialize if needed
-    //_fileBasedCallback.onEvent(e);
+
     if (!e.isValid())
     {
       throw new RuntimeException("Got invalid event!!!");
     }
-    if (_fileBasedCallback != null)
+
+    if (_fileBasedDecodedValueCallback != null)
     {
-      _fileBasedCallback.dumpEventValue(e, eventDecoder);
+      _fileBasedDecodedValueCallback.dumpEventValue(e, eventDecoder);
     }
+
+    if (_fileBasedRawEventCallback != null)
+    {
+      _fileBasedRawEventCallback.onEvent(e);
+    }
+
     LogTypedValue(e, eventDecoder);
     printBootstrapEventInfo(BootstrapStage.OnBootstrapEvent, e.toString());
     return ConsumerCallbackResult.SUCCESS;
@@ -355,8 +413,8 @@ public class DatabusFileLoggingConsumer extends AbstractDatabusCombinedConsumer
 
   protected void printBootstrapEventInfo(BootstrapStage stage, String info)
   {
+    // There are integration tests that rely on this message (they look for "EndBootstrapSequence:" in the logs)
     LOG.info(stage + ": " + info);
-    //System.out.println(stage + ": " + info);
   }
 
   @Override

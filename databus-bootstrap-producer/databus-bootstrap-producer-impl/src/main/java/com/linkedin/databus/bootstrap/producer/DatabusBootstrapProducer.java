@@ -63,6 +63,7 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl implements
   private final Map<String, DatabusThreadBase> _applierThreads;
   private final BootstrapDBPeriodicTriggerThread _dbPeriodicTriggerThread;
   private final BootstrapDBDiskSpaceTriggerThread _dbDiskSpaceTriggerThread;
+  private final BootstrapDBCleaner _dbCleaner;
 
   private final BootstrapDBMetaDataDAO _dbDao;
   private final Map<String, Integer> _srcNameIdMap;
@@ -161,16 +162,16 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl implements
 
     // Create BootstrapDBCleaner
     final String dbCleanerName = "DBCleaner";
-    BootstrapDBCleaner dbCleaner = new BootstrapDBCleaner(dbCleanerName,
+    _dbCleaner = new BootstrapDBCleaner(dbCleanerName,
         _bootstrapProducerStaticConfig.getCleaner(),
         _bootstrapProducerStaticConfig, _applierThreads, _registeredSources);
 
     // Create periodic trigger thread
-    _dbPeriodicTriggerThread = new BootstrapDBPeriodicTriggerThread(dbCleaner,
+    _dbPeriodicTriggerThread = new BootstrapDBPeriodicTriggerThread(_dbCleaner,
         _bootstrapProducerStaticConfig.getCleaner().getPeriodSpaceTrigger());
 
     // Create disk space cleaner thread
-    _dbDiskSpaceTriggerThread = new BootstrapDBDiskSpaceTriggerThread(dbCleaner,
+    _dbDiskSpaceTriggerThread = new BootstrapDBDiskSpaceTriggerThread(_dbCleaner,
         _bootstrapProducerStaticConfig.getCleaner().getDiskSpaceTrigger());
 
   }
@@ -496,6 +497,8 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl implements
       _dbPeriodicTriggerThread.interrupt();
       _dbPeriodicTriggerThread.awaitShutdownUniteruptibly();
     }
+
+
   }
 
   public StatsCollectors<BootstrapProducerStatsCollector> getProducerStatsCollectors()

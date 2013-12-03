@@ -630,6 +630,7 @@ class BootstrapStartScnHttpResponseProcessor extends BaseHttpResponseProcessor
       {
         LOG.error("/startScn response error: " + RemoteExceptionHandler.getExceptionMessage(_decorated));
         _stateReuse.switchToStartScnResponseError();
+        LOG.error("Failed to process /startscn response");
       }
       else
       {

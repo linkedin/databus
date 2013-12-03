@@ -53,6 +53,8 @@ public class DbusEventAppender implements Runnable
   // Adding a dummy handler since no more info is available
   private final BootstrapCheckpointHandler _bstCheckpointHandler =
       new BootstrapCheckpointHandler("source1", "source2", "source3");
+  //Adding internal bootstrap checkpoint ; to simulate bootstrap server
+  private Checkpoint _bootstrapCheckpoint=null;
 
   public DbusEventAppender(Vector<DbusEvent> events,
                            DbusEventBuffer buffer,
@@ -152,11 +154,15 @@ public class DbusEventAppender implements Runnable
     return dataEventCount;
   }
 
-  public void addBootstrapCheckpointEventToBuffer(long lastScn, long dataEventCount, int numCheckpoints)
+  public void addBootstrapCheckpointEventToBuffer(long lastScn, long dataEventCount,int numCheckpoints)
   {
-    Checkpoint cp = _bstCheckpointHandler.createInitialBootstrapCheckpoint(null, 0L);
-    cp.setBootstrapStartScn(0L);
+    Checkpoint cp = (_bootstrapCheckpoint == null) ? _bstCheckpointHandler.createInitialBootstrapCheckpoint(null, 0L): _bootstrapCheckpoint;
+    if (cp.getBootstrapStartScn()==Checkpoint.UNSET_BOOTSTRAP_START_SCN)
+    {
+      cp.setBootstrapStartScn(0L);
+    }
     cp.setWindowScn(lastScn);
+    cp.setSnapshotOffset(dataEventCount);
     DbusEventInternalReadable ev = new DbusEventV2Factory().createCheckpointEvent(cp);
     ByteBuffer b = ev.value();
     byte[] bytes = new byte[b.remaining()];
@@ -180,6 +186,16 @@ public class DbusEventAppender implements Runnable
     return _bufferReflector;
   }
 
+  public Checkpoint getBootstrapCheckpoint()
+  {
+    return _bootstrapCheckpoint;
+  }
+
+  public void setBootstrapCheckpoint(Checkpoint checkpoint)
+  {
+    _bootstrapCheckpoint = checkpoint;
+  }
+
   @Override
   public void run()
   {
@@ -201,13 +217,18 @@ public class DbusEventAppender implements Runnable
         //new window;
         if (lastScn==-1)
         {
-           //note: start should provide the first preceding scn;
-           // Test DDSDBUS-1109 by skipping the start() call. The scn Index should be set for streamEvents() to work correctly
-          if (_invokeStartOnBuffer)
-          {
-            _buffer.start(evScn-1);
-          }
-          _buffer.startEvents();
+            //note: start should provide the first preceding scn;
+            // Test DDSDBUS-1109 by skipping the start() call. The scn Index should be set for streamEvents() to work correctly
+            if (_invokeStartOnBuffer)
+            {
+              _buffer.start(evScn-1);
+            }
+            _buffer.startEvents();
+            if (_bootstrapCheckpoint != null)
+            {
+              //add the initial checkpoint event to dispatcher's buffer to simulate bootstrap
+              addBootstrapCheckpointEventToBuffer(evScn-1,dataEventCount,1);
+            }
         }
         else
         {
@@ -268,6 +289,7 @@ public class DbusEventAppender implements Runnable
   {
     return _dataEvents;
   }
+
 
   /**
    * Alter event fields by XORing against a known fixed value; each invocation toggles between

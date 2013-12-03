@@ -275,6 +275,8 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
       g.writeNumber(e.getSourceId());
       g.writeFieldName(OPCODE_FIELD_NAME);
       g.writeString(e.getOpcode().toString());
+      g.writeFieldName("partId");
+      g.writeNumber(Integer.valueOf(e.getPartitionId()));
 
       g.writeFieldName(VALUE_FIELD_NAME);
       writer.write(datum, new JsonEncoder(schema, g));

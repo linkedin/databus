@@ -60,7 +60,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
   @Override
   protected Checkpoint createCheckpoint(DispatcherState curState, DbusEvent event)
   {
-      return createOnlineConsumptionCheckpoint(_lastWindowScn, curState, event);
+      return createOnlineConsumptionCheckpoint(_lastWindowScn, _lastEowTsNsecs, curState, event);
   }
 
   @Override

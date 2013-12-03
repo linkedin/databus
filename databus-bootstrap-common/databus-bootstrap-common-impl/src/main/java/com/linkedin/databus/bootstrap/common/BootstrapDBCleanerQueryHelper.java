@@ -19,6 +19,12 @@ package com.linkedin.databus.bootstrap.common;
 *
 */
 
+/**
+ * This class provides helper queries used for execution in the BootstrapDBCleaner context
+ * This is a singleton class, and expected to be held by multiple objects and invoked in
+ * various thread contexts. So, the methods are expected to be thread-safe by only operating
+ * with thread-local storage
+ */
 public class BootstrapDBCleanerQueryHelper
 {
   private static BootstrapDBCleanerQueryHelper _singletonObj = null;
@@ -86,4 +92,5 @@ public class BootstrapDBCleanerQueryHelper
     sql.append(" order by logid asc limit 1");
     return sql.toString();
   }
+
 }

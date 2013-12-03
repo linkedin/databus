@@ -65,6 +65,7 @@ public class PersonRelayServer extends DatabusRelayMain {
      Cli cli = new Cli();
      cli.setDefaultPhysicalSrcConfigFiles("conf/sources-person.json");
      cli.processCommandLineArgs(args);
+     cli.parseRelayConfig();
      // Process the startup properties and load configuration
      PhysicalSourceStaticConfig[] pStaticConfigs = cli.getPhysicalSourceStaticConfigs();
      HttpRelay.StaticConfig staticConfig = cli.getRelayConfigBuilder().build();

@@ -128,8 +128,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   protected final CheckpointPersistenceProvider _checkpointPersistenceProvider;
   /** Statistics collector about databus events */
   protected final HttpStatisticsCollector _httpStatsCollector;
-  // this instance is not really used, TODO get rid of it
-  protected final LoggingConsumer _loggingListener;
+  protected final LoggingConsumer _loggingConsumer;  // this instance is not really used, TODO get rid of it
   protected final DatabusRelayConnectionFactory _relayConnFactory;
   protected final DatabusBootstrapConnectionFactory _bootstrapConnFactory;
 
@@ -316,7 +315,7 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
     _httpStatsCollector = httpStatsColl;
 
-    _loggingListener = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
+    _loggingConsumer = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
 
     _clientStaticConfig.getRuntime().setManagedInstance(this);
     _configManager = new ConfigManager<RuntimeConfig>(_clientStaticConfig.getRuntimeConfigPrefix(),
@@ -437,25 +436,8 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 	  DatabusV2ConsumerRegistration consumerReg =
 	      new DatabusV2ConsumerRegistration(dccListenersList, sources, filterConfig);
 
-	  List<DatabusV2ConsumerRegistration> consumers =
-	      registerDatabusListener(consumerReg, _relayGroups, getRelayGroupStreamConsumers(), DatabusSubscription.createSubscriptionList(sources));
-
-	  if (1 == consumers.size())
-	  {
-	    DatabusStreamConsumer logConsumer = listeners[0];
-	    if(! (logConsumer instanceof LoggingConsumer)) {
-	      // create a new Logging consumer for this list of consumers
-	      try {
-	        logConsumer = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
-	      } catch (InvalidConfigException e) {
-	        throw new DatabusClientException(e);
-	      }
-	      SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
-	      DatabusV2ConsumerRegistration loggingReg =
-	          new DatabusV2ConsumerRegistration(sdccLogConsumer,	sources,filterConfig);
-	      consumers.add(loggingReg);
-	    }
-	  }
+	  registerDatabusListener(consumerReg, _relayGroups, getRelayGroupStreamConsumers(),
+	                          DatabusSubscription.createSubscriptionList(sources));
   }
 
   /**
@@ -498,25 +480,8 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 		DatabusV2ConsumerRegistration consumerReg =
 				new DatabusV2ConsumerRegistration(dccListenersList, sources, filter);
 
-		List<DatabusV2ConsumerRegistration> consumers =
-				registerDatabusListener(consumerReg, _relayGroups, getRelayGroupBootstrapConsumers(),
-						DatabusSubscription.createSubscriptionList(sources));
-		if (1 == consumers.size())
-		{
-		  DatabusBootstrapConsumer logConsumer = listeners[0];
-		  if(! (logConsumer instanceof LoggingConsumer)) {
-		    // create a new Logging consumer for this list of consumers
-		    try {
-          logConsumer = new LoggingConsumer(_clientStaticConfig.getLoggingListener());
-        } catch (InvalidConfigException e) {
-          throw new DatabusClientException(e);
-        }
-		    SelectingDatabusCombinedConsumer sdccLogConsumer = new SelectingDatabusCombinedConsumer(logConsumer);
-		    DatabusV2ConsumerRegistration loggerReg =
-		        new DatabusV2ConsumerRegistration(sdccLogConsumer, sources, filter);
-		    consumers.add(loggerReg);
-		  }
-		}
+		registerDatabusListener(consumerReg, _relayGroups, getRelayGroupBootstrapConsumers(),
+		                        DatabusSubscription.createSubscriptionList(sources));
   }
 
   /**
@@ -656,9 +621,10 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
    *
    * @return
    */
+  // TODO:  deprecate this?  returned instance is useless, but RuntimeConfigBuilder needs a managed instance...
   public LoggingConsumer getLoggingListener()
   {
-    return _loggingListener;
+    return _loggingConsumer;
   }
 
   /**
@@ -1414,9 +1380,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   /**
    * Runtime configuration for bootstrapping of the consumers
-   *
-   * @author pganti
-   *
    */
   public static class BootstrapClientRuntimeConfig implements ConfigApplier<BootstrapClientRuntimeConfig>
   {
@@ -1474,11 +1437,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class BootstrapClientRuntimeConfigBuilder
                       implements ConfigBuilder<BootstrapClientRuntimeConfig>
   {
@@ -1556,11 +1514,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class CheckpointPersistenceRuntimeConfig
                implements ConfigApplier<CheckpointPersistenceRuntimeConfig>
   {
@@ -1643,11 +1596,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class CheckpointPersistenceRuntimeConfigBuilder
                       implements ConfigBuilder<CheckpointPersistenceRuntimeConfig>
   {
@@ -1721,11 +1669,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class CheckpointPersistenceStaticConfig
   {
     public static enum ProviderType
@@ -1872,11 +1815,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class CheckpointPersistenceStaticConfigBuilder
                       implements ConfigBuilder<CheckpointPersistenceStaticConfig>
   {
@@ -2012,11 +1950,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public class RuntimeConfig implements ConfigApplier<RuntimeConfig>
   {
     private final ServerContainer.RuntimeConfig _container;
@@ -2203,11 +2136,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class RuntimeConfigBuilder implements ConfigBuilder<RuntimeConfig>
   {
     private ServerContainer.RuntimeConfigBuilder _container;
@@ -2363,11 +2291,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
 
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class StaticConfig
   {
     private final CheckpointPersistenceStaticConfig _checkpointPersistence;
@@ -2540,11 +2463,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class StaticConfigBuilderBase
   {
 	  protected CheckpointPersistenceStaticConfigBuilder _checkpointPersistence;
@@ -2774,11 +2692,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     }
   }
 
-  /**
-   *
-   * @author pganti
-   *
-   */
   public static class Config extends StaticConfigBuilderBase
   implements ConfigBuilder<StaticConfig>
   {
@@ -2845,9 +2758,6 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
    * TODO: (DDSDBUS-93) the design needs to be re-visit - when there are multiple connections,
    * what status shall we return on behaver of the client? For now, we just return
    * the first one.
-   *
-   * @author pganti
-   *
    */
   protected class DatabusHttpClientStatus extends DatabusComponentStatus
   {
