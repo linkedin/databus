@@ -1,5 +1,11 @@
 
-11/05/2013 : Open release from internal version 2.1.190
+12/2/2013: Open source release from internal version 2.1.191
+
+Features :
+ - Resolved https://github.com/linkedin/databus/issues/8
+ - Fix a double-counting statistics bug for client metrics (numDataEvents)
+
+11/05/2013 : Open source release from internal version 2.1.190
 
 Features:
 - A new GoldenGate adapter using XML trail files
