@@ -46,5 +46,12 @@ CREATE TABLE bootstrap_seeder_state (
   PRIMARY KEY  (srcid)
 ) ENGINE=InnoDB;
 
+
+CREATE TABLE bootstrap_tab_minscn (
+  srcid int(11) NOT NULL,
+  minscn bigint(20) NOT NULL default -1,
+  PRIMARY KEY  (srcid)
+) ENGINE=InnoDB;
+
 show errors;
 show warnings;

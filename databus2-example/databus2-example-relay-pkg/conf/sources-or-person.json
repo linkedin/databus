@@ -1,0 +1,15 @@
+{
+    "name" : "person",
+    "id"  : 1,
+    "uri" : "mysql://or_test%2For_test@localhost:33066/33066/mysql-bin",
+    "slowSourceQueryThreshold" : 2000,
+    "sources" :
+    [
+        {
+        "id" : 40,
+        "name" : "com.linkedin.events.example.or_test.Person",
+        "uri": "or_test.person",
+        "partitionFunction" : "constant:1"
+         }
+    ]
+}

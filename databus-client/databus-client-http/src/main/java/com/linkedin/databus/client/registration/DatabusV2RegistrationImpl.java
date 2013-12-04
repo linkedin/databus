@@ -37,7 +37,6 @@ import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.client.DatabusSourcesConnection.StaticConfig;
 import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
-import com.linkedin.databus.client.consumer.LoggingConsumer;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
 import com.linkedin.databus.client.pub.DatabusClientException;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -73,7 +72,6 @@ public class DatabusV2RegistrationImpl
     protected ConsumerCallbackStats _relayConsumerStats;
     protected ConsumerCallbackStats _bootstrapConsumerStats;
 	private final List<DatabusCombinedConsumer> _consumers;
-	private final LoggingConsumer _loggingConsumer;
 	private final List<String> _sources;
 	private DatabusSourcesConnection _sourcesConnection;
 	private DatabusRegistration _parent = null;
@@ -136,14 +134,6 @@ public class DatabusV2RegistrationImpl
 
     	if ( null != consumers)
     		_consumers.addAll(Arrays.asList(consumers));
-
-    	LoggingConsumer c = null;
-    	try {
-			c = new LoggingConsumer(client.getClientStaticConfig().getLoggingListener());
-		} catch (InvalidConfigException e) {
-			_log.error("Unable to instantiate logging consumer",e);
-		}
-    	_loggingConsumer = c;
     }
 
     /**
@@ -160,7 +150,7 @@ public class DatabusV2RegistrationImpl
            throws IllegalStateException
    {
 	   	if ( ! _state.isPreStartState())
-	   		throw new IllegalStateException("Cannot add sources when state is running/shutdown. Current State :" + _state);
+	   		throw new IllegalStateException("Cannot add sources when state is running or shut down. Current State :" + _state);
 
 	   	for (String s : sources)
 	   		if (! _sources.contains(s))
@@ -324,7 +314,6 @@ public class DatabusV2RegistrationImpl
 		boolean canConsumerBootstrap = false;
 		_streamConsumerRawRegistrations = new ArrayList<DatabusV2ConsumerRegistration>();
 		_streamConsumerRawRegistrations.add(new DatabusV2ConsumerRegistration(streamConsumers, _sources, _filterConfig));
-		_streamConsumerRawRegistrations.add(new DatabusV2ConsumerRegistration(_loggingConsumer, _sources, _filterConfig));
 
 		for (DatabusCombinedConsumer c : _consumers)
 		{
@@ -354,8 +343,6 @@ public class DatabusV2RegistrationImpl
 
 			_bootstrapConsumerRawRegistrations = new ArrayList<DatabusV2ConsumerRegistration>();;
 			_bootstrapConsumerRawRegistrations.add(new DatabusV2ConsumerRegistration(bootstrapConsumers, _sources, _filterConfig));
-			_bootstrapConsumerRawRegistrations.add(new DatabusV2ConsumerRegistration(_loggingConsumer, _sources, _filterConfig));
-
 		}
 
 		// All validations done. Setup and start
@@ -762,9 +749,5 @@ public class DatabusV2RegistrationImpl
 	@Override
 	public synchronized DbusKeyCompositeFilterConfig getFilterConfig() {
 		return _filterConfig;
-	}
-
-	public LoggingConsumer getLoggingConsumer() {
-		return _loggingConsumer;
 	}
 }

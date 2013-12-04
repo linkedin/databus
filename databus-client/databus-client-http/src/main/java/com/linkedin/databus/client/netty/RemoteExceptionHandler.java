@@ -21,6 +21,7 @@ package com.linkedin.databus.client.netty;
 import java.io.ByteArrayInputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.sql.SQLException;
 
 import org.apache.log4j.Logger;
 
@@ -35,7 +36,9 @@ import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
 import com.linkedin.databus.core.ScnNotFoundException;
 import com.linkedin.databus2.core.container.DatabusHttpHeaders;
+import com.linkedin.databus2.core.container.request.BootstrapDBException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
+import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooYoungException;
 
 
 public class RemoteExceptionHandler
@@ -78,6 +81,10 @@ public class RemoteExceptionHandler
   public static String getExceptionName(ChunkedBodyReadableByteChannel readChannel)
   {
     String result = readChannel.getMetadata(DatabusHttpHeaders.DATABUS_ERROR_CAUSE_CLASS_HEADER);
+    if (result==null)
+    {
+      result = readChannel.getMetadata(DatabusHttpHeaders.DATABUS_ERROR_CLASS_HEADER);
+    }
     return result;
   }
 
@@ -113,6 +120,18 @@ public class RemoteExceptionHandler
       else if (err.equalsIgnoreCase( PullerRetriesExhaustedException.class.getName()))
       {
         remoteException = new PullerRetriesExhaustedException();
+      }
+      else if (err.equalsIgnoreCase(BootstrapDatabaseTooYoungException.class.getName()))
+      {
+        remoteException = new BootstrapDatabaseTooYoungException();
+      }
+      else if (err.equalsIgnoreCase(BootstrapDBException.class.getName()))
+      {
+        remoteException = new BootstrapDBException();
+      }
+      else if (err.equalsIgnoreCase(SQLException.class.getName()))
+      {
+        remoteException = new SQLException();
       }
       else
       {

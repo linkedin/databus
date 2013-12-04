@@ -128,7 +128,7 @@ public class TestGenericDispatcher
     @BeforeClass
     public void beforeClass() throws Exception
     {
-      TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestGenericDispatcher_", ".log", Level.ERROR);
+      TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestGenericDispatcher_", ".log", Level.INFO);
         _generic100KBufferConfig = new DbusEventBuffer.Config();
         _generic100KBufferConfig.setAllocationPolicy(AllocationPolicy.HEAP_MEMORY.toString());
         _generic100KBufferConfig.setMaxSize(100000);
@@ -188,7 +188,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -303,7 +305,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         DatabusSourcesConnection.Config connCfgBuilder = new DatabusSourcesConnection.Config();
@@ -416,8 +420,8 @@ public class TestGenericDispatcher
                         Executors.newSingleThreadExecutor(),
                         1000,
                         new StreamConsumerCallbackFactory(),
-                        null
-                        );
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -599,6 +603,7 @@ public class TestGenericDispatcher
                         Executors.newFixedThreadPool(2),
                         1000,
                         new StreamConsumerCallbackFactory(),
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -713,7 +718,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newFixedThreadPool(2),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -808,7 +815,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -925,7 +934,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -1009,7 +1020,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(sdccTConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000,new StreamConsumerCallbackFactory(),null);
+                    1000,new StreamConsumerCallbackFactory(),null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 50.0;
@@ -1055,7 +1066,8 @@ public class TestGenericDispatcher
                     subs,
                     new InMemoryPersistenceProvider(),
                     dataEventsBuffer,
-                    mConsumer);
+                    mConsumer,
+                    true);
 
             /* Launch writer */
             DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer, null) ;
@@ -1107,7 +1119,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(tConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000,new StreamConsumerCallbackFactory(),null);
+                    1000,new StreamConsumerCallbackFactory(),null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 10.0;
@@ -1154,7 +1166,8 @@ public class TestGenericDispatcher
                     subs,
                     new InMemoryPersistenceProvider(),
                     dataEventsBuffer,
-                    mConsumer);
+                    mConsumer,
+                    true);
 
             /* Launch writer */
             /* write events all of which  are empty windows */
@@ -1262,7 +1275,7 @@ public class TestGenericDispatcher
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             //Single threaded execution of consumer
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                    consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null);
+                    consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
 
 
 
@@ -1311,7 +1324,8 @@ public class TestGenericDispatcher
                     subs,
                     new InMemoryPersistenceProvider(),
                     dataEventsBuffer,
-                    mConsumer);
+                    mConsumer,
+                    bootstrapCheckpointsPerWindow == 0);
 
             /* Launch writer */
             DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer,bootstrapCheckpointsPerWindow ,null) ;
@@ -1430,7 +1444,7 @@ public class TestGenericDispatcher
      * @throws Exception
      */
 
-    public void runPartialWindowCheckpointPersistence(int numEvents,int maxWindowSize,int numFailWindow) throws Exception
+    void runPartialWindowCheckpointPersistence(int numEvents,int maxWindowSize,int numFailWindow) throws Exception
     {
         /* Experiment setup */
         int payloadSize = 20;
@@ -1472,7 +1486,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null);
+                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
 
 
 
@@ -1482,6 +1496,7 @@ public class TestGenericDispatcher
         srcIdList.add(srcId);
 
         DbusEventGenerator evGen = new DbusEventGenerator(15000,srcIdList);
+        //Assumption: generates events with  non-decreasing timestamps
         Assert.assertTrue(evGen.generateEvents(numEvents, maxWindowSize, 512, payloadSize,true, srcTestEvents) > 0);
 
         int totalSize=0; int maxSize=0;
@@ -1522,7 +1537,8 @@ public class TestGenericDispatcher
                 subs,
                 cpPersister,
                 dataEventsBuffer,
-                mConsumer);
+                mConsumer,
+                true);
 
         /* Launch writer */
         DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer,0,null) ;
@@ -1546,20 +1562,34 @@ public class TestGenericDispatcher
         tDispatcher.join(waitTimeMs);
         Assert.assertFalse(tEmitter.isAlive());
         Assert.assertFalse(tDispatcher.isAlive());
+
         LOG.info("tConsumer: " + tConsumer);
         HashMap<List<String>,Checkpoint> cps = cpPersister.getCheckpoints();
         for (Map.Entry<List<String>,Checkpoint> i : cps.entrySet())
         {
             Checkpoint cp = i.getValue();
             LOG.info("checkpoint="+ cp);
+
+
+            Assert.assertEquals(cp.getWindowOffset().longValue() , -1L);
             //check if lastSeenCheckpoint by consumer is higher than scn persisted
             Assert.assertTrue(tConsumer.getLastSeenCheckpointScn() > cp.getWindowScn());
-            Assert.assertEquals(cp.getWindowOffset().longValue() , -1L);
+            //the latest event seen should be newer (or at least as new) as the checkpoint
+            Assert.assertTrue(tConsumer.getLastTsInNanosOfEvent() >= tConsumer.getLastTsInNanosOfWindow());
+
             if (tConsumer.getLastSeenWindowScn() > 0)
             {
-                Assert.assertEquals(cp.getWindowScn(),tConsumer.getLastSeenWindowScn());
+              Assert.assertEquals(cp.getWindowScn(),tConsumer.getLastSeenWindowScn());
+              //check if the timestamp in checkpoint is the same as checkpoint of last completed window (ts of last event of the window)
+              Assert.assertEquals(tConsumer.getLastTsInNanosOfWindow(),cp.getTsNsecs());
+            }
+            else
+            {
+              //not even one window was processed before error; expect uninitialized timestamp
+              Assert.assertEquals(Checkpoint.UNSET_TS_NSECS,cp.getTsNsecs());
             }
         }
+
     }
 
 
@@ -1605,7 +1635,9 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),null);
+                        new StreamConsumerCallbackFactory(),
+                        null,
+                        null);
         callback.setSourceMap(sourcesMap);
 
         List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -1693,7 +1725,7 @@ public class TestGenericDispatcher
     }
 
     @Test
-    public void testBootstrapParitalWindowScnOrdering() throws Exception
+    public void testBootstrapPartialWindowScnOrdering() throws Exception
     {
         //DDSDBUS-1889: Ensure bootstrap onCheckpoint() callback receives bootstrapSinceScn - not some scn.
         int numEvents=100;
@@ -1738,7 +1770,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null);
+                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
 
 
 
@@ -1796,14 +1828,18 @@ public class TestGenericDispatcher
                 );
 
         BootstrapCheckpointHandler cptHandler = new BootstrapCheckpointHandler("source1");
-        final long sinceScn = 10L;
+        long sinceScn=15000L;
+        long startTsNsecs = System.nanoTime();
         final Checkpoint initCheckpoint = cptHandler.createInitialBootstrapCheckpoint(null, sinceScn);
-        dispatcher.enqueueMessage(CheckpointMessage.createSetCheckpointMessage(initCheckpoint));
+        initCheckpoint.setBootstrapStartNsecs(startTsNsecs);
+        initCheckpoint.setBootstrapStartScn(0L);
 
         /* Launch writer */
         //numBootstrapCheckpoint - number of checkpoints before writing end of period
         int numBootstrapCheckpoint=4;
         DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer,numBootstrapCheckpoint,null) ;
+        //simulate bootstrap server; use this checkpoint as init checkpoint
+        eventProducer.setBootstrapCheckpoint(initCheckpoint);
         Thread tEmitter = new Thread(eventProducer);
       //be generous ; use worst case for num control events
         long waitTimeMs  = (numEvents*timeTakenForDataEventInMs + numEvents*timeTakenForControlEventInMs) * 4;
@@ -1828,18 +1864,22 @@ public class TestGenericDispatcher
 
         LOG.info("tConsumer: " + tConsumer);
         HashMap<List<String>,Checkpoint> cps = cpPersister.getCheckpoints();
+        Assert.assertTrue(cps.size() > 0);
         for (Map.Entry<List<String>,Checkpoint> i : cps.entrySet())
         {
             Checkpoint cp = i.getValue();
             LOG.info("checkpoint="+ cp);
-            //check if lastSeenCheckpoint by consumer is same as bootstrapsinceScn
             Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT);
-            Assert.assertEquals(cp.getBootstrapSinceScn().longValue(),tConsumer.getLastSeenCheckpointScn());
+            //check if progress has been made during bootstrap
             Assert.assertTrue(cp.getSnapshotOffset() > 0);
-            Assert.assertEquals(cp.getBootstrapSinceScn().longValue(), sinceScn);
+            //these two values should be unchanged during the course of bootstrap
+            Assert.assertEquals(sinceScn,cp.getBootstrapSinceScn().longValue());
+            Assert.assertEquals(startTsNsecs,cp.getBootstrapStartNsecs());
+            //the tsNsec normally udpdated by client at end of window should be a no-op during bootstrap
+            Assert.assertEquals(Checkpoint.UNSET_TS_NSECS,cp.getTsNsecs());
+            //the scn passed to consumers during onCheckpoint should be the sinceSCN and not any other interim value
+            Assert.assertEquals(cp.getBootstrapSinceScn().longValue(),tConsumer.getLastSeenCheckpointScn());
         }
-
-
     }
 
     DbusEventBuffer.StaticConfig getConfig(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
@@ -1922,7 +1962,7 @@ public class TestGenericDispatcher
       class TimeoutDESConsumer
       extends TimeoutTestConsumer
       {
-        private CountDownLatch latch = new CountDownLatch(1);
+        private final CountDownLatch latch = new CountDownLatch(1);
         private int _countStartWindow = 0;
         private final int _failedRequestNumber;
 
@@ -1987,7 +2027,8 @@ public class TestGenericDispatcher
                                     Executors.newFixedThreadPool(2),
                                     100, // 100 ms budget
                                     new StreamConsumerCallbackFactory(),
-                                    callbackStats);
+                                    callbackStats,
+                                    null);
       callback.setSourceMap(sourcesMap);
       List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
       final RelayDispatcher dispatcher =
@@ -2175,7 +2216,8 @@ public class TestGenericDispatcher
                       Executors.newFixedThreadPool(2),
                       1000,
                       new StreamConsumerCallbackFactory(),
-                      callbackStats);
+                      callbackStats,
+                      null);
       callback.setSourceMap(sourcesMap);
 
 
@@ -2313,30 +2355,45 @@ public class TestGenericDispatcher
     }
 
 
-}
 
+  // TODO Change this class to behave like bootstrap dispatcher or relay dispatcher depending on what we are
+  // testing. If bootstrap dispatcher, then we need to override processSysEvents to construct checkpoint when
+  // a checkpoint event is received (or better, initialize checkpoint in ctor), and then override createCheckpoint
+  // method to call onEvent on the saved checkpoint.
 class TestDispatcher<C> extends GenericDispatcher<C>
 {
+    private final boolean _isRelayDispatcher;
 
-    public TestDispatcher(String name, DatabusSourcesConnection.StaticConfig connConfig,
-            List<DatabusSubscription> subsList,
-            CheckpointPersistenceProvider checkpointPersistor,
-            DbusEventBuffer dataEventsBuffer,
-            MultiConsumerCallback asyncCallback) {
+    public TestDispatcher(String name,
+                          DatabusSourcesConnection.StaticConfig connConfig,
+                          List<DatabusSubscription> subsList,
+                          CheckpointPersistenceProvider checkpointPersistor,
+                          DbusEventBuffer dataEventsBuffer,
+                          MultiConsumerCallback asyncCallback,
+                          boolean isRelayDispatcher) {
         super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer,
                 asyncCallback);
+        _isRelayDispatcher = isRelayDispatcher;
     }
 
     @Override
     protected Checkpoint createCheckpoint(DispatcherState curState,
             DbusEvent event) {
-       return createOnlineConsumptionCheckpoint(_lastWindowScn,curState,event);
+      if (_isRelayDispatcher)
+      {
+       return createOnlineConsumptionCheckpoint(_lastWindowScn, _lastEowTsNsecs, curState,event);
+      }
+      else
+      {
+        // TODO for bootstrap dispatcher: Update the prev checkpoint.
+        return createOnlineConsumptionCheckpoint(_lastWindowScn, _lastEowTsNsecs, curState, event);
+      }
     }
 
 }
 
 
-class StateVerifyingStreamConsumer extends DelegatingDatabusCombinedConsumer
+static class StateVerifyingStreamConsumer extends DelegatingDatabusCombinedConsumer
 {
     public enum State
     {
@@ -2662,6 +2719,8 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
     private long _lastSeenCheckpointScn = -1;
     private long _lastSeenWindowScn = -1;
     private int _numRollbacks = 0;
+    private long _lastTsInNanosOfEvent=-1;
+    private  long _lastTsInNanosOfWindow=-1;
 
     public TimeoutTestConsumer(long timeoutMs)
     {
@@ -2734,6 +2793,7 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
             return ConsumerCallbackResult.ERROR;
         }
         _lastSeenWindowScn = ((SingleSourceSCN) endScn).getSequence();
+        _lastTsInNanosOfWindow=_lastTsInNanosOfEvent;
         return ConsumerCallbackResult.SUCCESS;
     }
 
@@ -2760,6 +2820,7 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
             DbusEventDecoder eventDecoder) {
         _countData++;
         _curDataCount++;
+        _lastTsInNanosOfEvent = e.timestampInNanos();
         if (!e.isValid())
         {
             return ConsumerCallbackResult.ERROR;
@@ -2861,6 +2922,16 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
         return _countFailureTimes;
     }
 
+    public long getLastTsInNanosOfEvent()
+    {
+      return _lastTsInNanosOfEvent;
+    }
+
+    public long getLastTsInNanosOfWindow()
+    {
+      return _lastTsInNanosOfWindow;
+    }
+
     @Override
     public String toString()
     {
@@ -2953,4 +3024,5 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
     }
 }
 
+}
 

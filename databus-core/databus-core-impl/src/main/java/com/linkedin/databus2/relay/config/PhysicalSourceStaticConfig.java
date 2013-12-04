@@ -3,6 +3,7 @@ package com.linkedin.databus2.relay.config;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.data_model.PhysicalSource;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 
 public class PhysicalSourceStaticConfig
@@ -217,8 +218,10 @@ public class PhysicalSourceStaticConfig
   @Override
   public String toString() {
     StringBuilder sb = new StringBuilder();
-    sb.append("name=").append(_name).append(";part=").append(_partiton).append(";uri=").append(_uri)
-    .append(";role=").append(_role).append(";rsKey=").append(_resourceKey).append(";#src=").append(_sources.length);
+    sb.append("name=").append(_name).append(";part=").append(_partiton).append(";uri=")
+    .append(StringUtils.sanitizeDbUri(_uri))
+    .append(";role=").append(_role).append(";rsKey=").append(_resourceKey).append(";#src=")
+    .append(_sources.length);
 
     return sb.toString();
   }

@@ -54,7 +54,7 @@ public abstract class AbstractEventProducer implements EventProducer
   // End TBD
 
   private final AtomicLong _sinceSCN = new AtomicLong(-1);
-  private final DbusEventBufferAppendable _eventBuffer;
+  protected final DbusEventBufferAppendable _eventBuffer;
   private final MaxSCNReaderWriter _maxScnReaderWriter;
   private final DatabusComponentStatus _status;
   private final DatabusReadOnlyStatus _statusMBean;

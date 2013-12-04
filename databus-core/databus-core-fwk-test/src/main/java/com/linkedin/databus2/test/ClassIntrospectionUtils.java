@@ -21,6 +21,7 @@ package com.linkedin.databus2.test;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+
 import org.apache.log4j.Logger;
 
 
@@ -33,7 +34,7 @@ public class ClassIntrospectionUtils
   public static final Logger LOG = Logger.getLogger(ClassIntrospectionUtils.class.getName());
 
   Object _classInstance;
-  Class _classType;
+  Class<?> _classType;
 
   /**
    * The constructor to use introspection utils on a particular class
@@ -135,7 +136,7 @@ public class ClassIntrospectionUtils
     catch (NoSuchFieldException e)
     {
       //If the field does not exist, let's check if it exists in the parent class.
-      Class superClass = classType.getSuperclass();
+      Class<?> superClass = classType.getSuperclass();
       if(superClass == null)
         throw e;
 
@@ -164,7 +165,7 @@ public class ClassIntrospectionUtils
     catch (NoSuchMethodException e)
     {
       //If the field does not exist, let's check if it exists in the parent class.
-      Class superClass = classType.getSuperclass();
+      Class<?> superClass = classType.getSuperclass();
       if(superClass == null)
         throw e;
 

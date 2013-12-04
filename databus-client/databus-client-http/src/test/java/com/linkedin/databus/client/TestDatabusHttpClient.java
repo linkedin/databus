@@ -245,7 +245,7 @@ public class TestDatabusHttpClient
       List<DatabusSubscription> ls2 = DatabusSubscription.createSubscriptionList(Arrays.asList("S1", "S3"));
       List<DatabusSubscription> ls3 = DatabusSubscription.createSubscriptionList(Arrays.asList("S3", "S4", "S5"));
 
-      assertEquals("one consumer + logging consumer in (S1,S2) or (S1,S3)", 2,
+      assertEquals("expect one consumer in (S1,S2) or (S1,S3)", 1,
                    safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
                    safeListSize(client.getRelayGroupStreamConsumers().get(ls2)));
 
@@ -253,12 +253,11 @@ public class TestDatabusHttpClient
       client.registerDatabusStreamListener(listener2 , null, "S1");
       int consumersNum = safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
       safeListSize(client.getRelayGroupStreamConsumers().get(ls2));
-      assertTrue("two consumers + 1-2 logging consumer  in (S1,S2) or (S1,S3)", 3 <= consumersNum
-                 && consumersNum <= 4);
+      assertEquals("expect two consumers in (S1,S2) or (S1,S3)", 2, consumersNum);
 
       DatabusStreamConsumer listener3 = new LoggingConsumer(clientConfig.getLoggingListener());
       client.registerDatabusStreamListener(listener3, null, "S5");
-      assertEquals("one consumers in (S3,S4,S5)", 1,
+      assertEquals("expect one consumer in (S3,S4,S5)", 1,
                    safeListSize(client.getRelayGroupStreamConsumers().get(ls3)));
 
 
@@ -319,18 +318,15 @@ public class TestDatabusHttpClient
 
       int consumersNum1 = safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
           safeListSize(client.getRelayGroupStreamConsumers().get(ls2));
-      assertTrue("two consumers+ 1-2 logging consumer in (S1,S2) or (S1,S3)", 3 <= consumersNum1 &&
-                 consumersNum1 <= 4);
-      assertTrue("at least one consumer + logging consumer in (S1,S2)",
-                 safeListSize(client.getRelayGroupStreamConsumers().get(ls1))
-                 >= 2);
+      assertEquals("expect two consumers in (S1,S2) or (S1,S3)", 2, consumersNum1);
+      assertTrue("expect at least one consumer in (S1,S2)",
+                 safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) >= 1);
 
       DummyStreamConsumer listener2 = new DummyStreamConsumer("consumer2");
       client.registerDatabusStreamListener(listener2 , null, "S1");
       int consumersNum2 = safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
       safeListSize(client.getRelayGroupStreamConsumers().get(ls2));
-      assertTrue("three consumers+ 1-2 logging consumers in (S1,S2) or (S1,S3)", 4 <= consumersNum2 &&
-                 consumersNum2 <= 5);
+      assertEquals("expect three consumers in (S1,S2) or (S1,S3)", 3, consumersNum2);
 
       client.unregisterDatabusStreamListener(listener1);
       int consumersNum3 = safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
@@ -341,8 +337,7 @@ public class TestDatabusHttpClient
       client.unregisterDatabusStreamListener(listener1);
       int consumersNum4 = safeListSize(client.getRelayGroupStreamConsumers().get(ls1)) +
           safeListSize(client.getRelayGroupStreamConsumers().get(ls2));
-      assertEquals("one consumer + 1-2 logging consumer  in (S1,S2) or (S1,S3)", consumersNum3,
-                   consumersNum4);
+      assertEquals("expect one consumer in (S1,S2) or (S1,S3)", consumersNum3, consumersNum4);
 
       client.unregisterDatabusStreamListener(listener2);
 	}

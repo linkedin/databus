@@ -32,6 +32,7 @@ import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.consumer.BootstrapConsumerCallbackFactory;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
+import com.linkedin.databus.client.consumer.LoggingConsumer;
 import com.linkedin.databus.client.consumer.MultiConsumerCallback;
 import com.linkedin.databus.client.consumer.StreamConsumerCallbackFactory;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
@@ -41,6 +42,7 @@ import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.QueuePolicy;
 import com.linkedin.databus.core.DbusEventFactory;
@@ -298,19 +300,36 @@ public class DatabusSourcesConnection {
 					consumerParallelism, new NamedThreadFactory("callback"));
 		}
 
+		LoggingConsumer loggingConsumer = null;
+		if (serverHandle != null)
+		{
+		  try
+		  {
+		    // we intentionally don't use serverHandle.getLoggingListener(); LoggingConsumer
+		    // isn't thread-safe, so we need one instance per connection
+		    loggingConsumer = new LoggingConsumer(serverHandle.getClientStaticConfig().getLoggingListener());
+		  }
+		  catch (InvalidConfigException e)
+		  {
+		    throw new DatabusRuntimeException(e);  // alternatively, declare config exception and let it go
+		  }
+		}
+
 		MultiConsumerCallback relayAsyncCallback = new MultiConsumerCallback(
 				(null != _relayRegistrations ? _relayRegistrations
 						: new ArrayList<DatabusV2ConsumerRegistration>()),
 				_consumerCallbackExecutor,
 				connConfig.getConsumerTimeBudgetMs(),
-				new StreamConsumerCallbackFactory(), _relayConsumerStats);
+				new StreamConsumerCallbackFactory(), _relayConsumerStats,
+				loggingConsumer);
 
 		MultiConsumerCallback bootstrapAsyncCallback = new MultiConsumerCallback(
 				(null != _bootstrapRegistrations ? _bootstrapRegistrations
 						: new ArrayList<DatabusV2ConsumerRegistration>()),
 				_consumerCallbackExecutor,
 				connConfig.getBstConsumerTimeBudgetMs(),
-				new BootstrapConsumerCallbackFactory(), _bootstrapConsumerStats);
+				new BootstrapConsumerCallbackFactory(), _bootstrapConsumerStats,
+				loggingConsumer);
 
 		if (_bootstrapEventsBuffer != null) {
 			_bootstrapPuller = new BootstrapPullThread(_name
@@ -951,6 +970,9 @@ public class DatabusSourcesConnection {
 		private double _checkpointThresholdPct;
 		private long _keyMin;
 		private long _keyMax;
+		// Ideally, _bsPullerRetriesBeforeCkptCleanup should be renamed to _bsPullerRetriesBeforeServerSwitch
+		// In V3 bootstrap there is no clean-up of checkpoint when switching servers.
+		// See BootstrapV3CheckpointHandler.resetForServerChange() method
 		private BackoffTimerStaticConfigBuilder _bsPullerRetriesBeforeCkptCleanup;
 		private BackoffTimerStaticConfigBuilder _pullerRetries;
 		private BackoffTimerStaticConfigBuilder _bstPullerRetries;

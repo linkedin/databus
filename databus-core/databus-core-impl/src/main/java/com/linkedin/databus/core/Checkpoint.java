@@ -18,7 +18,6 @@ package com.linkedin.databus.core;
  *
 */
 
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -34,6 +33,7 @@ import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.linkedin.databus.core.util.Fnv1aHashImpl;
+
 
 /**
  * This class represents the state of a consumer consuming events from a Databus server for
@@ -55,12 +55,20 @@ import com.linkedin.databus.core.util.Fnv1aHashImpl;
  * <ul>
  *  <li> {@code consumption_mode} - must be {@link DbusClientMode#ONLINE_CONSUMPTION}
  *  <li> {@code windowScn}        - the sequence number (SCN) of the current window; -1 denotes
- *                                  "flexible" checkpoint (see below).
+ *                                  "flexible" checkpoint (see below). If the SCN is 0, and tsNescs is greater than 0
+ *                                  then the relay may (if capable) stream events that have timestamp greater than
+ *                                  or equal to tsNsecs. However, the relay MUST ensure that it does not miss any
+ *                                  events that have a timestamp greater than or equal to tsNsecs.
+ *                                  TODO: Until we have this capability in the relays we don't have to define the exact behavior
  *  <li> {@code prevScn}          - the sequence number (SCN) of the window before current; -1 means
  *                                  "unknown".
  *  <li> {@code windowOffset}     - the number of events processed from the current window;
  *                                  -1 means the entire window has been processed including the end-of-window event and
  *                                  prevScn must be equal to windowScn.
+ *  <li> {@code tsNsecs}          - optional value that is set to the timestamp of the EOP event in the window of
+ *                                  events with the highest SCN that has been successfully consumed. If tsNsecs is
+ *                                  greater than 0 then the value of windowScn must not be -1 (see discussion on
+ *                                  flexible checkpoints below).
  * </ul>
  *
  * <i>Flexible online-consumption checkpoints</i>
@@ -68,6 +76,7 @@ import com.linkedin.databus.core.util.Fnv1aHashImpl;
  * Used by consumers which do not care from where they start consuming. The relay will make the
  * best effort to serve whatever data it has. Flexible checkpoints can be created using
  * {@link #createFlexibleCheckpoint()} or invoking {@link #setFlexible()} on an existing Checkpoint.
+ * If a flexible checkpoint has tsNsecs set, the value of tsNsecs must be -1 (unset value).
  *
  *<p><b>Bootstrap checkpoints</b>
  *
@@ -82,6 +91,12 @@ import com.linkedin.databus.core.util.Fnv1aHashImpl;
  *                                       completed. It provides an upper bound of how much dirty data might have been
  *                                       read while snapshotting. It specifies the SCN up to which catch-up should be
  *                                       performed to guarantee consistency of the bootstrap results.
+ *   <li> {@code bootstrap_start_tsnsecs}
+ *                                     - (optional) the timestamp of the EOP event of the highest window successfully
+ *                                       processed by the client before the client fell off the relay. This value
+ *                                       is optionally set by the bootstrap client before bootstrapping begins, and
+ *                                       is never changed during the entire bootstrap sequence
+ *                                       (snapshot and catchup phases).
  * </ul>
  *
  * <p><b>Bootstrap snapshot checkpoints</b>
@@ -118,7 +133,6 @@ import com.linkedin.databus.core.util.Fnv1aHashImpl;
  *  <li> {@code windowOffset}          - the number of events processed from the current window;
  * </ul>
  *
- *
  * @see CheckpointMult for multi-partition checkpoints
  *
  */
@@ -130,11 +144,22 @@ public class Checkpoint
   public static final String  MODULE               = Checkpoint.class.getName();
   public static final Logger  LOG                  = Logger.getLogger(MODULE);
 
+  public static final long UNSET_BOOTSTRAP_START_NSECS = -1;
+  public static final long UNSET_TS_NSECS = -1;
   public static final long UNSET_BOOTSTRAP_START_SCN = -1;
   public static final long UNSET_BOOTSTRAP_SINCE_SCN = -1;
   public static final long UNSET_BOOTSTRAP_TARGET_SCN = -1;
   public static final int UNSET_BOOTSTRAP_INDEX = 0;
   public static final long UNSET_ONLINE_PREVSCN = -1;
+  /**
+   * A checkpoint has the tuple (SCN, Timestamp-of-highest-scn) to indicate the point of successful
+   * consumption -- The SCN and timestamp being that of the EOW event consumed successfully.
+   * However, it is possible to create a checkpoint (e.g. by the operator as a run-book procedure) that
+   * has only a timestamp to indicate the last consumption point, but does not have the corresponding SCN.
+   * For now, we restrict these checkpoints to have an SCN of 0 (definitely not -1, since -1 will indicate
+   * a 'flexible checkpoint')
+   */
+  public static final long WINDOW_SCN_FOR_PURE_TIMEBASED_CKPT = 0;
   public static final String NO_SOURCE_NAME = "";
 
   /** The window offset value for a full-consumed window*/
@@ -142,6 +167,7 @@ public class Checkpoint
   public static final Long DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET = -1L;
 
 
+  private static final String TS_NSECS             = "tsNsecs";
   private static final String WINDOW_SCN           = "windowScn";
   // which window scn have we processed completely
   private static final String WINDOW_OFFSET        = "windowOffset";
@@ -183,6 +209,7 @@ public class Checkpoint
   public static final String BOOTSTRAP_SERVER_INFO = "bootstrap_server_info";
   public static final String SNAPSHOT_FILE_RECORD_OFFSET = "bootstrap_snapshot_file_record_offset";
   public static final String STORAGE_CLUSTER_NAME = "storage_cluster_name";
+  public static final String BOOTSTRAP_START_TSNSECS = "bootstrap_start_tsnsecs";
 
   private static final ObjectMapper mapper               = new ObjectMapper();
   private final Map<String, Object> internalData;
@@ -191,6 +218,7 @@ public class Checkpoint
   private long                prevWindowScn;
   private long                currentWindowOffset;
   private long                snapShotOffset;
+  // TODO ALERT XXX WARNING: Do NOT add any more member variables. See DDSDBUS-3070. It is ok to add to internalData
 
   @SuppressWarnings("unchecked")
   public Checkpoint(String serializedCheckpoint) throws JsonParseException,
@@ -236,6 +264,26 @@ public class Checkpoint
 	  snapShotOffset = -1;
 	  internalData.clear();
 	  setConsumptionMode(DbusClientMode.INIT);
+  }
+
+  public void setTsNsecs(long nsecs)
+  {
+    internalData.put(TS_NSECS, Long.valueOf(nsecs));
+  }
+
+  public long getTsNsecs()
+  {
+    return number2Long((Number)internalData.get(TS_NSECS), UNSET_TS_NSECS);
+  }
+
+  public void setBootstrapStartNsecs(long nsecs)
+  {
+    internalData.put(BOOTSTRAP_START_TSNSECS, Long.valueOf(nsecs));
+  }
+
+  public long getBootstrapStartNsecs()
+  {
+    return number2Long((Number)internalData.get(BOOTSTRAP_START_TSNSECS), UNSET_BOOTSTRAP_START_NSECS);
   }
 
   public void setBootstrapSnapshotSourceIndex(int index)
@@ -490,6 +538,8 @@ public class Checkpoint
       return number2Long(n, UNSET_BOOTSTRAP_SINCE_SCN);
   }
 
+  // TODO Deprecate and remove this method. See DDSDBUS-3070.
+  // See toString()
   public void serialize(OutputStream outStream) throws JsonGenerationException,
       JsonMappingException,
       IOException
@@ -499,6 +549,8 @@ public class Checkpoint
 
   }
 
+  // This is the method used by databus components to "serialize" a checkpoint for on-the-wire
+  // transmission.
   @Override
   public String toString()
   {
@@ -542,7 +594,7 @@ public class Checkpoint
     if (e.isEndOfPeriodMarker())
     {
       prevWindowScn = e.sequence();
-      endEvents(e.sequence());
+      endEvents(e.sequence(), e.timestampInNanos());
     }
     else if (e.isCheckpointMessage())
     {
@@ -634,7 +686,13 @@ public class Checkpoint
     setWindowOffset(fromCkpt.getWindowOffset());
   }
 
-  public void endEvents(long endWindowScn)
+  private void endEvents(long endWindowScn, long nsecs)
+  {
+    setFullyConsumed(endWindowScn);
+    setTsNsecs(nsecs);
+  }
+
+  private void setFullyConsumed(long endWindowScn)
   {
     currentWindowOffset = FULLY_CONSUMED_WINDOW_OFFSET;
     this.clearWindowOffset();
@@ -675,7 +733,7 @@ public class Checkpoint
 
   public void endCatchupSource()
   {
-    endEvents(currentWindowScn);
+    setFullyConsumed(currentWindowScn);
     this.setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
   }
 
@@ -738,12 +796,13 @@ public class Checkpoint
   {
     setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
     setWindowScn(-1L);
+    setTsNsecs(UNSET_TS_NSECS);
   }
 
   public boolean getFlexible()
   {
     if ((getConsumptionMode() == DbusClientMode.ONLINE_CONSUMPTION)
-        && (getWindowScn() < 0))
+        && (getWindowScn() < 0) && getTsNsecs() == UNSET_TS_NSECS)
     {
       return true;
     }
@@ -751,6 +810,11 @@ public class Checkpoint
     {
       return false;
     }
+  }
+
+  public void clearBootstrapStartTsNsecs()
+  {
+    setBootstrapStartNsecs(UNSET_BOOTSTRAP_START_NSECS);
   }
 
   public void clearBootstrapSinceScn()
@@ -801,6 +865,7 @@ public class Checkpoint
 	  setBootstrapServerInfo(null);
 	  setSnapshotFileRecordOffset(DEFAULT_SNAPSHOT_FILE_RECORD_OFFSET);
 	  setStorageClusterName("");
+    clearBootstrapStartTsNsecs();
   }
 
   /**
@@ -848,6 +913,26 @@ public class Checkpoint
   /* Helper factory methods */
 
   /**
+   * Creates a time-based checkpoint.
+   *
+   * A very nice API to have for the clients, when we provide the use case for a registration to
+   * start receiving relay events X hours before registration time (i,e. neither from the beginning of
+   * buffer, nor from latest point).
+  public static Checkpoint createTimeBasedCheckpoint(long nsecs)
+  throws DatabusRuntimeException
+  {
+    if (nsecs <= UNSET_TS_NSECS)
+    {
+      throw new DatabusRuntimeException("Invalid value for timestamp:" + nsecs);
+    }
+    Checkpoint cp = new Checkpoint();
+    cp.setTsNsecs(nsecs);
+    cp.setWindowScn(WINDOW_SCN_FOR_PURE_TIMEBASED_CKPT);
+    return cp;
+  }
+   */
+
+  /**
    * Creates a flexible online-consumption checkpoint.
    * @return the new checkpoint
    */
@@ -876,6 +961,18 @@ public class Checkpoint
     cp.setPrevScn(lastConsumedScn);
     cp.setWindowOffset(FULLY_CONSUMED_WINDOW_OFFSET);
 
+    return cp;
+  }
+
+  /**
+   * Creates an online checkpoint with timestamp and SCN. See DDSDBUS-3332
+   * @param lastConsumedScn the sequence number of the last fully consumed window
+   * @param tsNanos the timestamp, if available, of the last fully consumed window.
+   */
+  public static Checkpoint createOnlineConsumptionCheckpoint(long lastConsumedScn, long tsNanos)
+  {
+    Checkpoint cp = createOnlineConsumptionCheckpoint(lastConsumedScn);
+    cp.setTsNsecs(tsNanos);
     return cp;
   }
 
@@ -924,6 +1021,7 @@ public class Checkpoint
     lhash = Fnv1aHashImpl.addLong32(lhash, currentWindowScn);
     lhash = Fnv1aHashImpl.addLong32(lhash, prevWindowScn);
     lhash = Fnv1aHashImpl.addLong32(lhash, currentWindowOffset);
+    lhash = Fnv1aHashImpl.addLong32(lhash, getTsNsecs());
     if (DbusClientMode.BOOTSTRAP_CATCHUP == mode || DbusClientMode.BOOTSTRAP_SNAPSHOT == mode)
     {
       lhash = Fnv1aHashImpl.addLong32(lhash, snapShotOffset);
@@ -933,6 +1031,7 @@ public class Checkpoint
       lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapCatchupSourceIndex());
       lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapSnapshotSourceIndex());
       lhash = Fnv1aHashImpl.addLong32(lhash, getSnapshotFileRecordOffset());
+      lhash = Fnv1aHashImpl.addLong32(lhash, getBootstrapStartNsecs());
     }
 
     return Fnv1aHashImpl.getHash32(lhash);
@@ -940,7 +1039,6 @@ public class Checkpoint
 
   /**
    * Checks invariants for a checkpoint.
-   * @param ckpt    the checkpoint to validate
    * @return true; this is so one can write "assert assertCheckpoint()" if they want control if the assert is to be run
    * @throws InvalidCheckpointException if the validation fails
    */
@@ -1037,6 +1135,12 @@ public class Checkpoint
   {
     if (getFlexible())
     {
+      long tsNsecs = getTsNsecs();
+      // tsNsecs should be unset.
+      if (tsNsecs != UNSET_TS_NSECS)
+      {
+        throw new InvalidCheckpointException("unexpected tsNsecs:" + tsNsecs, this);
+      }
       return true;
     }
     if (getWindowScn() < 0)
@@ -1056,7 +1160,6 @@ public class Checkpoint
     {
       throw new InvalidCheckpointException("prevScn > windowScn", this);
     }
-
     return true;
   }
 

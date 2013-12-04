@@ -174,9 +174,7 @@ public class BootstrapReadOnlyConfig
    */
   @Override
   public String toString() {
-	  return "BootstrapReadOnlyConfig [_bootstrapDBUsername="
-	  + _bootstrapDBUsername + ", _bootstrapDBPassword=xxxxxx"
-	  + ", _bootstrapDBHostname="
+	  return "BootstrapReadOnlyConfig [_bootstrapDBHostname="
 	  + _bootstrapDBHostname + ", _bootstrapBatchSize="
 	  + _bootstrapBatchSize + ", _bootstrapSnapshotBatchSize=" + _bootstrapSnapshotBatchSize
 	  + ", _bootstrapCatchupSize= " + _bootstrapCatchupBatchSize + ", _bootstrapLogSize=" + _bootstrapLogSize

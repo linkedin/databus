@@ -27,7 +27,7 @@ package com.linkedin.databus.client.pub;
  *  <li>CHECKPOINT - callback finished successfully and consumer is ready for a checkpoint</li>
  *  <li>SKIP_CHECKPOINT - onCheckpoint callback finished without error but consumer hasn't saved interim work and doesn't want current checkpoint to be persisted </li>
  *  <li>ERROR - callback finished unsuccessfully; the Databus library should retry the call</li>
- *  <li>ERROR_FATAL - callback finished unsuccessfully with an unrecoverable error</li>
+ *  <li>ERROR_FATAL - *DO NOT USE* This is not currently supported by the databus library </li>
  * </ul>
  */
 public enum ConsumerCallbackResult

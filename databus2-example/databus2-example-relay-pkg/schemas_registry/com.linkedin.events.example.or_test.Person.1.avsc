@@ -1,0 +1,28 @@
+{
+  "name" : "Person_V1",
+  "doc" : "Auto-generated Avro schema for sy$person. Generated at Dec 04, 2012 05:07:05 PM PST",
+  "type" : "record",
+  "meta" : "dbFieldName=person;pk=id;",
+  "namespace" : "com.linkedin.events.example.or_test",
+  "fields" : [ {
+    "name" : "id",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=ID;dbFieldPosition=0;"
+  }, {
+    "name" : "firstName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=FIRST_NAME;dbFieldPosition=1;"
+  }, {
+    "name" : "lastName",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=LAST_NAME;dbFieldPosition=2;"
+  }, {
+    "name" : "birthDate",
+    "type" : [ "long", "null" ],
+    "meta" : "dbFieldName=BIRTH_DATE;dbFieldPosition=3;"
+  }, {
+    "name" : "deleted",
+    "type" : [ "string", "null" ],
+    "meta" : "dbFieldName=DELETED;dbFieldPosition=4;"
+  } ]
+}

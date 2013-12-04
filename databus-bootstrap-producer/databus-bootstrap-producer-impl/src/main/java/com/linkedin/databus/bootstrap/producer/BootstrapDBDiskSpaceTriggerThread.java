@@ -79,14 +79,7 @@ public class BootstrapDBDiskSpaceTriggerThread extends DatabusThreadBase
 
         synchronized (_cleaner)
         {
-          if (!_cleaner.isCleanerRunning())
-          {
-            _cleaner.doClean();
-          }
-          else
-          {
-            LOG.info("Skipping as cleaner is already running !!");
-          }
+          _cleaner.doClean();
         }
       }
 

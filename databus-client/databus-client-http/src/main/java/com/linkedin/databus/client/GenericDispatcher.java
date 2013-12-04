@@ -85,6 +85,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   private long _numCheckPoints = 0;
   //sequence num (event.sequence()) of last complete window seen
   protected long _lastWindowScn = -1;
+  protected long _lastEowTsNsecs = -1;
   private RegistrationId _registrationId;
 
   public GenericDispatcher(String name,
@@ -708,6 +709,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
             if (success)
             {
               _lastWindowScn = nextEvent.sequence();
+              _lastEowTsNsecs = nextEvent.timestampInNanos();
               endWinScn = new SingleSourceSCN(nextEvent.physicalPartitionId(),
                                               _lastWindowScn);
               curState.switchToEndStreamEventWindow(endWinScn);
@@ -732,12 +734,21 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           {
             //empty window
             success = true;
-            LOG.info("skipping empty window: " + nextEvent.sequence());
+            if (LOG.isDebugEnabled())
+            {
+              LOG.debug("skipping empty window: " + nextEvent.sequence());
+            }
 
             //write a checkpoint; takes care of slow sources ; but skip storing the first control eop with 0 scn
             if (nextEvent.sequence() > 0)
             {
                 _lastWindowScn = nextEvent.sequence();
+                //the first window (startEvents()) can have a eop whose sequence() is non-zero but timestamp 0 e.g. in chained relay .
+                //The reason is that the eop's timestamp is the max timestamp of all data events seen so far.
+                if (nextEvent.timestampInNanos() > 0)
+                {
+                  _lastEowTsNsecs = nextEvent.timestampInNanos();
+                }
                 Checkpoint ckpt = createCheckpoint(curState, nextEvent);
                 try
                 {
@@ -1058,9 +1069,9 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
   protected abstract Checkpoint createCheckpoint(DispatcherState curState, DbusEvent event);
 
-  public static Checkpoint createOnlineConsumptionCheckpoint(long lastCompleteWindowScn,DispatcherState curState, DbusEvent event)
+  public static Checkpoint createOnlineConsumptionCheckpoint(long lastCompleteWindowScn, long lastEowTsNsecs, DispatcherState curState, DbusEvent event)
   {
-      //For online consumption ; this means that a complete event window hasn't been read yet.
+      //TODO: What does this mean? "For online consumption ; this means that a complete event window hasn't been read yet."
       //So until we have support from RelayPuller resuming from mid-window ; there is no point in trying to save  a parital window
       long windowScn = lastCompleteWindowScn;
       if (windowScn < 0)
@@ -1070,14 +1081,17 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               //control event; then safe to set to sequence; useful when relayPuller writes checkpoint to buffer to
               //be passed on to bootstrapPuller
               windowScn = event.sequence();
+            // TODO: According to DbusEventFactory.createCheckpointEvent, event,sequence() is always 0!
+            // Is this even executed? If we send a checkpoint event from the relay, we could be screwed!
           }
           else
           {
               //there's no sufficient data: not a single window has been processed.
               windowScn = event.sequence() > 0 ? event.sequence()-1 : 0;
+              // TODO Can't do this math for timestamp. See DDSDBUS-3149
           }
       }
-      return Checkpoint.createOnlineConsumptionCheckpoint(windowScn);
+      return Checkpoint.createOnlineConsumptionCheckpoint(windowScn, lastEowTsNsecs);
   }
 
 

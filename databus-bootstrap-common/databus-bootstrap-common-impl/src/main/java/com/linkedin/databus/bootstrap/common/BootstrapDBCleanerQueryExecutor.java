@@ -39,13 +39,17 @@ import com.linkedin.databus2.util.DBHelper;
 public class BootstrapDBCleanerQueryExecutor
 {
   public static final String MODULE = BootstrapDBCleanerQueryExecutor.class.getName();
-  public static final Logger LOG = Logger.getLogger(MODULE);
+  public final Logger LOG;
 
+  // Used for identifying the source in log4j
+  private final String _name;
   private final Connection _conn;
   private final BootstrapDBCleanerQueryHelper _bootstrapDBCleanerQueryHelper;
 
-  public BootstrapDBCleanerQueryExecutor(Connection conn, BootstrapDBCleanerQueryHelper bootstrapDBCleanerQueryHelper)
+  public BootstrapDBCleanerQueryExecutor(String name, Connection conn, BootstrapDBCleanerQueryHelper bootstrapDBCleanerQueryHelper)
   {
+    _name = name;
+    LOG = Logger.getLogger(MODULE + "." + name);
     if (null != conn)
     {
       _conn = conn;
@@ -235,7 +239,7 @@ public class BootstrapDBCleanerQueryExecutor
         deletedLogsInfo.add(logInfo);
       } catch (SQLException ex)
       {
-        LOG.error("Unable to delete log table :" + logInfo.getLogTable());
+        LOG.error("Unable to delete log table :" + logInfo.getLogTable(), ex);
       }
     }
     return deletedLogsInfo;

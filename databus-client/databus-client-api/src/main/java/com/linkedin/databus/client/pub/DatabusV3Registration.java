@@ -89,28 +89,10 @@ public interface DatabusV3Registration {
   public RegistrationId getId();
 
   /**
-   * Internal-use only. Please do not use. DDSDBUS-2623.
-   *
-   * This call sets parent registration id for this (child) registration.
-   * Applicable for Multi-Partition Consumers only
-   *
-   * For e.g., if the subscription is for all the partitions on TestDB and TestDB has
-   * 2 partitions, then two individual registrations are created for each of the registrations
-   * In addition a "parent" registration is created, that assimilates information across
-   * all the partitions, and encapsulates the sub-partition level information.
-   *
-   * @param rid RegistrationId of the parent
-   */
-  public void setParentRegId(RegistrationId rid);
-
-  /**
-   * Internal-use only. Please do not use. DDSDBUS-2623.
-   *
-   * Get parent registration id of this registration.
-   *
-   * Applicable for Multi-Partition Consumers only.
-   */
-  public RegistrationId getParentRegId();
+   * Obtains the parent registration if any. Parent registrations are generally creating when consuming from multiple
+   * partitions simultaneously.
+   * @return the parent registration or null if there isn't any*/
+  public DatabusV3Registration getParentRegistration();
 
   /**
    * Fetch the most recent sequence number across all relays.

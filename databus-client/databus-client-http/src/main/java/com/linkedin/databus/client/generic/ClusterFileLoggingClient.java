@@ -241,11 +241,10 @@ public abstract class ClusterFileLoggingClient
 		List<DatabusRegistration> regs = new ArrayList<DatabusRegistration>();
 		for (String cluster : _clusters)
 		{
-			DatabusRegistration reg = 
-				client.registerCluster(cluster, 
-						               createConsumerFactory(cluster,_valueDumpFile), 
-						               createServerSideFactory(cluster), 
-						               createPartitionListener(cluster,_eventDumpFile), 
+			DatabusRegistration reg = client.registerCluster(cluster,
+						               createConsumerFactory(cluster, _valueDumpFile, _eventDumpFile),
+						               createServerSideFactory(cluster),
+						               createPartitionListener(cluster),
 						               sources);
 			regs.add(reg);
 		}
@@ -266,11 +265,13 @@ public abstract class ClusterFileLoggingClient
 		client.startAndBlock();
 	}
 
-	protected abstract DbusClusterConsumerFactory createConsumerFactory(String cluster, String valueFilePrefix);
+	protected abstract DbusClusterConsumerFactory createConsumerFactory(String cluster,
+	                                                                    String valueFilePrefix,
+	                                                                    String eventDumpPrefix);
 
 	protected abstract DbusServerSideFilterFactory createServerSideFactory(String cluster);
 
-	protected abstract DbusPartitionListener createPartitionListener(String cluster, String eventDumpPrefix);
+	protected abstract DbusPartitionListener createPartitionListener(String cluster);
 
 
 	static class DatabusClientShutdownThread extends Thread

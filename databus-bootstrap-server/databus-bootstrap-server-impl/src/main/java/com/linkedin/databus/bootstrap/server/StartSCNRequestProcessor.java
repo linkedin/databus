@@ -158,6 +158,10 @@ public class StartSCNRequestProcessor extends BootstrapRequestProcessorBase
     	byte[] resultBytes = out.toString().getBytes();
     	request.getResponseContent().write(ByteBuffer.wrap(resultBytes));
     	LOG.info("startSCN: " + startSCN + " with server Info :" + _serverHostPort);
+
+    } catch (RequestProcessingException ex) {
+      LOG.error("Got exception while calculating startSCN", ex);
+      throw ex;
     } catch (Exception ex) {
     	LOG.error("Got exception while calculating startSCN", ex);
     	throw new RequestProcessingException(ex);

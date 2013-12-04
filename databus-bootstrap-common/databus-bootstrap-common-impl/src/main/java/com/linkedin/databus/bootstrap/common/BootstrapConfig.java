@@ -36,8 +36,6 @@ public class BootstrapConfig extends BootstrapConfigBase implements ConfigBuilde
   public BootstrapReadOnlyConfig build() throws InvalidConfigException
   {
     LOG.info("Bootstrap service using http port:" + _container.getHttpPort());
-    LOG.info("Bootstrap service DB username:" + _bootstrapDBUsername);
-    LOG.info("Bootstrap service DB password: ***");
     LOG.info("Bootstrap service DB hostname:" + _bootstrapDBHostname);
     LOG.info("Bootstrap service batch size:" + _bootstrapBatchSize);
     LOG.info("Bootstrap service snapshot batch size:" + getBootstrapSnapshotBatchSize());

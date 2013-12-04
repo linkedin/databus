@@ -30,6 +30,7 @@ import com.linkedin.databus.core.util.InvalidConfigException;
 public class BootstrapServerConfig implements
     ConfigBuilder<BootstrapServerStaticConfig>
 {
+  public static final long DEFAULT_LONGEST_DB_TXN_TIME_MINS = 240;
   // BypassSnapshot disabled by default
   public static final long DEFAULT_DEFAULT_THRESHOLD_FOR_SNAPSHOT_BYPASS = -1;
 
@@ -67,6 +68,8 @@ public class BootstrapServerConfig implements
   // MinScn check enabled/disabled - See DDSDBUS-1629
   private boolean enableMinScnCheck = DEFAULT_MINSCNCHECK;
 
+  private long longestDbTxnTimeMins = DEFAULT_LONGEST_DB_TXN_TIME_MINS;
+
   public boolean getPredicatePushDown()
   {
     return predicatePushDown;
@@ -80,10 +83,15 @@ public class BootstrapServerConfig implements
   @Override
   public BootstrapServerStaticConfig build() throws InvalidConfigException
   {
-    return new BootstrapServerStaticConfig(
-        defaultRowsThresholdForSnapshotBypass, rowsThresholdForSnapshotBypass,
-        disableSnapshotBypass, predicatePushDown, predicatePushDownBypass,
-        queryTimeoutInSec,enableMinScnCheck, db.build());
+    return new BootstrapServerStaticConfig(defaultRowsThresholdForSnapshotBypass,
+                                           rowsThresholdForSnapshotBypass,
+                                           disableSnapshotBypass,
+                                           predicatePushDown,
+                                           predicatePushDownBypass,
+                                           queryTimeoutInSec,
+                                           enableMinScnCheck,
+                                           db.build(),
+                                           longestDbTxnTimeMins);
   }
 
   public Long getDefaultRowsThresholdForSnapshotBypass()
@@ -105,6 +113,11 @@ public class BootstrapServerConfig implements
       return defaultRowsThresholdForSnapshotBypass;
 
     return threshold;
+  }
+
+  public long getLongestDbTxnTimeMins()
+  {
+    return longestDbTxnTimeMins;
   }
 
   public void setRowsThresholdForSnapshotBypass(String source, Long threshold)
@@ -160,6 +173,11 @@ public class BootstrapServerConfig implements
     this.enableMinScnCheck = enableMinScnCheck;
   }
 
+  public void setLongestDbTxnTimeMins(long longestDbTxnTimeMins)
+  {
+    this.longestDbTxnTimeMins = longestDbTxnTimeMins;
+  }
+
   public BootstrapConfig getDb()
   {
     return db;
@@ -178,6 +196,7 @@ public class BootstrapServerConfig implements
     rowsThresholdForSnapshotBypass = new HashMap<String, Long>();
     predicatePushDown = DEFAULT_PREDICATEPUSHDOWN;
     predicatePushDownBypass = new HashMap<String, Boolean>();
+    longestDbTxnTimeMins = DEFAULT_LONGEST_DB_TXN_TIME_MINS;
     db = new BootstrapConfig();
   }
 }
