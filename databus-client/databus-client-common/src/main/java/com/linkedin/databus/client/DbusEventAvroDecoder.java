@@ -91,7 +91,7 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
     if (null == writerSchema)
     {
       LOG.error("Unable to find schema for id " + schemaId + "; event = " + e);
-      return null;
+      throw new DatabusRuntimeException("No schema available to decode event " + e);
     }
 
     ByteBuffer valueBuffer = e.value();
@@ -230,7 +230,7 @@ public class DbusEventAvroDecoder implements DbusEventDecoder
     if (null == writerSchema)
     {
       LOG.error("Unable to find schema for id " + schemaId + "; event = " + e);
-      return null;
+      throw new DatabusRuntimeException("No schema available to decode event " + e);
     }
 
     ByteBuffer valueBuffer = e.value();

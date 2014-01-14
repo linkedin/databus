@@ -39,6 +39,7 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.client.ConnectionState.StateId;
 import com.linkedin.databus.client.netty.RemoteExceptionHandler;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
@@ -129,10 +130,11 @@ public class BootstrapPullThread extends BasePullThread
                              DbusEventFactory eventFactory,
                              ReentrantLock v3BootstrapLock)
   {
-    super(name, sourcesConn.getConnectionConfig().getBstPullerRetries(), sourcesConn, dbusEventBuffer, connStateFactory,bootstrapServers,mbeanServer, eventFactory);
+    super(name, sourcesConn.getConnectionConfig().getBstPullerRetries(), sourcesConn, dbusEventBuffer,
+          connStateFactory, bootstrapServers, mbeanServer, eventFactory);
 
     _retriesBeforeCkptCleanup = new BackoffTimer("BSPullerRetriesBeforeCkptCleanup",
-										 sourcesConn.getConnectionConfig().getBsPullerRetriesBeforeCkptCleanup());
+                                                 sourcesConn.getConnectionConfig().getBsPullerRetriesBeforeCkptCleanup());
     _bootstrapFilterConfigs = bootstrapFilterConfigs;
     _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, dbusEventBuffer, eventFactory);
     _pullerBufferUtilizationPct = pullerBufferUtilPct;
@@ -153,8 +155,8 @@ public class BootstrapPullThread extends BasePullThread
   @Override
   protected boolean shouldDelayTearConnection(StateId stateId)
   {
-	  boolean delayTear = SHOULD_TEAR_CONNECTION.contains(stateId);
-	  return delayTear;
+    boolean delayTear = SHOULD_TEAR_CONNECTION.contains(stateId);
+    return delayTear;
   }
 
 
@@ -171,7 +173,7 @@ public class BootstrapPullThread extends BasePullThread
       }
       else
       {
-      	ConnectionStateMessage stateMsg = (ConnectionStateMessage)message;
+        ConnectionStateMessage stateMsg = (ConnectionStateMessage)message;
         ConnectionState currentState = stateMsg.getConnState();
 
         switch (stateMsg.getStateId())
@@ -295,7 +297,7 @@ public class BootstrapPullThread extends BasePullThread
       }
     }
 
-    _log.info("resume checkpoint: " + _resumeCkpt.toString());
+    _log.info("resume checkpoint: " + _resumeCkpt);
   }
 
   /**
@@ -341,6 +343,8 @@ public class BootstrapPullThread extends BasePullThread
    * 3. The currently open connection to server (relay) is tracked as we want "sticky" behavior, meaning
    *    the ability to be able to connect to the previously connected server. Close the connection if open.
    */
+   // TODO:  seems misleading; stickiness not really achieved with _lastOpenConnection (which is good, since
+   //        it's closed and forgotten here) but rather with lastReadBS in doPickBootstrapServer()
   @Override
   protected void onShutdown()
   {
@@ -384,8 +388,9 @@ public class BootstrapPullThread extends BasePullThread
    * Invoked when a LifeCycle message of type "SUSPEND_ON_ERROR" is received by bootstrap puller thread
    * as defined in AbstractActorMessageQueue#executeAndChangeState(Object)
    *
-   * 1. Release lock for Databus V3 bootstrap
-   * 2. Invoke same method in super class
+   * 1. Invoke same method in super class
+   * 2. Send an "I'm dead" heartbeat value as a failsafe
+   * 3. Release lock for Databus V3 bootstrap
    */
   @Override
   protected void doSuspendOnError(LifecycleMessage lcMessage)
@@ -393,8 +398,10 @@ public class BootstrapPullThread extends BasePullThread
     try
     {
       super.doSuspendOnError(lcMessage);
+      sendHeartbeat(_sourcesConn.getUnifiedClientStats(), -1);
     }
-    finally {
+    finally
+    {
       unlockV3Bootstrap();
     }
   }
@@ -413,7 +420,6 @@ public class BootstrapPullThread extends BasePullThread
 
   protected void doPickBootstrapServer(ConnectionState curState)
   {
-
     int serversNum = _servers.size();
 
     if (0 == serversNum)
@@ -435,16 +441,16 @@ public class BootstrapPullThread extends BasePullThread
     ServerInfo lastReadBS = null;
     if ( null != bsServerInfo)
     {
-    	try
-    	{
-    		lastReadBS = ServerInfo.buildServerInfoFromHostPort(bsServerInfo, DbusConstants.HOSTPORT_DELIMITER);
-    	} catch(Exception ex) {
-    		_log.error("Unable to fetch bootstrap serverInfo from checkpoint, ServerInfo :" + bsServerInfo, ex);
-    	}
+      try
+      {
+        lastReadBS = ServerInfo.buildServerInfoFromHostPort(bsServerInfo, DbusConstants.HOSTPORT_DELIMITER);
+      } catch(Exception ex) {
+        _log.error("Unable to fetch bootstrap serverInfo from checkpoint, ServerInfo :" + bsServerInfo, ex);
+      }
     }
 
     if ( null == lastReadBS)
-    	restartBootstrap = true;
+      restartBootstrap = true;
 
     int retriesLeft = 0;
     DatabusBootstrapConnection bootstrapConn = null;
@@ -456,15 +462,16 @@ public class BootstrapPullThread extends BasePullThread
                && !checkForShutdownRequest())
         {
 
-        	_log.info("Retry picking last used bootstrap server :" + serverInfo + "; retries left:" +
-        	retriesLeft);
+            _log.info("Retry picking last used bootstrap server :" + serverInfo +
+                      "; retries left:" + retriesLeft);
 
-            if (null == bootstrapConn && lastReadBS.equals(_curServer) ) // if it is new server do not sleep?
+            if (lastReadBS.equals(_curServer) ) // if it is new server do not sleep?
               _retriesBeforeCkptCleanup.backoffAndSleep();
 
-        	try
+            try
             {
-              bootstrapConn = _sourcesConn.getBootstrapConnFactory().createConnection(serverInfo, this, _remoteExceptionHandler);
+              bootstrapConn = _sourcesConn.getBootstrapConnFactory().createConnection(serverInfo, this,
+                                                                                      _remoteExceptionHandler);
               _log.info("picked last used bootstrap server:" + serverInfo);
             }
             catch (Exception e)
@@ -475,7 +482,7 @@ public class BootstrapPullThread extends BasePullThread
 
         if ((null == bootstrapConn) && (_retriesBeforeCkptCleanup.getRemainingRetriesNum() < 0))
         {
-        	_log.info("Exhausted retrying the same bootstrap server :" + lastReadBS);
+          _log.info("Exhausted retrying the same bootstrap server :" + lastReadBS);
         }
     }
 
@@ -541,6 +548,8 @@ public class BootstrapPullThread extends BasePullThread
       return;
     }
 
+    sendHeartbeat(_sourcesConn.getUnifiedClientStats());
+
     curState.bootstrapServerSelected(serverInfo.getAddress(), bootstrapConn, _curServer);
 
     //determine what to do next based on the current checkpoint
@@ -548,35 +557,13 @@ public class BootstrapPullThread extends BasePullThread
     curState.setCheckpoint(_resumeCkpt);
     determineNextStateFromCheckpoint(curState);
     enqueueMessage(curState);
-
-    /*if (!_resumeCkpt.isBootstrapStartScnSet())
-    {
-      _resumeCkpt = curState.getBstCheckpointHandler().startBootstrap(
-          _resumeCkpt,_resumeCkpt.getBootstrapSinceScn());
-      _log.info("starting bootstrap from checkpoint: " + _resumeCkpt);
-
-        curState.switchToRequestStartScn(_resumeCkpt);
-        enqueueMessage(curState);
-    }
-    else if (_resumeCkpt.isBootstrapTargetScnSet())
-    {
-      _log.info("resuming bootstrap from checkpoint: " + _resumeCkpt);
-  	  curState.switchToStartScnSuccess(_resumeCkpt, bootstrapConn, _curServer);
-  	  enqueueMessage(curState);
-    }
-    else
-    {
-      _log.info("resuming bootstrap after snapshot from checkpoint: " + _resumeCkpt);
-      curState.switchToRequestTargetScn(_resumeCkpt);
-      enqueueMessage(curState);
-    }*/
-
   }
 
   private void doRequestTargetScn(ConnectionState curState)
   {
     _log.debug("Sending /targetScn request");
     curState.switchToTargetScnRequestSent();
+    sendHeartbeat(_sourcesConn.getUnifiedClientStats());
     curState.getBootstrapConnection().requestTargetScn(curState.getCheckpoint(), curState);
   }
 
@@ -601,6 +588,7 @@ public class BootstrapPullThread extends BasePullThread
     _log.debug("Sending /startScn request");
     String sourceNames = curState.getSourcesNameList();
     curState.switchToStartScnRequestSent();
+    sendHeartbeat(_sourcesConn.getUnifiedClientStats());
     curState.getBootstrapConnection().requestStartScn(curState.getCheckpoint(), curState, sourceNames);
   }
 
@@ -612,28 +600,28 @@ public class BootstrapPullThread extends BasePullThread
     }
     else
     {
-  	  ServerInfo bsServerInfo = curState.getCurrentBSServerInfo();
-  	  if ( null == bsServerInfo)
-  	  {
-  		  String msg = "Bootstrap Server did not provide its server info in StartSCN !! Switching to PICK_SERVER. CurrentServer :" + _curServer;
-  		  _log.error(msg);
-  	      curState.switchToStartScnResponseError();
-  	  }
-  	  else if (! bsServerInfo.equals(_curServer)){
-  		  // Possible for VIP case
-  		  _log.info("Bootstrap server responded and current server does not match. Switching to Pick Server !!  curServer: "
-  		                  + _curServer + ", Responded Server :" + bsServerInfo);
-  		  _log.info("Checkpoint before clearing :" + _resumeCkpt);
-  		  String bsServerInfoStr = _resumeCkpt.getBootstrapServerInfo();
-  		  final Long startScn = _resumeCkpt.getBootstrapStartScn();
-  		  curState.getBstCheckpointHandler().resetForServerChange(_resumeCkpt);
-  		  _resumeCkpt.setBootstrapStartScn(startScn);
-  		  _resumeCkpt.setBootstrapServerInfo(bsServerInfoStr);
-  		  _log.info("Checkpoint after clearing :" + _resumeCkpt);
-  		  curState.switchToPickServer();
-  	  } else {
-  		  curState.switchToRequestStream(curState.getCheckpoint());
-  	  }
+      ServerInfo bsServerInfo = curState.getCurrentBSServerInfo();
+      if ( null == bsServerInfo)
+      {
+        String msg = "Bootstrap Server did not provide its server info in StartSCN !! Switching to PICK_SERVER. CurrentServer :" + _curServer;
+        _log.error(msg);
+          curState.switchToStartScnResponseError();
+      }
+      else if (! bsServerInfo.equals(_curServer)){
+        // Possible for VIP case
+        _log.info("Bootstrap server responded and current server does not match. Switching to Pick Server !!  curServer: "
+                        + _curServer + ", Responded Server :" + bsServerInfo);
+        _log.info("Checkpoint before clearing :" + _resumeCkpt);
+        String bsServerInfoStr = _resumeCkpt.getBootstrapServerInfo();
+        final Long startScn = _resumeCkpt.getBootstrapStartScn();
+        curState.getBstCheckpointHandler().resetForServerChange(_resumeCkpt);
+        curState.getBstCheckpointHandler().setStartScnAfterServerChange(_resumeCkpt, startScn);
+        _resumeCkpt.setBootstrapServerInfo(bsServerInfoStr);
+        _log.info("Checkpoint after clearing :" + _resumeCkpt);
+        curState.switchToPickServer();
+      } else {
+        curState.switchToRequestStream(curState.getCheckpoint());
+      }
 
       enqueueMessage(curState);
     }
@@ -661,35 +649,35 @@ public class BootstrapPullThread extends BasePullThread
       String curSrcName = null;
       if (cp.getConsumptionMode() == DbusClientMode.BOOTSTRAP_SNAPSHOT)
       {
-    	  curSrcName = cp.getSnapshotSource();
+        curSrcName = cp.getSnapshotSource();
       } else {
-    	  curSrcName = cp.getCatchupSource();
+        curSrcName = cp.getCatchupSource();
       }
 
 
       if ( null == _bootstrapFilter)
       {
-    	_bootstrapFilter = new DbusKeyCompositeFilter();
-      	Map<String, IdNamePair> srcNameIdMap = curState.getSourcesNameMap();
+        _bootstrapFilter = new DbusKeyCompositeFilter();
+        Map<String, IdNamePair> srcNameIdMap = curState.getSourcesNameMap();
 
-      	for (DbusKeyCompositeFilterConfig conf : _bootstrapFilterConfigs)
-      	{
-      		Map<String, KeyFilterConfigHolder> cMap = conf.getConfigMap();
+        for (DbusKeyCompositeFilterConfig conf : _bootstrapFilterConfigs)
+        {
+          Map<String, KeyFilterConfigHolder> cMap = conf.getConfigMap();
 
-      		Map<Long, KeyFilterConfigHolder> fConfMap = new HashMap<Long, KeyFilterConfigHolder>();
-      		for ( Entry<String, KeyFilterConfigHolder> e : cMap.entrySet())
-      		{
-      			IdNamePair idName = srcNameIdMap.get(e.getKey());
+          Map<Long, KeyFilterConfigHolder> fConfMap = new HashMap<Long, KeyFilterConfigHolder>();
+          for ( Entry<String, KeyFilterConfigHolder> e : cMap.entrySet())
+          {
+            IdNamePair idName = srcNameIdMap.get(e.getKey());
 
-      			if ( null != idName)
-      			{
-      				fConfMap.put(idName.getId(),e.getValue());
-      			}
-      		}
+            if ( null != idName)
+            {
+              fConfMap.put(idName.getId(),e.getValue());
+            }
+          }
 
-      		_bootstrapFilter.merge(new DbusKeyCompositeFilter(fConfMap));
-      	}
-      	_bootstrapFilter.dedupe();
+          _bootstrapFilter.merge(new DbusKeyCompositeFilter(fConfMap));
+        }
+        _bootstrapFilter.dedupe();
       }
 
       DbusKeyFilter filter = null;
@@ -697,16 +685,17 @@ public class BootstrapPullThread extends BasePullThread
 
       if ( null != srcEntry)
       {
-    	  Map<Long, DbusKeyFilter> fMap = _bootstrapFilter.getFilterMap();
+        Map<Long, DbusKeyFilter> fMap = _bootstrapFilter.getFilterMap();
 
-    	  if ( null != fMap)
-    		  filter = fMap.get(srcEntry.getId());
+        if ( null != fMap)
+          filter = fMap.get(srcEntry.getId());
       }
 
       int fetchSize = (int)((curState.getDataEventsBuffer().getBufferFreeReadSpace() / 100.0) *
                       _pullerBufferUtilizationPct);
       fetchSize = Math.max(freeBufferThreshold, fetchSize);
       curState.switchToStreamRequestSent();
+      sendHeartbeat(_sourcesConn.getUnifiedClientStats());
       curState.getBootstrapConnection().requestStream(
           curState.getSourcesIdListString(),
           filter,
@@ -752,6 +741,8 @@ public class BootstrapPullThread extends BasePullThread
       ByteArrayInputStream cpIs = new ByteArrayInputStream(cpEventBytes);
       ReadableByteChannel cpRbc = Channels.newChannel(cpIs);
 
+      UnifiedClientStats unifiedClientStats = _sourcesConn.getUnifiedClientStats();
+      sendHeartbeat(unifiedClientStats);
       int ecnt = eventBuffer.readEvents(cpRbc);
 
       success = (ecnt > 0);
@@ -779,6 +770,7 @@ public class BootstrapPullThread extends BasePullThread
         }
         else
         {
+          sendHeartbeat(unifiedClientStats);
           int eventsNum = eventBuffer.readEvents(readChannel, curState.getListeners(),
                                                  _sourcesConn.getBootstrapEventsStatsCollector());
 
@@ -801,7 +793,7 @@ public class BootstrapPullThread extends BasePullThread
 
             numEventsInCurrentState += eventsNum;
 
-            _log.info("Bootstrap events read so far:" + numEventsInCurrentState);
+            _log.info("Bootstrap events read so far: " + numEventsInCurrentState);
 
             String status = readChannel.getMetadata("PhaseCompleted");
 
@@ -858,8 +850,8 @@ public class BootstrapPullThread extends BasePullThread
 
     if (toTearConnAfterHandlingResponse())
     {
-    	tearConnectionAndEnqueuePickServer();
-    	enqueueMessage = false;
+      tearConnectionAndEnqueuePickServer();
+      enqueueMessage = false;
     } else if (!success) {
       curState.switchToPickServer();
     }
@@ -984,82 +976,79 @@ public class BootstrapPullThread extends BasePullThread
 
   private void logBootstrapPhase(DbusClientMode mode, int snapshotSrcId, int catchupSrcId)
   {
-    _log.info("Bootstrap phase completed - " + mode +
-             " [" + snapshotSrcId +
-             ", " + catchupSrcId +
-             "]");
+    _log.info("Bootstrap phase completed - " + mode + " [" + snapshotSrcId + ", " + catchupSrcId + "]");
   }
 
   private void processStreamRequestError(ConnectionState state)
   {
     //TODO add statistics (DDSDBUS-88)
-	if (toTearConnAfterHandlingResponse())
-	{
-		tearConnectionAndEnqueuePickServer();
-	} else {
-		state.switchToPickServer();
-		enqueueMessage(state);
-	}
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
+    } else {
+      state.switchToPickServer();
+      enqueueMessage(state);
+    }
   }
 
   private void processStreamResponseError(ConnectionState state)
   {
     //TODO add statistics (DDSDBUS-88)
-	if (toTearConnAfterHandlingResponse())
-	{
-		tearConnectionAndEnqueuePickServer();
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
     } else {
-    	state.switchToPickServer();
-    	enqueueMessage(state);
+      state.switchToPickServer();
+      enqueueMessage(state);
     }
   }
 
   private void processTargetScnResponseError(ConnectionState currentState)
   {
     //TODO add statistics (DDSDBUS-88)
-	if (toTearConnAfterHandlingResponse())
-	{
-		tearConnectionAndEnqueuePickServer();
-	} else {
-		currentState.switchToPickServer();
-		enqueueMessage(currentState);
-	}
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
+    } else {
+      currentState.switchToPickServer();
+      enqueueMessage(currentState);
+    }
   }
 
   private void processTargetScnRequestError(ConnectionState currentState)
   {
     //TODO add statistics (DDSDBUS-88)
-	if (toTearConnAfterHandlingResponse())
-	{
-		tearConnectionAndEnqueuePickServer();
-	} else {
-		currentState.switchToPickServer();
-		enqueueMessage(currentState);
-	}
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
+    } else {
+      currentState.switchToPickServer();
+      enqueueMessage(currentState);
+    }
   }
 
   private void processStartScnResponseError(ConnectionState currentState)
   {
     //TODO add statistics((DDSDBUS-88)
-	if (toTearConnAfterHandlingResponse())
-	{
-		tearConnectionAndEnqueuePickServer();
-	} else {
-		currentState.switchToPickServer();
-		enqueueMessage(currentState);
-	}
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
+    } else {
+      currentState.switchToPickServer();
+      enqueueMessage(currentState);
+    }
   }
 
   private void processStartScnRequestError(ConnectionState currentState)
   {
-	  //TODO add statistics((DDSDBUS-88)
-	  if (toTearConnAfterHandlingResponse())
-	  {
-		  tearConnectionAndEnqueuePickServer();
-	  } else {
-		  currentState.switchToPickServer();
-		  enqueueMessage(currentState);
-	  }
+    //TODO add statistics((DDSDBUS-88)
+    if (toTearConnAfterHandlingResponse())
+    {
+      tearConnectionAndEnqueuePickServer();
+    } else {
+      currentState.switchToPickServer();
+      enqueueMessage(currentState);
+    }
   }
 
 
@@ -1076,7 +1065,7 @@ public class BootstrapPullThread extends BasePullThread
 
   protected BackoffTimer getRetriesBeforeCkptCleanup()
   {
-	  return _retriesBeforeCkptCleanup;
+    return _retriesBeforeCkptCleanup;
   }
 
   /**
@@ -1245,7 +1234,8 @@ public class BootstrapPullThread extends BasePullThread
     {
       if (_v3BootstrapLock.isHeldByCurrentThread())
       {
-        _log.warn("lockV3Bootstrap is a no-op as the thread is already owner of bootstrap lock. Lock state = " + _v3BootstrapLock.toString());
+        _log.warn("lockV3Bootstrap is a no-op as the thread is already owner of bootstrap lock. Lock state = " +
+                  _v3BootstrapLock.toString());
         return;
       }
       _log.info("Waiting for bootstrap lock " + toString());
@@ -1273,7 +1263,8 @@ public class BootstrapPullThread extends BasePullThread
       // Check for this case
       if (! _v3BootstrapLock.isHeldByCurrentThread())
       {
-        String errMsg = "unlockV3Bootstrap is a no-op as current thread is NOT owner of bootstrap lock. Lock state = " + _v3BootstrapLock.toString();
+        String errMsg = "unlockV3Bootstrap is a no-op as current thread is NOT owner of bootstrap lock. Lock state = " +
+                        _v3BootstrapLock.toString();
         if (shutdownCase)
         {
           _log.info(errMsg);

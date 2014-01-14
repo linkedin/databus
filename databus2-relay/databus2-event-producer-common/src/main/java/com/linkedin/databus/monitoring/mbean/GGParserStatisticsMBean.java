@@ -55,8 +55,14 @@ public interface GGParserStatisticsMBean
   long getNumParseErrors();
   /** number of times parser was restarted - usually because of a parsing error */
   public long getNumParseRestarts();
+  /** Number of Regressions in SCN seen in processing of trail files **/
+  public long getNumSCNRegressions();
+  /** Last Regressed SCN seen in processing of trail files. No Regressions == -1**/
+  public long getLastRegressedScn();
   /** total bytes parsed */
   public long getNumBytesTotalParsed();
+  /** Max Scn seen by the parse **/
+  public long getMaxScn();
   /** TS of most recent trail file */
   void reset();
 

@@ -19,6 +19,15 @@ package com.linkedin.databus.container.request;
 */
 
 
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
+import java.util.concurrent.ExecutorService;
+
+import org.apache.log4j.Logger;
+
 import com.linkedin.databus.container.netty.HttpRelay;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBufferMult;
@@ -30,12 +39,6 @@ import com.linkedin.databus2.core.container.request.DatabusRequest;
 import com.linkedin.databus2.core.container.request.RequestProcessingException;
 import com.linkedin.databus2.core.container.request.RequestProcessor;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
-import java.io.BufferedReader;
-import java.io.FileReader;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.concurrent.ExecutorService;
-import org.apache.log4j.Logger;
 
 public class LoadDataEventsRequestProcessor implements RequestProcessor
 {
@@ -108,7 +111,7 @@ public class LoadDataEventsRequestProcessor implements RequestProcessor
         res.append(eventsAppended);
         res.append("}");
 
-        request.getResponseContent().write(ByteBuffer.wrap(res.toString().getBytes()));
+        request.getResponseContent().write(ByteBuffer.wrap(res.toString().getBytes(Charset.defaultCharset())));
       }
       catch (InvalidEventException iee)
       {

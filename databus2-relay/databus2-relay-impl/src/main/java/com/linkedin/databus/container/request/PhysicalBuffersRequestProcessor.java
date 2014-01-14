@@ -22,6 +22,7 @@ package com.linkedin.databus.container.request;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class PhysicalBuffersRequestProcessor implements RequestProcessor
       writer.writeValue(out,map);
     }
     
-    byte[] resultBytes = out.toString().getBytes();
+    byte[] resultBytes = out.toString().getBytes(Charset.defaultCharset());
     
     request.getResponseContent().write(ByteBuffer.wrap(resultBytes));
         

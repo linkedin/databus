@@ -21,6 +21,7 @@ package com.linkedin.databus.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.log4j.Logger;
@@ -60,7 +61,7 @@ public class OracleProducerTestRequestProcessor implements RequestProcessor
 			LOG.info("Resetting Catchup Target Max Scn !!");
 			_producer.setCatchupTargetMaxScn(-1);
 			String result = "{ \"command\" : \"" + command + "\", \"result\" : \"true\" }";			
-			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes()));
+			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes(Charset.defaultCharset())));
 		}  else {
 			throw new DatabusException("Unknown command :" + command);
 		}

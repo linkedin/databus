@@ -21,6 +21,7 @@ package com.linkedin.databus2.core.container.request;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.Charset;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
@@ -66,7 +67,7 @@ public class TestDatabusRequest
 
     // Coverage of toString().
     String jsonStr = req.toString();
-    Map<String, String> jsonMap = _objectMapper.readValue(jsonStr.getBytes(), new TypeReference<Map<String, String>>() {});
+    Map<String, String> jsonMap = _objectMapper.readValue(jsonStr.getBytes(Charset.defaultCharset()), new TypeReference<Map<String, String>>() {});
     Assert.assertEquals(reqName, jsonMap.get("name"));
     Assert.assertEquals(method.toString(), jsonMap.get("method"));
     Assert.assertEquals(propval1, jsonMap.get(prop1));

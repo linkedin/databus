@@ -19,6 +19,7 @@ package com.linkedin.databus.core.test;
 */
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.Vector;
 
 import com.linkedin.databus.core.DbusEvent;
@@ -111,7 +112,7 @@ public class DbusEventGenerator
                                                     //nanoseconds ; first event is numEvents seconds ago
                                                     srcId,
                                                     RngUtils.schemaMd5,
-                                                    RngUtils.randomString(payloadSize).getBytes(),
+                                                    RngUtils.randomString(payloadSize).getBytes(Charset.defaultCharset()),
                                                     false,
                                                     false /*autoCommit */);
         eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit

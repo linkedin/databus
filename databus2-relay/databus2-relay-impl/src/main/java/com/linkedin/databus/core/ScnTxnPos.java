@@ -8,8 +8,9 @@ public class ScnTxnPos
   private long _lineOffset; // Useful for manual debugging
   private long _minScn;
   private long _maxScn;
+  // Rank of the found txn = Number of transactions scanned before this transactions (across multiple trail files) in the lifetime of the InputStream
+  private long _txnRank = -1;
 
-  
   public void copyFrom(ScnTxnPos original)
   {
     _file = original.getFile();
@@ -20,7 +21,7 @@ public class ScnTxnPos
     _maxScn = original.getMaxScn();
 
   }
-  
+
 
   @Override
   public String toString()
@@ -71,13 +72,10 @@ public class ScnTxnPos
     return true;
   }
 
-
-
   public boolean isEmpty()
   {
     return 0 > _maxScn;
   }
-
 
   public String getFile()
   {
@@ -123,7 +121,7 @@ public class ScnTxnPos
   {
     return _maxScn;
   }
-  
+
   public long getMinScn()
   {
     return _minScn;
@@ -133,9 +131,17 @@ public class ScnTxnPos
   {
     this._maxScn = scn;
   }
-  
+
   public void setMinScn(long scn)
   {
     this._minScn = scn;
+  }
+
+  public long getTxnRank() {
+	return _txnRank;
+  }
+
+  public void setTxnRank(long txnRank) {
+	this._txnRank = txnRank;
   }
 }

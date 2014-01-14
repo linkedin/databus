@@ -43,20 +43,20 @@ import com.linkedin.databus.client.pub.DatabusStreamConsumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
+import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.util.IdNamePair;
 
 /**
  * Implements callbacks to multiple databus consumers in parallel. It also enforces
- * configurable time budget.
+ * a configurable time budget.
  */
 public class MultiConsumerCallback implements DatabusStreamConsumer
 {
   public final String MODULE = MultiConsumerCallback.class.getName();
   public final Logger LOG = Logger.getLogger(MODULE);
-
-  private static final long MILLI_NANOS = 1000000L;
 
   private final List<DatabusV2ConsumerRegistration> _registrations;
   private final ExecutorService _executorService;
@@ -69,31 +69,32 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   private final Lock _lock = new ReentrantLock();
   private final LoggingConsumer _loggingConsumer;
 
-  //local stats accumulator
+  //local stats accumulators
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
 
   // used only by tests
   public MultiConsumerCallback(List<DatabusV2ConsumerRegistration> registrations,
-          ExecutorService executorService,
-          long timeBudgetMs,
-          ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory
-         )
+                               ExecutorService executorService,
+                               long timeBudgetMs,
+                               ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory)
   {
-    this(registrations, executorService, timeBudgetMs, callbackFactory, null, null);
+    this(registrations, executorService, timeBudgetMs, callbackFactory, null, null, null);
   }
 
   public MultiConsumerCallback(List<DatabusV2ConsumerRegistration> registrations,
                                ExecutorService executorService,
                                long timeBudgetMs,
                                ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
-                               ConsumerCallbackStats consumerStats,
+                               ConsumerCallbackStats consumerStats,    // specific to relay or bootstrap mode, not both
+                               UnifiedClientStats unifiedClientStats,  // used in both relay and bootstrap mode
                                LoggingConsumer loggingConsumer)
   {
     super();
     _registrations = registrations;
     _executorService = executorService;
-    _timeBudgetNanos = timeBudgetMs * MILLI_NANOS;
+    _timeBudgetNanos = timeBudgetMs * DbusConstants.NUM_NSECS_IN_MSEC;
     _currentBatch = new ArrayList<ConsumerCallable<ConsumerCallbackResult>>(2048);
     _callbackFactory = callbackFactory;
     _runCallsCounter = 0;
@@ -101,16 +102,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
         new PriorityQueue<MultiConsumerCallback.TimestampedFuture<ConsumerCallbackResult>>(100,
             new TimestampedFutureComparator<ConsumerCallbackResult>());
     _consumerStats = consumerStats;
-    // TODO:  Should we sniff registrations list and make sure no LoggingConsumers in there?
-    //        Sole non-test caller is DatabusSourcesConnection, so as long as LoggingConsumer
-    //        is not available to end-users, no need...
+    _unifiedClientStats = unifiedClientStats;
     _loggingConsumer = loggingConsumer;  // may be null in unit tests
   }
 
   private ConsumerCallbackResult submitBatch(long curNanos, boolean barrierBefore,
                                              boolean barrierAfter)
   {
-    ++ _runCallsCounter;
+    ++_runCallsCounter;
     ConsumerCallbackResult retValue = ConsumerCallbackResult.SUCCESS;
     if (0 >= curNanos) curNanos = System.nanoTime();
     try
@@ -167,9 +166,9 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
         //timeout
         callRes = ConsumerCallbackResult.ERROR;
         top.getFuture().cancel(true);
-        LOG.error("callback timeout: " + top.getCallType() + "; runtime, ms : " +
-                  ((top.getTimestamp() - curNanos) / 1000000.0)
-                  + "; try increasing client.connectionDefaults.consumerTimeBudgetMs");
+        LOG.error("callback timeout: " + top.getCallType() + "; runtime = " +
+                  ((top.getTimestamp() - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC)
+                  + " ms; try increasing client.connectionDefaults.consumerTimeBudgetMs");
       }
 
       result = ConsumerCallbackResult.max(result, callRes);
@@ -211,9 +210,10 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     {
       if (timeoutNanos == 0)
       {
-        LOG.error("Exhausted time budget of " + _timeBudgetNanos/MILLI_NANOS + "ms. Skipping remaining callbacks of type "
-                      + callType);
-    	  throw new TimeoutException("No time remaining in a timeout budget of " + (_timeBudgetNanos/MILLI_NANOS) + " ms");
+        LOG.error("Exhausted time budget of " + _timeBudgetNanos/DbusConstants.NUM_NSECS_IN_MSEC +
+                  "ms. Skipping remaining callbacks of type " + callType);
+        throw new TimeoutException("No time remaining in a timeout budget of " +
+                                   (_timeBudgetNanos/DbusConstants.NUM_NSECS_IN_MSEC) + " ms");
         // Exception caught below
       }
 
@@ -252,20 +252,20 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   /** Cancel all outstanding calls */
   private void cancelCalls()
   {
-      //cancel all remaining outstanding calls
-      TimestampedFuture<ConsumerCallbackResult> top = null;
-      while ( (top = _submittedCalls.poll()) != null)
+    //cancel all remaining outstanding calls
+    TimestampedFuture<ConsumerCallbackResult> top = null;
+    while ( (top = _submittedCalls.poll()) != null)
+    {
+      try
       {
-        try
-        {
-          if (! top.getFuture().isDone()) top.getFuture().cancel(true);
-          top.getCallable().endCall(ConsumerCallbackResult.ERROR);
-        }
-        catch (RuntimeException e)
-        {
-          LOG.error("unable to cancel call: " + top.getCallType() + ": " + e.getMessage(), e);
-        }
+        if (! top.getFuture().isDone()) top.getFuture().cancel(true);
+        top.getCallable().endCall(ConsumerCallbackResult.ERROR);
       }
+      catch (RuntimeException e)
+      {
+        LOG.error("unable to cancel call: " + top.getCallType() + ": " + e.getMessage(), e);
+      }
+    }
   }
 
   /** Acts as a barrier for all outstanding calls in the call queue */
@@ -302,25 +302,25 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
 
       if (topFuture.isDone() && result != ConsumerCallbackResult.ERROR)
       {
-    	  boolean debugEnabled = LOG.isDebugEnabled();
-    	  if (top.getCallType().equals("StartSourceCallable"))
-    	  {
-        	  long runTime = top.getCallable().getNanoRunTime() / MILLI_NANOS;
-        	  if (debugEnabled)
-        	  {
-        		  StartSourceCallable tf = (StartSourceCallable) top.getCallable();
-        		  LOG.debug("StartSourceCallable time taken for source " + tf.getSource() + " = " + runTime);
-        	  }
-    	  }
-    	  else if (top.getCallType().equals("StartDataEventSequenceCallable"))
-    	  {
-        	  long runTime = top.getCallable().getNanoRunTime() / MILLI_NANOS;
-        	  if (debugEnabled)
-        	  {
-        		  StartDataEventSequenceCallable tf = (StartDataEventSequenceCallable) top.getCallable();
-        		  LOG.debug("StartDataEventSequenceCallable time taken for source " + tf.getSCN() + " = " + runTime);
-        	  }
-    	  }
+        boolean debugEnabled = LOG.isDebugEnabled();
+        if (top.getCallType().equals("StartSourceCallable"))
+        {
+          long runTime = top.getCallable().getNanoRunTime() / DbusConstants.NUM_NSECS_IN_MSEC;
+          if (debugEnabled)
+          {
+            StartSourceCallable tf = (StartSourceCallable) top.getCallable();
+            LOG.debug("StartSourceCallable time taken for source " + tf.getSource() + " = " + runTime);
+          }
+        }
+        else if (top.getCallType().equals("StartDataEventSequenceCallable"))
+        {
+          long runTime = top.getCallable().getNanoRunTime() / DbusConstants.NUM_NSECS_IN_MSEC;
+          if (debugEnabled)
+          {
+            StartDataEventSequenceCallable tf = (StartDataEventSequenceCallable) top.getCallable();
+            LOG.debug("StartDataEventSequenceCallable time taken for source " + tf.getSCN() + " = " + runTime);
+          }
+        }
       }
 
       dequeueTopFuture(result);
@@ -338,21 +338,22 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> checkpointCallable =
-            _callbackFactory.createCheckpointCallable(curNanos, checkpointScn, consumer,_consumerStats);
+            _callbackFactory.createCheckpointCallable(curNanos, checkpointScn, consumer, true);
         _currentBatch.add(checkpointCallable);
-        if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
+        if (_consumerStats != null) _consumerStats.registerEventsReceived(1);  // really "callbacks received"
       }
     }
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> checkpointCallable =
-          _callbackFactory.createCheckpointCallable(curNanos, checkpointScn, _loggingConsumer, null);
+          _callbackFactory.createCheckpointCallable(curNanos, checkpointScn, _loggingConsumer, false);
       _currentBatch.add(checkpointCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onCheckpoint = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onCheckpoint = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -389,21 +390,23 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
 
         if (debugEnabled) LOG.debug("consumer matches:" + reg.getConsumer());
         ConsumerCallable<ConsumerCallbackResult> dataEventCallable =
-            _callbackFactory.createDataEventCallable(curNanos, e, eventDecoder, reg.getConsumer(),_consumerStats);
+            _callbackFactory.createDataEventCallable(curNanos, e, eventDecoder, reg.getConsumer(), true);
         _currentBatch.add(dataEventCallable);
         if (_consumerStats != null) _consumerStats.registerDataEventReceived(e);
+        if (_unifiedClientStats != null) _unifiedClientStats.registerDataEventReceived(e);
       }
     }
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> dataEventCallable =
-          _callbackFactory.createDataEventCallable(curNanos, e, eventDecoder, _loggingConsumer, null);
+          _callbackFactory.createDataEventCallable(curNanos, e, eventDecoder, _loggingConsumer, false);
       _currentBatch.add(dataEventCallable);
     }
     if (debugEnabled)
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onDataEvent = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onDataEvent = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
 
     return submitBatch(curNanos, false, false);
@@ -418,7 +421,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> endWindowCallable =
-            _callbackFactory.createEndDataEventSequenceCallable(curNanos, endScn, consumer,_consumerStats);
+            _callbackFactory.createEndDataEventSequenceCallable(curNanos, endScn, consumer, true);
         _currentBatch.add(endWindowCallable);
         if (_consumerStats != null) _consumerStats.registerSystemEventReceived();
       }
@@ -426,13 +429,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> endWindowCallable =
-          _callbackFactory.createEndDataEventSequenceCallable(curNanos, endScn, _loggingConsumer, null);
+          _callbackFactory.createEndDataEventSequenceCallable(curNanos, endScn, _loggingConsumer, false);
       _currentBatch.add(endWindowCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onEndDataEventSequence = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onEndDataEventSequence = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -446,7 +450,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> endSourceCallable =
-            _callbackFactory.createEndSourceCallable(curNanos, source, sourceSchema, consumer,_consumerStats);
+            _callbackFactory.createEndSourceCallable(curNanos, source, sourceSchema, consumer, true);
         _currentBatch.add(endSourceCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
       }
@@ -454,13 +458,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> endSourceCallable =
-          _callbackFactory.createEndSourceCallable(curNanos, source, sourceSchema, _loggingConsumer, null);
+          _callbackFactory.createEndSourceCallable(curNanos, source, sourceSchema, _loggingConsumer, false);
       _currentBatch.add(endSourceCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onEndSource = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onEndSource = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -474,7 +479,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> rollbackCallable =
-            _callbackFactory.createRollbackCallable(curNanos, startScn, consumer,_consumerStats);
+            _callbackFactory.createRollbackCallable(curNanos, startScn, consumer, true);
         _currentBatch.add(rollbackCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
       }
@@ -482,13 +487,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> rollbackCallable =
-          _callbackFactory.createRollbackCallable(curNanos, startScn, _loggingConsumer, null);
+          _callbackFactory.createRollbackCallable(curNanos, startScn, _loggingConsumer, false);
       _currentBatch.add(rollbackCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onRollback = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onRollback = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -502,7 +508,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> startWindowCallable =
-          _callbackFactory.createStartDataEventSequenceCallable(curNanos, startScn, consumer,_consumerStats);
+          _callbackFactory.createStartDataEventSequenceCallable(curNanos, startScn, consumer, true);
         _currentBatch.add(startWindowCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
       }
@@ -510,13 +516,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> startWindowCallable =
-          _callbackFactory.createStartDataEventSequenceCallable(curNanos, startScn, _loggingConsumer, null);
+          _callbackFactory.createStartDataEventSequenceCallable(curNanos, startScn, _loggingConsumer, false);
       _currentBatch.add(startWindowCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onStartDataEventSequence = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onStartDataEventSequence = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
 
     return submitBatch(curNanos, true, true);
@@ -531,7 +538,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> startSourceCallable =
-          _callbackFactory.createStartSourceCallable(curNanos, source, sourceSchema, consumer,_consumerStats);
+          _callbackFactory.createStartSourceCallable(curNanos, source, sourceSchema, consumer, true);
         _currentBatch.add(startSourceCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
       }
@@ -539,13 +546,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> startSourceCallable =
-          _callbackFactory.createStartSourceCallable(curNanos, source, sourceSchema, _loggingConsumer, null);
+          _callbackFactory.createStartSourceCallable(curNanos, source, sourceSchema, _loggingConsumer, false);
       _currentBatch.add(startSourceCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onStartSource = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onStartSource = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
 
     return submitBatch(curNanos, false, true);
@@ -560,7 +568,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> startConsumptionCallable =
-            _callbackFactory.createStartConsumptionCallable(curNanos, consumer,_consumerStats);
+            _callbackFactory.createStartConsumptionCallable(curNanos, consumer, true);
         _currentBatch.add(startConsumptionCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
       }
@@ -568,13 +576,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> startConsumptionCallable =
-          _callbackFactory.createStartConsumptionCallable(curNanos, _loggingConsumer, null);
+          _callbackFactory.createStartConsumptionCallable(curNanos, _loggingConsumer, false);
       _currentBatch.add(startConsumptionCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onStartConsumption = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onStartConsumption = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, false, true);
   }
@@ -588,7 +597,7 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> endConsumptionCallable =
-          _callbackFactory.createEndConsumptionCallable(curNanos, consumer,_consumerStats);
+          _callbackFactory.createEndConsumptionCallable(curNanos, consumer, true);
         _currentBatch.add(endConsumptionCallable);
         if (_consumerStats != null) _consumerStats.registerEventsReceived(1);
 
@@ -597,13 +606,14 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> endConsumptionCallable =
-          _callbackFactory.createEndConsumptionCallable(curNanos, _loggingConsumer, null);
+          _callbackFactory.createEndConsumptionCallable(curNanos, _loggingConsumer, false);
       _currentBatch.add(endConsumptionCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onStopConsumption = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onStopConsumption = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -627,21 +637,22 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
       for (DatabusCombinedConsumer consumer: consumerReg.getConsumers())
       {
         ConsumerCallable<ConsumerCallbackResult> onErrorCallable =
-          _callbackFactory.createOnErrorCallable(curNanos, err, consumer,_consumerStats);
+          _callbackFactory.createOnErrorCallable(curNanos, err, consumer, true);
         _currentBatch.add(onErrorCallable);
-        if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+        if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);  // FIXME:  bug?  "processed" usually means consumer callback has completed; registerErrorEventsProcessed() normally called only if consumer callback returns ERROR:  why no registerErrorEventsReceived() call here?
       }
     }
     if (_loggingConsumer != null)
     {
       ConsumerCallable<ConsumerCallbackResult> onErrorCallable =
-          _callbackFactory.createOnErrorCallable(curNanos, err, _loggingConsumer, null);
+          _callbackFactory.createOnErrorCallable(curNanos, err, _loggingConsumer, false);
       _currentBatch.add(onErrorCallable);
     }
     if (LOG.isDebugEnabled())
     {
-    	long endNanos = System.nanoTime();
-    	LOG.debug("Time spend in databus clientlib by onError = " + (endNanos - curNanos) / MILLI_NANOS + "ms");
+      long endNanos = System.nanoTime();
+      LOG.debug("Time spent in databus clientlib by onError = " +
+                (endNanos - curNanos) / DbusConstants.NUM_NSECS_IN_MSEC + "ms");
     }
     return submitBatch(curNanos, true, true);
   }
@@ -710,9 +721,9 @@ public class MultiConsumerCallback implements DatabusStreamConsumer
   }
 
   protected long getEstimatedTimeout(long timeBudget,
-		  							 long curTime,
-		  							 TimestampedFuture<ConsumerCallbackResult> top )
+                                     long curTime,
+                                     TimestampedFuture<ConsumerCallbackResult> top)
   {
-	  return (timeBudget - (curTime - top.getTimestamp()));
+    return (timeBudget - (curTime - top.getTimestamp()));
   }
 }

@@ -21,7 +21,6 @@ import java.net.SocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.util.concurrent.RejectedExecutionException;
 
-import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelFuture;
@@ -39,6 +38,7 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ChannelCloseListener;
 import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.ConnectResultListener;
 import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.SendRequestResultListener;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus2.core.DatabusException;
 
 public class GenericHttpResponseHandler extends SimpleChannelHandler {
@@ -221,7 +221,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
 
   private void informConnectListener(Channel channel, Throwable cause) {
     boolean success = (cause == null);
-    _log.debug("informRequestListener: success=" + success + ";ch=" + channel + ";cause=" + cause);
+    _log.debug("informRequestListener: success=" + success + ";ch=" + channel, cause);
 
     // listener is nullified (under sync) to guarantee it is called only once
     ConnectResultListener tempListener = null;
@@ -244,7 +244,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
         tempListener.onConnectFailure(cause);
 
     } else {
-      _log.warn("informConnectListener called with listener==null, cause=" + cause + ";ch=" + channel);
+      _log.warn("informConnectListener called with listener==null; ch=" + channel, cause);
     }
   }
 
@@ -265,7 +265,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
     }
 
     if(debug)
-      _log.debug("informRequestListener: success=" + success + ";req=" + req + ";cause=" + cause);
+      _log.debug("informRequestListener: success=" + success + ";req=" + req, cause);
     if(tempListener != null) {
       _log.debug("Notify about requestSent completed. success=" + success);
       if(success)
@@ -273,7 +273,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
       else
         tempListener.onSendRequestFailure(req, cause);
     } else {
-      _log.warn("informRequestListener called with listener==null, cause=" + cause + ";req=" + req);
+      _log.warn("informRequestListener called with listener==null; req=" + req, cause);
     }
   }
 
@@ -477,7 +477,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
       {
         _log.info("Skipping exception message even before request has been sent. State=" + _messageState, cause);
       } else {
-        _log.info("Got connection Exception" + cause);
+        _log.info("Got connection Exception", cause);
       }
     } else {
       if (cause instanceof RejectedExecutionException)
@@ -511,7 +511,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
     logExceptionMessage(cause);
 
     if(debug) {
-      _log.debug("exceptionCaught. State=" + _messageState + ";rp=" + _responseProcessor + ";cause=" + cause + ";e=" + e);
+      _log.debug("exceptionCaught.rp=" + _responseProcessor, cause);
     }
     synchronized (this) {
 
@@ -533,7 +533,7 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
         }
         break;
       default:
-        _log.warn("exceptionCaught is called in unexpected state:" + _messageState, cause);
+        _log.warn("exceptionCaught is called", cause);
       }
 
       _messageState = MessageState.CLOSED;
@@ -615,12 +615,14 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
 
   public class StateLogger {
     private final Logger _log;
-    private String _prefix;
     public StateLogger (Logger l) {
       _log = l;
     }
-    protected void setPrefix() {
-      _prefix = "<" + GenericHttpResponseHandler.this.hashCode() + "_" + _messageState + ">";
+    protected StringBuilder setPrefix() {
+      StringBuilder sb = new StringBuilder();
+      sb.append("<").append(GenericHttpResponseHandler.this.hashCode());
+      sb.append("_").append(_messageState).append(">");
+      return sb;
     }
     public void info(String msg) {
       info(msg, null);
@@ -635,35 +637,22 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
       error(msg, null);
     }
     public void info(String msg, Throwable e) {
-      if(_log.isDebugEnabled())
-        setPrefix(); // do not add internal state
-      else
-        _prefix = "";
-      if(e!=null)
-        _log.info(_prefix + msg, e);
-      else
-        _log.info(_prefix + msg);
+      if(isDebugEnabled())
+        msg = setPrefix().append(msg).toString();
+
+      DbusPrettyLogUtils.logExceptionAtInfo(msg, e, _log);
     }
     public void debug(String msg, Throwable e) {
-      setPrefix();
-      if(e!=null)
-        _log.debug(_prefix + msg, e);
-      else
-        _log.debug(_prefix + msg);
+      msg = setPrefix().append(msg).toString();
+      DbusPrettyLogUtils.logExceptionAtDebug(msg, e, _log);
     }
     public void warn(String msg, Throwable e) {
-      setPrefix();
-      if(e!=null)
-        _log.warn(_prefix + msg, e);
-      else
-        _log.warn(_prefix + msg);
+      msg = setPrefix().append(msg).toString();
+      DbusPrettyLogUtils.logExceptionAtWarn(msg, e, _log);
     }
     public void error(String msg, Throwable e) {
-      setPrefix();
-      if(e!=null)
-        _log.debug(_prefix + msg, e);
-      else
-        _log.debug(_prefix + msg);
+      msg = setPrefix().append(msg).toString();
+      DbusPrettyLogUtils.logExceptionAtError(msg, e, _log);
     }
     public boolean isDebugEnabled() {
       return _log.isDebugEnabled();

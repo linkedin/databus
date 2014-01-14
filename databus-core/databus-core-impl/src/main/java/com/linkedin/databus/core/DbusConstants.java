@@ -54,6 +54,8 @@ public final class DbusConstants {
     public final static String GG_REPLICATION_BIT_SETTER_VALUE = "g";
     public final static String ISO_8859_1 = "ISO-8859-1";
     public final static String XML_VERSION = "1.0";
+    public final static int DONT_USE_METADATA_SCHEMA = 0;
+    public final static int USE_LATEST_METADATA_SCHEMA = -1;
 
     public static String getAppName()
     {

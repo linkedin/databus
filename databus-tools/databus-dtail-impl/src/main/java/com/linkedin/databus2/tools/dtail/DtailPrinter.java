@@ -20,6 +20,7 @@ package com.linkedin.databus2.tools.dtail;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.util.Formatter;
 
 import org.apache.log4j.Logger;
@@ -299,7 +300,7 @@ public abstract class DtailPrinter extends AbstractDatabusCombinedConsumer
     String statsStr = fmt.toString();
     try
     {
-      _out.write(statsStr.getBytes());
+      _out.write(statsStr.getBytes(Charset.defaultCharset()));
       _out.flush();
     }
     catch (IOException e)

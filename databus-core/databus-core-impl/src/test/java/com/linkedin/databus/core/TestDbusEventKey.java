@@ -23,6 +23,7 @@ package com.linkedin.databus.core;
 import static org.testng.AssertJUnit.*;
 
 import java.nio.charset.Charset;
+
 import org.testng.annotations.Test;
 
 /**
@@ -39,7 +40,7 @@ public class TestDbusEventKey
   private DbusEventKey lkey = new DbusEventKey(LONG_KEY);
   private DbusEventKey bkey = new DbusEventKey(BYTES_KEY);
   private DbusEventKey skey = new DbusEventKey(STRING_KEY);
-  private DbusEventKey sbkey = new DbusEventKey(new String(STRING_KEY).getBytes());
+  private DbusEventKey sbkey = new DbusEventKey(new String(STRING_KEY).getBytes(Charset.defaultCharset()));
 
   private boolean verifyCannotGetBytes(DbusEventKey key)
   {

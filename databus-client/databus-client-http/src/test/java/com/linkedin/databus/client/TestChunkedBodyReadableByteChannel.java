@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.Charset;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -446,7 +447,7 @@ class HttpResponseReplayer implements Runnable
 
     if (null != responseBody && responseBody.length() > 0)
     {
-      ChannelBuffer bodyBuffer = ChannelBuffers.wrappedBuffer(responseBody.getBytes());
+      ChannelBuffer bodyBuffer = ChannelBuffers.wrappedBuffer(responseBody.getBytes(Charset.defaultCharset()));
 
       _response.setHeader(HttpHeaders.Names.CONTENT_LENGTH, bodyBuffer.writableBytes());
       _response.setContent(bodyBuffer);
@@ -463,7 +464,7 @@ class HttpResponseReplayer implements Runnable
       _chunks = new HttpChunk[responseChunks.length];
       for (int i = 0; i < responseChunks.length; ++i)
       {
-        _chunks[i] = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(responseChunks[i].getBytes()));
+        _chunks[i] = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(responseChunks[i].getBytes(Charset.defaultCharset())));
       }
     }
     else

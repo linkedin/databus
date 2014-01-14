@@ -202,7 +202,18 @@ public class DatabusRelayMain extends HttpRelay {
                                                  .getStatsCollector(statsCollectorName),
                                              maxScnReaderWriters);
 
-
+    } else if (uri.startsWith("mysql:")){
+       LOG.info("Adding OpenReplicatorEventProducer for uri :" + uri);
+       final String serviceName = "or";
+       EventProducerServiceProvider orProvider = _producersRegistry.getEventProducerServiceProvider(serviceName);
+       if (null == orProvider)
+       {
+         throw new DatabusRuntimeException("relay event producer not available: " + serviceName);
+       }
+       producer = orProvider.createProducer(pConfig, schemaRegistryService,
+                                            dbusEventBuffer,
+                                            _inBoundStatsCollectors.getStatsCollector(statsCollectorName),
+                                            maxScnReaderWriters);
     } else
      {
 			// Get all relevant pConfig attributes and initialize the nettyThreadPool objects
@@ -290,6 +301,8 @@ public class DatabusRelayMain extends HttpRelay {
 	@Override
 	protected void doStart() {
 		super.doStart();
+
+		LOG.info("Starting. Producers are :" + _producers);
 
 		for (Entry<PhysicalPartition, EventProducer> entry : _producers
 				.entrySet()) {

@@ -31,10 +31,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -75,6 +78,7 @@ import com.linkedin.databus2.core.seq.MaxSCNReaderWriter;
 import com.linkedin.databus2.ggParser.XmlStateMachine.ColumnsState.KeyPair;
 import com.linkedin.databus2.ggParser.XmlStateMachine.DbUpdateState;
 import com.linkedin.databus2.ggParser.XmlStateMachine.TransactionState;
+import com.linkedin.databus2.ggParser.XmlStateMachine.TransactionState.PerSourceTransactionalUpdate;
 import com.linkedin.databus2.ggParser.XmlStateMachine.TransactionSuccessCallBack;
 import com.linkedin.databus2.ggParser.staxparser.StaxBuilder;
 import com.linkedin.databus2.ggParser.staxparser.XmlParser;
@@ -86,6 +90,7 @@ import com.linkedin.databus2.producers.db.EventSourceStatisticsIface;
 import com.linkedin.databus2.producers.db.GGMonitoredSourceInfo;
 import com.linkedin.databus2.producers.db.GGXMLTrailTransactionFinder;
 import com.linkedin.databus2.producers.db.ReadEventCycleSummary;
+import com.linkedin.databus2.producers.gg.DBUpdatesMergeUtils;
 import com.linkedin.databus2.producers.gg.GGEventGenerationFactory;
 import com.linkedin.databus2.relay.config.LogicalSourceStaticConfig;
 import com.linkedin.databus2.relay.config.PhysicalSourceStaticConfig;
@@ -495,31 +500,151 @@ public class GoldenGateEventProducer extends AbstractEventProducer
     private XmlParser _parser;
     private int nullTransactions = 0;
 
-    private class HandleXmlCallback implements TransactionSuccessCallBack
+    private class HandleXmlCallback
+        implements TransactionSuccessCallBack
     {
+      // The outstanding transaction's DbUpdates buffer which is yet to be written
+      private List<TransactionState.PerSourceTransactionalUpdate>  _pendingDbUpdatesBuffer = null;
+
+      // The outstanding transaction's meta data
+      private TransactionInfo _pendingTxnInfo = null;
+
+      /**
+       *  Last Seen SCN. Please note that this need not be the SCN which was last buffered or appended to
+       *  the buffer. When there is SCN regression, we skip the txns but we track the SCN here to update
+       *  regression stats.
+       *
+       *  This is used for correct counting of SCNRegressions, When the trail file has txns with SCN
+       *  in the below order, there is  2 occurrence of SCN regression as seen by the parser.
+       *      10  <-- Last buffered SCN
+       *       7  <-- SCN Regression here
+       *       8  <-- No regression here as it is still higher than the previous txn.
+       *       6  <-- SCN Regression here
+       *      11
+       */
+      private long _lastSeenScn = -1;
+
+      /**
+       *
+       * Responsible for merging transactions with same SCN and deciding if events from the pendingTxnBuffer have
+       * to be appended to the Event buffer.
+       *
+       * @param dbUpdates : Currently seen transaction's db updates
+       * @param txnInfo : Currently seen transaction's meta data. This is not expected to be null
+       *
+       * @return MergeDbResult which contains the flag if EVB appending has to happen along with the data that have
+       * to be appended.
+       */
+      private MergeDbResult mergeTransactions(List<TransactionState.PerSourceTransactionalUpdate> dbUpdates,
+                                           TransactionInfo txnInfo)
+      {
+        MergeDbResult result = null;
+        if (_pendingTxnInfo == null)
+        {
+          /**
+           * This is the first transaction after startup. So, just buffer it locally
+           */
+          _pendingTxnInfo = txnInfo;
+          if ( null != dbUpdates)
+          {
+            _pendingDbUpdatesBuffer = new ArrayList<TransactionState.PerSourceTransactionalUpdate>(dbUpdates);
+          } else {
+            _pendingDbUpdatesBuffer = new ArrayList<TransactionState.PerSourceTransactionalUpdate>();
+          }
+          result = MergeDbResult.createDoNotAppendResult(txnInfo, getNumEventsInTxn(dbUpdates));
+        } else if (txnInfo.getScn() ==  _pendingTxnInfo.getScn()) {
+          /**
+           * The newly seen transaction has the same SCN as the previous one(s). Merge and do not write to buffer yet
+           *
+           * When merging transactions, there could be events with same key appearing in multiple transactions which have the same SCN.
+           * We will guarantee that the last seen event (in the trail file order =  commit order) is buffered and intermediate images are discarded
+           */
+          _pendingDbUpdatesBuffer = DBUpdatesMergeUtils.mergeTransactionData(dbUpdates,_pendingDbUpdatesBuffer);
+
+          // New TransactionInfo will have new Txn's SCN and Timestamp
+          _pendingTxnInfo = new TransactionInfo(_pendingTxnInfo.getTransactionSize() + txnInfo.getTransactionSize(),
+                                                _pendingTxnInfo.getTransactionTimeRead() + txnInfo.getTransactionTimeRead(),
+                                                txnInfo.getTransactionTimeStampNs(),
+                                                txnInfo.getScn());
+          // We will update the parser stats for this txn though as it had already read the transaction.
+          result = MergeDbResult.createDoNotAppendResult(txnInfo, getNumEventsInTxn(dbUpdates));
+        } else if ( txnInfo.getScn() > _pendingTxnInfo.getScn()){
+          /**
+           * The newly seen transaction has  higher SCN than the previous. We can write to the buffer now.
+           * The parser stats will be updated with the latest Transaction only as previous transaction has already been
+           * updated.
+           */
+          result = MergeDbResult.createAppendResult(_pendingDbUpdatesBuffer, _pendingTxnInfo, txnInfo, getNumEventsInTxn(dbUpdates));
+          if ( null != dbUpdates)
+            _pendingDbUpdatesBuffer = new ArrayList<TransactionState.PerSourceTransactionalUpdate>(dbUpdates);
+          else
+            _pendingDbUpdatesBuffer = new ArrayList<TransactionState.PerSourceTransactionalUpdate>();
+
+          _pendingTxnInfo = txnInfo;
+        } else {
+          /**
+           * The newly seen transaction has lower SCN than the previous one. Log an Error and skip
+           */
+          _log.error("Last Read Transaction's SCN is lower than that of previously read. Skipping this Transaction. Last Read SCN :"
+                                                         + txnInfo.getScn() + " Previously Read SCN : " + _pendingTxnInfo.getScn());
+          result = MergeDbResult.createDoNotAppendResult(txnInfo, 0);
+          if (_lastSeenScn > txnInfo.getScn())
+          {
+            _ggParserStats.addScnRegression(txnInfo.getScn());
+          }
+        }
+
+        _lastSeenScn = txnInfo.getScn();
+        return result;
+      }
+
+      private int getNumEventsInTxn(List<TransactionState.PerSourceTransactionalUpdate> dbUpdates)
+      {
+        if ( null == dbUpdates)
+          return 0;
+
+        int numEvents = 0;
+        for (TransactionState.PerSourceTransactionalUpdate d : dbUpdates)
+        {
+          numEvents += d.getNumDbUpdates();
+        }
+        return numEvents;
+      }
 
       @Override
-      public void onTransactionEnd(List<TransactionState.PerSourceTransactionalUpdate> dbUpdates, TransactionInfo txnInfo)
+      public void onTransactionEnd(List<TransactionState.PerSourceTransactionalUpdate> newDbUpdates,
+                                   TransactionInfo newTxnInfo)
           throws DatabusException, UnsupportedKeyException
       {
-        long scn = txnInfo.getScn();
+        long scn = newTxnInfo.getScn();
 
-        if(dbUpdates == null)
+        if(newDbUpdates == null)
           _log.info("Received empty transaction callback with no DbUpdates with scn " + scn);
-        else
-          _log.info("Received transaction callback for " + dbUpdates.size() + " sources and scn " + scn);
 
         if(!isReadyToRun())
           return;
 
+        MergeDbResult result = mergeTransactions(newDbUpdates,newTxnInfo);
+        List<TransactionState.PerSourceTransactionalUpdate> dbUpdates = result.getMergedDbUpdates();
+        TransactionInfo txnInfo = result.getMergedTxnInfo();
+
+        if (! result.isDoAppendToBuffer())
+        {
+          _ggParserStats.addTransactionInfo(result.getLastParsedTxnInfo(), result.getNumEventsInLastParsedTxn());
+          return;
+        }
+
+        //SCN of the txn that we are going to write.
+        scn = txnInfo.getScn();
+
         try
         {
-          if(dbUpdates == null) {
+          if((dbUpdates == null) || (dbUpdates.isEmpty())) {
             checkAndInsertEOP(scn);
-            _ggParserStats.addTransactionInfo(txnInfo, 0);
           } else {
             addEventToBuffer(dbUpdates, txnInfo);
           }
+          _ggParserStats.addTransactionInfo(result.getLastParsedTxnInfo(), result.getNumEventsInLastParsedTxn());
         }
         catch (DatabusException e)                                 //TODO upon exception, retry from the last SCN.
         {
@@ -533,7 +658,6 @@ public class GoldenGateEventProducer extends AbstractEventProducer
           _log.error("Error while adding events to buffer: " + e);
           throw e;
         }
-
       }
     }
 
@@ -1089,9 +1213,6 @@ public class GoldenGateEventProducer extends AbstractEventProducer
         _log.debug("There are "+ eventsInDbUpdate + " events seen in the current dbUpdate");
     }
 
-    // update stats
-    _ggParserStats.addTransactionInfo(ti, eventsInTransactionCount);
-
     // Log Event Summary at Physical source level
     ReadEventCycleSummary summary = new ReadEventCycleSummary(_pConfig.getName(),
                                                               summaries,
@@ -1139,5 +1260,110 @@ public class GoldenGateEventProducer extends AbstractEventProducer
    */
   public GGMonitoredSourceInfo getSource(short sourceId) {
     return _monitoredSources.get(sourceId);
+  }
+
+  private static class MergeDbResult
+  {
+    /**
+     * Flag to enable appending dbUpdates to buffer.
+     */
+    private final boolean _doAppendToBuffer;
+
+    /**
+     * DBUpdates of the transaction(s) that will be written to EVB. In the case of
+     * multiple transactions with same SCN, this list will contain the merged DBUpdates
+     */
+    private final List<TransactionState.PerSourceTransactionalUpdate> _mergedDbUpdates;
+
+    /*
+     * TxnInfo of the transaction(s) which will be written to the EVB. In the case of
+     * multiple transactions with same SCN, this Transaction Info contains the merged
+     * stats
+     */
+    private final TransactionInfo _mergedTxnInfo;
+
+    /**
+     * Transaction Info of the last transaction that was parsed. Even in the case of
+     * multiple transactions with same SCNs, lastParsedTxnInfo will contain stats
+     * pertaining to the last such transaction that was parsed.
+     */
+    private final TransactionInfo _lastParsedTxnInfo;
+
+    /**
+     * Number of Events in the last parsed transaction. Even in the case of multiple
+     * transactions with same SCNs, this will contain only the count of events for the
+     * last such transaction that was parsed.
+     */
+    private final int _numEventsInLastParsedTxn;
+
+    protected static MergeDbResult createDoNotAppendResult(TransactionInfo lastParsedTxnInfo,
+                                                           int numEventsInLastParsedTxn)
+    {
+      return new MergeDbResult(false,
+                               null,
+                               null,
+                               lastParsedTxnInfo,
+                               numEventsInLastParsedTxn);
+    }
+
+    protected static MergeDbResult createAppendResult(List<PerSourceTransactionalUpdate> mergedDbUpdates,
+                                                      TransactionInfo mergedTxnInfo,
+                                                      TransactionInfo lastParsedTxnInfo,
+                                                      int numEventsInLastParsedTxn)
+    {
+      return new MergeDbResult(true,
+                               mergedDbUpdates,
+                               mergedTxnInfo,
+                               lastParsedTxnInfo,
+                               numEventsInLastParsedTxn);
+    }
+
+    private MergeDbResult(boolean doAppendToBuffer,
+                          List<PerSourceTransactionalUpdate> mergedDbUpdates,
+                          TransactionInfo mergedTxnInfo,
+                          TransactionInfo lastParsedTxnInfo,
+                          int numEventsInLastParsedTxn)
+    {
+      super();
+      this._doAppendToBuffer = doAppendToBuffer;
+      this._mergedDbUpdates = mergedDbUpdates;
+      this._mergedTxnInfo = mergedTxnInfo;
+      this._lastParsedTxnInfo = lastParsedTxnInfo;
+      this._numEventsInLastParsedTxn = numEventsInLastParsedTxn;
+    }
+
+    public boolean isDoAppendToBuffer()
+    {
+      return _doAppendToBuffer;
+    }
+
+    public List<TransactionState.PerSourceTransactionalUpdate> getMergedDbUpdates()
+    {
+      return _mergedDbUpdates;
+    }
+
+    public TransactionInfo getMergedTxnInfo()
+    {
+      return _mergedTxnInfo;
+    }
+
+    public TransactionInfo getLastParsedTxnInfo()
+    {
+      return _lastParsedTxnInfo;
+    }
+
+    public int getNumEventsInLastParsedTxn()
+    {
+      return _numEventsInLastParsedTxn;
+    }
+
+    @Override
+    public String toString()
+    {
+      return "MergeDbResult [doAppendToBuffer=" + _doAppendToBuffer
+          + ", mergedDbUpdates=" + _mergedDbUpdates + ", mergedTxnInfo=" + _mergedTxnInfo
+          + ", lastParsedTxnInfo=" + _lastParsedTxnInfo + ", numEventsInLastParsedTxn="
+          + _numEventsInLastParsedTxn + "]";
+    }
   }
 }

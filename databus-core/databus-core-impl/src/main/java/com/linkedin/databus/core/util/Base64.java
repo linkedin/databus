@@ -20,6 +20,7 @@ package com.linkedin.databus.core.util;
 
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 
 /**
  * Encodes and decodes to and from Base64 notation.
@@ -740,7 +741,7 @@ public class Base64
         }   // end try
         catch( java.io.UnsupportedEncodingException uee )
         {
-            bytes = s.getBytes();
+            bytes = s.getBytes(Charset.defaultCharset());
         }   // end catch
 		//</change>
 

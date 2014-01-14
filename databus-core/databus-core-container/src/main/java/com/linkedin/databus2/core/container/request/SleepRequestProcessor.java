@@ -22,6 +22,7 @@ package com.linkedin.databus2.core.container.request;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 import java.util.Random;
 import java.util.concurrent.ExecutorService;
 
@@ -84,14 +85,14 @@ public class SleepRequestProcessor implements RequestProcessor {
 		int respSize = minRespSize + rng.nextInt(maxRespSize - minRespSize);
 		ByteBuffer bb = ByteBuffer.allocate(DEFAULT_RESPONSE_CHUNK_SIZE).order(ByteOrder.nativeOrder());
 
-		int patternSize = BODY_PATTERN.getBytes().length;
+		int patternSize = BODY_PATTERN.getBytes(Charset.defaultCharset()).length;
 
 		for (int i = 0; i < respSize / DEFAULT_RESPONSE_CHUNK_SIZE; ++i)
 		{
           bb.clear();
 		  for (int j = 0; j < DEFAULT_RESPONSE_CHUNK_SIZE / patternSize; ++j)
 		  {
-		    bb.put(BODY_PATTERN.getBytes());
+		    bb.put(BODY_PATTERN.getBytes(Charset.defaultCharset()));
 		  }
 
           bb.rewind();
@@ -103,7 +104,7 @@ public class SleepRequestProcessor implements RequestProcessor {
           bb.clear();
           for (int j = 0; j <= (respSize % DEFAULT_RESPONSE_CHUNK_SIZE) / patternSize; ++j)
           {
-            bb.put(BODY_PATTERN.getBytes());
+            bb.put(BODY_PATTERN.getBytes(Charset.defaultCharset()));
           }
 
           bb.flip();

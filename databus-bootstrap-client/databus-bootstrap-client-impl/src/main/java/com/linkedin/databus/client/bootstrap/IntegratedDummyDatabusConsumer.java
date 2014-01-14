@@ -1,9 +1,4 @@
-/**
- *
- */
-package com.linkedin.databus.client.bootstrap;
 /*
- *
  * Copyright 2013 LinkedIn Corp. All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,14 +13,20 @@ package com.linkedin.databus.client.bootstrap;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
-*/
+ */
+package com.linkedin.databus.client.bootstrap;
 
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.avro.Schema;
+import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.DatabusHttpClientImpl;
 import com.linkedin.databus.client.DatabusHttpClientImpl.CheckpointPersistenceStaticConfig.ProviderType;
 import com.linkedin.databus.client.DatabusSourcesConnection;
-import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.client.generic.ConsumerPauseRequestProcessor;
 import com.linkedin.databus.client.generic.DatabusConsumerPauseInterface;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
@@ -33,27 +34,23 @@ import com.linkedin.databus.client.pub.DatabusBootstrapConsumer;
 import com.linkedin.databus.client.pub.DatabusClientException;
 import com.linkedin.databus.client.pub.DatabusStreamConsumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.ServerInfo.ServerInfoBuilder;
+import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.FileBasedEventTrackingCallback;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.ProcessorRegistrationConflictException;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import org.apache.avro.Schema;
-import org.apache.log4j.Logger;
 
 /**
- * @author lgao
  *
  */
-public class IntegratedDummyDatabusConsumer
-extends DatabusBootstrapDummyConsumer
-implements DatabusStreamConsumer, DatabusConsumerPauseInterface
+public class IntegratedDummyDatabusConsumer extends DatabusBootstrapDummyConsumer
+    implements DatabusStreamConsumer, DatabusConsumerPauseInterface
 {
   public final static String MODULE = IntegratedDummyDatabusConsumer.class.getName();
   public final static Logger LOG = Logger.getLogger(MODULE);
@@ -69,8 +66,10 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
   private long _maxRelayWindowScn;
   private boolean _isPaused;
   private boolean _useConsumerTimeout;
+  private int _numUserSpecifiedErrorResults;
 
-  public IntegratedDummyDatabusConsumer(String outputFilename, long maxEventBufferSize, int maxReadBufferSize, boolean useConsumerTimeout)
+  public IntegratedDummyDatabusConsumer(String outputFilename, long maxEventBufferSize, int maxReadBufferSize,
+                                        boolean useConsumerTimeout)
   {
     // use the default log4j configuration
     //System.out.println("level set to debug");
@@ -94,11 +93,11 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
   public ConsumerCallbackResult onBootstrapEvent(DbusEvent e, DbusEventDecoder eventDecoder)
   {
     waitIfPaused();
-    // this is for the final comparason only because events from bootstrap
+    // this is for the final comparison only because events from bootstrap
     // have different scn. But the window scn shall be of the same.
     _fileBasedCallback.onEvent(e);
     printBootstrapEventInfo(BootstrapStage.OnBootstrapEvent, e.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
@@ -107,7 +106,7 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     waitIfPaused();
     _maxBootstrapWindownScn = ((SingleSourceSCN)endScn).getSequence();
     printBootstrapEventInfo(BootstrapStage.EndBootstrapSequence, endScn.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
@@ -115,7 +114,7 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
   {
     waitIfPaused();
     printStreamEventInfo(StreamStage.OnCheckpointEvent, checkpointScn.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
   @Override
   public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
@@ -123,7 +122,7 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     waitIfPaused();
     _fileBasedCallback.onEvent(e);
     printStreamEventInfo(StreamStage.OnStreamEvent, e.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
@@ -132,7 +131,7 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     waitIfPaused();
     _maxRelayWindowScn = ((SingleSourceSCN)endScn).getSequence();
     printStreamEventInfo(StreamStage.EndDataEventSequence, endScn.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
@@ -141,21 +140,21 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     printStreamEventInfo(StreamStage.EndStreamSource,
                          " source=" + source +
                          " schema=" + ((null == sourceSchema) ? "null" : sourceSchema.getFullName()));
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
   public ConsumerCallbackResult onRollback(SCN startScn)
   {
     printStreamEventInfo(StreamStage.InvalidStage, "rollback not implemented");
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
   public ConsumerCallbackResult onStartDataEventSequence(SCN startScn)
   {
     printStreamEventInfo(StreamStage.StartDataEventSequence, startScn.toString());
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
   }
 
   @Override
@@ -164,7 +163,25 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     printStreamEventInfo(StreamStage.StartStreamSource,
                          " source=" + source +
                          " schema=" + ((null == sourceSchema) ? "null" : sourceSchema.getFullName()));
-    return ConsumerCallbackResult.SUCCESS;
+    return getUserSpecifiedCallbackResult();
+  }
+
+  @Override
+  public ConsumerCallbackResult onStartConsumption()
+  {
+    return getUserSpecifiedCallbackResult();
+  }
+
+  @Override
+  public ConsumerCallbackResult onStopConsumption()
+  {
+    return getUserSpecifiedCallbackResult();
+  }
+
+  @Override
+  public ConsumerCallbackResult onError(Throwable err)
+  {
+    return getUserSpecifiedCallbackResult();
   }
 
   public void initConn(List<String> sources) throws IOException, InvalidConfigException,
@@ -193,26 +210,22 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     clientConfigBuilder.getCheckpointPersistence().setType(ProviderType.FILE_SYSTEM.toString());
     clientConfigBuilder.getCheckpointPersistence().getFileSystem().setRootDirectory("./integratedconsumer-checkpoints");
     clientConfigBuilder.getCheckpointPersistence().setClearBeforeUse(true);
-    clientConfigBuilder.getConnectionDefaults().setCheckpointThresholdPct(50.0);
     clientConfigBuilder.getRuntime().getBootstrap().setEnabled(true);
-
 
     DatabusSourcesConnection.Config srcDefaultConfig= new DatabusSourcesConnection.Config();
     srcDefaultConfig.setFreeBufferThreshold((int) (_maxEventBufferSize*0.05));
     srcDefaultConfig.setCheckpointThresholdPct(80);
+    srcDefaultConfig.setConsumerTimeBudgetMs(_useConsumerTimeout? 60000 : 0); // 60 sec before retries (unless disabled)
+    srcDefaultConfig.getDispatcherRetries().setMaxRetryNum(3);                // max of 3 retries
     clientConfigBuilder.setConnectionDefaults(srcDefaultConfig);
 
-    if (!_useConsumerTimeout)
-    {
-      clientConfigBuilder.getConnectionDefaults().setConsumerTimeBudgetMs(0);
-    }
     DbusEventBuffer.Config eventBufferConfig = clientConfigBuilder.getConnectionDefaults().getEventBuffer();
     eventBufferConfig.setMaxSize(_maxEventBufferSize);
     eventBufferConfig.setAverageEventSize(_maxReadBufferSize);
 
 
-    // TODO: the following shall be used once we can set eventbuffer for bootstrap throught the config builder (DDSDBUS-82)
-    // For now, bootstrap buffer will use the same config. as relay buffer
+    // TODO: the following shall be used once we can set eventbuffer for bootstrap through the config builder (DDSDBUS-82)
+    // For now, bootstrap buffer will use the same config as relay buffer.
     //clientConfigBuilder.getConnectionDefaults().
     DatabusHttpClientImpl.StaticConfig clientConfig = clientConfigBuilder.build();
 
@@ -242,53 +255,6 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     {
       LOG.error("Failed to register " + ConsumerPauseRequestProcessor.COMMAND_NAME);
     }
-
-    /*DbusEventBuffer eventBuffer = new DbusEventBuffer(TEN_MEGABYTES_IN_BYTES,
-                                                      1000,
-                                                      FIFTEEN_HUNDRED_KILOBYTES_IN_BYTES,
-                                                      true, QueuePolicy.BLOCK_ON_WRITE);
-
-    CheckpointPersistenceProvider cpPersistenceProvider =
-      clientConfig.getCheckpointPersistence().getOrCreateCheckpointPersistenceProvider();
-
-    DatabusHttpClientImpl.RuntimeConfig clientRuntimeConfig =
-      _dbusClient.getClientConfigManager().getReadOnlyConfig();
-
-    // creat pull and dispatch threads
-    ContainerStatisticsCollector containerStatsCollector =
-        (ContainerStatisticsCollector)clientConfig.getContainer().getOrCreateContainerStatsCollector();
-
-    DbusEventsStatisticsCollector dbusEventsStatsCollector =
-        new DbusEventsStatisticsCollector(clientConfig.getContainer().getId(),
-                                          "outboundEvents",
-                                clientConfig.getRuntime().getOutboundEventsStatsCollector().isEnabled(),
-                                true,
-                                clientConfig.getContainer().getOrCreateMBeanServer());
-
-    ExecutorService ioThreadPool = Executors.newCachedThreadPool();
-    DispatcherThread dispatcherThread = new RelayDispatcherThread(streamCallbacks);
-    ClientPullThread clientPullThread = new RelayPullThread(clientRuntimeConfig.getRelays(),
-                                                            sources,
-                                                            eventBuffer,
-                                                            ioThreadPool,
-                                                            dispatcherThread,
-                                                            bootstrapCallbacks,
-                                                            clientConfig,
-                                                            clientRuntimeConfig,
-                                                            cpPersistenceProvider,
-                                                            containerStatsCollector,
-                                                            dbusEventsStatsCollector);
-
-    // create the http connection to bootstrap service and start getting events
-    _dbusClient = new DatabusHttpRelayConnection(clientRuntimeConfig.getBootstrap().getServices(),
-                                               sources,
-                                               eventBuffer,
-                                               dispatcherThread,
-                                               clientPullThread,
-                                               ioThreadPool,
-                                               clientConfig,
-                                               containerStatsCollector,
-                                               dbusEventsStatsCollector);*/
   }
 
   protected void printStreamEventInfo(StreamStage stage, String info)
@@ -317,6 +283,16 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
   public long getMaxRelayWindowScn()
   {
     return _maxRelayWindowScn;
+  }
+
+  public StatsCollectors<UnifiedClientStats> getUnifiedClientStatsCollectors()
+  {
+    return _dbusClient.getUnifiedClientStatsCollectors();
+  }
+
+  public List<DatabusSourcesConnection> getRelayConnections()
+  {
+    return _dbusClient.getRelayConnections();
   }
 
   @Override
@@ -351,6 +327,31 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     }
   }
 
+  public synchronized void setNumUserSpecifiedErrorResults(int numErrorResults)
+  {
+    LOG.info("Will return " + numErrorResults + " ConsumerCallbackResult.ERROR as requested.");
+    _numUserSpecifiedErrorResults = numErrorResults;
+  }
+
+  protected synchronized ConsumerCallbackResult getUserSpecifiedCallbackResult()
+  {
+    if (_numUserSpecifiedErrorResults > 0)
+    {
+      --_numUserSpecifiedErrorResults;
+      if (_numUserSpecifiedErrorResults > 0)
+      {
+        LOG.info("Returning ConsumerCallbackResult.ERROR as requested; still have " +
+                 _numUserSpecifiedErrorResults + " more to go.");
+      }
+      else
+      {
+        LOG.info("Returning ConsumerCallbackResult.ERROR as requested (last one).");
+      }
+      return ConsumerCallbackResult.ERROR;
+    }
+    return ConsumerCallbackResult.SUCCESS;
+  }
+
   enum StreamStage
   {
     StartDataEventSequence,
@@ -373,23 +374,5 @@ implements DatabusStreamConsumer, DatabusConsumerPauseInterface
     consumer.initConn(sources);
     consumer.start();
     consumer.shutdown();
-  }
-
-  @Override
-  public ConsumerCallbackResult onStartConsumption()
-  {
-    return ConsumerCallbackResult.SUCCESS;
-  }
-
-  @Override
-  public ConsumerCallbackResult onStopConsumption()
-  {
-    return ConsumerCallbackResult.SUCCESS;
-  }
-
-  @Override
-  public ConsumerCallbackResult onError(Throwable err)
-  {
-    return ConsumerCallbackResult.SUCCESS;
   }
 }

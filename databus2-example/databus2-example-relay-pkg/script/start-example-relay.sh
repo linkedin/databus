@@ -24,7 +24,7 @@ cd `dirname $0`/..
 source_name=$1
 if [ -z "${source_name}" ] ; then
   echo "USAGE: $0 source_name [relay_args]"
-  exit 1 
+  exit 1
 fi
 
 shift
@@ -65,8 +65,10 @@ if [ ! -z "$cli_overrides" ] ; then
    cli_overrides="-c '$cli_overrides'"
 fi
 
-case "${source_name}" in 
+main_class=com.linkedin.databus.relay.example.PersonRelayServer;
+case "${source_name}" in
   "person" ) main_class=com.linkedin.databus.relay.example.PersonRelayServer ;;
+  "or_person" ) main_class=com.linkedin.databus.relay.example.PersonRelayServer ;;
 esac
 
 cmdline="java -cp ${cp} ${jvm_arg_line} ${main_class} ${java_arg_line} $cli_overrides $*"

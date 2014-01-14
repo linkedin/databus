@@ -392,4 +392,11 @@ public class BootstrapCheckpointHandler
     return _sourceNames.length;
   }
 
+  // Overridden for V3
+  public void setStartScnAfterServerChange(Checkpoint ckpt, Long startScn)
+  {
+    // V2 clears most fields int the checkpoint in the resetForServerChange() method. In V3, we don't clear any field.
+    // TODO A better thing may be to NOT clear the startScn in the resetForServerChange() method, but that is for another day
+    ckpt.setBootstrapStartScn(startScn);
+  }
 }

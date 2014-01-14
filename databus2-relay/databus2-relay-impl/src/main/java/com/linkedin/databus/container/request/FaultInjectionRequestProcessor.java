@@ -21,6 +21,7 @@ package com.linkedin.databus.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -104,12 +105,12 @@ public class FaultInjectionRequestProcessor implements RequestProcessor
 			String cmd = request.getRequiredStringParam(COMMAND_KEY_NAME);
 			addCommandsToFake(cmd);
 			String result = "{ \"fake\": \"true\", \"command\" : \"" + cmd + "\", \"result\" : \"true\" }";			
-			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes()));
+			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes(Charset.defaultCharset())));
 		} else if (command.equalsIgnoreCase(USE_REAL_COMMAND)) {
 			String cmd = request.getRequiredStringParam(COMMAND_KEY_NAME);
 			removeFakeCommand(cmd);
 			String result = "{ \"fake\": \"false\", \"command\" : \"" + cmd + "\", \"result\" : \"true\" }";
-			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes()));
+			request.getResponseContent().write(ByteBuffer.wrap(result.getBytes(Charset.defaultCharset())));
 		} else {
 			// Relay Commands
 			if ( _commandsToFake.contains(command)) 

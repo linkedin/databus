@@ -24,6 +24,7 @@ package com.linkedin.databus.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -239,6 +240,6 @@ implements RequestProcessor
   private void write(DatabusRequest request, String str)
   throws IOException
   {
-    request.getResponseContent().write(ByteBuffer.wrap(str.getBytes()));
+    request.getResponseContent().write(ByteBuffer.wrap(str.getBytes(Charset.defaultCharset())));
   }
 }

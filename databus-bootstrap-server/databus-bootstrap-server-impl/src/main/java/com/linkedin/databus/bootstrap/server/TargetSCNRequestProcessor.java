@@ -25,6 +25,7 @@ package com.linkedin.databus.bootstrap.server;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.sql.SQLException;
 import java.util.concurrent.ExecutorService;
 
@@ -110,7 +111,7 @@ public class TargetSCNRequestProcessor extends BootstrapRequestProcessorBase
     	ObjectMapper mapper = new ObjectMapper();
     	StringWriter out = new StringWriter(1024);
     	mapper.writeValue(out, String.valueOf(targetScn));
-    	byte[] resultBytes = out.toString().getBytes();
+    	byte[] resultBytes = out.toString().getBytes(Charset.defaultCharset());
     	request.getResponseContent().write(ByteBuffer.wrap(resultBytes));
     	LOG.info("targetSCN: " + targetScn);
     } catch (Exception ex) {

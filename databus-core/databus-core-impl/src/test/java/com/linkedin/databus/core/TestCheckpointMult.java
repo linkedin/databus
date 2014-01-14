@@ -27,6 +27,7 @@ import static org.testng.Assert.assertTrue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.security.spec.InvalidParameterSpecException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -202,7 +203,7 @@ public class TestCheckpointMult
 
     ObjectMapper mapper = new ObjectMapper();
     Map<String, String> map = mapper.readValue(
-        new ByteArrayInputStream(serialCpMult.getBytes()), new TypeReference<Map<String, String>>(){});
+        new ByteArrayInputStream(serialCpMult.getBytes(Charset.defaultCharset())), new TypeReference<Map<String, String>>(){});
     map.put("NonJsonKey", "Some value");
     map.put("cursorPartition", ppart.toJsonString());
     ByteArrayOutputStream bs = new ByteArrayOutputStream();

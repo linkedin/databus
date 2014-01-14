@@ -252,6 +252,7 @@ public class GGXMLTrailTransactionFinder implements TransactionSCNFinderCallback
     _txnPos.setLineOffset(byteLineOffset);
     _txnPos.setMinScn(-1);
     _txnPos.setMaxScn(-1);
+    _txnPos.setTxnRank(_numTxnsSeen); // Rank = Number of transactions before this transactions.
     _beginTxnSeen = true;
   }
 

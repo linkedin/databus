@@ -32,7 +32,6 @@ import javax.management.ObjectName;
 
 import org.apache.log4j.Logger;
 
-import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.monitoring.mbean.AbstractMonitoringMBean;
 import com.linkedin.databus.core.util.ConfigApplier;
@@ -40,11 +39,10 @@ import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus.core.util.JmxUtil;
 import com.linkedin.databus.core.util.ReadWriteSyncedObject;
-import com.linkedin.databus2.core.container.monitoring.mbean.DbusHttpTotalStats;
+import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 
 /**
  * Container for all monitoring mbeans
- * @author cbotev
  */
 public class HttpStatisticsCollector extends ReadWriteSyncedObject
                                      implements HttpStatisticsCollectorMBean
@@ -124,7 +122,10 @@ public class HttpStatisticsCollector extends ReadWriteSyncedObject
 
         _mbeanServer.registerMBean(this, _collectorObjName);
         _totalStats.registerAsMbean(_mbeanServer);
-        LOG.info("MBean registered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {
@@ -151,7 +152,10 @@ public class HttpStatisticsCollector extends ReadWriteSyncedObject
         {
           _perSourceStats.get(srcId).unregisterMbean(_mbeanServer);
         }
-        LOG.info("MBean unregistered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {

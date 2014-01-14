@@ -22,6 +22,7 @@ package com.linkedin.databus.client.netty;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -77,7 +78,6 @@ import com.linkedin.databus.core.DbusEventV2Factory;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.OffsetNotFoundException;
 import com.linkedin.databus.core.ScnNotFoundException;
-import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.container.DatabusHttpHeaders;
@@ -201,7 +201,7 @@ public class TestNettyHttpDatabusRelayConnection
 
     DbusEventBuffer buf = createSimpleBuffer();
 
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -224,7 +224,7 @@ public class TestNettyHttpDatabusRelayConnection
   public void testServerSourcesDisconnect() throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerSourcesDisconnect");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -245,7 +245,7 @@ public class TestNettyHttpDatabusRelayConnection
       throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerRegisterDisconnect");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -266,7 +266,7 @@ public class TestNettyHttpDatabusRelayConnection
       throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerRegisterReqDisconnect");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -288,7 +288,7 @@ public class TestNettyHttpDatabusRelayConnection
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerStreamDisconnect");
 
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -310,7 +310,7 @@ public class TestNettyHttpDatabusRelayConnection
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerStreamReqDisconnect");
 
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -333,7 +333,7 @@ public class TestNettyHttpDatabusRelayConnection
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerPartialDisconnect");
 
     DbusEventBuffer buf = createSimpleBuffer();
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -355,7 +355,7 @@ public class TestNettyHttpDatabusRelayConnection
       throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerSourcesTimeout");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -376,7 +376,7 @@ public class TestNettyHttpDatabusRelayConnection
       throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerRegisterTimeout");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -397,7 +397,7 @@ public class TestNettyHttpDatabusRelayConnection
       throws IOException, ScnNotFoundException, OffsetNotFoundException
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerStreamTimeout");
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -420,7 +420,7 @@ public class TestNettyHttpDatabusRelayConnection
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerPartialResponse");
 
     DbusEventBuffer buf = createSimpleBuffer();
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -464,7 +464,7 @@ public class TestNettyHttpDatabusRelayConnection
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection.testServerFixedScenario");
 
     DbusEventBuffer buf = createSimpleBuffer();
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHappyPath");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHappyPath");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -529,7 +529,7 @@ public class TestNettyHttpDatabusRelayConnection
     log.info("in");
 
     DbusEventBuffer buf = createSimpleBuffer();
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testServerRandomScenario");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testServerRandomScenario");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -649,7 +649,7 @@ public class TestNettyHttpDatabusRelayConnection
 
     DbusEventBuffer buf = createSimpleBuffer();
 
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart("testHttpRequestLoggingHandlerRequest");
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart("testHttpRequestLoggingHandlerRequest");
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -913,9 +913,8 @@ public class TestNettyHttpDatabusRelayConnection
   {
     final Logger log = Logger.getLogger("TestNettyHttpDatabusRelayConnection." + subtestName);
     //log.setLevel(Level.DEBUG);
-    RelayConnectionCallback callback = RelayConnectionCallback.createAndStart(subtestName);
+    TestingConnectionCallback callback = TestingConnectionCallback.createAndStart(subtestName);
 
-    DbusEventBuffer buf = createSimpleBuffer();
     DummyRemoteExceptionHandler remoteExceptionHandler = new DummyRemoteExceptionHandler();
     final NettyHttpDatabusRelayConnection conn =
         (NettyHttpDatabusRelayConnection)
@@ -976,7 +975,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void doRegisterV4(final Logger log,
-                            RelayConnectionCallback callback,
+                            TestingConnectionCallback callback,
                             DummyRemoteExceptionHandler remoteExceptionHandler,
                             final NettyHttpDatabusRelayConnection conn,
                             TestResponseProcessors.TestConnectionStateMessage msg,
@@ -1000,7 +999,7 @@ public class TestNettyHttpDatabusRelayConnection
 
     sourcesResp.setHeader(DatabusHttpHeaders.DBUS_CLIENT_RELAY_PROTOCOL_VERSION_HDR, protocolVersionHeader);
 
-    body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+    body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
     NettyTestUtils.sendServerResponses(_dummyServer, clientAddr, sourcesResp, body);
 
     waitForCallback(callback, expectedRegisterState, log);
@@ -1008,7 +1007,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerSourcesReadTimeoutIteration(final Logger log,
-                                                   RelayConnectionCallback callback,
+                                                   TestingConnectionCallback callback,
                                                    DummyRemoteExceptionHandler remoteExceptionHandler,
                                                    final NettyHttpDatabusRelayConnection conn)
   {
@@ -1046,7 +1045,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerRegisterReadTimeoutIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1095,7 +1094,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerStreamReadTimeoutIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1164,7 +1163,7 @@ public class TestNettyHttpDatabusRelayConnection
 
   private void runServerPartialStreamTimeoutIteration(final Logger log,
                                      DbusEventBuffer buf,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1237,7 +1236,7 @@ public class TestNettyHttpDatabusRelayConnection
 }
 
   private void runServerSourcesDisconnectIteration(final Logger log,
-                                                   RelayConnectionCallback callback,
+                                                   TestingConnectionCallback callback,
                                                    DummyRemoteExceptionHandler remoteExceptionHandler,
                                                    final NettyHttpDatabusRelayConnection conn)
   {
@@ -1274,7 +1273,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerRegisterDisconnectIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1334,7 +1333,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerRegisterReqDisconnectIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1380,7 +1379,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerStreamDisconnectIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1447,7 +1446,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runServerStreamReqDisconnectIteration(final Logger log,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1511,7 +1510,7 @@ public class TestNettyHttpDatabusRelayConnection
 
   private void runServerPartialStreamIteration(final Logger log,
                                      DbusEventBuffer buf,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1584,7 +1583,7 @@ public class TestNettyHttpDatabusRelayConnection
 
   private void runHappyPathIteration(final Logger log,
                                      DbusEventBuffer buf,
-                                     RelayConnectionCallback callback,
+                                     TestingConnectionCallback callback,
                                      DummyRemoteExceptionHandler remoteExceptionHandler,
                                      final NettyHttpDatabusRelayConnection conn) throws JsonGenerationException,
       JsonMappingException,
@@ -1650,7 +1649,7 @@ public class TestNettyHttpDatabusRelayConnection
 
   private void runHappyPathStream(final Logger log,
                                   DbusEventBuffer buf,
-                                  RelayConnectionCallback callback,
+                                  TestingConnectionCallback callback,
                                   DummyRemoteExceptionHandler remoteExceptionHandler,
                                   final NettyHttpDatabusRelayConnection conn,
                                   TestResponseProcessors.TestConnectionStateMessage msg,
@@ -1695,7 +1694,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private void runHappyPathRegister(final Logger log,
-                                    RelayConnectionCallback callback,
+                                    TestingConnectionCallback callback,
                                     DummyRemoteExceptionHandler remoteExceptionHandler,
                                     final NettyHttpDatabusRelayConnection conn,
                                     TestResponseProcessors.TestConnectionStateMessage msg,
@@ -1718,7 +1717,7 @@ public class TestNettyHttpDatabusRelayConnection
     RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
     String responseStr = NettyTestUtils.generateRegisterResponse(entry);
     body = new DefaultHttpChunk(
-        ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+        ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
     NettyTestUtils.sendServerResponses(_dummyServer, clientAddr, sourcesResp, body);
 
     waitForCallback(callback,
@@ -1728,7 +1727,7 @@ public class TestNettyHttpDatabusRelayConnection
   }
 
   private HttpResponse runHappyPathSources(final Logger log,
-                                           RelayConnectionCallback callback,
+                                           TestingConnectionCallback callback,
                                            DummyRemoteExceptionHandler remoteExceptionHandler,
                                            SocketAddress clientAddr,
                                            SimpleObjectCaptureHandler objCapture)
@@ -1749,7 +1748,7 @@ public class TestNettyHttpDatabusRelayConnection
     sourcesResp.setHeader(HttpHeaders.Names.CONNECTION, HttpHeaders.Values.KEEP_ALIVE);
     sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
     HttpChunk body =
-        new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("[{\"id\":1,\"name\":\"test.source1\"}]".getBytes()));
+        new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("[{\"id\":1,\"name\":\"test.source1\"}]".getBytes(Charset.defaultCharset())));
     NettyTestUtils.sendServerResponses(_dummyServer, clientAddr, sourcesResp, body);
 
     waitForCallback(callback,
@@ -1785,7 +1784,7 @@ public class TestNettyHttpDatabusRelayConnection
     return buf;
   }
 
-  void waitForServerConnection(final NettyHttpDatabusRelayConnection conn, final Logger log)
+  static void waitForServerConnection(final NettyHttpDatabusRelayConnection conn, final Logger log)
   {
     TestUtil.assertWithBackoff(new ConditionCheck()
     {
@@ -1797,7 +1796,7 @@ public class TestNettyHttpDatabusRelayConnection
     }, "waiting to connect to server", 100000, log);
   }
 
-  void waitForCallback(final RelayConnectionCallback callback,
+  static void waitForCallback(final TestingConnectionCallback callback,
                        final TestResponseProcessors.TestConnectionStateMessage.State state,
                        final Logger log)
   {
@@ -1814,67 +1813,6 @@ public class TestNettyHttpDatabusRelayConnection
 
 }
 
-class RelayConnectionCallback extends AbstractActorMessageQueue
-{
-  TestResponseProcessors.TestConnectionStateMessage _lastMsg = null;
-  List<TestResponseProcessors.TestConnectionStateMessage> _allMsgs =
-      new ArrayList<TestResponseProcessors.TestConnectionStateMessage>();
-
-  @Override
-  protected boolean executeAndChangeState(Object message)
-  {
-    if (message instanceof TestResponseProcessors.TestConnectionStateMessage)
-    {
-      TestResponseProcessors.TestConnectionStateMessage m = (TestResponseProcessors.TestConnectionStateMessage)message;
-      boolean success = true;
-      _lastMsg = m;
-      _allMsgs.add(m);
-
-      return success;
-    }
-    else
-    {
-      return super.executeAndChangeState(message);
-    }
-  }
-
-  public RelayConnectionCallback(String name)
-  {
-    super(name);
-  }
-
-  public TestResponseProcessors.TestConnectionStateMessage getLastMsg()
-  {
-    return _lastMsg;
-  }
-
-  public void clearLastMsg()
-  {
-    _lastMsg = null;
-    _allMsgs.clear();
-  }
-
-  public static RelayConnectionCallback createAndStart(String name)
-  {
-    RelayConnectionCallback result = new RelayConnectionCallback(name);
-    Thread runThread = new Thread(result, name + "-callback");
-    runThread.setDaemon(true);
-    runThread.start();
-
-    return result;
-  }
-
-  public List<TestResponseProcessors.TestConnectionStateMessage> getAllMsgs()
-  {
-    return _allMsgs;
-  }
-
-  @Override
-  protected void onShutdown()
-  {
-  }
-
-}
 
 class DummyRemoteExceptionHandler extends RemoteExceptionHandler
 {

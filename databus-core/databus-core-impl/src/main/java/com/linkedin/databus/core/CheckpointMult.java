@@ -24,6 +24,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
+import java.nio.charset.Charset;
 import java.security.spec.InvalidParameterSpecException;
 import java.util.HashMap;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class CheckpointMult
     if (null != checkpointString) {
       // json returns Map between "pSrcId" and 'serialized string' of Checkpoint
       Map<String, String> map = _mapper.readValue(
-                            new ByteArrayInputStream(checkpointString.getBytes()), Map.class);
+                            new ByteArrayInputStream(checkpointString.getBytes(Charset.defaultCharset())), Map.class);
       boolean debugEnabled = LOG.isDebugEnabled();
       for(Entry<String, String> m : map.entrySet()) {
         if (m.getKey().equals(CURSOR_PARTITION_KEY)) {

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -226,7 +227,7 @@ public class Checkpoint
       IOException
   {
     this();
-    internalData.putAll(mapper.readValue(new ByteArrayInputStream(serializedCheckpoint.getBytes()),
+    internalData.putAll(mapper.readValue(new ByteArrayInputStream(serializedCheckpoint.getBytes(Charset.defaultCharset())),
                                          Map.class));
     // copy from map to local state variables
     mapToInternalState();

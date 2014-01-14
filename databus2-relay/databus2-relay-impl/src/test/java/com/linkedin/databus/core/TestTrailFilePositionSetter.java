@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -100,35 +101,95 @@ public class TestTrailFilePositionSetter
                      startLine, corruptedScns, corruption, addAlternateCorruption, altCorruption);
   }
 
-  private void createTrailFiles(String dir, String prefix, long numTxns, long numLinesPerFile,
-                                long numLinesPerNewline, String newlineChar, int startLine,
-                                Set<Long> corruptedScns, String corruption,
-                                boolean addAlternateCorruption, String altCorruption)
-    throws IOException
+  private void createTrailFiles(String dir,
+                                String prefix,
+                                long numTxns,
+                                long numLinesPerFile,
+                                long numLinesPerNewline,
+                                String newlineChar,
+                                int startLine,
+                                Set<Long> corruptedScns,
+                                String corruption,
+                                boolean addAlternateCorruption,
+                                String altCorruption) throws IOException
   {
-    long numFiles = ((numTxns * (_txnPattern.length))/numLinesPerFile) + 1;
+    createTrailFiles(dir,
+                     prefix,
+                     numTxns,
+                     numLinesPerFile,
+                     numLinesPerNewline,
+                     newlineChar,
+                     startLine,
+                     corruptedScns,
+                     corruption,
+                     addAlternateCorruption,
+                     altCorruption,
+                     _txnPattern,
+                     1,
+                     100);
+  }
+
+  private void createTrailFiles(String dir,
+                                String prefix,
+                                long numTxns,
+                                long numLinesPerFile,
+                                long numLinesPerNewline,
+                                String newlineChar,
+                                int startLine,
+                                String[] txnPattern,
+                                int numDbUpdatesWithSameScn,
+                                long startScn) throws IOException
+  {
+    createTrailFiles(dir,
+                     prefix,
+                     numTxns,
+                     numLinesPerFile,
+                     numLinesPerNewline,
+                     newlineChar,
+                     startLine,
+                     new HashSet<Long>(),
+                     "",
+                     false,
+                     "",
+                     txnPattern,
+                     numDbUpdatesWithSameScn,
+                     startScn);
+  }
+
+  private void createTrailFiles(String dir, String prefix, long numTxns, long numLinesPerFile,
+          long numLinesPerNewline, String newlineChar, int startLine,
+          Set<Long> corruptedScns, String corruption,
+          boolean addAlternateCorruption, String altCorruption, String[] txnPattern, int numDbUpdatesWithSameScn, long currScn)
+      throws IOException
+ {
+    long numFiles = ((numTxns * (txnPattern.length))/numLinesPerFile) + 1;
     long numDigits = new Double(Math.log10(numFiles)).longValue() + 1;
     long currFileNum = 0;
     String currFile = prefix + toFixedLengthString(currFileNum, numDigits);
     long lineCount = 0;
     BufferedWriter w = createWriter(dir, currFile);
-    long currScn = 100;
     int start = startLine;
+    int dbUpdates = 0;
     for (long txn = 0; txn < numTxns; ++txn)
     {
       boolean corruptNextTokensEndTag = false;
       if (txn > 0)
         start = 0;
-      for (int j = 0 ; j < _txnPattern.length; ++j)
+      for (int j = 0 ; j < txnPattern.length; ++j)
       {
         lineCount++;
-        String txnLine = _txnPattern[j];
+        String txnLine = txnPattern[j];
         if (txnLine.contains("${SCN}"))
         {
+          dbUpdates++;
           txnLine = txnLine.replace("${SCN}", new Long(currScn).toString() + (corruptedScns.contains(currScn)? corruption : ""));
           if (addAlternateCorruption && corruptedScns.contains(currScn))
             corruptNextTokensEndTag = true;
-          currScn++;
+          if (dbUpdates >= numDbUpdatesWithSameScn)
+          {
+            currScn++;
+            dbUpdates = 0;
+          }
         }
         if (corruptNextTokensEndTag && txnLine.contains("</tokens>"))
         {
@@ -403,10 +464,11 @@ public class TestTrailFilePositionSetter
     Assert.assertEquals(res.getStatus(), FilePositionResult.Status.ERROR,
                         "expected error for exact-match SCN that's 'too old'.");
 
-    // weird corner case:  see testRequestedScnOlderThanOldestTransaction for explanation
+    // For SCN <= the earliest transactions maxSCN, we throw error
     finder.reset();
     res = posSetter.locateFilePosition(102, finder);
-    assertFilePositionResult(res, dir, 102, FilePositionResult.Status.EXACT_SCN_NOT_FOUND);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.ERROR,
+                      "expected error for exact-match SCN that's 'too old'.");
 
     // expect first non-corrupted SCN here, not first "transaction SCN":
     finder.reset();
@@ -527,14 +589,11 @@ public class TestTrailFilePositionSetter
     res = posSetter.locateFilePosition(120, finder);
     assertFilePositionResult(res, dir, 120, FilePositionResult.Status.EXACT_SCN_NOT_FOUND);
 
-    // Weird corner case:  when "transaction-SCN" semantics meet the boundary of the oldest
-    // trail file (i.e., where there isn't any previous transaction-SCN), one might expect
-    // a request for an SCN (100) older than the oldest transaction-SCN (101) to fail with
-    // ERROR.  But instead, the transaction's min SCN (100) is used as a stand-in for the
-    // previous transaction-SCN, so again we get a valid state but EXACT_SCN_NOT_FOUND:
+    // For SCN <= the earliest transactions maxSCN, we throw error
     finder.reset();
     res = posSetter.locateFilePosition(100, finder);
-    assertFilePositionResult(res, dir, 100, FilePositionResult.Status.EXACT_SCN_NOT_FOUND);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.ERROR,
+                          "expected error for exact-match SCN that's too old.");
 
     // Related, weird corner case:  USE_EARLIEST_SCN uses the min SCN in the oldest transaction,
     // so even though an exact match for 100 doesn't return FOUND, this does:
@@ -542,11 +601,11 @@ public class TestTrailFilePositionSetter
     res = posSetter.locateFilePosition(TrailFilePositionSetter.USE_EARLIEST_SCN, finder);
     assertFilePositionResult(res, dir, 100, FilePositionResult.Status.FOUND);
 
-    // Requesting an exact SCN that's also a transaction-SCN (max within a transaction)
-    // should also return FOUND:
+    // For SCN <= the earliest transactions maxSCN, we throw error
     finder.reset();
     res = posSetter.locateFilePosition(101, finder);
-    assertFilePositionResult(res, dir, 101, FilePositionResult.Status.FOUND);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.ERROR,
+                                  "expected error for exact-match SCN that's too old.");
 
     log.info(DONE_STRING);
   }
@@ -558,7 +617,7 @@ public class TestTrailFilePositionSetter
     final Logger log = Logger.getLogger("TestTrailFilePositionSetter.testScnPositionLocator");
     log.info("starting");
 
-    testScnPositionLocator(0,100,200,100, log); // case where all txn are complete
+    testScnPositionLocator(0,100,200,102, log); // case where all txn are complete
 
     log.info(DONE_STRING);
   }
@@ -616,6 +675,93 @@ public class TestTrailFilePositionSetter
   }
 
   @Test
+  public void testRepeatSCN() throws Exception
+  {
+    final Logger log = Logger.getLogger("TestTrailFilePositionSetter.testRepeatSCN");
+    File dir = createTempDir();
+    long startScn = 100;
+    int numTxnsPerFile = 10;
+    /**
+     * Create trail files with the following SCN range
+     *
+     * Trail-File       Number of Txns          SCN Range
+     *   x300               10                  100-100
+     *   x301               10                  100-100
+     *   x302               10                  101-101
+     *   x303               10                  101-101
+     *   x304               10                  102-102
+     *   x305               10                  102-102
+     *   x306               10                  103-103
+     *   x307               10                  103-103
+     *   x308               10                  104-104
+     *   x309               10                  104-104
+     *
+     */
+    createTrailFiles(dir.getAbsolutePath(),
+                     TRAIL_FILENAME_PREFIX,
+                     100L,
+                     _txnPattern.length * numTxnsPerFile,
+                     1L,
+                     "\n",
+                     0,
+                     _txnPattern,
+                     2 * numTxnsPerFile * 2, // Transactions in 2 files have the same SCN
+                     startScn);
+    log.info("Directory is: " + dir);
+
+    TrailFilePositionSetter posSetter = null;
+    // GoldenGateTransactionSCNFinder finder = new GoldenGateTransactionSCNFinder();
+    GGXMLTrailTransactionFinder finder = new GGXMLTrailTransactionFinder();
+    posSetter = new TrailFilePositionSetter(dir.getAbsolutePath(), TRAIL_FILENAME_PREFIX);
+
+    // SCN 100 is not found because this is the first SCN in the trail file.
+    FilePositionResult res = posSetter.locateFilePosition(100, finder);
+    Assert.assertEquals(res.getStatus(),
+                        FilePositionResult.Status.ERROR,
+                        "Result Status for SCN: " + 100 + ", Result: " + res);
+
+    // SCN 101 is found
+    res = posSetter.locateFilePosition(101, finder);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.FOUND, "Result Status");
+    Assert.assertEquals(res.getTxnPos().getFile(), "x302", "File found");
+    Assert.assertEquals(res.getTxnPos().getFileOffset(), 0, "File offset found");
+    Assert.assertEquals(res.getTxnPos().getLineNumber(), 1, "File line number found");
+    Assert.assertEquals(res.getTxnPos().getMinScn(), 101, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getMaxScn(), 101, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getTxnRank(), 10, "Txn Rank");
+
+    // SCN 102 is found
+    res = posSetter.locateFilePosition(102, finder);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.FOUND, "Result Status");
+    Assert.assertEquals(res.getTxnPos().getFile(), "x304", "File found");
+    Assert.assertEquals(res.getTxnPos().getFileOffset(), 0, "File offset found");
+    Assert.assertEquals(res.getTxnPos().getLineNumber(), 1, "File line number found");
+    Assert.assertEquals(res.getTxnPos().getMinScn(), 102, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getMaxScn(), 102, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getTxnRank(), 10, "Txn Rank");
+
+    // SCN 103 is found
+    res = posSetter.locateFilePosition(103, finder);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.FOUND, "Result Status");
+    Assert.assertEquals(res.getTxnPos().getFile(), "x306", "File found");
+    Assert.assertEquals(res.getTxnPos().getFileOffset(), 0, "File offset found");
+    Assert.assertEquals(res.getTxnPos().getLineNumber(), 1, "File line number found");
+    Assert.assertEquals(res.getTxnPos().getMinScn(), 103, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getMaxScn(), 103, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getTxnRank(), 10, "Txn Rank");
+
+    // SCN 104 is found
+    res = posSetter.locateFilePosition(104, finder);
+    Assert.assertEquals(res.getStatus(), FilePositionResult.Status.FOUND, "Result Status");
+    Assert.assertEquals(res.getTxnPos().getFile(), "x308", "File found");
+    Assert.assertEquals(res.getTxnPos().getFileOffset(), 0, "File offset found");
+    Assert.assertEquals(res.getTxnPos().getLineNumber(), 1, "File line number found");
+    Assert.assertEquals(res.getTxnPos().getMinScn(), 104, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getMaxScn(), 104, "MinScn check");
+    Assert.assertEquals(res.getTxnPos().getTxnRank(), 10, "Txn Rank");
+  }
+
+  @Test
   public void testScnPositionSetter1()
     throws Exception
   {
@@ -642,7 +788,6 @@ public class TestTrailFilePositionSetter
       TrailFilePositionSetter posSetter = null;
       //GoldenGateTransactionSCNFinder finder = new GoldenGateTransactionSCNFinder();
       GGXMLTrailTransactionFinder finder = new GGXMLTrailTransactionFinder();
-
 
       //less than minScn
       for (long i = 0 ; i < beginFoundScn ; i ++)
@@ -672,7 +817,6 @@ public class TestTrailFilePositionSetter
           assertFilePositionResult(res,dir,i+1,FilePositionResult.Status.EXACT_SCN_NOT_FOUND);
         else
           assertFilePositionResult(res,dir,i,FilePositionResult.Status.FOUND);
-
       }
 
       //Found Case
@@ -722,6 +866,7 @@ public class TestTrailFilePositionSetter
         log.info("less than MinScn case started !!");
         for (long i = 0 ; i < 100 ; i ++)
         {
+          if ( true )break;
           posSetter = new TrailFilePositionSetter(dir.getAbsolutePath(), TRAIL_FILENAME_PREFIX);
           //finder = new GoldenGateTransactionSCNFinder();
           finder = new GGXMLTrailTransactionFinder();
@@ -892,7 +1037,7 @@ public class TestTrailFilePositionSetter
     String s = "abc\r\ndef\r\n";
     List<String> l = new ArrayList<String>();
     List<Integer> endPos = new ArrayList<Integer>();
-    String lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l, endPos);
+    String lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -905,7 +1050,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 0, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 0, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(3,l.size(),"Length");
@@ -920,7 +1065,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 1, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 1, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(3,l.size(),"Length");
@@ -935,7 +1080,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 2, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 2, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(3,l.size(),"Length");
@@ -950,7 +1095,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 3, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 3, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -963,7 +1108,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 5, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 5, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(l.size(),3,"Length");
@@ -978,7 +1123,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 6, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 6, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(l.size(),3,"Length");
@@ -994,7 +1139,7 @@ public class TestTrailFilePositionSetter
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
     //log.info("Starting !!");
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 7, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 7, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(l.size(),3,"Length");
@@ -1009,7 +1154,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 4, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 4, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -1022,7 +1167,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 8, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 8, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -1035,7 +1180,7 @@ public class TestTrailFilePositionSetter
     s = "abc\ndef\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 3, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 3, null, l, endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -1048,7 +1193,7 @@ public class TestTrailFilePositionSetter
     s = "abc\ndef\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -1061,7 +1206,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertNull(lastLineStr,"Returned String should be null");
     Assert.assertEquals(2,l.size(),"Length");
@@ -1074,7 +1219,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l, endPos);
 
     Assert.assertEquals( lastLineStr,"def","Returned String");
     Assert.assertEquals(l.size(),1,"Length");
@@ -1085,7 +1230,7 @@ public class TestTrailFilePositionSetter
     s = "abc\r\ndef\r";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
     //log.info("Length: " + lastLineStr.length());
     Assert.assertEquals( lastLineStr,"def\r","Returned String");
     Assert.assertEquals(l.size(),1,"Length");
@@ -1097,7 +1242,7 @@ public class TestTrailFilePositionSetter
     s = "def\r\nghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, lastLineStr, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, lastLineStr, l, endPos);
 
     Assert.assertEquals( lastLineStr,"ghi","Returned String");
     Assert.assertEquals(l.size(),1,"Length");
@@ -1109,7 +1254,7 @@ public class TestTrailFilePositionSetter
     s = "def\r\nghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, lastLineStr, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, lastLineStr, l,endPos);
 
     Assert.assertEquals( lastLineStr,"ghi","Returned String");
     Assert.assertEquals(l.size(),2,"Length: " + l);
@@ -1123,7 +1268,7 @@ public class TestTrailFilePositionSetter
     s = "\ndef\r\nghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1,lastLineStr, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1,lastLineStr, l,endPos);
     Assert.assertEquals( lastLineStr,"ghi","Returned String");
     Assert.assertEquals(l.size(),2,"Length: " + l);
     Assert.assertEquals(endPos.size(),2,"Length");
@@ -1136,7 +1281,7 @@ public class TestTrailFilePositionSetter
     s = "\ndef\r\nghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, lastLineStr, l, endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, lastLineStr, l, endPos);
 
     Assert.assertEquals( lastLineStr,"ghi","Returned String");
     Assert.assertEquals(l.size(),2,"Length");
@@ -1150,7 +1295,7 @@ public class TestTrailFilePositionSetter
     s = "\rdef\r\nghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, lastLineStr, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, lastLineStr, l,endPos);
 
     Assert.assertEquals( lastLineStr,"ghi","Returned String");
     Assert.assertEquals(l.size(),2,"Length");
@@ -1165,7 +1310,7 @@ public class TestTrailFilePositionSetter
     s = "abcdef";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, lastLineStr, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, lastLineStr, l,endPos);
 
     Assert.assertEquals( lastLineStr,"xyzabcdef","Returned String");
     Assert.assertEquals(l.size(),0,"Length");
@@ -1174,7 +1319,7 @@ public class TestTrailFilePositionSetter
     s = "abcdef";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertEquals( lastLineStr,"abcdef","Returned String");
     Assert.assertEquals(l.size(),0,"Length");
@@ -1183,7 +1328,7 @@ public class TestTrailFilePositionSetter
     s = "abc\n\n  def";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertEquals( lastLineStr,"  def","Returned String");
     Assert.assertEquals(l.size(),2,"Length");
@@ -1196,7 +1341,7 @@ public class TestTrailFilePositionSetter
     s = "abc\n\n  def\n   ghi";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), true, 4, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), true, 4, null, l,endPos);
 
     Assert.assertEquals( lastLineStr,"   ghi","Returned String");
     Assert.assertEquals(l.size(),3,"Length");
@@ -1211,7 +1356,7 @@ public class TestTrailFilePositionSetter
     s = "\n";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertEquals( lastLineStr,null,"Returned String");
     Assert.assertEquals(l.size(),1,"Length");
@@ -1222,7 +1367,7 @@ public class TestTrailFilePositionSetter
     s = " ";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertEquals( lastLineStr," ","Returned String");
     Assert.assertEquals(l.size(),0,"Length");
@@ -1231,7 +1376,7 @@ public class TestTrailFilePositionSetter
     s = "";
     l = new ArrayList<String>();
     endPos = new ArrayList<Integer>();
-    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(), s.length(), false, -1, null, l,endPos);
+    lastLineStr = TrailFilePositionSetter.splitBytesByNewLines(s.getBytes(Charset.defaultCharset()), s.length(), false, -1, null, l,endPos);
 
     Assert.assertEquals( lastLineStr,null,"Returned String");
     Assert.assertEquals(l.size(),0,"Length");

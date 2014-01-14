@@ -1,6 +1,4 @@
-package com.linkedin.databus.client.pub.mbean;
 /*
- *
  * Copyright 2013 LinkedIn Corp. All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,88 +13,96 @@ package com.linkedin.databus.client.pub.mbean;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
-*/
+ */
+package com.linkedin.databus.client.pub.mbean;
 
 
-public interface ConsumerCallbackStatsMBean {
+/**
+ * Metrics for Databus v2 and v3 consumers.
+ */
+public interface ConsumerCallbackStatsMBean
+{
+  /** GETTERS */
 
-	/** Metrics for databus2 consumers */
+  // TODO:  document these (reset == for aggregation only, I think)
+  public long getTimestampLastResetMs();
 
-	/**GETTERS*/
+  // TODO:  document these (reset == for aggregation only, I think)
+  public long getTimeSinceLastResetMs();
 
-	public long getTimestampLastResetMs();
+  /** time in ms since creation of the consumer */
+  public long getTimeSinceCreation();
 
-	public long getTimeSinceLastResetMs();
+  /** DEPRECATED : time in ms since local per-source stat was merged to global consumer stat */
+  public long getTimeSinceLastMergeMs();
 
-	/** number of data events received by the consumer for processing */
-	public long getNumDataEventsReceived();
+  /** time in ms since last event was received */
+  public long getTimeSinceLastEventReceived();
 
-    /** number of data events consumed/processed successfully by the consumer */
-	public long getNumDataEventsProcessed();
+  /** time in ms since last event was processed */
+  public long getTimeSinceLastEventProcessed();
 
-	/** number of system events received by consumer */
-	public long getNumSysEventsReceived();
+  /** time diff in ms between now and creation-time of last-received data event */
+  public long getTimeDiffLastEventReceived();
 
-	/** the minimum requested window seen by the dispatcher */
-	public long getMinSeenWinScn();
-
-	/** the maximum requested window seen by the dispatcher */
-	public long getMaxSeenWinScn();
-
-	/** number of erroneous events received */
-	public long getNumErrorsReceived();
-
-	/** number of events that weren't processed due to errors */
-	public long getNumErrorsProcessed();
-
-	/** number of erroneous end of window events processed */
-	public long getNumSysErrorsProcessed();
-
-	/** number of erroneous data events processed */
-	public long getNumDataErrorsProcessed();
+  /** time diff in ms between now and creation-time of last-processed data event */
+  public long getTimeDiffLastEventProcessed();
 
 
-	/** number of events received by consumer */
-	public long getNumEventsReceived();
+  /** number of events received by consumer */
+  public long getNumEventsReceived();
 
-	/** number of events processed by consumer */
-	public long getNumEventsProcessed();
+  /** number of events processed by consumer */
+  public long getNumEventsProcessed();
 
-	/** number of end of window events processed */
-	public long getNumSysEventsProcessed();
+  /** number of data events received by the consumer for processing */
+  public long getNumDataEventsReceived();
 
-	/** time in ms since creation of the consumer*/
-	public long getTimeSinceCreation();
+  /** number of data events consumed/processed successfully by the consumer */
+  public long getNumDataEventsProcessed();
 
-	/** ave time in ms taken by consumer to process an event */
-	public double getAveLatencyEventsProcessed();
+  /** number of system events received by consumer */
+  public long getNumSysEventsReceived();
 
-	/**time in ms taken by consumer to process an event */
-	public long getLatencyEventsProcessed();
+  /** number of end of window events processed */
+  public long getNumSysEventsProcessed();
 
-	/** DEPRECATED : time in ms since local per source stat was merged to global consumer stat */
-	public long getTimeSinceLastMergeMs();
 
-	/** time in ms since last event was received */
-	public long getTimeSinceLastEventReceived();
+  /** number of erroneous events received */
+  public long getNumErrorsReceived();
 
-	/** time in ms since last event was processed */
-	public long getTimeSinceLastEventProcessed();
+  /** number of events that weren't processed due to errors */
+  public long getNumErrorsProcessed();
 
-	/** time diff in ms between now and time at which  data event last received was created */
-	public long getTimeDiffLastEventReceived();
+  /** number of erroneous end of window events processed */
+  public long getNumSysErrorsProcessed();
 
-	/** time diff in ms between now and time at which  data event last received was created */
-	public long getTimeDiffLastEventProcessed();
+  /** number of erroneous data events processed */
+  public long getNumDataErrorsProcessed();
 
-	/** scn of last data event processed by the consumer */
-	public long getScnOfLastEventProcessed();
 
-	/** timestamp of last window seen by the dispatcher */
-	public long getMaxSeenWinTimestamp();
+  /** SCN of last data event processed by the consumer */
+  public long getScnOfLastEventProcessed();
 
-	/** MUTATORS*/
-	void reset();
+  /** the minimum requested window seen by the dispatcher */
+  public long getMinSeenWinScn();
 
+  /** the maximum requested window seen by the dispatcher */
+  public long getMaxSeenWinScn();
+
+  /** timestamp of last window seen by the dispatcher */
+  public long getMaxSeenWinTimestamp();
+
+
+  /** ave time in ms taken by consumer to process an event */
+  public double getAveLatencyEventsProcessed();
+
+  /** time in ms taken by consumer to process an event */
+  // TODO:  what?  how differs from getAveLatencyEventsProcessed() ?  just most recent event?
+  public long getLatencyEventsProcessed();
+
+
+  /** MUTATORS */
+
+  void reset();
 }

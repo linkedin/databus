@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 
 public class CrcToolMain
 {
@@ -55,7 +56,7 @@ public class CrcToolMain
   {
     for (String arg: args)
     {
-      printBothCrcs(arg, arg.getBytes());
+      printBothCrcs(arg, arg.getBytes(Charset.defaultCharset()));
     }
 
     if (System.in.available() > 0)

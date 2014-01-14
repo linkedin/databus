@@ -16,7 +16,7 @@ package com.linkedin.databus.client;
  * specific language governing permissions and limitations
  * under the License.
  *
-*/
+ */
 
 
 import java.util.ArrayList;
@@ -31,6 +31,7 @@ import org.apache.log4j.Logger;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusEventBuffer;
+import com.linkedin.databus.core.DbusLogAccumulator;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
@@ -139,9 +140,11 @@ public class DispatcherState
 
   private void setLastSuccessfulIterator(DbusEventBuffer.DbusEventIterator newValue)
   {
-    final boolean debugEnabled = LOG.isDebugEnabled();
-    if (debugEnabled)
-      LOG.debug("changing _lastSuccessfulIterator from: " + _lastSuccessfulIterator);
+    final boolean isDebugEnabled = LOG.isDebugEnabled();
+    if (isDebugEnabled)
+    {
+      DbusLogAccumulator.addLog("Changing _lastSuccessfulIterator from: " + _lastSuccessfulIterator, LOG);
+    }
     if (null != _lastSuccessfulIterator)
     {
       _lastSuccessfulIterator.close();
@@ -152,16 +155,14 @@ public class DispatcherState
     }
     else
     {
-      _lastSuccessfulIterator = newValue.copy(_lastSuccessfulIterator,
-                                              newValue.getIdentifier() + ".save");
+      _lastSuccessfulIterator = newValue.copy(_lastSuccessfulIterator, newValue.getIdentifier() + ".save");
     }
-    if (debugEnabled)
-      LOG.debug("changing _lastSuccessfulIterator to: " + _lastSuccessfulIterator);
+    if (isDebugEnabled)
+    {
+      DbusLogAccumulator.addLog("Changing _lastSuccessfulIterator to: " + _lastSuccessfulIterator, LOG);
+    }
   }
 
-//  public DispatcherState switchToStartDispatchEvents(Map<Long, IdNamePair> sourcesIdMap,
-//                                                     Map<Long, List<RegisterResponseEntry>> schemaMap,
-//                                                     DbusEventBuffer buffer)
   public DispatcherState switchToStartDispatchEvents()
   {
     _stateId = StateId.START_DISPATCH_EVENTS;
@@ -172,75 +173,84 @@ public class DispatcherState
   {
     if (null == _eventsIterator)
     {
-        _stateId = StateId.START_DISPATCH_EVENTS;
-        _lastSuccessfulCheckpoint = null;
-        _lastSuccessfulScn = null;
-        resetSourceInfo();
-        _eventsIterator = _buffer.acquireIterator(iteratorName);
-        LOG.info("start dispatch from: " + _eventsIterator);
-        setLastSuccessfulIterator(_eventsIterator);
+      _stateId = StateId.START_DISPATCH_EVENTS;
+      _lastSuccessfulCheckpoint = null;
+      _lastSuccessfulScn = null;
+      resetSourceInfo();
+      _eventsIterator = _buffer.acquireIterator(iteratorName);
+      LOG.info("start dispatch from: " + _eventsIterator);
+      setLastSuccessfulIterator(_eventsIterator);
     }
   }
 
   protected void refreshSchemas()
   {
-    boolean debugEnabled = LOG.isDebugEnabled();
+    final boolean isDebugEnabled = LOG.isDebugEnabled();
     try
     {
-    	for (Map.Entry<Long, List<RegisterResponseEntry>> e: _payloadSchemaMap.entrySet())
-    	{
-    		for (RegisterResponseEntry r : e.getValue())
-    		{
-                final long id = r.getId();
-                String schemaName = null;
-                if (_sources.containsKey(id))
-                {
-                  schemaName = _sources.get(r.getId()).getName();
-                }
-                else
-                {
-                  LOG.error("Obtained a RegisterResponseEntry with schema that has no sourceId set. id = " + id);
-                  continue;
-                }
-    			String schema = r.getSchema();
-    			if (_schemaSet.add(schemaName, r.getVersion(), schema))
-    			{
-    			  LOG.info("Registering schema name=" + schemaName + " id=" + e.getKey().toString() +
-    			           " version=" + r.getVersion());
-    			  if (debugEnabled)
-    			  {
-                    LOG.debug("Registering schema name=" + schemaName + " id=" + e.getKey().toString() +
-                              " version=" + r.getVersion() + ": " + schema);
-    			  }
-    			}
-    			else
-    			{
-    			  if (debugEnabled)
-    			    LOG.debug("schema already known: " + schemaName + " version " +  r.getId());
-    			}
-    		}
-    	}
+      for (Map.Entry<Long, List<RegisterResponseEntry>> e: _payloadSchemaMap.entrySet())
+      {
+        for (RegisterResponseEntry r : e.getValue())
+        {
+          final long id = r.getId();
+          String schemaName = null;
+          if (_sources.containsKey(id))
+          {
+            schemaName = _sources.get(r.getId()).getName();
+          }
+          else
+          {
+            LOG.error("Obtained a RegisterResponseEntry with schema that has no sourceId set. id = " + id);
+            continue;
+          }
+          String schema = r.getSchema();
+          if (_schemaSet.add(schemaName, r.getVersion(), schema))
+          {
+            LOG.info("Registering schema name=" + schemaName + " id=" + e.getKey().toString() +
+                " version=" + r.getVersion());
 
-    	//Refresh metadata schema map
-    	if (!_metadataSchemaList.isEmpty())
-    	{
-    	  for (RegisterResponseMetadataEntry e: _metadataSchemaList)
-    	  {
-    	    SchemaId id = new SchemaId(e.getCrc32());
-    	    _metadataSchemasSet.add(SchemaRegistryService.DEFAULT_METADATA_SCHEMA_SOURCE,e.getVersion(),id,e.getSchema());
-    	    LOG.info("Added metadata schema version " + e.getVersion() + ",schemaID=0x" + id);
-    	  }
-    	}
-    	else
-    	{
-    	  LOG.info("Metadata schema is empty!");
-    	}
+            if (isDebugEnabled)
+            {
+              String msg = "Registering schema name=" + schemaName + " id=" + e.getKey().toString() +
+                  " version=" + r.getVersion() + ": " + schema;
+              DbusLogAccumulator.addLog(msg, LOG);
+            }
+          }
+          else
+          {
+            if (isDebugEnabled)
+            {
+              String msg = "Schema already known: " + schemaName + " version " +  r.getId();
+              DbusLogAccumulator.addLog(msg, LOG);
+            }
+          }
+        }
+      }
 
-    	_eventDecoder = new DbusEventAvroDecoder(_schemaSet,_metadataSchemasSet);
+      //Refresh metadata schema map
+      if (!_metadataSchemaList.isEmpty())
+      {
+        for (RegisterResponseMetadataEntry e: _metadataSchemaList)
+        {
+          SchemaId id = new SchemaId(e.getCrc32());
+          _metadataSchemasSet.add(SchemaRegistryService.DEFAULT_METADATA_SCHEMA_SOURCE,e.getVersion(),id,e.getSchema());
+          LOG.info("Added metadata schema version " + e.getVersion() + ",schemaID=0x" + id);
+        }
+      }
+      else
+      {
+        if (isDebugEnabled)
+        {
+          String msg = "Metadata schema is empty";
+          DbusLogAccumulator.addLog(msg, LOG);
+        }
+      }
+
+      _eventDecoder = new DbusEventAvroDecoder(_schemaSet,_metadataSchemasSet);
     }
     catch (Exception e)
     {
-    	LOG.error("Error adding schema", e);
+      LOG.error("Error adding schema", e);
     }
   }
 
@@ -259,7 +269,11 @@ public class DispatcherState
       String iteratorName = _eventsIterator.getIdentifier();
       _eventsIterator.close();
       _eventsIterator = eventBuffer.acquireIterator(iteratorName);
-      LOG.info("reset event iterator to: " + _eventsIterator);
+      if (LOG.isDebugEnabled())
+      {
+        String msg = "Reset event iterator to: " + _eventsIterator;
+        DbusLogAccumulator.addLog(msg, LOG);
+      }
       resetSourceInfo();
     }
   }
@@ -332,22 +346,34 @@ public class DispatcherState
   private void setEventsIterator(DbusEventBuffer.DbusEventIterator newValue)
   {
     String iterName = null == newValue ? "dispatcher iterator" :
-        newValue.getIdentifier();
+      newValue.getIdentifier();
     if (null != _eventsIterator)
     {
       iterName = _eventsIterator.getIdentifier();
-      LOG.info("closing dispatcher iterator: " + _eventsIterator);
+      if (LOG.isDebugEnabled())
+      {
+        String msg = "Closing dispatcher iterator: " + _eventsIterator;
+        DbusLogAccumulator.addLog(msg, LOG);
+      }
       _eventsIterator.close();
     }
     if (null == newValue)
     {
       _eventsIterator = null;
-      LOG.info("dispatcher iterator set to null ");
+      if (LOG.isDebugEnabled())
+      {
+        String msg = "Dispatcher iterator set to null";
+        DbusLogAccumulator.addLog(msg, LOG);
+      }
     }
     else
     {
       _eventsIterator = newValue.copy(_eventsIterator, iterName);
-      LOG.info("new dispatcher iterator: " + _eventsIterator);
+      if (LOG.isDebugEnabled())
+      {
+        String msg = "New dispatcher iterator: " + _eventsIterator;
+        DbusLogAccumulator.addLog(msg, LOG);
+      }
     }
   }
 
@@ -437,31 +463,31 @@ public class DispatcherState
 
   public void removeEvents()
   {
-      DbusEventBuffer.DbusEventIterator iter = getEventsIterator();
-      if (!iter.equivalent(_lastSuccessfulIterator))
+    DbusEventBuffer.DbusEventIterator iter = getEventsIterator();
+    if (!iter.equivalent(_lastSuccessfulIterator))
+    {
+      if (_lastSuccessfulIterator == null)
       {
-    	  if (_lastSuccessfulIterator == null)
-    	  {
-    		  LOG.warn("last Successful Iterator was null!");
-    	  }
-    	  else
-    	  {
-    		  LOG.warn("Invalidating last successful iterator! " + "last = " +
-    		           _lastSuccessfulIterator +  " this iterator= " + iter);
-    		  setLastSuccessfulIterator(null);
-    	  }
+        LOG.warn("Last Successful Iterator was null. Rollback will not be possible!");
       }
-      iter.remove();
+      else
+      {
+        LOG.info("Invalidating last successful iterator " + "last = " +
+            _lastSuccessfulIterator +  " this iterator= " + iter);
+        setLastSuccessfulIterator(null);
+      }
+    }
+    iter.remove();
   }
 
   public boolean isSCNRegress()
   {
-	  return _scnRegress;
+    return _scnRegress;
   }
 
   public void setSCNRegress(boolean scnRegress)
   {
-	  _scnRegress = scnRegress;
+    _scnRegress = scnRegress;
   }
 
   public boolean isEventsSeen()
@@ -486,12 +512,12 @@ public class DispatcherState
 
   protected DispatcherState addSchemas(Map<Long, List<RegisterResponseEntry>> schemaMap)
   {
-      return addSchemas(schemaMap,null);
+    return addSchemas(schemaMap,null);
   }
 
 
   protected DispatcherState addSchemas(Map<Long, List<RegisterResponseEntry>> schemaMap,
-                                       List<RegisterResponseMetadataEntry> metadataSchemaList)
+      List<RegisterResponseMetadataEntry> metadataSchemaList)
   {
     _payloadSchemaMap.putAll(schemaMap);
     if (metadataSchemaList != null)

@@ -20,6 +20,7 @@ package com.linkedin.databus2.tools.dtail;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 
 import org.apache.avro.generic.GenericRecord;
 import org.apache.log4j.Logger;
@@ -57,7 +58,7 @@ public class JsonDtailPrinter extends GenericRecordDtailPrinter
     ConsumerCallbackResult result = ConsumerCallbackResult.SUCCESS;
     try
     {
-      _out.write(r.toString().getBytes());
+      _out.write(r.toString().getBytes(Charset.defaultCharset()));
       _out.write('\n');
     }
     catch (RuntimeException re)

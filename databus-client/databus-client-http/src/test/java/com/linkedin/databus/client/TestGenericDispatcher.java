@@ -39,11 +39,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import junit.framework.Assert;
 
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
+import com.linkedin.databus.client.consumer.AbstractDatabusCombinedConsumer;
 import com.linkedin.databus.client.consumer.AbstractDatabusStreamConsumer;
 import com.linkedin.databus.client.consumer.DatabusV2ConsumerRegistration;
 import com.linkedin.databus.client.consumer.DelegatingDatabusCombinedConsumer;
@@ -58,6 +60,7 @@ import com.linkedin.databus.client.pub.DatabusStreamConsumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
@@ -80,6 +83,7 @@ import com.linkedin.databus.core.util.RangeBasedReaderWriterLock;
 import com.linkedin.databus.core.util.UncaughtExceptionTrackingThread;
 import com.linkedin.databus2.core.container.request.RegisterResponseEntry;
 import com.linkedin.databus2.core.container.request.RegisterResponseMetadataEntry;
+import com.linkedin.databus2.schemas.SchemaId;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.VersionedSchema;
 import com.linkedin.databus2.test.ConditionCheck;
@@ -103,10 +107,40 @@ public class TestGenericDispatcher
     private static final String META1_SCHEMA_STR = "{\"name\":\"meta-source\",\"type\":\"record\",\"fields\":[{\"name\":\"s\",\"type\":\"string\"}]}";
     private static final String META2_SCHEMA_STR = "{\"name\":\"meta-source\",\"type\":\"record\",\"fields\":[{\"name\":\"sNew\",\"type\":\"string\"}]}";;
 
+
+    private void initBufferWithEvents(DbusEventBuffer eventsBuf,
+        long keyBase,
+        int numEvents,
+        short srcId,
+        Hashtable<Long, AtomicInteger> keyCounts,
+        Hashtable<Short, AtomicInteger> srcidCounts)
+    {
+      String schemaStr=null;
+      switch (srcId)
+      {
+        case 1:
+          schemaStr=SOURCE1_SCHEMA_STR;
+          break;
+        case 2:
+          schemaStr=SOURCE2_SCHEMA_STR;
+          break;
+        case 3:
+          schemaStr=SOURCE3_SCHEMA_STR;
+          break;
+
+        default:
+          break;
+      }
+      SchemaId schemaId = schemaStr != null ? SchemaId.createWithMd5(schemaStr) : null;
+      byte[] schemaBytes = schemaId != null? schemaId.getByteArray(): new byte[16];
+      initBufferWithEvents(eventsBuf, keyBase, numEvents, srcId,schemaBytes, keyCounts, srcidCounts);
+    }
+
     private void initBufferWithEvents(DbusEventBuffer eventsBuf,
             long keyBase,
             int numEvents,
             short srcId,
+            byte[] schemaId,
             Hashtable<Long, AtomicInteger> keyCounts,
             Hashtable<Short, AtomicInteger> srcidCounts)
     {
@@ -117,7 +151,7 @@ public class TestGenericDispatcher
             String value = "{\"s\":\"value" + i + "\"}";
             try {
                 eventsBuf.appendEvent(new DbusEventKey(keyBase + i), (short)0, (short)1, (short)0, srcId,
-                        new byte[16], value.getBytes("UTF-8"), false);
+                        schemaId, value.getBytes("UTF-8"), false);
             } catch (UnsupportedEncodingException e) {
                 //ignore
             }
@@ -151,8 +185,8 @@ public class TestGenericDispatcher
     {
         final Logger log = Logger.getLogger("TestGenericDispatcher.testOneWindowHappyPath");
         //log.setLevel(Level.DEBUG);
+        log.info("start");
 
-        log.info("starting");
         int source1EventsNum = 2;
         int source2EventsNum = 2;
 
@@ -188,7 +222,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -198,6 +233,7 @@ public class TestGenericDispatcher
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
                         eventsBuf, callback, null,null,null, null);
+        dispatcher.setSchemaIdCheck(false);
 
         Thread dispatcherThread = new Thread(dispatcher, "testOneWindowHappyPath-dispatcher");
         //dispatcherThread.setDaemon(true);
@@ -248,7 +284,7 @@ public class TestGenericDispatcher
         assertEquals("correct amount of callbacks for srcid 2", source2EventsNum,
                      srcidCounts.get((short)2).intValue());
         verifyNoLocks(log, eventsBuf);
-        log.info("done");
+        log.info("end\n");
     }
 
     /**
@@ -276,6 +312,10 @@ public class TestGenericDispatcher
      * a rollback. The dispatcher should shutdown. */
     public void testRollbackFailure() throws InvalidConfigException
     {
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testRollbackFailure");
+        //log.setLevel(Level.DEBUG);
+        log.info("start");
+
         final TestGenericDispatcherEventBuffer eventsBuf =
             new TestGenericDispatcherEventBuffer(_generic100KBufferStaticConfig);
         eventsBuf.start(0);
@@ -305,7 +345,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -367,11 +408,16 @@ public class TestGenericDispatcher
           dispatcher.shutdown();
         }
         verifyNoLocks(null, eventsBuf);
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testMultiWindowsHappyPath()
     {
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testMultiWindowsHappyPath");
+        //log.setLevel(Level.DEBUG);
+        log.info("start");
+
         int source1EventsNum = 3;
         int source2EventsNum = 5;
 
@@ -419,7 +465,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -471,12 +518,13 @@ public class TestGenericDispatcher
         assertEquals("correct amount of callbacks for srcid 2", windowsNum * source2EventsNum,
                 srcidCounts.get((short)2).intValue());
         verifyNoLocks(null, eventsBuf);
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testDispatcherDiscrepancy()
     {
-        final Logger log = Logger.getLogger("TestGeneric.testDispatcherDiscrepancy");
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testDispatcherDiscrepancy");
         log.setLevel(Level.INFO);
         log.info("start");
         final Level saveLevel = Logger.getLogger("com.linkedin.databus.client").getLevel();
@@ -520,8 +568,8 @@ public class TestGenericDispatcher
         try
         {
             // the schemaSet inside DispatcherState is a static
-            log.info("===Printing the Decoder Object;s schema set\n" + ds.getEventDecoder().getSchemaSet());
-            log.info("===Printing the Decoder Object;s schema set basenames\n" + ds.getEventDecoder().getSchemaSet().getSchemaBaseNames());
+            log.info("===Printing the decoder object's schema set\n" + ds.getEventDecoder().getSchemaSet());
+            log.info("===Printing the decoder object's schema set basenames\n" + ds.getEventDecoder().getSchemaSet().getSchemaBaseNames());
             initSize = ds.getEventDecoder().getSchemaSet().size();
             log.info("initSize = " + initSize + " Schema base names = " + ds.getEventDecoder().getSchemaSet().getSchemaBaseNames());
         } catch (Exception e){}
@@ -530,17 +578,17 @@ public class TestGenericDispatcher
         ds.refreshSchemas();
         log.info("Schemas have been refreshed");
         finalSize = ds.getEventDecoder().getSchemaSet().getSchemaBaseNames().size();
-        log.info("===Printing the Decoder Object;s schema set\n" + ds.getEventDecoder().getSchemaSet());
-        log.info("===Printing the Decoder Object;s schema set basenames\n" + ds.getEventDecoder().getSchemaSet().getSchemaBaseNames());
+        log.info("===Printing the decoder object's schema set\n" + ds.getEventDecoder().getSchemaSet());
+        log.info("===Printing the decoder object's schema set basenames\n" + ds.getEventDecoder().getSchemaSet().getSchemaBaseNames());
         Assert.assertEquals(finalSize, 2 + initSize);
         Logger.getLogger("com.linkedin.databus.client").setLevel(saveLevel);
-        log.info("end");
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testOneWindowTwoIndependentConsumersHappyPath()
     {
-      final Logger log = Logger.getLogger("TestGeneric.testOneWindowTwoIndependentConsumersHappyPath");
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testOneWindowTwoIndependentConsumersHappyPath");
       log.setLevel(Level.INFO);
       log.info("start");
       final Level saveLevel = Logger.getLogger("com.linkedin.databus.client").getLevel();
@@ -602,7 +650,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newFixedThreadPool(2),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -669,12 +718,14 @@ public class TestGenericDispatcher
         verifyNoLocks(null, eventsBuf);
 
         Logger.getLogger("com.linkedin.databus.client").setLevel(saveLevel);
-        log.info("end");
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testOneWindowTwoGroupedConsumersHappyPath()
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testOneWindowTwoGroupedConsumersHappyPath");
+      log.info("start");
         int source1EventsNum = 2;
         int source2EventsNum = 2;
 
@@ -718,7 +769,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newFixedThreadPool(2),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -769,11 +821,14 @@ public class TestGenericDispatcher
         assertEquals("correct amount of callbacks for srcid 2", source2EventsNum,
                 srcidCounts.get((short)2).intValue());
         verifyNoLocks(null, eventsBuf);
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testTwoWindowEventCallbackFailure()
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testTwoWindowEventCallbackFailure");
+      log.info("start");
         int source1EventsNum = 2;
         int source2EventsNum = 2;
 
@@ -815,7 +870,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -868,12 +924,15 @@ public class TestGenericDispatcher
                 "correct amount of callbacks for key " + i + ":" + keyCounts.get(i).intValue();
         }
         verifyNoLocks(null, eventsBuf);
+        log.info("end\n");
     }
 
 
     @Test(groups = {"small", "functional"})
     public void testTwoWindowEventIndependentConsumersCallbackFailure()
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testTwoWindowEventIndependentConsumersCallbackFailure");
+      log.info("start");
         int source1EventsNum = 4;
         int source2EventsNum = 5;
 
@@ -934,7 +993,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -989,12 +1049,15 @@ public class TestGenericDispatcher
                 "correct amount of callbacks for key " + i + ":" + keyCounts.get(i).intValue();
         }
         verifyNoLocks(null, eventsBuf);
+        log.info("end\n");
     }
 
 
     @Test(groups = {"small", "functional"})
     public void testLargeWindowCheckpointFrequency() throws Exception
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testLargeWindowCheckpointFrequency");
+      log.info("start");
             /* Consumer creation */
             int timeTakenForEventInMs = 1;
             DatabusStreamConsumer tConsumer = new TimeoutTestConsumer(timeTakenForEventInMs);
@@ -1020,7 +1083,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(sdccTConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000,new StreamConsumerCallbackFactory(),null, null);
+                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 50.0;
@@ -1089,11 +1152,14 @@ public class TestGenericDispatcher
             Assert.assertTrue(dispatcher.getNumCheckPoints()==3);
             dispatcher.shutdown();
             verifyNoLocks(null, dataEventsBuffer);
+        log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
     public void testControlEventsRemoval() throws Exception
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testControlEventsRemoval");
+      log.info("start");
         //DDSDBUS-559
             /* Consumer creation */
             int timeTakenForEventInMs = 10;
@@ -1119,7 +1185,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(tConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000,new StreamConsumerCallbackFactory(),null, null);
+                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 10.0;
@@ -1194,6 +1260,7 @@ public class TestGenericDispatcher
 
             dispatcher.shutdown();
             verifyNoLocks(null, dataEventsBuffer);
+        log.info("end\n");
     }
 
 
@@ -1221,36 +1288,42 @@ public class TestGenericDispatcher
 
     /**
      *
-     * @param numEvents : number of events that will be written out in the test
-     * @param maxWindowSize : size of window expressed as #events
-     * @param numFailDataEvent : the nth data event at which failure occurs
-     * @param numFailCheckpointEvent : the nth checkpoint event at which failure occurs
-     * @param numFailEndWindow : the nth end-of-window at which failure occurs
-     * @param thresholdPct : checkpointThresholdPct - forcible checkpoint before end-of-window
-     * @param negativeTest : is this test supposed to fail
-     * @param numFailures : number of failures expected (across all error types) - in effect controls number of roll backs
-     * @param bootstrapCheckpointsPerWindow: k bootstrap checkpoint events are written for every one end-of-window event ;
-     * @param timeTakenForDataEventInMs  : time taken for processing data events
-     * @param timeTakenForControlEventInMs: time taken for processing control events
+     * @param numEvents  number of events that will be written out in the test
+     * @param maxWindowSize  size of window expressed as #events
+     * @param numFailDataEvent  the nth data event at which failure occurs; 0 == no failures
+     * @param numFailCheckpointEvent  the nth checkpoint event at which failure occurs; 0 == no failures
+     * @param numFailEndWindow  the nth end-of-window at which failure occurs; 0 == no failures
+     * @param thresholdPct  checkpointThresholdPct - forcible checkpoint before end-of-window
+     * @param negativeTest  is this test supposed to fail
+     * @param numFailures  number of failures expected (across all error types); in effect controls number of rollbacks
+     * @param bootstrapCheckpointsPerWindow  k bootstrap checkpoint events are written for every one end-of-window event
+     * @param timeTakenForDataEventInMs  time taken for processing data events
+     * @param timeTakenForControlEventInMs  time taken for processing control events
+     * @param wrapAround  use a smaller producer buffer so that events will wrap around
      */
     protected void runDispatcherRollback(int numEvents,int maxWindowSize,int numFailDataEvent,int numFailCheckpointEvent,int numFailEndWindow,double
             thresholdPct,boolean negativeTest,int numFailures,int bootstrapCheckpointsPerWindow,
             long timeTakenForDataEventInMs,long timeTakenForControlEventInMs,boolean wrapAround) throws Exception
     {
-            LOG.info("Running dispatcher rollback with: " + "numEvents= " + numEvents + " maxWindowSize= " + maxWindowSize
-                    + " numFailDataEvent= " + numFailDataEvent + " numFailCheckpoint= " + numFailCheckpointEvent
-                    + " numFailEndWindow= " + numFailEndWindow + " thresholdPct=" + thresholdPct
-                    + " negativeTest= " + negativeTest + " numFailures=" + numFailures
-                    + " bootstrapCheckpointsPerWindow = " + bootstrapCheckpointsPerWindow + " timeTakenForDataEventsInMs= " + timeTakenForDataEventInMs
-                    + " timeTakenForControlEventsInMs= " + timeTakenForControlEventInMs + " wrapAround=" + wrapAround);
+            LOG.info("Running dispatcher rollback with: " + "numEvents=" + numEvents + " maxWindowSize=" + maxWindowSize
+                    + " numFailDataEvent=" + numFailDataEvent + " numFailCheckpoint=" + numFailCheckpointEvent
+                    + " numFailEndWindow=" + numFailEndWindow + " thresholdPct=" + thresholdPct
+                    + " negativeTest=" + negativeTest + " numFailures=" + numFailures
+                    + " bootstrapCheckpointsPerWindow=" + bootstrapCheckpointsPerWindow
+                    + " timeTakenForDataEventsInMs=" + timeTakenForDataEventInMs
+                    + " timeTakenForControlEventsInMs=" + timeTakenForControlEventInMs + " wrapAround=" + wrapAround);
             /* Experiment setup */
             int payloadSize = 20;
             int numCheckpoints = numEvents/maxWindowSize;
 
             /* Consumer creation */
-            //setup consumer to fail on data callback at the nth event
-            TimeoutTestConsumer tConsumer = new TimeoutTestConsumer(timeTakenForDataEventInMs,timeTakenForControlEventInMs,
-                    numFailCheckpointEvent,numFailDataEvent,numFailEndWindow,numFailures);
+            // set up consumer to fail on data callback at the nth event
+            TimeoutTestConsumer tConsumer = new TimeoutTestConsumer(timeTakenForDataEventInMs,
+                                                                    timeTakenForControlEventInMs,
+                                                                    numFailCheckpointEvent,
+                                                                    numFailDataEvent,
+                                                                    numFailEndWindow,
+                                                                    numFailures);
 
             HashMap<Long, List<RegisterResponseEntry>> schemaMap =
                     new HashMap<Long, List<RegisterResponseEntry>>();
@@ -1273,13 +1346,18 @@ public class TestGenericDispatcher
             long consumerTimeBudgetMs = 60*1000;
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(tConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
-            //Single threaded execution of consumer
-            MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                    consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
+            final UnifiedClientStats unifiedStats = new UnifiedClientStats(0, "test", "test.unified");
+            // single-threaded execution of consumer
+            MultiConsumerCallback mConsumer =
+                new MultiConsumerCallback(allRegistrations,
+                                          Executors.newFixedThreadPool(1),
+                                          consumerTimeBudgetMs,
+                                          new StreamConsumerCallbackFactory(null, unifiedStats),
+                                          null,
+                                          unifiedStats,
+                                          null);
 
-
-
-            /* Generate events **/
+            /* Generate events */
             Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
             Vector<Short> srcIdList = new Vector<Short> ();
             srcIdList.add(srcId);
@@ -1287,7 +1365,8 @@ public class TestGenericDispatcher
             DbusEventGenerator evGen = new DbusEventGenerator(0,srcIdList);
             Assert.assertTrue(evGen.generateEvents(numEvents, maxWindowSize, 512, payloadSize, srcTestEvents) > 0);
 
-            int totalSize=0; int maxSize=0;
+            int totalSize=0;
+            int maxSize=0;
             for (DbusEvent e : srcTestEvents)
             {
                 totalSize += e.size();
@@ -1304,13 +1383,13 @@ public class TestGenericDispatcher
             int freeBufferThreshold = conf.getFreeBufferThreshold();
             DatabusSourcesConnection.StaticConfig connConfig = conf.build();
 
-            //make buffer large enough to hold data; the control events are large that contain checkpoints
+            // make buffer large enough to hold data; the control events are large that contain checkpoints
             int producerBufferSize = wrapAround ? totalSize : totalSize*2 + numCheckpoints*10*maxSize*5 + freeBufferThreshold;
             int individualBufferSize = producerBufferSize;
             int indexSize = producerBufferSize / 10;
             int stagingBufferSize = producerBufferSize;
 
-            /*Event Buffer creation */
+            /* Event Buffer creation */
             TestGenericDispatcherEventBuffer dataEventsBuffer=
                 new TestGenericDispatcherEventBuffer(
                     getConfig(producerBufferSize, individualBufferSize, indexSize ,
@@ -1319,16 +1398,18 @@ public class TestGenericDispatcher
 
             List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
             /* Generic Dispatcher creation */
-            TestDispatcher<DatabusCombinedConsumer> dispatcher = new TestDispatcher<DatabusCombinedConsumer>("rollBackcheck",
-                    connConfig,
-                    subs,
-                    new InMemoryPersistenceProvider(),
-                    dataEventsBuffer,
-                    mConsumer,
-                    bootstrapCheckpointsPerWindow == 0);
+            TestDispatcher<DatabusCombinedConsumer> dispatcher =
+                new TestDispatcher<DatabusCombinedConsumer>("rollBackcheck",
+                                                            connConfig,
+                                                            subs,
+                                                            new InMemoryPersistenceProvider(),
+                                                            dataEventsBuffer,
+                                                            mConsumer,
+                                                            bootstrapCheckpointsPerWindow == 0);
 
             /* Launch writer */
-            DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer,bootstrapCheckpointsPerWindow ,null) ;
+            DbusEventAppender eventProducer =
+                new DbusEventAppender(srcTestEvents, dataEventsBuffer,bootstrapCheckpointsPerWindow ,null);
             Thread tEmitter = new Thread(eventProducer);
             tEmitter.start();
 
@@ -1336,14 +1417,14 @@ public class TestGenericDispatcher
             Thread tDispatcher = new Thread(dispatcher);
             tDispatcher.start();
 
-            /* Now initialize this  state machine */
+            /* Now initialize this state machine */
             dispatcher.enqueueMessage(SourcesMessage.createSetSourcesIdsMessage(sourcesMap.values()));
             dispatcher.enqueueMessage(SourcesMessage.createSetSourcesSchemasMessage(schemaMap));
 
-            //be generous ; use worst case for num control events
+            // be generous; use worst case for num control events
             long waitTimeMs  = (numEvents*timeTakenForDataEventInMs + numEvents*timeTakenForControlEventInMs) * 4;
             tEmitter.join(waitTimeMs);
-            //wait for dispatcher to finish reading the events;
+            // wait for dispatcher to finish reading the events
             tDispatcher.join(waitTimeMs);
             Assert.assertFalse(tEmitter.isAlive());
             System.out.println("tConsumer: " + tConsumer);
@@ -1351,21 +1432,45 @@ public class TestGenericDispatcher
             int windowBeforeDataFail=(numFailDataEvent/maxWindowSize);
             int expectedDataFaults = numFailDataEvent == 0 ? 0:numFailures;
 
-            int expectedCheckPointFaults = (numFailCheckpointEvent==0 || (expectedDataFaults!=0 && (numFailCheckpointEvent==windowBeforeDataFail))) ? 0:numFailures;
-            //Dispatcher/Library perspective
-            //check if all windows were logged by dispatcher; in online case;
+            int expectedCheckPointFaults =
+                (numFailCheckpointEvent==0 || (expectedDataFaults!=0 && numFailCheckpointEvent==windowBeforeDataFail)) ?
+                0 : numFailures;
 
+            // Dispatcher/Library perspective
+            // check if all windows were logged by dispatcher; in online case;
             if (bootstrapCheckpointsPerWindow == 0)
             {
-                Assert.assertTrue(dispatcher.getNumCheckPoints()>=(numCheckpoints-expectedCheckPointFaults));
+                Assert.assertTrue(dispatcher.getNumCheckPoints() >= (numCheckpoints-expectedCheckPointFaults));
             }
 
-            //Consumer prespective
-            //1 or 0 faults  injected in data callbacks; success (store) differs callback by 1
-            Assert.assertTrue((tConsumer.getDataCallbackCount()-tConsumer.getStoredDataCount())==expectedDataFaults);
+            // Consumer prespective
+            // 1 or 0 faults  injected in data callbacks; success (store) differs callback by 1
+            Assert.assertEquals("Mismatch between callbacks and stored data on consumer.",
+                                expectedDataFaults, tConsumer.getDataCallbackCount()-tConsumer.getStoredDataCount());
             Assert.assertTrue(tConsumer.getStoredDataCount() >= tConsumer.getNumUniqStoredEvents());
-            Assert.assertTrue(tConsumer.getStoredCheckpointCount()==dispatcher.getNumCheckPoints());
-            //rollback behaviour;were all events  re-sent?
+            Assert.assertEquals("Consumer failed to store expected number of checkpoints.",
+                                dispatcher.getNumCheckPoints(), tConsumer.getStoredCheckpointCount());
+
+            // Equality would be nice, but each "real" error (as seen by MultiConsumerCallback) triggers a non-
+            // deterministic number of cancelled callbacks, each of which is treated as another consumer error
+            // (as seen by StreamConsumerCallbackFactory or BootstrapConsumerCallbackFactory).  So an inequality
+            // is the best we can do at the moment, barring a change in how numConsumerErrors is accounted.
+            // Special case:  non-zero numFailCheckpointEvent doesn't actually trigger a callback error; instead
+            // it's converted to ConsumerCallbackResult.SKIP_CHECKPOINT and therefore not seen by client metrics.
+            if (expectedCheckPointFaults == 0 || expectedDataFaults > 0 || negativeTest)
+            {
+              Assert.assertTrue("Unexpected error count in consumer metrics (" + unifiedStats.getNumConsumerErrors() +
+                                "); should be greater than or equal to numFailures (" + numFailures + ").",
+                                unifiedStats.getNumConsumerErrors() >= numFailures);
+            }
+            else
+            {
+              Assert.assertEquals("Unexpected error count in consumer metrics; checkpoint errors shouldn't count. ",
+                                  // unless negativeTest ...
+                                  0, unifiedStats.getNumConsumerErrors());
+            }
+
+            // rollback behaviour; were all events re-sent?
             if (!negativeTest)
             {
                 Assert.assertTrue(tConsumer.getNumUniqStoredEvents()==numEvents);
@@ -1384,6 +1489,8 @@ public class TestGenericDispatcher
     @Test(groups = {"small", "functional"})
     public void testRollback() throws Exception
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testRollback");
+      log.info("start");
         //runDispatcherRollback(int numEvents,int maxWindowSize,int numFailDataEvent,int numFailCheckpointEvent,int numFailEndWindow)
 
         //data event failure rollbacks
@@ -1409,7 +1516,7 @@ public class TestGenericDispatcher
         runDispatcherRollback(100,40,55,0,0,10.0);
 
 
-        //large window irrecoverable failure : fail first checkpoint
+        //large window unrecoverable failure : fail first checkpoint
          runDispatcherRollback(100,80,0,1,1,30.0,true,1,0);
 
         //onCheckpoint always returns null; forces removal of events; but lastSuccessful iterator is null; DDSDBUS-653
@@ -1427,15 +1534,47 @@ public class TestGenericDispatcher
         // then a subsequent data event failure triggers a rollBack attempt - that fails due to iterator invalidation
         runDispatcherRollback(100,10,18,1,0,1.8,true,1,2);
 
+        log.info("end\n");
     }
 
     @Test
     public void testBootstrapBufferCorruption() throws Exception
     {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testBootstrapBufferCorruption");
+      log.info("start");
         //bootstrap event buffer corruption - DDSDBUS-1820
         //try and get the call to flush forcibly on a control-event ; wrap around the buffer
-        runDispatcherRollback(100,5,0,0,0,2.0,false,1,2,100,5,true);
+        runDispatcherRollback(100,5,0,0,0,2.0,false,0,2,100,5,true);
+        log.info("end\n");
     }
+
+    @Test
+    public void testNumConsumerErrorsMetric() throws Exception
+    {
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testNumConsumerErrorsMetric");
+      log.info("start");
+
+      // UnifiedClientStats - DDSDBUS-2815
+      int numEvents = 100;
+      int maxWindowSize = 10;
+      int numFailDataEvent = 17;  // every 17th onDataEvent() call (including retries after rollback!), with total of 3
+      int numFailCheckpointEvent = 0;
+      int numFailEndWindow = 0;
+      double thresholdPct = 90.0;
+      boolean negativeTest = false;
+      int numFailures = 3;
+      int bootstrapCheckpointsPerWindow = 0;
+      long timeTakenForDataEventInMs = 1;
+      long timeTakenForControlEventInMs = 1;
+      boolean wrapAround = false;
+
+      runDispatcherRollback(numEvents, maxWindowSize, numFailDataEvent, numFailCheckpointEvent, numFailEndWindow,
+                            thresholdPct, negativeTest, numFailures, bootstrapCheckpointsPerWindow,
+                            timeTakenForDataEventInMs, timeTakenForControlEventInMs, wrapAround);
+
+      log.info("end\n");
+    }
+
     /**
      *
      * @param numEvents : number of events in buffer
@@ -1443,7 +1582,6 @@ public class TestGenericDispatcher
      * @param numFailWindow : nth end-of-window that will fail
      * @throws Exception
      */
-
     void runPartialWindowCheckpointPersistence(int numEvents,int maxWindowSize,int numFailWindow) throws Exception
     {
         /* Experiment setup */
@@ -1486,9 +1624,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
-
-
+                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null);
 
         /* Generate events **/
         Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
@@ -1598,8 +1734,8 @@ public class TestGenericDispatcher
     {
         final Logger log = Logger.getLogger("TestGenericDispatcher.testMetadataSchema");
         //log.setLevel(Level.DEBUG);
+        log.info("start");
 
-        log.info("starting");
         int source1EventsNum = 2;
         int source2EventsNum = 2;
 
@@ -1635,7 +1771,8 @@ public class TestGenericDispatcher
                         allRegistrations,
                         Executors.newSingleThreadExecutor(),
                         1000,
-                        new StreamConsumerCallbackFactory(),
+                        new StreamConsumerCallbackFactory(null, null),
+                        null,
                         null,
                         null);
         callback.setSourceMap(sourcesMap);
@@ -1711,22 +1848,31 @@ public class TestGenericDispatcher
         Assert.assertEquals(metadataSchema.getSchemaBaseName(), SchemaRegistryService.DEFAULT_METADATA_SCHEMA_SOURCE);
 
         verifyNoLocks(log, eventsBuf);
-        log.info("done");
+        log.info("end\n");
     }
 
     @Test
     public void testOnlinePartialWindowCheckpointPersistence() throws Exception
     {
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testOnlinePartialWindowCheckpointPersistence");
+        //log.setLevel(Level.DEBUG);
+        log.info("start");
+
         //DDSDBUS-1889: Ensure relay does save scn of partial window
         //checks case where very partial window occurs without any complete window having been processed
         runPartialWindowCheckpointPersistence(100, 25, 1);
 
         runPartialWindowCheckpointPersistence(100, 25, 2);
+      log.info("end\n");
     }
 
     @Test
     public void testBootstrapPartialWindowScnOrdering() throws Exception
     {
+        final Logger log = Logger.getLogger("TestGenericDispatcher.testBootstrapPartialWindowScnOrdering");
+        //log.setLevel(Level.DEBUG);
+        log.info("start");
+
         //DDSDBUS-1889: Ensure bootstrap onCheckpoint() callback receives bootstrapSinceScn - not some scn.
         int numEvents=100;
         int maxWindowSize = 25;
@@ -1770,9 +1916,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs,new StreamConsumerCallbackFactory(),null, null);
-
-
+                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null);
 
         /* Generate events **/
         Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
@@ -1826,6 +1970,7 @@ public class TestGenericDispatcher
                 null, //ClientImpl
                 null  //registrationId
                 );
+        dispatcher.setSchemaIdCheck(false);
 
         BootstrapCheckpointHandler cptHandler = new BootstrapCheckpointHandler("source1");
         long sinceScn=15000L;
@@ -1880,6 +2025,138 @@ public class TestGenericDispatcher
             //the scn passed to consumers during onCheckpoint should be the sinceSCN and not any other interim value
             Assert.assertEquals(cp.getBootstrapSinceScn().longValue(),tConsumer.getLastSeenCheckpointScn());
         }
+        log.info("end\n");
+    }
+
+    //This is a negative test for DDSDBUS-3421. We expect dispatcher to fail without dataEvents being called.
+    @Test
+    public void testAbsentSchemaTest() throws Exception
+    {
+      runAbsentSchemaTest(true);
+      runAbsentSchemaTest(false);
+    }
+
+    void runAbsentSchemaTest(boolean setSchemaCheck) throws Exception
+    {
+      /* Experiment setup */
+      int numEvents=100; int maxWindowSize=20;
+      int payloadSize = 20;
+      int numCheckpoints = numEvents/maxWindowSize;
+
+      /* Consumer creation */
+      //setup consumer to fail on data callback at the nth event
+      DataDecodingConsumer tConsumer = new DataDecodingConsumer();
+
+      HashMap<Long, List<RegisterResponseEntry>> schemaMap =
+              new HashMap<Long, List<RegisterResponseEntry>>();
+
+      short srcId=1;
+      List<RegisterResponseEntry> l1 = new ArrayList<RegisterResponseEntry>();
+      l1.add(new RegisterResponseEntry(1L, srcId,SOURCE1_SCHEMA_STR));
+
+      schemaMap.put(1L, l1);
+
+      Map<Long, IdNamePair> sourcesMap = new HashMap<Long, IdNamePair>();
+      List<String> sources = new ArrayList<String>();
+      for (int i = 1; i <= 1; ++i)
+      {
+          IdNamePair sourcePair = new IdNamePair((long)i, "source" + i);
+          sources.add(sourcePair.getName());
+          sourcesMap.put(sourcePair.getId(), sourcePair);
+      }
+
+      long consumerTimeBudgetMs = 60*1000;
+      DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(tConsumer, sources, null);
+      List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
+      //Single threaded execution of consumer
+      MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
+              consumerTimeBudgetMs,new StreamConsumerCallbackFactory(null,null),null,null, null);
+
+
+
+      /* Generate events **/
+      Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
+      Vector<Short> srcIdList = new Vector<Short> ();
+      srcIdList.add(srcId);
+
+      DbusEventGenerator evGen = new DbusEventGenerator(0,srcIdList);
+      //the schemaIds generated here are random. They will not be the same as those computed in the dispatcher.
+      //The result is either the processing will fail early (desired behaviour) or during event decoding in the onDataEvent()
+      Assert.assertTrue(evGen.generateEvents(numEvents, maxWindowSize, 512, payloadSize, srcTestEvents) > 0);
+
+      int totalSize=0; int maxSize=0;
+      for (DbusEvent e : srcTestEvents)
+      {
+          totalSize += e.size();
+          maxSize = (e.size() > maxSize) ? e.size():maxSize;
+      }
+
+      /* Source configuration */
+      DatabusSourcesConnection.Config conf = new DatabusSourcesConnection.Config();
+      conf.getDispatcherRetries().setMaxRetryNum(1);
+      conf.setFreeBufferThreshold(maxSize);
+      conf.setConsumerTimeBudgetMs(consumerTimeBudgetMs);
+      int freeBufferThreshold = conf.getFreeBufferThreshold();
+      DatabusSourcesConnection.StaticConfig connConfig = conf.build();
+
+      //make buffer large enough to hold data; the control events are large that contain checkpoints
+      int producerBufferSize =  totalSize*2 + numCheckpoints*10*maxSize*5 + freeBufferThreshold;
+      int individualBufferSize = producerBufferSize;
+      int indexSize = producerBufferSize / 10;
+      int stagingBufferSize = producerBufferSize;
+
+      /*Event Buffer creation */
+      TestGenericDispatcherEventBuffer dataEventsBuffer=
+          new TestGenericDispatcherEventBuffer(
+              getConfig(producerBufferSize, individualBufferSize, indexSize ,
+                        stagingBufferSize, AllocationPolicy.HEAP_MEMORY,
+                        QueuePolicy.BLOCK_ON_WRITE));
+
+      List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
+      /* Generic Dispatcher creation */
+      TestDispatcher<DatabusCombinedConsumer> dispatcher = new TestDispatcher<DatabusCombinedConsumer>("rollBackcheck",
+              connConfig,
+              subs,
+              new InMemoryPersistenceProvider(),
+              dataEventsBuffer,
+              mConsumer,
+              false);
+      //DDSDBUS-3421; set schema check to true
+      dispatcher.setSchemaIdCheck(setSchemaCheck);
+
+      /* Launch writer */
+      DbusEventAppender eventProducer = new DbusEventAppender(srcTestEvents, dataEventsBuffer,0 ,null) ;
+      Thread tEmitter = new Thread(eventProducer);
+      tEmitter.start();
+
+      /* Launch dispatcher */
+      Thread tDispatcher = new Thread(dispatcher);
+      tDispatcher.start();
+
+      /* Now initialize this  state machine */
+      dispatcher.enqueueMessage(SourcesMessage.createSetSourcesIdsMessage(sourcesMap.values()));
+      dispatcher.enqueueMessage(SourcesMessage.createSetSourcesSchemasMessage(schemaMap));
+
+      //be generous ; use worst case for num control events
+      long waitTimeMs  = (numEvents*1 + numEvents*1) * 4;
+      tEmitter.join(waitTimeMs);
+      //wait for dispatcher to finish reading the events;
+      tDispatcher.join(waitTimeMs);
+      Assert.assertFalse(tEmitter.isAlive());
+
+      //asserts
+      if (!setSchemaCheck)
+      {
+        //decoding fails many errors show up;
+        Assert.assertTrue(tConsumer.getNumDataEvents() > 0);
+        Assert.assertTrue(tConsumer.getNumErrors() > 0);
+      }
+      else
+      {
+        //never gets to decoding; but error shows up (exactly one - dispatcher retries set to 1);
+        Assert.assertEquals(0, tConsumer.getNumDataEvents());
+        Assert.assertEquals(1,tConsumer.getNumErrors());
+      }
     }
 
     DbusEventBuffer.StaticConfig getConfig(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
@@ -1913,18 +2190,23 @@ public class TestGenericDispatcher
     @Test(groups = {"small", "functional"})
     /**
      *
-     * 1. Dispatcher is dispatching 2 window of events
+     * 1. Dispatcher is dispatching 2 window of events.
      * 2. First window consumption is successfully done.
-     * 3. The second window's onStartDataEventSequence() of the callback registered is blocked (interruptible) causing the dispatcher to wait
-     * 3. At this instant the dispatcher is shutdown. The callback is made to return Failure status which would cause rollback in normal scenario
-     * 4. As the shutdown message is passed, the blocked callback is expected to be interrupted and no rollback calls MUST be made
+     * 3. The second window's onStartDataEventSequence() of the callback registered is blocked (interruptible),
+     *    causing the dispatcher to wait.
+     * 4. At this instant the dispatcher is shut down. The callback is made to return Failure status which would
+     *    cause rollback in normal scenario.
+     * 5. As the shutdown message is passed, the blocked callback is expected to be interrupted and no rollback
+     *    calls MUST be made.
      */
     public void testShutdownBeforeRollback()
       throws Exception
     {
-      final Logger log = Logger.getLogger("TestGeneric.testShutdownBeforeRollback");
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testShutdownBeforeRollback");
       log.setLevel(Level.INFO);
       //log.getRoot().setLevel(Level.DEBUG);
+      LOG.info("start");
+
       // generate events
       Vector<Short> srcIdList = new Vector<Short> ();
       srcIdList.add((short)1);
@@ -2021,13 +2303,14 @@ public class TestGenericDispatcher
 
       List<DatabusV2ConsumerRegistration> allRegistrations = Arrays.asList(consumerReg);
       final ConsumerCallbackStats callbackStats = new ConsumerCallbackStats(0, "test", "test", true, false, null);
+      final UnifiedClientStats unifiedStats = new UnifiedClientStats(0, "test", "test.unified");
       MultiConsumerCallback callback =
-          new MultiConsumerCallback(
-                                    allRegistrations,
+          new MultiConsumerCallback(allRegistrations,
                                     Executors.newFixedThreadPool(2),
                                     100, // 100 ms budget
-                                    new StreamConsumerCallbackFactory(),
+                                    new StreamConsumerCallbackFactory(callbackStats, unifiedStats),
                                     callbackStats,
+                                    unifiedStats,
                                     null);
       callback.setSourceMap(sourcesMap);
       List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
@@ -2066,10 +2349,10 @@ public class TestGenericDispatcher
       Pipe.SinkChannel writerStream = pipe.sink();
       Pipe.SourceChannel readerStream = pipe.source();
       writerStream.configureBlocking(true);
-      /**
-       *  Needed for DbusEventBuffer.readEvents() to exit their loops when no more data is available
-       *  With Pipe mimicking ChunkedBodyReadableByteChannel, we need to make Pipe non-blocking on the reader side
-       *  to achieve this behavior that CHunkedBodyReadableByte channel provides
+      /*
+       *  Needed for DbusEventBuffer.readEvents() to exit their loops when no more data is available.
+       *  With Pipe mimicking ChunkedBodyReadableByteChannel, we need to make Pipe non-blocking on the
+       *  reader side to achieve the behavior that ChunkedBodyReadableByte channel provides.
        */
       readerStream.configureBlocking(false);
 
@@ -2087,7 +2370,8 @@ public class TestGenericDispatcher
       {
         log.info("send both windows");
         StreamEventsResult streamRes = srcEventsBuf.streamEvents(cp, writerStream, new StreamEventsArgs(win1Size));
-        Assert.assertEquals(numEvents + 2, streamRes.getNumEventsStreamed());
+        Assert.assertEquals("num events streamed should equal total number of events plus 2", // EOP events, presumably?
+                            numEvents + 2, streamRes.getNumEventsStreamed());
 
         TestUtil.assertWithBackoff(new ConditionCheck()
         {
@@ -2123,7 +2407,7 @@ public class TestGenericDispatcher
       {
         reader.stop();
       }
-      log.info("end");
+      log.info("end\n");
     }
 
     @Test(groups = {"small", "functional"})
@@ -2142,7 +2426,7 @@ public class TestGenericDispatcher
      */
     public void testPartialWindowRollback() throws Exception
     {
-      final Logger log = Logger.getLogger("TestGeneric.testPartialWindowRollback");
+      final Logger log = Logger.getLogger("TestGenericDispatcher.testPartialWindowRollback");
       //log.setLevel(Level.INFO);
       log.info("start");
       final Level saveLevel = Logger.getLogger("com.linkedin.databus.client").getLevel();
@@ -2210,14 +2494,15 @@ public class TestGenericDispatcher
 
       List<DatabusV2ConsumerRegistration> allRegistrations = Arrays.asList(consumerReg);
       final ConsumerCallbackStats callbackStats = new ConsumerCallbackStats(0, "test", "test", true, false, null);
+      final UnifiedClientStats unifiedStats = new UnifiedClientStats(0, "test", "test.unified");
       MultiConsumerCallback callback =
-              new MultiConsumerCallback(
-                      allRegistrations,
-                      Executors.newFixedThreadPool(2),
-                      1000,
-                      new StreamConsumerCallbackFactory(),
-                      callbackStats,
-                      null);
+          new MultiConsumerCallback(allRegistrations,
+                                    Executors.newFixedThreadPool(2),
+                                    1000,
+                                    new StreamConsumerCallbackFactory(callbackStats, unifiedStats),
+                                    callbackStats,
+                                    unifiedStats,
+                                    null);
       callback.setSourceMap(sourcesMap);
 
 
@@ -2226,6 +2511,7 @@ public class TestGenericDispatcher
               new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                       new InMemoryPersistenceProvider(),
                       destEventsBuf, callback, null,null,null,null);
+      dispatcher.setSchemaIdCheck(false);
 
       Thread dispatcherThread = new Thread(dispatcher);
       dispatcherThread.setDaemon(true);
@@ -2351,7 +2637,7 @@ public class TestGenericDispatcher
       }
 
       Logger.getLogger("com.linkedin.databus.client").setLevel(saveLevel);
-      log.info("end");
+      log.info("end\n");
     }
 
 
@@ -2374,6 +2660,8 @@ class TestDispatcher<C> extends GenericDispatcher<C>
         super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer,
                 asyncCallback);
         _isRelayDispatcher = isRelayDispatcher;
+        //disable schemaIdCheck at onStartSource() by default, in the interest of many unit tests written without paying attention to same schemaIds being present in events
+        _schemaIdCheck=false;
     }
 
     @Override
@@ -2638,6 +2926,52 @@ class DataEventFailingStreamConsumer extends AbstractDatabusStreamConsumer
 
 }
 
+class DataDecodingConsumer extends AbstractDatabusCombinedConsumer
+{
+    private int _numDataEvents=0;
+    private int _numErrors=0;
+
+    public  DataDecodingConsumer()
+    {
+      // TODO Auto-generated constructor stub
+    }
+
+    @Override
+    public ConsumerCallbackResult onDataEvent(DbusEvent e, DbusEventDecoder eventDecoder)
+    {
+       try
+       {
+         _numDataEvents++;
+         GenericRecord r = eventDecoder.getGenericRecord(e, null);
+         return ConsumerCallbackResult.SUCCESS;
+       }
+       catch (Exception ex)
+       {
+         LOG.error("Error in processing event: " + ex);
+       }
+       return ConsumerCallbackResult.ERROR;
+    }
+
+    @Override
+    public ConsumerCallbackResult onError(Throwable err)
+    {
+      _numErrors++;
+      LOG.error("Error received: " + err.getMessage());
+      return ConsumerCallbackResult.SUCCESS;
+    }
+
+    public int getNumDataEvents()
+    {
+      return _numDataEvents;
+    }
+
+    public int getNumErrors()
+    {
+      return _numErrors;
+    }
+
+}
+
 class DataSourceFailingStreamConsumer extends AbstractDatabusStreamConsumer
 {
     private final String _failingSrc;
@@ -2731,6 +3065,7 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
     {
         this(timeoutMs,timeoutMs,failCheckPoint,failData,failEndWindow,numFailureTimes);
     }
+
     /**
      *
      * @param timeoutMs : delay added for each call back
@@ -2739,7 +3074,8 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
      * @param failEndWindow : nth end of window event at which failure occurs
      * @param numFailureTimes :  total number of failures allowed across all events before success
      */
-    public TimeoutTestConsumer(long timeoutMs,long controlEventTimeoutInMs,int failCheckPoint,int failData,int failEndWindow,int numFailureTimes)
+    public TimeoutTestConsumer(long timeoutMs, long controlEventTimeoutInMs, int failCheckPoint,
+                               int failData, int failEndWindow, int numFailureTimes)
     {
         _timeoutInMs = timeoutMs;
         _controlEventTimeoutInMs = controlEventTimeoutInMs;
@@ -2757,6 +3093,11 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
         _curWindowCount = 0;
         _curDataCount = 0;
         _curCkptCount = 0;
+        if (failCheckPoint == 0 && failData == 0 && failEndWindow == 0)
+        {
+          Assert.assertEquals("Can't fail without specifying at least one non-zero failure type.",
+                              0, numFailureTimes);
+        }
     }
 
     @Override
@@ -3023,6 +3364,7 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
       return _numRollbacks;
     }
 }
+
 
 }
 

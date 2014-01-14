@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 
 import org.codehaus.jackson.JsonGenerator;
 import org.codehaus.jackson.ObjectCodec;
@@ -51,7 +52,7 @@ public abstract class AbstractRequestProcesser
   protected<T> void writeJsonObjectToResponse(T obj, DatabusRequest request) throws IOException
   {
     String out = makeJsonResponse(obj, request);
-    byte[] dataBytes = out.getBytes();
+    byte[] dataBytes = out.getBytes(Charset.defaultCharset());
     request.getResponseContent().write(ByteBuffer.wrap(dataBytes));
   }
 

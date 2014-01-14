@@ -21,6 +21,7 @@ package com.linkedin.databus2.core.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.Formatter;
 import java.util.concurrent.ExecutorService;
 
@@ -91,7 +92,7 @@ public class ContainerAdminRequestProcessor implements RequestProcessor
     fmt.format("{\"status\":\"%s\",\"message\":\"%s\"}\n", _status.getStatus().toString(),
                _status.getMessage());
     fmt.flush();
-    request.getResponseContent().write(ByteBuffer.wrap(fmt.toString().getBytes()));
+    request.getResponseContent().write(ByteBuffer.wrap(fmt.toString().getBytes(Charset.defaultCharset())));
   }
 
   @Override
@@ -116,7 +117,7 @@ public class ContainerAdminRequestProcessor implements RequestProcessor
     }
 
     request.getResponseContent().setResponseCode(statusCode);
-    request.getResponseContent().write(ByteBuffer.wrap(statusString.getBytes()));
+    request.getResponseContent().write(ByteBuffer.wrap(statusString.getBytes(Charset.defaultCharset())));
   }
 
 }

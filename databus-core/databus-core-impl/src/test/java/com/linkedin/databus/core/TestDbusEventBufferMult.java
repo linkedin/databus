@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -312,7 +313,7 @@ public class TestDbusEventBufferMult {
   }
 
   private void addEvents() {
-    byte [] schema = "abcdefghijklmnop".getBytes();
+    byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
     for(int i=0; i<_events.length; i++) {
       TestDbusEvent e = _events[i];
       DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(e._phPartition);
@@ -333,7 +334,7 @@ public class TestDbusEventBufferMult {
       //System.out.println(";partitionid=" + pPartitionId);
 
       assertTrue(buf.appendEvent(key, pPartitionId, lPart.getId(), System.currentTimeMillis(), srcId,
-                                 schema, value.getBytes(), false, null));
+                                 schema, value.getBytes(Charset.defaultCharset()), false, null));
 
       if(i%2 != 0)
         buf.endEvents(e._scn, null);
@@ -387,7 +388,7 @@ public class TestDbusEventBufferMult {
      DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(pP);
 
      buf.startEvents();
-     byte [] schema = "abcdefghijklmnop".getBytes();
+     byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
      assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
                                    System.currentTimeMillis() * 1000000, (short)2,
                                    schema, new byte[100], false, null));
@@ -447,7 +448,7 @@ public class TestDbusEventBufferMult {
       DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(p[0]);
 
       buf.startEvents();
-      byte [] schema = "abcdefghijklmnop".getBytes();
+      byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
       assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
                                     System.currentTimeMillis() * 1000000, (short)2,
                                     schema, new byte[10], false, null));
@@ -555,7 +556,7 @@ public class TestDbusEventBufferMult {
       DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(p[0]);
 
       buf.startEvents();
-      byte [] schema = "abcdefghijklmnop".getBytes();
+      byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
       assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
                                     System.currentTimeMillis() * 1000000, (short)2,
                                     schema, new byte[10], false, null));
@@ -633,7 +634,7 @@ public class TestDbusEventBufferMult {
       DbusEventBufferAppendable buf = _eventBufferMult.getDbusEventBufferAppendable(p[0]);
 
       buf.startEvents();
-      byte [] schema = "abcdefghijklmnop".getBytes();
+      byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
       assertTrue(buf.appendEvent(new DbusEventKey(1), (short)100, (short)0,
                                     System.currentTimeMillis() * 1000000, (short)2,
                                     schema, new byte[10], false, null));
@@ -986,7 +987,7 @@ public class TestDbusEventBufferMult {
     PhysicalPartitionKey pk2 = new PhysicalPartitionKey(pp101);
 
     //generate events in pp100
-    byte [] schema = "abcdefghijklmnop".getBytes();
+    byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
     DbusEventBufferAppendable buf100 =
         t._eventBuffer.getDbusEventBufferAppendable(pp100);
     buf100.startEvents();
@@ -1187,7 +1188,7 @@ public class TestDbusEventBufferMult {
     buf.start(100);
 
     // add events to the new buffer
-    byte [] schema = "ABCDEFGHIJKLMNOP".getBytes();
+    byte [] schema = "ABCDEFGHIJKLMNOP".getBytes(Charset.defaultCharset());
     for(int i=100; i<110; i++) {
       if(i%2 == 0)
         buf.startEvents();
@@ -1197,7 +1198,7 @@ public class TestDbusEventBufferMult {
                                  System.currentTimeMillis(),
                                  (short)(i<105?21:22),
                                  schema,
-                                 (""+i).getBytes(), false, null));
+                                 (""+i).getBytes(Charset.defaultCharset()), false, null));
       if((i & 1) == 1)
         buf.endEvents(i);
     }

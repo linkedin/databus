@@ -19,6 +19,7 @@ package com.linkedin.databus2.relay;
 */
 
 import java.net.InetSocketAddress;
+import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.Vector;
 import java.util.concurrent.Executors;
@@ -1419,17 +1420,15 @@ public class TestDatabusRelayMain
 				srcConfigs[i++] = src1;
 			}
 			int relayPort = 11993;
-			DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1019, relayPort,
-					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
-			DatabusRelayMain relay3 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1020, relayPort,
-					10 * 1024 * 1024, srcConfigs,SCHEMA_REGISTRY_DIR);
+			final DatabusRelayMain relay1 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1019,
+					relayPort, 10 * 1024 * 1024, srcConfigs, SCHEMA_REGISTRY_DIR);
+			final DatabusRelayMain relay3 = DatabusRelayTestUtil.createDatabusRelayWithSchemaReg(1020,
+					relayPort, 10 * 1024 * 1024, srcConfigs, SCHEMA_REGISTRY_DIR);
 			Assert.assertNotNull(relay1);
 			Assert.assertNotNull(relay3);
 			r1 = new DatabusRelayTestUtil.RelayRunner(relay1);
-			final DbusEventsTotalStats stats = relay1
-					.getInboundEventStatisticsCollector().getTotalStats();
-			final DbusEventsTotalStats stats3 = relay3
-					.getInboundEventStatisticsCollector().getTotalStats();
+			final DbusEventsTotalStats stats = relay1.getInboundEventStatisticsCollector().getTotalStats();
+			final DbusEventsTotalStats stats3 = relay3.getInboundEventStatisticsCollector().getTotalStats();
 
 			// create chained relay
 			PhysicalSourceConfig[] chainedSrcConfigs = new PhysicalSourceConfig[srcNames.length];
@@ -1460,9 +1459,6 @@ public class TestDatabusRelayMain
 							1 * 1024 * 1024, largestEventSize, 30 * 1000, 100, 15 * 1000,
 							1, true,largestEventSize/10);
 
-			final DbusEventsTotalStats stats2 = relay2
-					.getInboundEventStatisticsCollector().getTotalStats();
-
 			cr = new ClientRunner(clientConn);
 
 			// async starts for all components;
@@ -1487,8 +1483,8 @@ public class TestDatabusRelayMain
 			Assert.assertTrue(stats.getNumSysEvents() > 0);
 
 
-			log.warn("numDataEvents1=" + firstGenDataEvents
-					+ " numWindows1=" + firstGenWindows + " minScn="
+			log.warn("relay1:  numDataEvents=" + firstGenDataEvents
+					+ " numWindows=" + firstGenWindows + " minScn="
 					+ firstGenMinScn + " maxScn=" + stats.getMaxScn());
 
 
@@ -1497,10 +1493,11 @@ public class TestDatabusRelayMain
 			boolean s = r1.shutdown(2000);
 			Assert.assertTrue(s);
 
+			DbusEventsTotalStats stats2 = relay2.getInboundEventStatisticsCollector().getTotalStats();
 			long firstGenChainWindows = stats2.getNumSysEvents();
-			log.warn("numDataEvents2=" + firstGenChainWindows
-					+ " numWindows2=" + stats2.getNumSysEvents() + " minScn=" + stats2.getMinScn() + " maxScn="
-					+ stats2.getMaxScn());
+			log.warn("relay2:  numDataEvents=" + stats2.getNumDataEvents()
+					+ " numWindows=" + firstGenChainWindows + " minScn="
+					+ stats2.getMinScn() + " maxScn=" + stats2.getMaxScn());
 
 			Thread.sleep(2*1000);
 
@@ -1512,17 +1509,18 @@ public class TestDatabusRelayMain
 
 			r3.pause();
 
-			Thread.sleep(35000);
+			Thread.sleep(35*1000);
 
-			log.warn("numDataEvents3=" + stats3.getNumDataEvents()
-					+ " numWindows3=" + stats3.getNumSysEvents() + " minScn="
-					+ stats3.getMinScn() +  " maxScn= " + stats3.getMaxScn());
+			log.warn("relay3:  numDataEvents=" + stats3.getNumDataEvents()
+					+ " numWindows=" + stats3.getNumSysEvents() + " minScn="
+					+ stats3.getMinScn() + " maxScn=" + stats3.getMaxScn());
 
-			log.warn("numDataEvents22=" + stats2.getNumDataEvents()
-					+ " numWindows22=" + stats2.getNumSysEvents() + " minScn2="
-					+ stats2.getMinScn() + " maxScn2=" + stats2.getMaxScn());
+			stats2 = relay2.getInboundEventStatisticsCollector().getTotalStats();
+			log.warn("relay2b: numDataEvents=" + stats2.getNumDataEvents()
+					+ " numWindows=" + stats2.getNumSysEvents() + " minScn="
+					+ stats2.getMinScn() + " maxScn=" + stats2.getMaxScn());
 
-			log.warn("consumer=" + countingConsumer);
+			log.warn("consumer: " + countingConsumer);
 
 
 			//compare chained relays with 2 gens of tier 0 relays
@@ -1680,7 +1678,7 @@ public class TestDatabusRelayMain
       // Insert one event into the relay.
       LogicalSource lsrc = new LogicalSource((int)lid, srcName);
       DbusEventBuffer buf = relay.getEventBuffer().getDbusEventBuffer(lsrc);
-      byte [] schema = "abcdefghijklmnop".getBytes();
+      byte [] schema = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
       final long prevScn = 99;
       final long eventScn = 101;
       buf.start(prevScn);

@@ -45,12 +45,18 @@ public abstract class BaseDatabusMBean
         ObjectName objName = generateObjectName();
         if (mbeanServer.isRegistered(objName))
         {
-          LOG.warn("unregistering old MBean: " + objName);
+          if (LOG.isDebugEnabled())
+          {
+            LOG.debug("unregistering old MBean: " + objName);
+          }
           mbeanServer.unregisterMBean(objName);
         }
 
         mbeanServer.registerMBean(this, objName);
-        LOG.info("MBean registered " + objName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + objName);
+        }
         success = true;
       }
       catch (Exception e)
@@ -71,7 +77,10 @@ public abstract class BaseDatabusMBean
       {
         ObjectName objName = generateObjectName();
         JmxUtil.unregisterMBeanSafely(mbeanServer, objName, LOG);
-        LOG.info("MBean unregistered " + objName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + objName);
+        }
         success = true;
       }
       catch (Exception e)

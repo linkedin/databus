@@ -21,6 +21,7 @@ package com.linkedin.databus.bootstrap.test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
@@ -150,7 +151,7 @@ public class TestBootstrap
 			  stmt.setLong(1,rId);
 			  stmt.setLong(2,scn);
 			  stmt.setString(3, srcKey);
-			  stmt.setBlob(4, new ByteArrayInputStream(data.getBytes()));
+			  stmt.setBlob(4, new ByteArrayInputStream(data.getBytes(Charset.defaultCharset())));
 			  stmt.executeUpdate();
 		  } catch ( Exception ex) {
 			  System.err.println("Exception :" + ex);

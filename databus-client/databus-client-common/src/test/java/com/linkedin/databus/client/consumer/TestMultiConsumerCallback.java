@@ -49,6 +49,7 @@ import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.DatabusStreamConsumer;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
@@ -357,8 +358,8 @@ public class TestMultiConsumerCallback
 
     DatabusV2ConsumerRegistration consumerReg =
         new DatabusV2ConsumerRegistration(sdccLogConsumer, sources, null);
-    ConsumerCallbackStats statsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
-
+    ConsumerCallbackStats consumerStatsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
+    UnifiedClientStats unifiedStatsCollector = new UnifiedClientStats(1, "test","test.unified");
 
     List<DatabusV2ConsumerRegistration> allRegistrations =
         Arrays.asList(consumerReg);
@@ -368,8 +369,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             executor,
             60000,
-            new StreamConsumerCallbackFactory(),
-            statsCollector,
+            new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
+            consumerStatsCollector,
+            unifiedStatsCollector,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -383,12 +385,12 @@ public class TestMultiConsumerCallback
     callback.onStopConsumption();
 
     System.out.println("max threads=" + executor.getLargestPoolSize() + " task count=" + executor.getTaskCount());
-    System.out.println("dataEventsReceived=" + statsCollector.getNumDataEventsReceived() +
-                       " sysEventsReceived=" + statsCollector.getNumSysEventsReceived()  +
-                       " dataEventsProcessed=" + statsCollector.getNumDataEventsProcessed() +
-                       " latencyEventsProcessed=" + statsCollector.getLatencyEventsProcessed());
-    long dataEvents = statsCollector.getNumDataEventsReceived();
-    assert(statsCollector.getNumDataEventsProcessed()==dataEvents);
+    System.out.println("dataEventsReceived=" + consumerStatsCollector.getNumDataEventsReceived() +
+                       " sysEventsReceived=" + consumerStatsCollector.getNumSysEventsReceived()  +
+                       " dataEventsProcessed=" + consumerStatsCollector.getNumDataEventsProcessed() +
+                       " latencyEventsProcessed=" + consumerStatsCollector.getLatencyEventsProcessed());
+    long dataEvents = consumerStatsCollector.getNumDataEventsReceived();
+    assert(consumerStatsCollector.getNumDataEventsProcessed()==dataEvents);
 
   }
 
@@ -428,7 +430,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             60000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -487,7 +490,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -554,7 +558,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -629,7 +634,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -708,7 +714,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -784,7 +791,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -860,7 +868,8 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             1000,
-            new StreamConsumerCallbackFactory(),
+            new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null);
     callback.setSourceMap(sourcesMap);
@@ -970,7 +979,8 @@ public class TestMultiConsumerCallback
                                                      "onStartSource() called"),
             50));
     EasyMock.replay(mockConsumer1);
-    ConsumerCallbackStats statsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
+    ConsumerCallbackStats consumerStatsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
+    UnifiedClientStats unifiedStatsCollector = new UnifiedClientStats(1, "test","test.unified");
 
     //Create and fire up callbacks
     List<DatabusV2ConsumerRegistration> allRegistrations =
@@ -980,8 +990,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             100,
-            new StreamConsumerCallbackFactory(),
-            statsCollector,
+            new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
+            consumerStatsCollector,
+            unifiedStatsCollector,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -1038,13 +1049,13 @@ public class TestMultiConsumerCallback
     Assert.assertTrue(ConsumerCallbackResult.isSuccess(endSourceRes),
                        "onEndSource succeeds");
 
-    long eventsErrProcessed = statsCollector.getNumErrorsProcessed();
-    long totalEvents  = statsCollector.getNumEventsReceived();
-    long totalEventsProcessed = statsCollector.getNumEventsProcessed();
+    long eventsErrProcessed = consumerStatsCollector.getNumErrorsProcessed();
+    long totalEvents  = consumerStatsCollector.getNumEventsReceived();
+    long totalEventsProcessed = consumerStatsCollector.getNumEventsProcessed();
 
-    System.out.println("eventsReceived = " + statsCollector.getNumEventsReceived() + " eventsProcessed=" + statsCollector.getNumEventsProcessed());
-    System.out.println("eventsErrProcessed =" + statsCollector.getNumErrorsProcessed() + " eventsErrReceived=" + statsCollector.getNumErrorsReceived()
-                       + " totalEvents=" + statsCollector.getNumEventsReceived() + " totalEventsProcessed=" + totalEventsProcessed);
+    System.out.println("eventsReceived = " + consumerStatsCollector.getNumEventsReceived() + " eventsProcessed=" + consumerStatsCollector.getNumEventsProcessed());
+    System.out.println("eventsErrProcessed =" + consumerStatsCollector.getNumErrorsProcessed() + " eventsErrReceived=" + consumerStatsCollector.getNumErrorsReceived()
+                       + " totalEvents=" + consumerStatsCollector.getNumEventsReceived() + " totalEventsProcessed=" + totalEventsProcessed);
 
     //FIXME
     Assert.assertTrue(totalEvents >= totalEventsProcessed+eventsErrProcessed);
@@ -1138,7 +1149,8 @@ public class TestMultiConsumerCallback
                                                      "onStartSource() called"),
             1));
     EasyMock.replay(mockConsumer1);
-    ConsumerCallbackStats statsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
+    ConsumerCallbackStats consumerStatsCollector = new ConsumerCallbackStats(1, "test","test", true,false, null);
+    UnifiedClientStats unifiedStatsCollector = new UnifiedClientStats(1, "test","test.unified");
 
     log.info("Create and fire up callbacks");
     List<DatabusV2ConsumerRegistration> allRegistrations =
@@ -1148,8 +1160,9 @@ public class TestMultiConsumerCallback
             allRegistrations,
             Executors.newCachedThreadPool(),
             300,
-            new StreamConsumerCallbackFactory(),
-            statsCollector,
+            new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
+            consumerStatsCollector,
+            unifiedStatsCollector,
             3);
     callback.setSourceMap(sourcesMap);
 
@@ -1257,8 +1270,9 @@ public class TestMultiConsumerCallback
         ExecutorService executorService, long timeBudgetMs,
         ConsumerCallbackFactory<DatabusCombinedConsumer> callbackFactory,
         ConsumerCallbackStats consumerStats,
+        UnifiedClientStats unifiedClientStats,
         int errorCallNumber) {
-      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats, null);
+      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats, unifiedClientStats, null);
       _failOnCall = errorCallNumber;
     }
 

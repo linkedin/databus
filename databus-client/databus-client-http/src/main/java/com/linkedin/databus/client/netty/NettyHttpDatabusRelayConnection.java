@@ -48,6 +48,7 @@ import com.linkedin.databus.client.netty.AbstractNettyHttpConnection.BaseHttpRes
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.CheckpointMult;
 import com.linkedin.databus.core.DbusConstants;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.async.ActorMessageQueue;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus.core.util.IdNamePair;
@@ -142,7 +143,7 @@ public class NettyHttpDatabusRelayConnection
   {
     _callbackStateReuse = stateReuse;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (!hasConnection())
     {
       connect(State.SOURCES_REQUEST_CONNECT);
     }
@@ -180,7 +181,7 @@ public class NettyHttpDatabusRelayConnection
     _sourcesSubsList = sourcesIdList;
     _callbackStateReuse = stateReuse;
 
-    if (null == _channel || !_channel.isConnected())
+    if (!hasConnection())
     {
       _curState = State.REGISTER_REQUEST_CONNECT;
       //we've lost our connection to the relay; it's best to signal an error to the puller so that
@@ -255,7 +256,7 @@ public class NettyHttpDatabusRelayConnection
 
     _filter = filter;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (!hasConnection())
     {
       _curState = State.STREAM_REQUEST_CONNECT;
       //we've lost our connection to the relay; it's best to signal an error to the puller so that
@@ -634,7 +635,7 @@ class SourcesHttpResponseProcessor<M extends DatabusRelayConnectionStateMessage>
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("exception during /sources response: ", cause);
+    DbusPrettyLogUtils.logExceptionAtError("Exception during /sources response: ", cause, LOG);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
       LOG.info("Enqueueing /sources response error state to puller queue");
@@ -784,16 +785,22 @@ class RegisterHttpResponseProcessor extends BaseHttpResponseProcessor
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("exception during /register response: ", cause);
+    DbusPrettyLogUtils.logExceptionAtError("Exception during /register response: ", cause, LOG);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
-      LOG.debug("Enqueueing /register response error state to puller queue");
+      if (LOG.isDebugEnabled())
+      {
+        LOG.debug("Enqueueing /register response error state to puller queue");
+      }
       _stateReuse.switchToRegisterResponseError();
       _callback.enqueueMessage(_stateReuse);
     }
     else
     {
-      LOG.debug("Skipping enqueueing /register response error state to puller queue");
+      if (LOG.isDebugEnabled())
+      {
+        LOG.debug("Skipping enqueueing /register response error state to puller queue");
+      }
     }
     super.handleChannelException(cause);
   }
@@ -863,17 +870,23 @@ class StreamHttpResponseProcessor extends BaseHttpResponseProcessor
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("exception during /stream response: ", cause);
+    DbusPrettyLogUtils.logExceptionAtError("Exception during /stream response: ", cause, LOG);
     if ((_responseStatus != ResponseStatus.CHUNKS_SEEN) &&
         (_responseStatus != ResponseStatus.CHUNKS_FINISHED))
     {
-      LOG.debug("Enqueueing /stream response error state to puller queue");
+      if (LOG.isDebugEnabled())
+      {
+        LOG.debug("Enqueueing /stream response error state to puller queue");
+      }
       _stateReuse.switchToStreamResponseError();
       _callback.enqueueMessage(_stateReuse);
     }
     else
     {
-      LOG.debug("Skipping enqueueing /stream response error state to puller queue");
+      if (LOG.isDebugEnabled())
+      {
+        LOG.debug("Skipping enqueueing /stream response error state to puller queue");
+      }
     }
     super.handleChannelException(cause);
   }

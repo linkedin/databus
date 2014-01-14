@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
@@ -173,24 +174,32 @@ public class TransactionState extends AbstractStateTransitionProcessor
    */
   public static class PerSourceTransactionalUpdate implements Comparable<PerSourceTransactionalUpdate>{
 
-    int sourceId;
-    HashSet<DbUpdateState.DBUpdateImage> dbUpdate;
+    private int _sourceId;
+    private Set<DbUpdateState.DBUpdateImage> _dbUpdate;
 
 
     public int getSourceId()
     {
-      return sourceId;
+      return _sourceId;
     }
 
-    public HashSet<DbUpdateState.DBUpdateImage> getDbUpdatesSet()
+    public Set<DbUpdateState.DBUpdateImage> getDbUpdatesSet()
     {
-      return dbUpdate;
+      return _dbUpdate;
     }
 
-    public PerSourceTransactionalUpdate(int sourceId, HashSet<DbUpdateState.DBUpdateImage> dbUpdate)
+    public int getNumDbUpdates()
     {
-      this.sourceId = sourceId;
-      this.dbUpdate = dbUpdate;
+      if ( null == _dbUpdate)
+        return 0;
+
+      return _dbUpdate.size();
+    }
+
+    public PerSourceTransactionalUpdate(int sourceId, Set<DbUpdateState.DBUpdateImage> dbUpdate)
+    {
+      this._sourceId = sourceId;
+      this._dbUpdate = dbUpdate;
     }
 
     @Override
@@ -215,8 +224,8 @@ public class TransactionState extends AbstractStateTransitionProcessor
 
       PerSourceTransactionalUpdate that = (PerSourceTransactionalUpdate) o;
 
-      if (sourceId != that.sourceId) return false;
-      if (dbUpdate != null ? !dbUpdate.equals(that.dbUpdate) : that.dbUpdate != null) return false;
+      if (_sourceId != that._sourceId) return false;
+      if (_dbUpdate != null ? !_dbUpdate.equals(that._dbUpdate) : that._dbUpdate != null) return false;
 
       return true;
     }
@@ -224,8 +233,8 @@ public class TransactionState extends AbstractStateTransitionProcessor
     @Override
     public int hashCode()
     {
-      int result = sourceId;
-      result = 31 * result + (dbUpdate != null ? dbUpdate.hashCode() : 0);
+      int result = _sourceId;
+      result = 31 * result + (_dbUpdate != null ? _dbUpdate.hashCode() : 0);
       return result;
     }
   }

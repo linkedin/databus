@@ -86,6 +86,15 @@ public class GGParserStatistics implements GGParserStatisticsMBean
   private int _eventsTotal; // events in transactions for the "subscribed" sources
 
 
+  // SCN Regression related
+  /**
+   * NumSCNRegression counts the number of times SCN regressed ( went from a higher value to lower value )
+   */
+  private long _numScnRegressions = 0;
+  /**
+   * The regressed SCN which was seen latest during trail file processing.
+   */
+  private long _lastRegressedScn = -1;
 
   public GGParserStatistics(String phSourceName)
   {
@@ -112,6 +121,8 @@ public class GGParserStatistics implements GGParserStatisticsMBean
     sb.append("TxnStats(totalSize, readTime, lastTS)=").append(_transactionSize).append(":").append(_transactionTimeReadNs).append(":").append(_mostRecentTransTSMs);
     sb.append("\n");
     sb.append("parseErrofs=").append(_numParsingErrors).append(";errors=").append(_numErrors);
+    sb.append("\n");
+    sb.append("LastRegressSCN=").append(_lastRegressedScn).append(";NumSCNRegressions=").append(_numScnRegressions);
 
     return sb.toString();
   }
@@ -129,7 +140,7 @@ public class GGParserStatistics implements GGParserStatisticsMBean
     _transactionTimeReadNs += tr.getTransactionTimeRead();
     _mostRecentTransTSMs = tr.getTransactionTimeStampNs() / DbusConstants.NUM_NSECS_IN_MSEC; //convert to MS
     long transScn = tr.getScn();
-    if(transScn>0)
+    if(transScn > _maxScn)
       _maxScn = transScn;
     if(numEventsInTrans > 0) {
       _transactionsWithEvents++;
@@ -350,6 +361,9 @@ public class GGParserStatistics implements GGParserStatisticsMBean
     _transactionsWithEvents = 0;
     _transactionsWithOutEvents = 0;
     _eventsTotal = 0;
+
+    _numScnRegressions = 0;
+    _lastRegressedScn = -1;
   }
 
   @Override
@@ -371,4 +385,21 @@ public class GGParserStatistics implements GGParserStatisticsMBean
     return _timeMostRecentAdded;
   }
 
+  @Override
+  public long getNumSCNRegressions()
+  {
+    return _numScnRegressions;
+  }
+
+  @Override
+  public long getLastRegressedScn()
+  {
+    return _lastRegressedScn;
+  }
+
+  public void addScnRegression(long regressScn)
+  {
+    _numScnRegressions++;
+    _lastRegressedScn = regressScn;
+  }
 }

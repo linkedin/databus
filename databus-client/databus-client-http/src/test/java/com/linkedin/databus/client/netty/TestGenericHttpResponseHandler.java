@@ -22,6 +22,7 @@ package com.linkedin.databus.client.netty;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.nio.ByteOrder;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -98,7 +99,7 @@ public class TestGenericHttpResponseHandler
       }
     });
     _dummyServer.start(SERVER_ADDRESS_ID);
-    _logLevel = org.apache.log4j.Level.DEBUG;
+    _logLevel = org.apache.log4j.Level.INFO;
   }
 
   @AfterClass
@@ -128,7 +129,7 @@ public class TestGenericHttpResponseHandler
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testHappyPathNoChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -190,7 +191,7 @@ public class TestGenericHttpResponseHandler
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testHappyPathWithCloseNoChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -255,10 +256,10 @@ public class TestGenericHttpResponseHandler
     final Logger log = Logger.getLogger("GenericHttpResponseHandler.testReadTimeoutNoChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     log.info("start");
-    log.setLevel(Level.DEBUG);
+    log.setLevel(_logLevel);
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
     TestSendRequestListener requestListener = new TestSendRequestListener(log);
@@ -325,7 +326,7 @@ public class TestGenericHttpResponseHandler
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testHappyPathChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -357,10 +358,10 @@ public class TestGenericHttpResponseHandler
         resp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
         sendServerResponse(clientAddr, resp, 1000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
 
-        HttpChunk chunk2 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk2".getBytes()));
+        HttpChunk chunk2 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk2".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk2, 1000);
 
         sendServerResponse(clientAddr, new DefaultHttpChunkTrailer(), 1000);
@@ -400,7 +401,7 @@ public class TestGenericHttpResponseHandler
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testHappyPathWithCloseChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -433,10 +434,10 @@ public class TestGenericHttpResponseHandler
         resp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
         sendServerResponse(clientAddr, resp, 1000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
 
-        HttpChunk chunk2 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk2".getBytes()));
+        HttpChunk chunk2 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk2".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk2, 1000);
 
         sendServerResponse(clientAddr, new DefaultHttpChunkTrailer(), 1000);
@@ -476,7 +477,7 @@ public class TestGenericHttpResponseHandler
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testEarlyServerCloseChunking");
 
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -518,7 +519,7 @@ public class TestGenericHttpResponseHandler
 
         sendServerResponse(clientAddr, resp, 1000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
 
         TestUtil.sleep(200);
@@ -558,7 +559,7 @@ public class TestGenericHttpResponseHandler
     final Logger log = Logger.getLogger("GenericHttpResponseHandler.testReadTimeoutChunking");
     log.info("start");
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -590,7 +591,7 @@ public class TestGenericHttpResponseHandler
         resp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
         sendServerResponse(clientAddr, resp, 1000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
         final List<String> callbacks = respProcessor.getCallbacks();
 
@@ -641,7 +642,7 @@ public class TestGenericHttpResponseHandler
   {
     Logger log = Logger.getLogger("GenericHttpResponseHandler.testErrorServerResponseChunking");
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestHttpResponseProcessor respProcessor = new TestHttpResponseProcessor(log);
     TestConnectListener connectListener = new TestConnectListener(log);
@@ -673,7 +674,7 @@ public class TestGenericHttpResponseHandler
         resp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
         sendServerResponse(clientAddr, resp, 2000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
 
         sendServerResponse(clientAddr, new DefaultHttpChunkTrailer(), 1000);
@@ -718,7 +719,7 @@ public class TestGenericHttpResponseHandler
 
     //Need this call to set respProcessor without triggering erroneous check
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(respProcessor,KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
     responseHandler.setRequestListener(requestListener);
     responseHandler.setConnectionListener(connectListener);
     responseHandler.setCloseListener(closeListener);
@@ -772,7 +773,7 @@ public class TestGenericHttpResponseHandler
 
     //global responseHandler;
     final GenericHttpResponseHandler responseHandler = new GenericHttpResponseHandler(KeepAliveType.KEEP_ALIVE);
-    responseHandler.getLog().setLevel(Level.DEBUG);
+    responseHandler.getLog().setLevel(_logLevel);
 
     TestConnectListener connectListener = new TestConnectListener(log);
     responseHandler.setConnectionListener(connectListener);
@@ -797,7 +798,7 @@ public class TestGenericHttpResponseHandler
         resp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
         sendServerResponse(clientAddr, resp, 2000);
 
-        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes()));
+        HttpChunk chunk1 = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer("chunk1".getBytes(Charset.defaultCharset())));
         sendServerResponse(clientAddr, chunk1, 1000);
 
         sendServerResponse(clientAddr, new DefaultHttpChunkTrailer(), 1000);

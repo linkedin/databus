@@ -20,6 +20,7 @@ package com.linkedin.databus.core;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -677,7 +678,7 @@ public class TestDbusKeyCompositeFilter
                                                     System.currentTimeMillis(),
                                                     srcId,
                                                     RngUtils.schemaMd5,
-                                                    RngUtils.randomString(payloadSize).getBytes(),
+                                                    RngUtils.randomString(payloadSize).getBytes(Charset.defaultCharset()),
                                                     false, //enableTracing
                                                     false /* auto-commit */);
         eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
@@ -720,7 +721,7 @@ public class TestDbusKeyCompositeFilter
                                                     System.currentTimeMillis(),
                                                     srcId,
                                                     RngUtils.schemaMd5,
-                                                    RngUtils.randomString(payloadSize).getBytes(),
+                                                    RngUtils.randomString(payloadSize).getBytes(Charset.defaultCharset()),
                                                     false,  // enableTracing
                                                     false /*autocommit*/);
         eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit

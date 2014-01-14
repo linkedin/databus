@@ -19,6 +19,7 @@ package com.linkedin.databus.core.util;
 */
 
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +56,7 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
     protected final DbusEventBufferMult _dbusEventBuffer;
     protected List<IdNamePair> _sources;
     protected List<Schema> _schemas = null;
+    protected Map<Long,byte[]> _schemaIds= null;
     protected double _tickInNanos;
     protected long _duration;
     protected long _startScn;
@@ -89,9 +91,16 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
 
 
     public DatabusEventRandomProducer(DbusEventBufferMult dbuf, long startScn, int eventsPerSecond,
-                                      long durationInMilliseconds, List<IdNamePair> sources) {
-      this(dbuf,startScn,eventsPerSecond, durationInMilliseconds, sources,null);
+        long durationInMilliseconds,List<IdNamePair> sources,StaticConfig config)
+    {
+      this(dbuf,startScn,eventsPerSecond, durationInMilliseconds, sources,null,config);
     }
+
+    public DatabusEventRandomProducer(DbusEventBufferMult dbuf, long startScn, int eventsPerSecond,
+                                      long durationInMilliseconds, List<IdNamePair> sources,Map<Long,byte[]> schemaIds) {
+      this(dbuf,startScn,eventsPerSecond, durationInMilliseconds, sources,schemaIds,null);
+    }
+
 
     public DatabusEventRandomProducer(DbusEventBufferMult dbuf, StaticConfig config)
     {
@@ -128,7 +137,7 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
     }
 
     public DatabusEventRandomProducer(DbusEventBufferMult dbuf, long startScn, int eventsPerSecond,
-                                      long durationInMilliseconds, List<IdNamePair> sources,
+                                      long durationInMilliseconds, List<IdNamePair> sources,Map<Long,byte[]> schemaIds,
                                       StaticConfig config) {
       super("DatabusEventRandomProducer");
 
@@ -145,6 +154,7 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
       _config = config;
       _generationStopped = new CountDownLatch(1);
       this._dbusEventBuffer = dbuf;
+      this._schemaIds = schemaIds;
       this._tickInNanos = NANOSECONDS_IN_A_SECOND/eventsPerSecond;
       this._duration = durationInMilliseconds;
       this._sources = sources;
@@ -177,7 +187,7 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
         LOG.debug("endScn = " + endScn + " startScn = " + startScn);
       }
 
-      byte[] schemaId = "abcdefghijklmnop".getBytes();
+      byte[] defaultSchemaId = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
 
     boolean enableTracing = (RngUtils.randomPositiveLong()%100L <= 1);  // trace 1% samples
     for (int i = 0; i < numberOfEvents; ++i) {
@@ -185,6 +195,8 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
       long scn = startScn + (i / scnDiff);
       //short srcId = sources.get((Integer) (RngUtils.randomPositiveShort() % sources.size())).getId().shortValue();
       short srcId = sources.get(i/eventsPerSource).getId().shortValue();
+      byte[] schemaId=(_schemaIds != null) ? _schemaIds.get((long) srcId) : defaultSchemaId;
+
       genEventsPerSource.put((int)srcId, genEventsPerSource.get((int)srcId) + 1);
 
       String value = null;
@@ -202,7 +214,7 @@ public class DatabusEventRandomProducer extends Thread implements DatabusEventPr
       short pPartitionId =  _dbusEventBuffer.getPhysicalPartition(srcId).getId().shortValue();
       DbusEventBufferAppendable buf = _dbusEventBuffer.getDbusEventBufferAppendable(srcId);
       boolean appended = buf.appendEvent(key, pPartitionId, lPartitionId, currentTime, srcId, schemaId,
-                                  value.getBytes(), enableTracing, _statsCollector);
+                                  value.getBytes(Charset.defaultCharset()), enableTracing, _statsCollector);
       assert appended == true;
 
       maxScn = Math.max(scn, maxScn);

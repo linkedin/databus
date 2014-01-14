@@ -34,6 +34,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.Pipe;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -118,7 +119,7 @@ public class TestDbusEventBuffer
   private final short lPartitionId = 30;
   private final String value = "foobar";
   private final short srcId = 15;
-  private final byte[] schemaId = "abcdefghijklmnop".getBytes();
+  private final byte[] schemaId = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
 
 
   static DbusEventBuffer.StaticConfig getConfig(long maxEventBufferSize, int maxIndividualBufferSize,
@@ -394,7 +395,7 @@ public class TestDbusEventBuffer
     paramsRead1._srcByteStr = new ByteArrayOutputStream();
     paramsRead1._srcByteStr.write(params1._srcByteStr.toByteArray());
     paramsRead1._srcByteStr.write(params2._srcByteStr.toByteArray());
-    paramsRead1._srcByteStr.write("DEADBEEF".getBytes());
+    paramsRead1._srcByteStr.write("DEADBEEF".getBytes(Charset.defaultCharset()));
     paramsRead1._srcByteStr.write(params3._srcByteStr.toByteArray());
 
     paramsRead1.readDataAtDestination();
@@ -1824,7 +1825,7 @@ public class TestDbusEventBuffer
     assertTrue(dbuf.getScnIndex().getUpdateOnNext()); // DDSDBUS-1109
     dbuf.startEvents();
     assertTrue(dbuf.appendEvent(new DbusEventKey(key), pPartitionId, lPartitionId, timeStamp,
-                                srcId, schemaId, value.getBytes(), false));
+                                srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
   }
 
   @Test
@@ -1847,7 +1848,7 @@ public class TestDbusEventBuffer
                                 now * 1000000,
                                 srcId,
                                 schemaId,
-                                value.getBytes(),
+                                value.getBytes(Charset.defaultCharset()),
                                 false));
     dbuf.endEvents(true, 0x100000001L, false, false, collector);
     assertTrue(collector.getTotalStats().getTimeLag() + "," + sleepTime, collector.getTotalStats().getTimeLag() >= sleepTime);
@@ -1866,7 +1867,7 @@ public class TestDbusEventBuffer
     for (int i=0; i < 1000; ++i)
     {
       //LOG.info("Iteration:"+i);
-      assertTrue(dbuf.appendEvent(new DbusEventKey(key), pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(new DbusEventKey(key), pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
     }
   }
 
@@ -1905,7 +1906,7 @@ public class TestDbusEventBuffer
                                                     timeStamp,
                                                     (short)2601, //logical source id
                                                     schemaId,
-                                                    value.getBytes(),
+                                                    value.getBytes(Charset.defaultCharset()),
                                                     false,
                                                     false);
 
@@ -1939,7 +1940,7 @@ public class TestDbusEventBuffer
                                       timeStamp,
                                       (short)2601, //logical source id
                                       schemaId,
-                                      value.getBytes(),
+                                      value.getBytes(Charset.defaultCharset()),
                                       false,
                                       false);
 
@@ -1958,7 +1959,7 @@ public class TestDbusEventBuffer
     DbusEventInternalWritable e = eventIterator.next();
     assertEquals(DbusOpcode.UPSERT,e.getOpcode());
     if(type.equals("STRING"))
-      assertEquals(stringKey.getBytes(),e.keyBytes());
+      assertEquals(stringKey.getBytes(Charset.defaultCharset()),e.keyBytes());
     else if(type.equals("LONG"))
       assertEquals(longKey,e.key());
     assertEquals(1234,e.sequence());
@@ -1972,7 +1973,7 @@ public class TestDbusEventBuffer
     e = eventIterator.next();
     assertEquals(DbusOpcode.DELETE, e.getOpcode());
     if(type.equals("STRING"))
-      assertEquals(stringKey.getBytes(),e.keyBytes());
+      assertEquals(stringKey.getBytes(Charset.defaultCharset()),e.keyBytes());
     else if(type.equals("LONG"))
       assertEquals(longKey,e.key());
     assertEquals(1235,e.sequence());
@@ -2009,7 +2010,7 @@ public class TestDbusEventBuffer
       dbuf.startEvents();
       long ts = timeStamp + (i*1000*1000);
       testDataMap.put(i, new KeyValue(key, value));
-      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
       dbuf.endEvents(i);
     }
 
@@ -2034,7 +2035,7 @@ public class TestDbusEventBuffer
         assertEquals(ts, timeStamp + entryNum*1000*1000);
         byte[] eventBytes = new byte[e.valueLength()];
         e.value().get(eventBytes);
-        assertEquals(eventBytes, testDataMap.get(entryNum).value.getBytes());
+        assertEquals(eventBytes, testDataMap.get(entryNum).value.getBytes(Charset.defaultCharset()));
         entryNum++;
         e = eventIterator.next();
         assertTrue(e.isEndOfPeriodMarker());
@@ -2066,7 +2067,7 @@ public class TestDbusEventBuffer
       String value = RngUtils.randomString(valueLength);
       dbuf.startEvents();
       long ts = timeStamp + (i*1200*1000);
-      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
       testDataMap.put(i, new KeyValue(key, value));
       dbuf.endEvents(currentScn + i);
     }
@@ -2095,7 +2096,7 @@ public class TestDbusEventBuffer
         assertEquals(ts, timeStamp + entryNum*1200*1000);
         byte[] eventBytes = new byte[e.valueLength()];
         e.value().get(eventBytes);
-        assertEquals(eventBytes, testDataMap.get(entryNum).value.getBytes());
+        assertEquals(eventBytes, testDataMap.get(entryNum).value.getBytes(Charset.defaultCharset()));
         entryNum++;
         e = eventIterator.next();
         assertTrue(e.isEndOfPeriodMarker());
@@ -2127,7 +2128,7 @@ public class TestDbusEventBuffer
       String value = RngUtils.randomString(20);
       dbuf.startEvents();
       long ts = timeStamp + (i*1000*1000);
-      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId,ts, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
       testDataMap.put(i, new KeyValue(key, value));
       dbuf.endEvents(i);
     }
@@ -2176,7 +2177,7 @@ public class TestDbusEventBuffer
       DbusEventKey key = new DbusEventKey(RngUtils.randomLong());
       String value = RngUtils.randomString(20);
       dbuf.startEvents();
-      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
       testDataMap.put(i, new KeyValue(key, value));
       dbuf.endEvents(i);
     }
@@ -2335,7 +2336,7 @@ public class TestDbusEventBuffer
       {
         long ts = baseTsForWindow + ((RngUtils.randomPositiveInt()%eventWindowSize)+1)*1000* 1000; //ms offset for nanosecond base
         assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, ts, srcId, schemaId,
-                                    value.getBytes(), false));
+                                    value.getBytes(Charset.defaultCharset()), false));
         testDataMap.put(i, new KeyValue(key, value));
         ++i;
       }
@@ -2431,7 +2432,7 @@ public class TestDbusEventBuffer
       dbuf.startEvents();
       for (int j=0; j < eventWindowSize; ++j)
       {
-        assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(), false));
+        assertTrue(dbuf.appendEvent(key, pPartitionId, lPartitionId, timeStamp, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
         testDataMap.put(i, new KeyValue(key, value));
       }
       dbuf.endEvents(i);

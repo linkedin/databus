@@ -22,6 +22,7 @@ package com.linkedin.databus.container.request;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
@@ -84,7 +85,7 @@ public class SourcesRequestProcessor implements RequestProcessor
                                                      Integer.toString(protoVersion));
 
 
-    byte[] resultBytes = out.toString().getBytes();
+    byte[] resultBytes = out.toString().getBytes(Charset.defaultCharset());
 
     request.getResponseContent().write(ByteBuffer.wrap(resultBytes));
 

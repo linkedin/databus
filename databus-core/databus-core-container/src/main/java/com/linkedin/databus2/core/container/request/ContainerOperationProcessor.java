@@ -21,6 +21,7 @@ package com.linkedin.databus2.core.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.log4j.Logger;
@@ -66,7 +67,7 @@ public class ContainerOperationProcessor implements RequestProcessor {
 	    {
 	      String pid = Utils.getPid();
 	      String response="{\"Container\":\"set-shutdown\",\"pid\":\""+ pid + "\"}";
-          request.getResponseContent().write(ByteBuffer.wrap(response.getBytes()));
+          request.getResponseContent().write(ByteBuffer.wrap(response.getBytes(Charset.defaultCharset())));
 	      Thread runThread = new Thread(new Runnable()
 	      {
 	        @Override
@@ -80,18 +81,18 @@ public class ContainerOperationProcessor implements RequestProcessor {
 	    else if (action.equals("pause"))
 	    {
 	      _serverContainer.pause();
-	      request.getResponseContent().write(ByteBuffer.wrap("{\"Container\":\"set-pause\"}".getBytes()));
+	      request.getResponseContent().write(ByteBuffer.wrap("{\"Container\":\"set-pause\"}".getBytes(Charset.defaultCharset())));
 	    }
         else if (action.equals("resume"))
         {
           _serverContainer.resume();
-          request.getResponseContent().write(ByteBuffer.wrap("{\"Container\":\"set-resume\"}".getBytes()));
+          request.getResponseContent().write(ByteBuffer.wrap("{\"Container\":\"set-resume\"}".getBytes(Charset.defaultCharset())));
         }
         else if (action.equals("getpid"))
         {
           String pid = Utils.getPid();
           String response="{\"pid\":\""+ pid + "\"}";
-          request.getResponseContent().write(ByteBuffer.wrap(response.getBytes()));
+          request.getResponseContent().write(ByteBuffer.wrap(response.getBytes(Charset.defaultCharset())));
         }
 	    else
 	    {

@@ -37,6 +37,10 @@ task myTar(type: Tar) {
   into("schemas_registry") {
     from "schemas_registry/"
   }
+
+  into("sql") {
+    from "sql/"
+  }
 }
 
 myTar.dependsOn ':databus2-relay:databus2-relay-impl:assemble'
