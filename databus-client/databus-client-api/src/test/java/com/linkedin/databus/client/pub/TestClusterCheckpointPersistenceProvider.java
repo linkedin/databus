@@ -249,11 +249,6 @@ public class TestClusterCheckpointPersistenceProvider
     {
       return _clusterName;
     }
-    finally
-    {
-      ClusterCheckpointPersistenceProvider.close(clusterName);
-    }
-  }
 
     @Override
     public void run()
@@ -333,5 +328,6 @@ public class TestClusterCheckpointPersistenceProvider
     {
       return storedCheckpoint;
     }
+
   }
 }

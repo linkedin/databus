@@ -993,7 +993,6 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
             consumerStatsCollector,
             unifiedStatsCollector,
->>>>>>> github-merge
             null);
     callback.setSourceMap(sourcesMap);
 

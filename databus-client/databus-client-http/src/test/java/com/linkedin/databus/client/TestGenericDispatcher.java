@@ -2157,7 +2157,6 @@ public class TestGenericDispatcher
         Assert.assertEquals(0, tConsumer.getNumDataEvents());
         Assert.assertEquals(1,tConsumer.getNumErrors());
       }
->>>>>>> github-merge
     }
 
     DbusEventBuffer.StaticConfig getConfig(long maxEventBufferSize, int maxIndividualBufferSize, int maxIndexSize,
@@ -3367,6 +3366,3 @@ class TimeoutTestConsumer implements DatabusCombinedConsumer {
 }
 
 }
-
-}
-
