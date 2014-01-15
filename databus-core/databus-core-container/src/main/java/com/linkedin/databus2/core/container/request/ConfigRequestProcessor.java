@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.Charset;
 import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 
@@ -89,7 +90,7 @@ public class ConfigRequestProcessor implements RequestProcessor {
       ObjectMapper mapper = new ObjectMapper();
       mapper.writeValue(out, config);
       out.close();
-      byte[] dataBytes = out.toString().getBytes();
+      byte[] dataBytes = out.toString().getBytes(Charset.defaultCharset());
       destChannel.write(ByteBuffer.wrap(dataBytes));
 	}
 	

@@ -23,6 +23,7 @@ import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertTrue;
 
 import java.io.File;
+import java.nio.charset.Charset;
 
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Level;
@@ -48,7 +49,7 @@ public class TestEventLogWriter
   private final long timeStamp = 3456L;
   private final short partitionId = 30;
   private final short srcId = 15;
-  private final byte[] schemaId = "abcdefghijklmnop".getBytes();
+  private final byte[] schemaId = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
   //private DbusEventBuffer dbuf;
   private final File _writeDir = new File("eventLogTest");
 
@@ -140,7 +141,7 @@ public class TestEventLogWriter
       String value = RngUtils.randomString(20);
       dbuf.startEvents();
       for (int j=0; j < eventWindowSize; ++j) {
-        assertTrue(dbuf.appendEvent(key, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(), false));
+        assertTrue(dbuf.appendEvent(key, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
 
         //testDataMap.put(i, new KeyValue(key, value));
       }
@@ -154,7 +155,7 @@ public class TestEventLogWriter
     {
       DbusEventKey key = new DbusEventKey(RngUtils.randomLong());
       String value = RngUtils.randomString(20);
-      assertTrue(dbuf.appendEvent(key, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(), false));
+      assertTrue(dbuf.appendEvent(key, (short)0, partitionId, timeStamp, srcId, schemaId, value.getBytes(Charset.defaultCharset()), false));
     }
 
     //Wait for fsync interval

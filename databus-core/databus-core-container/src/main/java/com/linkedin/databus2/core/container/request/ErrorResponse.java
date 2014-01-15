@@ -19,6 +19,7 @@ package com.linkedin.databus2.core.container.request;
 */
 
 
+import java.nio.charset.Charset;
 import java.util.List;
 
 import org.jboss.netty.buffer.ChannelBuffer;
@@ -205,12 +206,12 @@ public class ErrorResponse extends SimpleDatabusResponse
 
     if (null != _cause)
     {
-      causeClass = _causeClassName.getBytes();
+      causeClass = _causeClassName.getBytes(Charset.defaultCharset());
       classLen = Math.min(causeClass.length, BinaryProtocol.MAX_ERROR_CLASS_LEN);
       resultSize += classLen;
       if (null != _causeMessage)
       {
-        causeMessage = _causeMessage.getBytes();
+        causeMessage = _causeMessage.getBytes(Charset.defaultCharset());
         messageLen = Math.min(causeMessage.length, BinaryProtocol.MAX_ERROR_MESSAGE_LEN);
         resultSize += causeMessage.length;
       }

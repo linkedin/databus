@@ -1,26 +1,4 @@
-package com.linkedin.databus.core;
-
-
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.WritableByteChannel;
-import java.util.Map;
-import org.apache.log4j.Logger;
-import org.codehaus.jackson.JsonEncoding;
-import org.codehaus.jackson.JsonFactory;
-import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.JsonParseException;
-import org.codehaus.jackson.map.JsonMappingException;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.type.TypeReference;
-import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
-import com.linkedin.databus.core.util.Base64;
-import com.linkedin.databus.core.util.Utils;
-
 /*
- *
  * Copyright 2013 LinkedIn Corp. All rights reserved
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -35,8 +13,31 @@ import com.linkedin.databus.core.util.Utils;
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- *
  */
+
+package com.linkedin.databus.core;
+
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.WritableByteChannel;
+import java.nio.charset.Charset;
+import java.util.Map;
+
+import org.apache.log4j.Logger;
+import org.codehaus.jackson.JsonEncoding;
+import org.codehaus.jackson.JsonFactory;
+import org.codehaus.jackson.JsonGenerator;
+import org.codehaus.jackson.JsonParseException;
+import org.codehaus.jackson.map.JsonMappingException;
+import org.codehaus.jackson.map.ObjectMapper;
+import org.codehaus.jackson.type.TypeReference;
+
+import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus.core.util.Base64;
+import com.linkedin.databus.core.util.Utils;
+
 
 public abstract class DbusEventSerializable extends DbusEventInternalWritable
 {
@@ -210,7 +211,7 @@ public abstract class DbusEventSerializable extends DbusEventInternalWritable
       }
       else if (valueEncString.equals(Encoding.JSON_PLAIN_VALUE.toString()))
       {
-        value = base64String.getBytes();
+        value = base64String.getBytes(Charset.defaultCharset());
       }
       else
       {
@@ -401,7 +402,7 @@ public abstract class DbusEventSerializable extends DbusEventInternalWritable
 
         g.writeEndObject();
         g.flush();
-        baos.write("\n".getBytes());
+        baos.write("\n".getBytes(Charset.defaultCharset()));
       } catch (IOException e) {
         LOG.error("JSON write error: " + e.getMessage(), e);
       }

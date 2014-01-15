@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -617,7 +618,7 @@ public class TestDatabusHttpClient
         {
             String value = "{\"s\":\"value" + i + "\"}";
             eventsBuf.appendEvent(new DbusEventKey(keyBase + i), (short)0, (short)1, (short)0, srcId,
-                    new byte[16], value.getBytes(), false);
+                    new byte[16], value.getBytes(Charset.defaultCharset()), false);
             if (null != keyCounts) keyCounts.put(keyBase + i, new AtomicInteger(0));
         }
     }
@@ -740,7 +741,7 @@ public class TestDatabusHttpClient
           sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
           HttpChunk body =
               new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                   SOURCE1_NAME + "\"}]").getBytes()));
+                                   SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -762,7 +763,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.debug("make sure the client processes the response /register correctly");
@@ -865,7 +866,7 @@ public class TestDatabusHttpClient
 
           //send back the /sources response
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                      SOURCE1_NAME + "\"}]").getBytes()));
+                                      SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -885,7 +886,7 @@ public class TestDatabusHttpClient
 
           //send back the /register response
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -1076,7 +1077,7 @@ public class TestDatabusHttpClient
           sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
           HttpChunk body =
               new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                   SOURCE1_NAME + "\"}]").getBytes()));
+                                   SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -1104,7 +1105,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.debug("make sure the client processes the response /register correctly");
@@ -1294,7 +1295,7 @@ public class TestDatabusHttpClient
           httpResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
           HttpChunk body =
               new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                   SOURCE1_NAME + "\"}]").getBytes()));
+                                   SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, httpResp, body);
 
           //make sure the client processes the response correctly
@@ -1324,7 +1325,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
 
           NettyTestUtils.sendServerResponses(relay, clientAddr, httpResp, body);
 
@@ -1435,7 +1436,7 @@ public class TestDatabusHttpClient
       sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
       HttpChunk body =
           new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                               SOURCE1_NAME + "\"}]").getBytes()));
+                               SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
       NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
     //make sure the client processes the response correctly
@@ -1467,7 +1468,7 @@ public class TestDatabusHttpClient
       HttpResponse registerResp = new DefaultHttpResponse(HttpVersion.HTTP_1_1,
                                                          HttpResponseStatus.OK);
       HttpChunk body = new DefaultHttpChunk(
-                                  ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+                                  ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
       NettyTestUtils.sendServerResponses(relay, clientAddr, registerResp, body);
 
       log.debug("make sure the client processes the response /register correctly");
@@ -1668,7 +1669,7 @@ public class TestDatabusHttpClient
           sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
           HttpChunk body =
               new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                   SOURCE1_NAME + "\"}]").getBytes()));
+                                   SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -1696,7 +1697,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the response /register correctly");
@@ -1891,7 +1892,7 @@ public class TestDatabusHttpClient
 	      sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
 	      HttpChunk body =
 	          new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-	                               SOURCE1_NAME + "\"}]").getBytes()));
+	                               SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
 	      NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
 	      //make sure the client processes the response correctly
@@ -1913,7 +1914,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -2047,7 +2048,7 @@ public class TestDatabusHttpClient
 
           //send back the /sources response
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                      SOURCE1_NAME + "\"}]").getBytes()));
+                                      SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -2067,7 +2068,7 @@ public class TestDatabusHttpClient
 
           //send back the /register response
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -2209,7 +2210,7 @@ public class TestDatabusHttpClient
 
           //send back the /sources response
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                      SOURCE1_NAME + "\"}]").getBytes()));
+                                      SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -2229,7 +2230,7 @@ public class TestDatabusHttpClient
 
           //send back the /register response
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           //make sure the client processes the response correctly
@@ -2475,7 +2476,7 @@ public class TestDatabusHttpClient
 	      sourcesResp.setHeader(HttpHeaders.Names.TRANSFER_ENCODING, HttpHeaders.Values.CHUNKED);
 	      HttpChunk body =
 	          new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-	                               SOURCE1_NAME + "\"}]").getBytes()));
+	                               SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
 	      NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
 	      log.info("make sure the client processes the response correctly");
@@ -2497,7 +2498,7 @@ public class TestDatabusHttpClient
           RegisterResponseEntry entry = new RegisterResponseEntry(1L, (short)1, SOURCE1_SCHEMA_STR);
           String responseStr = NettyTestUtils.generateRegisterResponse(entry);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the response correctly");
@@ -2625,7 +2626,7 @@ public class TestDatabusHttpClient
 
           log.info("send back the /sources response");
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                      SOURCE1_NAME + "\"}]").getBytes()));
+                                      SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the response correctly");
@@ -2645,7 +2646,7 @@ public class TestDatabusHttpClient
 
           log.info("send back the /register response");
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the /register response correctly");
@@ -2777,7 +2778,7 @@ public class TestDatabusHttpClient
 
           log.info("send back the /sources response");
           body = new DefaultHttpChunk(ChannelBuffers.wrappedBuffer(("[{\"id\":1,\"name\":\"" +
-                                      SOURCE1_NAME + "\"}]").getBytes()));
+                                      SOURCE1_NAME + "\"}]").getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the response correctly");
@@ -2799,7 +2800,7 @@ public class TestDatabusHttpClient
           //clientConn.getRelayDispatcher().getLog().setLevel(Level.DEBUG);
           //RangeBasedReaderWriterLock.LOG.setLevel(Level.DEBUG);
           body = new DefaultHttpChunk(
-              ChannelBuffers.wrappedBuffer(responseStr.getBytes()));
+              ChannelBuffers.wrappedBuffer(responseStr.getBytes(Charset.defaultCharset())));
           NettyTestUtils.sendServerResponses(relay, clientAddr, sourcesResp, body);
 
           log.info("make sure the client processes the response correctly");

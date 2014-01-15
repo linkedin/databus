@@ -20,10 +20,10 @@ package com.linkedin.databus2.core.container.request;
 
 
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.SocketAddress;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Properties;
 import java.util.concurrent.Callable;
@@ -38,6 +38,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpResponseStatus;
 
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
 import com.linkedin.databus2.core.container.ChunkedWritableByteChannel;
 import com.linkedin.databus2.core.container.DatabusHttpHeaders;
@@ -52,8 +53,6 @@ import com.linkedin.databus2.core.container.netty.ServerContainer;
  * {@link java.util.concurrent.ExecutorService} with the {@link RequestProcessor}. This saves us
  * a memory allocation for a wrapper object.
  *
- * @author cbotev
- *
  */
 public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusRequest> {
 
@@ -64,7 +63,7 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
   public static final String PATH_PARAM_NAME = "reqpath";
 
   private final static String ERROR_MESSAGE_PREFIX = "";
-  private final static byte[] FALLBACK_ERROR_MESSAGE_BYTES = "{\"class\":\"unknown\"}".getBytes();
+  private final static byte[] FALLBACK_ERROR_MESSAGE_BYTES = "{\"class\":\"unknown\"}".getBytes(Charset.defaultCharset());
   private final static String ERROR_MESSAGE_SUFFIX = "\r\n";
 
   private final long _id;
@@ -191,12 +190,7 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
       }
       catch (Exception e)
       {
-        StringWriter traceStr = new StringWriter();
-        PrintWriter errTrace = new PrintWriter(traceStr);
-        e.printStackTrace(errTrace);
-        errTrace.close();
-        LOG.error(getName() + " error:", e);
-
+        DbusPrettyLogUtils.logExceptionAtInfo(getName(), e, LOG);
         setError(e);
       }
     }
@@ -265,7 +259,7 @@ public class DatabusRequest implements Callable<DatabusRequest>, Future<DatabusR
         mapper.writeValue(out, exceptionInfo);
         out.write(ERROR_MESSAGE_SUFFIX);
         out.close();
-        dataBytes = out.toString().getBytes();
+        dataBytes = out.toString().getBytes(Charset.defaultCharset());
       }
       catch (IOException e)
       {

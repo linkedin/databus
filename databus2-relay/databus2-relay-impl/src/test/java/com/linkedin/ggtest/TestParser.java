@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
@@ -57,7 +58,7 @@ public class TestParser
   {
       for(TransactionState.PerSourceTransactionalUpdate dbUpdate : dbUpdates)
       {
-        HashSet<DbUpdateState.DBUpdateImage> DBUpdateImage = dbUpdate.getDbUpdatesSet();
+        Set<DbUpdateState.DBUpdateImage> DBUpdateImage = dbUpdate.getDbUpdatesSet();
         Iterator<DbUpdateState.DBUpdateImage> it =  DBUpdateImage.iterator();
         while(it.hasNext())
         {
@@ -318,7 +319,7 @@ public class TestParser
   private class SortCheckCallback implements TransactionSuccessCallBack
   {
 
-    private boolean checkIfSetContainsKey(HashSet<DbUpdateState.DBUpdateImage> dbUpdatesSet, Long[] keys){
+    private boolean checkIfSetContainsKey(Set<DbUpdateState.DBUpdateImage> dbUpdatesSet, Long[] keys){
 
       if(dbUpdatesSet.size() == 0)
         return false;
@@ -346,7 +347,7 @@ public class TestParser
       Assert.assertEquals(dbUpdates.get(0).getSourceId(), 401);
       Assert.assertEquals(dbUpdates.get(1).getSourceId(), 402);
       Assert.assertEquals(dbUpdates.get(2).getSourceId(), 403);
-      HashSet<DbUpdateState.DBUpdateImage> dbUpdatesSet = dbUpdates.get(0).getDbUpdatesSet();
+      Set<DbUpdateState.DBUpdateImage> dbUpdatesSet = dbUpdates.get(0).getDbUpdatesSet();
       Assert.assertTrue(dbUpdatesSet.size() == 2 && checkIfSetContainsKey(dbUpdatesSet,new Long[]{Long.valueOf(10), Long.valueOf(
           11)}));
       dbUpdatesSet = dbUpdates.get(1).getDbUpdatesSet();

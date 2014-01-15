@@ -32,6 +32,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.logging.Logger;
@@ -62,7 +63,7 @@ public class TestDbusEvent
   private static final long timeStamp = 3456L;
   private static final short partitionId = 30;
   private static final short srcId = 15;
-  private static final byte[] schemaId = "abcdefghijklmnop".getBytes();
+  private static final byte[] schemaId = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
 
   private static final String DATA_ROOT_DIR_PROP_NAME = "test.datadir";
   private static final String DATA_DIR_NAME = "./test_data";
@@ -94,7 +95,7 @@ public class TestDbusEvent
     DbusEventInternalReadable e = _eventV1Factory.createReadOnlyDbusEventFromBuffer(buf, 0);
     Assert.assertTrue(e.isValid());
     // This is an UPSERT event with key = 12345L, timestamp at 3456L, partitionId at 30,
-    // srcId at 15, and the schemaId as "abcdefghijklmnop".getBytes();
+    // srcId at 15, and the schemaId as "abcdefghijklmnop".getBytes(Charset.defaultCharset());
     // Specifically, make sure that the only bit set is for the opcode.
     assertEquals(e.getOpcode(), DbusOpcode.UPSERT);
     // Previously we used to set the same bit in both bytes, so isExtReplicatedEvent() will be true for all
@@ -108,7 +109,7 @@ public class TestDbusEvent
     assertEquals(0, e.physicalPartitionId());
     assertEquals(30, e.logicalPartitionId());
     assertEquals(15, e.srcId());
-    assertEquals("abcdefghijklmnop".getBytes(), e.schemaId());
+    assertEquals("abcdefghijklmnop".getBytes(Charset.defaultCharset()), e.schemaId());
   }
 
   //@Test
@@ -128,7 +129,7 @@ public class TestDbusEvent
     convertV2toV1LongKey(longKey);
 
     // string key
-    DbusEventKey byteKey = new DbusEventKey(new String("whateverkey").getBytes());
+    DbusEventKey byteKey = new DbusEventKey(new String("whateverkey").getBytes(Charset.defaultCharset()));
     convertV2toV1LongKey(byteKey);
 
   }
@@ -229,7 +230,7 @@ public class TestDbusEvent
     try
     {
       DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                  schemaId, randomValue.getBytes(), false, false);
+                                                  schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
 
       // create v2 event
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V2);
@@ -294,7 +295,7 @@ public class TestDbusEvent
     try
     {
       DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                  schemaId, randomValue.getBytes(), false, false);
+                                                  schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
       DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     }
@@ -408,7 +409,7 @@ public class TestDbusEvent
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
 
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = null;
@@ -437,12 +438,12 @@ public class TestDbusEvent
   public void testEspressoSerialize()
   throws Exception
   {
-    // A sample espresso event key whose length changes when converted into String and then getBytes().
+    // A sample espresso event key whose length changes when converted into String and then getBytes(Charset.defaultCharset()).
     final byte[] keyBytes = {-127, 0, 0, 0};
     String value = "Some data";
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo =  new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                 schemaId, value.getBytes(), false, false);
+                                                 schemaId, value.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(keyBytes), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = null;
@@ -474,7 +475,7 @@ public class TestDbusEvent
     String randomValue = RngUtils.randomString(20);
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), true, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), true, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = null;
@@ -508,9 +509,9 @@ public class TestDbusEvent
     String randomKey = RngUtils.randomString(length);
     String randomValue = RngUtils.randomString(20);
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
-    DbusEventFactory.serializeEvent(new DbusEventKey(randomKey.getBytes()), serializationBuffer, eventInfo);
+    DbusEventFactory.serializeEvent(new DbusEventKey(randomKey.getBytes(Charset.defaultCharset())), serializationBuffer, eventInfo);
 
     validateEvent(randomKey, randomValue, serializationBuffer);
 
@@ -519,8 +520,8 @@ public class TestDbusEvent
     String emptyVal = "";
     serializationBuffer.clear();
 
-    DbusEventV1.serializeEvent(new DbusEventKey(emptyKey.getBytes()), (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, emptyVal.getBytes(), false, serializationBuffer);
+    DbusEventV1.serializeEvent(new DbusEventKey(emptyKey.getBytes(Charset.defaultCharset())), (short)0, partitionId, timeStamp, srcId,
+                                                schemaId, emptyVal.getBytes(Charset.defaultCharset()), false, serializationBuffer);
     validateEvent(emptyKey, emptyVal, serializationBuffer);
   }
 
@@ -572,7 +573,7 @@ public class TestDbusEvent
     String randomValue = RngUtils.randomString(20);
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = null;
@@ -601,7 +602,7 @@ public class TestDbusEvent
     String randomValue = RngUtils.randomString(20);
     ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), directBuffer, eventInfo);
     DbusEventInternalReadable e = null;
@@ -624,9 +625,9 @@ public class TestDbusEvent
     String randomKey = RngUtils.randomString(10);
     ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
-    DbusEventFactory.serializeEvent(new DbusEventKey(randomKey.getBytes()), directBuffer, eventInfo);
+    DbusEventFactory.serializeEvent(new DbusEventKey(randomKey.getBytes(Charset.defaultCharset())), directBuffer, eventInfo);
     DbusEventInternalReadable e = null;
     try
     {
@@ -664,7 +665,7 @@ public class TestDbusEvent
     String randomValue = RngUtils.randomString(20);
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo =  new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                 schemaId, randomValue.getBytes(), false, false);
+                                                 schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = _eventV1Factory.createReadOnlyDbusEventFromBuffer(serializationBuffer, 0);
@@ -686,7 +687,7 @@ public class TestDbusEvent
     buffer.flip();
     byte [] schemaVersion = buffer.array();
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaVersion, randomValue.getBytes(), false, false);
+                                                schemaVersion, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), serializationBuffer, eventInfo);
     DbusEventInternalReadable e = _eventV1Factory.createReadOnlyDbusEventFromBuffer(serializationBuffer, 0);
@@ -704,7 +705,7 @@ public class TestDbusEvent
     String randomValue = RngUtils.randomString(20);
     ByteBuffer directBuffer = ByteBuffer.allocateDirect(5000).order(_eventV1Factory.getByteOrder());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp, srcId,
-                                                schemaId, randomValue.getBytes(), false, false);
+                                                schemaId, randomValue.getBytes(Charset.defaultCharset()), false, false);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(key), directBuffer, eventInfo);
     DbusEventInternalReadable e = _eventV1Factory.createReadOnlyDbusEventFromBuffer(directBuffer, 0);
@@ -758,7 +759,7 @@ public class TestDbusEvent
     ByteBuffer serializationBuffer = ByteBuffer.allocate(1000).order(_eventV1Factory.getByteOrder());
 
     DbusEventInfo eventInfo = new DbusEventInfo(null, 2L, (short)0, (short)3, 4L,
-                                                (short)5, schemaId, valueStr.getBytes(), false,
+                                                (short)5, schemaId, valueStr.getBytes(Charset.defaultCharset()), false,
                                                 true);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     DbusEventFactory.serializeEvent(new DbusEventKey(1L), serializationBuffer, eventInfo);
@@ -824,7 +825,7 @@ public class TestDbusEvent
     assertEquals("srcId correct", 5, ((Number)jsonMap.get("srcId")).longValue());
     assertEquals("schemaId correct", Base64.encodeBytes(schemaId), jsonMap.get("schemaId"));
     assertEquals("valueEnc correct", Encoding.JSON.toString(), jsonMap.get("valueEnc"));
-    assertEquals("value correct", Base64.encodeBytes(valueStr.getBytes()), jsonMap.get("value"));
+    assertEquals("value correct", Base64.encodeBytes(valueStr.getBytes(Charset.defaultCharset())), jsonMap.get("value"));
 
     assertTrue("buffer has event", it1.hasNext());
     testEvent = it1.next();
@@ -865,7 +866,7 @@ public class TestDbusEvent
       int savePosition = serializationBuffer.position();
       String valueStr = "eventValue" + i;
       DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, (short)(i + 3), 4L + i, (short)(5 + i),
-                                                  schemaId, valueStr.getBytes(), false, false);
+                                                  schemaId, valueStr.getBytes(Charset.defaultCharset()), false, false);
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
       DbusEventFactory.serializeEvent(new DbusEventKey(1L + i), serializationBuffer, eventInfo);
       DbusEventInternalReadable event = _eventV1Factory.createReadOnlyDbusEventFromBuffer(serializationBuffer,
@@ -917,10 +918,10 @@ public class TestDbusEvent
     try
     {
       DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 0L, (short)0, partitionId, timeStamp,
-                                                  srcId, schemaId, randomValue.getBytes(), true /* enableTracing */,
+                                                  srcId, schemaId, randomValue.getBytes(Charset.defaultCharset()), true /* enableTracing */,
                                                   false /*autoCommit */);
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
-      numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes()), serializationBuffer, eventInfo);
+      numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes(Charset.defaultCharset())), serializationBuffer, eventInfo);
     }
     catch (Exception e1)
     {
@@ -947,8 +948,8 @@ public class TestDbusEvent
     String stringyEvent = e.toString();
     // TODO:  add some sort of substring test for something in stringyEvent
     //        (maybe change key to non-random thing, e.g., "TenCharKey")
-    assertEquals(stringKey.getBytes(), e.keyBytes());
-    assertEquals("Get DbusEventKey",stringKey.getBytes(), ((DbusEventInternalReadable)e).getDbusEventKey().getStringKeyInBytes());
+    assertEquals(stringKey.getBytes(Charset.defaultCharset()), e.keyBytes());
+    assertEquals("Get DbusEventKey",stringKey.getBytes(Charset.defaultCharset()), ((DbusEventInternalReadable)e).getDbusEventKey().getStringKeyInBytes());
 
     // test both string-key and trace-enabled portions of writeTo():
     try
@@ -974,13 +975,13 @@ public class TestDbusEvent
                                                 timeStamp,
                                                 srcId,
                                                 schemaId,
-                                                randomValue.getBytes(),
+                                                randomValue.getBytes(Charset.defaultCharset()),
                                                 false /* enableTracing */,
                                                 true /* autocommit */);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     try
     {
-      numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes()),
+      numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes(Charset.defaultCharset())),
                                                  serializationBuffer,
                                                  eventInfo);
     }
@@ -990,7 +991,7 @@ public class TestDbusEvent
     }
 
     // test 3-arg serializeFullEvent(); returns zero rather than throwing exception:
-    numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes()),
+    numbytes = DbusEventFactory.serializeEvent(new DbusEventKey(stringKey.getBytes(Charset.defaultCharset())),
                                                    serializationBuffer,
                                                    eventInfo);
     assertTrue("numbytes for serialized event should be non-zero", numbytes > 0);
@@ -1003,14 +1004,14 @@ public class TestDbusEvent
                                   timeStamp,
                                   srcId,
                                   schemaId,
-                                  randomValue.getBytes(),
+                                  randomValue.getBytes(Charset.defaultCharset()),
                                   false /* enableTracing */,
                                   false /* autocommit */);
     eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit
     assertEquals("null opcode should still be null", null, eventInfo.getOpCode());
     try
     {
-      numbytes = DbusEventV1.serializeEvent(new DbusEventKey(stringKey.getBytes()),
+      numbytes = DbusEventV1.serializeEvent(new DbusEventKey(stringKey.getBytes(Charset.defaultCharset())),
                                             serializationBuffer,
                                             eventInfo);
     }

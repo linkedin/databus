@@ -258,12 +258,7 @@ public class ClusterCheckpointPersistenceProvider extends
             long curtimeMs = System.currentTimeMillis();
             if ((curtimeMs - _lastTimeWrittenMs) > _checkpointIntervalMs)
             {
-                String key = makeKey(sourceNames);
-                ZNRecord znRecord = new ZNRecord(_id);
-                znRecord.setSimpleField(KEY_CHECKPOINT, checkpoint.toString());
-                znRecord.setSimpleField(KEY_SOURCES,
-                        StringUtils.join(sourceNames.toArray(), ","));
-                _propertyStore.set(key, znRecord, AccessOption.PERSISTENT);
+              storeZkRecord(sourceNames, checkpoint);
                 _lastTimeWrittenMs = curtimeMs;
                 _numWritesSkipped = 0;
             }
@@ -274,7 +269,22 @@ public class ClusterCheckpointPersistenceProvider extends
         }
     }
 
-    @Deprecated
+  /**
+   * @note This method is protected only for tests. Do NOT use it outside of this file.
+   * @param sourceNames List of source names
+   * @param checkpoint Checkpoint object to be stored in zookeeper.
+   */
+  protected void storeZkRecord(List<String> sourceNames, Checkpoint checkpoint)
+  {
+    String key = makeKey(sourceNames);
+    ZNRecord znRecord = new ZNRecord(_id);
+    znRecord.setSimpleField(KEY_CHECKPOINT, checkpoint.toString());
+    znRecord.setSimpleField(KEY_SOURCES,
+            StringUtils.join(sourceNames.toArray(), ","));
+    _propertyStore.set(key, znRecord, AccessOption.PERSISTENT);
+  }
+
+  @Deprecated
     /**
      * read legacy checkpoint without migration
      * 

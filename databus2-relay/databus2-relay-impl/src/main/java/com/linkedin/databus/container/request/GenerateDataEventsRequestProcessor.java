@@ -21,6 +21,7 @@ package com.linkedin.databus.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.List;
@@ -104,16 +105,16 @@ public class GenerateDataEventsRequestProcessor implements RequestProcessor
       Formatter fmt = new Formatter(resBuilder);
       fmt.format("{\"genDataEventsRunning\":\"%b\"}", genRunning);
 
-      request.getResponseContent().write(ByteBuffer.wrap(resBuilder.toString().getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap(resBuilder.toString().getBytes(Charset.defaultCharset())));
     }
     else if (action.equals("stop"))
     {
       _producer.stopGeneration();
-      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-stop\"}".getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-stop\"}".getBytes(Charset.defaultCharset())));
     } else if (action.equals("suspend"))
     {
       _producer.suspendGeneration();
-      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-suspend\"}".getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-suspend\"}".getBytes(Charset.defaultCharset())));
     } else if (action.equals("resume"))
     {
       long numEventToGenerate = request.getOptionalLongParam(NUM_EVENTS_TO_GENERATE, Long.MAX_VALUE);
@@ -121,7 +122,7 @@ public class GenerateDataEventsRequestProcessor implements RequestProcessor
       long keyMax = request.getOptionalLongParam(KEY_MAX_PARAM, Long.MAX_VALUE);
       int percentOfBufferToGenerate = request.getOptionalIntParam(PERCENT_BUFFER_TO_GENERATE, Integer.MAX_VALUE);
       _producer.resumeGeneration(numEventToGenerate, percentOfBufferToGenerate, keyMin, keyMax);
-      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-resume\"}".getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap("{\"genDataEventsRunning\":\"send-resume\"}".getBytes(Charset.defaultCharset())));
     }
     else if (action.equals("start"))
     {
@@ -161,7 +162,7 @@ public class GenerateDataEventsRequestProcessor implements RequestProcessor
       Formatter fmt = new Formatter(resBuilder);
       fmt.format("{\"genDataEventsStarted\":\"%b\"}", tryStart);
 
-      request.getResponseContent().write(ByteBuffer.wrap(resBuilder.toString().getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap(resBuilder.toString().getBytes(Charset.defaultCharset())));
     }
     else
     {

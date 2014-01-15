@@ -51,17 +51,21 @@ externalDependency = [
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
     'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
     'ojdbc6': 'com.oracle:ojdbc6:11.2.0.2.0',
-    'databusEvents': 'com.linkedin.databus-events:databus-events:3.0.89',
-    'databusSchemas': 'com.linkedin.databus-events:databus-schemas:3.0.89',
+    'databusEvents': 'com.linkedin.databus-events:databus-events:3.0.100',
+    'databusSchemas': 'com.linkedin.databus-events:databus-schemas:3.0.100',
     'espressoSchema': 'com.linkedin.espresso:espresso-schema-impl:0.8.1602',
     'espressoCommonImpl': 'com.linkedin.espresso:espresso-common-impl:0.8.1602',
     'espressoStoreImpl': 'com.linkedin.espresso:espresso-store-impl:0.8.1602',
-    'helixCore': 'org.apache.helix:helix-core:0.6.1.3'
+    'helixCore': 'org.apache.helix:helix-core:0.6.1.3',
+    'or': 'com.linkedin.dds-mysql:open-replicator-impl:1.0.63'
 ];
 
 if (System.getProperty('open_source') != null) {
   externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
   externalDependency['helixCore'] = 'org.apache.helix:helix-core:0.6.1-incubating'
+  externalDependency['or'] = 'com.google:open-replicator:1.0.5'
+  // OpenReplicator needs slf4j
+  externalDependency['log4j'] = 'org.slf4j:slf4j-log4j12:1.6.1'
   externalDependency.remove('databusEvents')
   externalDependency.remove('databusSchemas')
   externalDependency.remove('espressoSchema')
@@ -244,3 +248,34 @@ subprojects {
     }
   }
 }
+
+// ======= Integration tests group 1 ======
+task test_group1 << {
+}
+//Add the tests to be run as part of this group as dependencies
+test_group1.dependsOn ':integration-test:integration-test-espresso:leaderElectionTests', ':integration-test:integration-test-espresso:staticHelixIntegrationTests', ':integration-test:integration-test-gg:ggAllTests', ':integration-test:integration-test-integ-ng:integTests'
+
+// ======= Integration tests group 2 =======
+task test_group2 << {
+}
+//Add the tests to be run as part of this group as dependencies
+test_group2.dependsOn ':integration-test:integration-test-espresso:espressoClientTests'
+
+// ======= Integration tests group 3 ======
+task test_group3 << {
+}
+//Add the tests to be run as part of this group as dependencies
+test_group3.dependsOn ':integration-test:integration-test-espresso:espressoDynamicRelayTests'
+
+// ======= Integration tests group 4 =====
+task test_group4 << {
+}
+//Add the tests to be run as part of this group as dependencies
+test_group4.dependsOn ':integration-test:integration-test-espresso:espressoRpldbusAndMultipartitionTests', ':integration-test:integration-test-espresso:espressoBootstrapTests'
+
+// ======= Integration tests group 5 =====
+task test_group5 << {
+}
+//Add the tests to be run as part of this group as dependencies
+test_group5.dependsOn ':integration-test:integration-test-integ:integTests', ':integration-test:integration-test-or:openReplicatorTests'
+

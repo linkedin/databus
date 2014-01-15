@@ -52,6 +52,7 @@ import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 import com.linkedin.databus2.core.mbean.DatabusReadOnlyStatus;
+import com.linkedin.databus2.schemas.SchemaId;
 import com.linkedin.databus2.schemas.VersionedSchema;
 
 
@@ -87,6 +88,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   protected long _lastWindowScn = -1;
   protected long _lastEowTsNsecs = -1;
   private RegistrationId _registrationId;
+  protected boolean _schemaIdCheck=true;
 
   public GenericDispatcher(String name,
                            DatabusSourcesConnection.StaticConfig connConfig,
@@ -134,6 +136,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   public Logger getLog()
   {
     return _log;
+  }
+
+  //disable schemaId checks for unit tests
+  protected void setSchemaIdCheck(boolean schemaIdCheck)
+  {
+      _schemaIdCheck=schemaIdCheck;
   }
 
   @Override
@@ -490,7 +498,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   }
 
 
-  protected boolean doCheckStartSource(DispatcherState curState, Long eventSrcId)
+  protected boolean doCheckStartSource(DispatcherState curState, Long eventSrcId,SchemaId schemaId)
   {
     boolean success = true;
 
@@ -499,15 +507,21 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       IdNamePair source = curState.getSources().get(eventSrcId);
       if (null == source)
       {
-        _log.error("Unable to find source: id=" + eventSrcId);
+        _log.error("Unable to find source: srcid=" + eventSrcId);
         success = false;
       }
       else
       {
         VersionedSchema verSchema = curState.getSchemaSet().getLatestVersionByName(source.getName());
+        VersionedSchema exactSchema = _schemaIdCheck ? curState.getSchemaSet().getById(schemaId):null;
         if (null == verSchema)
         {
-          _log.error("Unable to find schema: id=" + source.getId() + " name=" + source.getName());
+          _log.error("Unable to find schema: srcid=" + source.getId() + " name=" + source.getName());
+          success = false;
+        }
+        else if (_schemaIdCheck && null==exactSchema)
+        {
+          _log.error("Unable to find schema: srcid=" + source.getId() + " name=" + source.getName() + " schemaId=" + schemaId);
           success = false;
         }
         else if (verSchema.getSchema() != curState.getCurrentSourceSchema())
@@ -826,7 +840,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
           if (success && (eventSrcId.longValue() >= 0))
           {
-            success = doCheckStartSource(curState, eventSrcId);
+            success = doCheckStartSource(curState, eventSrcId,new SchemaId(nextEvent.schemaId()));
           }
         }
         else
@@ -840,7 +854,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
           if (success)
           {
-            success = doCheckStartSource(curState, eventSrcId);
+            //Check if schemas of the source exist.
+            //Also check if the exact schema id present in event exists in the client. This is worthwhile if there's a
+            //guarantee that the entire window is written with the same schemaId, which is the case if the relay does not use a new schema
+            //mid-window
+            success = doCheckStartSource(curState, eventSrcId,new SchemaId(nextEvent.schemaId()));
           }
 
         }

@@ -20,6 +20,7 @@ package com.linkedin.databus2.core.container;
 
 
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.Charset;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -97,7 +98,7 @@ public class TestExtendedReadTimeoutHandler
             ExceptionListenerTestHandler.class.getSimpleName());
 
     //send a request
-    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes());
+    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes(Charset.defaultCharset()));
     clientConn.getChannel().write(msg);
 
     //wait for the request to propagate
@@ -110,7 +111,7 @@ public class TestExtendedReadTimeoutHandler
     //start server read timeout
     srvTimeoutHandler.start(lastSrvConnPipeline.getContext(srvTimeoutHandler));
 
-    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     clientConn.getChannel().write(msg2);
 
     //start the client timeout handler
@@ -123,7 +124,7 @@ public class TestExtendedReadTimeoutHandler
     //stop server read timeout
     srvTimeoutHandler.stop();
 
-    ChannelBuffer resp = ChannelBuffers.wrappedBuffer("hi there".getBytes());
+    ChannelBuffer resp = ChannelBuffers.wrappedBuffer("hi there".getBytes(Charset.defaultCharset()));
     lastSrvConnPipeline.getChannel().write(resp);
 
     //wait for the response to propagate
@@ -133,7 +134,7 @@ public class TestExtendedReadTimeoutHandler
     Assert.assertNull(clientExceptionListener.getLastException(), "no client read timeout");
     Assert.assertEquals(clientMsgReader.getMsg(), "hi there", "response read");
 
-    ChannelBuffer resp2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer resp2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     lastSrvConnPipeline.getChannel().write(resp2);
 
     //wait for the response to propagate
@@ -209,7 +210,7 @@ public class TestExtendedReadTimeoutHandler
     for (int i = 0; i < 50; ++i)
     {
       //send a request
-      ChannelBuffer msg = ChannelBuffers.wrappedBuffer(("hello" + i).getBytes());
+      ChannelBuffer msg = ChannelBuffers.wrappedBuffer(("hello" + i).getBytes(Charset.defaultCharset()));
       clientConn.getChannel().write(msg);
 
       //wait for the request to propagate
@@ -223,7 +224,7 @@ public class TestExtendedReadTimeoutHandler
       if (0 == i) srvTimeoutHandler.start(lastSrvConnPipeline.getContext(srvTimeoutHandler));
     }
 
-    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     clientConn.getChannel().write(msg2);
 
     //start the client timeout handler
@@ -239,7 +240,7 @@ public class TestExtendedReadTimeoutHandler
     for (int  i = 0; i < 100; ++i)
     {
       String responseString = "hi there " + i;
-      ChannelBuffer resp = ChannelBuffers.wrappedBuffer(responseString.getBytes());
+      ChannelBuffer resp = ChannelBuffers.wrappedBuffer(responseString.getBytes(Charset.defaultCharset()));
       lastSrvConnPipeline.getChannel().write(resp);
 
       //wait for the response to propagate
@@ -250,7 +251,7 @@ public class TestExtendedReadTimeoutHandler
       Assert.assertEquals(clientMsgReader.getMsg(), responseString, "response read: " + i);
     }
 
-    ChannelBuffer resp2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer resp2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     lastSrvConnPipeline.getChannel().write(resp2);
 
     //wait for the response to propagate
@@ -315,7 +316,7 @@ public class TestExtendedReadTimeoutHandler
             ExceptionListenerTestHandler.class.getSimpleName());
 
     //send a request
-    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes());
+    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes(Charset.defaultCharset()));
     ChannelFuture writeFuture = clientConn.getChannel().write(msg);
 
     //wait for the request to propagate
@@ -333,7 +334,7 @@ public class TestExtendedReadTimeoutHandler
     //Timeout
     try {Thread.sleep(300);} catch (InterruptedException ie){};
 
-    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     writeFuture = clientConn.getChannel().write(msg2);
 
     //wait for the respomse to propagate
@@ -407,7 +408,7 @@ public class TestExtendedReadTimeoutHandler
             ExceptionListenerTestHandler.class.getSimpleName());
 
     //send a request
-    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes());
+    ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes(Charset.defaultCharset()));
     clientConn.getChannel().write(msg);
 
     //wait for the request to propagate
@@ -420,7 +421,7 @@ public class TestExtendedReadTimeoutHandler
     //start server read timeout
     srvTimeoutHandler.start(lastSrvConnPipeline.getContext(srvTimeoutHandler));
 
-    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes());
+    ChannelBuffer msg2 = ChannelBuffers.wrappedBuffer("eom".getBytes(Charset.defaultCharset()));
     clientConn.getChannel().write(msg2);
 
     //start the client timeout handler
@@ -433,7 +434,7 @@ public class TestExtendedReadTimeoutHandler
     //stop server read timeout
     srvTimeoutHandler.stop();
 
-    ChannelBuffer resp = ChannelBuffers.wrappedBuffer("hi there".getBytes());
+    ChannelBuffer resp = ChannelBuffers.wrappedBuffer("hi there".getBytes(Charset.defaultCharset()));
 
     //Induce timeout
     try {Thread.sleep(500);} catch (InterruptedException ie){};

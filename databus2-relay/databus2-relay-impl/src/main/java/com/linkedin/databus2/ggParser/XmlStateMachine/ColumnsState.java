@@ -328,22 +328,22 @@ public class ColumnsState extends AbstractStateTransitionProcessor
   }
 
   public static class KeyPair{
-    Object key;
-    Schema.Type keyType;
+    private final Object _key;
+    private final Schema.Type _keyType;
 
     public Schema.Type getKeyType()
     {
-      return keyType;
+      return _keyType;
     }
 
     public Object getKey()
     {
-      return key;
+      return _key;
     }
     public KeyPair(Object key, Schema.Type keyType)
     {
-      this.key = key;
-      this.keyType = keyType;
+      this._key = key;
+      this._keyType = keyType;
     }
 
 
@@ -355,8 +355,8 @@ public class ColumnsState extends AbstractStateTransitionProcessor
 
       KeyPair keyPair = (KeyPair) o;
 
-      if (!key.equals(keyPair.key)) return false;
-      if (keyType != keyPair.keyType) return false;
+      if (!_key.equals(keyPair._key)) return false;
+      if (_keyType != keyPair._keyType) return false;
 
       return true;
     }
@@ -364,11 +364,16 @@ public class ColumnsState extends AbstractStateTransitionProcessor
     @Override
     public int hashCode()
     {
-      int result = key.hashCode();
-      result = 31 * result + keyType.hashCode();
+      int result = _key.hashCode();
+      result = 31 * result + _keyType.hashCode();
       return result;
     }
 
+    @Override
+    public String toString()
+    {
+      return "KeyPair [key=" + _key + ", keyType=" + _keyType + "]";
+    }
   }
 }
 

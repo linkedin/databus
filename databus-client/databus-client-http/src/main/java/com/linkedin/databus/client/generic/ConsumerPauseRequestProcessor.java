@@ -21,6 +21,7 @@ package com.linkedin.databus.client.generic;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
 import org.apache.log4j.Logger;
@@ -68,12 +69,12 @@ public class ConsumerPauseRequestProcessor implements RequestProcessor
     if (action.equals("pause"))
     {
       _pauseConsumer.pause();
-      request.getResponseContent().write(ByteBuffer.wrap("{\"pauseConsumer\":\"set-pause\"}".getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap("{\"pauseConsumer\":\"set-pause\"}".getBytes(Charset.defaultCharset())));
     }
     else if (action.equals("resume"))
     {
       _pauseConsumer.resume();
-      request.getResponseContent().write(ByteBuffer.wrap("{\"pauseConsumer\":\"set-resume\"}".getBytes()));
+      request.getResponseContent().write(ByteBuffer.wrap("{\"pauseConsumer\":\"set-resume\"}".getBytes(Charset.defaultCharset())));
     }
     else
     {

@@ -42,6 +42,7 @@ import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusConstants;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.InvalidCheckpointException;
 import com.linkedin.databus.core.async.ActorMessageQueue;
 import com.linkedin.databus2.core.container.ExtendedReadTimeoutHandler;
@@ -131,7 +132,7 @@ public class NettyHttpDatabusBootstrapConnection
     _callbackStateReuse = stateReuse;
     _handler = null;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (!hasConnection())
     {
       connect(State.TARGET_SCN_REQUEST_CONNECT);
     }
@@ -176,7 +177,7 @@ public class NettyHttpDatabusBootstrapConnection
     _sourcesNameList = sourceNamesList;
     _handler = null;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (!hasConnection())
     {
       connect(State.START_SCN_REQUEST_CONNECT);
     }
@@ -226,7 +227,7 @@ public class NettyHttpDatabusBootstrapConnection
     _filter = filter;
     _handler = null;
 
-    if (null == _channel || ! _channel.isConnected())
+    if (!hasConnection())
     {
       connect(State.STREAM_REQUEST_CONNECT);
     }
@@ -559,7 +560,7 @@ class BootstrapTargetScnHttpResponseProcessor extends BaseHttpResponseProcessor
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("exception during /targetSCN response: " + cause, cause);
+    DbusPrettyLogUtils.logExceptionAtError("Exception during /targetSCN response: ", cause, LOG);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
     	LOG.info("Enqueueing TargetSCN Response Error State to Puller Queue");
@@ -674,27 +675,18 @@ class BootstrapStartScnHttpResponseProcessor extends BaseHttpResponseProcessor
         }
         else
         {
-          /*
-           * No need to create a seperate BootstrapConnection as we are guaranteed to have a bootstrap Connection
-           * at this point.
-           */
-          _stateReuse.switchToStartScnSuccess(_checkpoint, null, serverInfo);
-
-          //Checkpoint ckpt = new Checkpoint();
-          //ckpt.setInit(true);
-          // TODO: add the following when the method is added in checkpoint (DDSDBUS-94)
-          // ckpt.setAllBootstrapSources(_readStartScnState.getSourcesNames());
-          //ckpt.setBootstrapStartScn(startScn);
-          //ckpt.setBootstrapPhase(BootstrapPhase.BOOTSTRAP_PHASE_SNAPSHOT);
-          //ckpt.setSnapshotSource(_readStartScnState.getSourcesNames().get(0));
-          //ckpt.startSnapShotSource();
-
           LOG.info("Start SCN "
                     + startScn
                     + " received for bootstrap snapshot source "
                     + ckpt.getSnapshotSource());
           ckpt.setBootstrapStartScn(startScn);
           ckpt.setBootstrapServerInfo(serverHostPort);
+
+          /*
+           * No need to create a seperate BootstrapConnection as we are guaranteed to have a bootstrap Connection
+           * at this point.
+           */
+          _stateReuse.switchToStartScnSuccess(_checkpoint, null, serverInfo);
         }
       }
     }
@@ -717,7 +709,7 @@ class BootstrapStartScnHttpResponseProcessor extends BaseHttpResponseProcessor
   @Override
   public void handleChannelException(Throwable cause)
   {
-    LOG.error("exception during /startSCN response: " + cause, cause);
+    DbusPrettyLogUtils.logExceptionAtError("Exception during /startSCN response: ", cause, LOG);
     if (_responseStatus != ResponseStatus.CHUNKS_FINISHED)
     {
     	LOG.info("Enqueueing StartSCN Response Error State to Puller Queue");

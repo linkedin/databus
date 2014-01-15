@@ -9,6 +9,8 @@ dependencies {
   compile project(':databus-client:databus-client-http')
   compile project(':databus2-relay:databus2-event-producer-common')
   compile project(':databus2-relay:databus2-event-producer-mock')
+  compile project(':databus2-relay:databus2-event-producer-or')
+//  compile project(':databus-util-cmdline:databus-util-cmdline-impl')
 
   compile externalDependency.avro
   compile externalDependency.commonsBeanutils

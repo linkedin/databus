@@ -140,7 +140,13 @@ public class TestClusterCheckpointPersistenceProvider
     cp.setWindowOffset(-1);
     cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
 
-    int checkPointIntervalMs = 200;
+    final int checkPointIntervalMs = 75;
+    final long delayMs = 31;
+    final int numAttemptedWrites = 7;
+    // We should write at 0, 31, 62, 93, 123, 155, 186, but only at at 0, 93, 155
+    // Persistent provider clock: 0              75           150            225
+    // checkpoint store clock     0    31   62       93  123      155  186
+    final int expectedActualStores = 3;
 
     String id = "5";
     String clusterName = "test-cluster-freq";
@@ -157,18 +163,12 @@ public class TestClusterCheckpointPersistenceProvider
 
     try
     {
-      ClusterCheckpointPersistenceProvider ccp = new ClusterCheckpointPersistenceProvider(
-          id, conf);
-      long delayMs = 50;
-      int numAttemptedWrites = 100;
-      int numActualStores = 0;
-      int expectedActualStores = (delayMs >= checkPointIntervalMs) ? numAttemptedWrites
-          : (int) ((numAttemptedWrites / (checkPointIntervalMs / delayMs)));
+      TestFrequencyCPP ccp = new TestFrequencyCPP(id, conf);
       for (int i = 0; i < numAttemptedWrites; ++i)
       {
         cp.setWindowScn(startWindowScn + i);
         ccp.storeCheckpoint(sources, cp);
-        Checkpoint newCp = ccp.loadCheckpoint(sources);
+        Checkpoint newCp = ccp.getStoredCheckpoint();
         // cp integrity checks
         Assert.assertTrue(newCp != null);
         Assert.assertTrue(newCp.getWindowOffset() == cp
@@ -176,16 +176,9 @@ public class TestClusterCheckpointPersistenceProvider
         Assert.assertTrue(newCp.getConsumptionMode() == cp
             .getConsumptionMode());
         // skipped store test;
-        if (newCp.getWindowScn() == cp.getWindowScn())
-        {
-          numActualStores++;
-        }
         Thread.sleep(delayMs);
       }
-      LOG.warn("Num actual stores=" + numActualStores
-          + " Num expected stores=" + expectedActualStores);
-      Assert.assertTrue((numActualStores == expectedActualStores)
-          || (numActualStores == expectedActualStores + 1));
+      Assert.assertEquals(ccp.getnStores(), expectedActualStores);
     }
     finally
     {
@@ -256,6 +249,11 @@ public class TestClusterCheckpointPersistenceProvider
     {
       return _clusterName;
     }
+    finally
+    {
+      ClusterCheckpointPersistenceProvider.close(clusterName);
+    }
+  }
 
     @Override
     public void run()
@@ -305,6 +303,35 @@ public class TestClusterCheckpointPersistenceProvider
       {
         ClusterCheckpointPersistenceProvider.close(_clusterName);
       }
+    }
+  }
+  public static class TestFrequencyCPP extends ClusterCheckpointPersistenceProvider
+  {
+    private int nStores = 0;
+
+    private Checkpoint storedCheckpoint = null;
+
+    public TestFrequencyCPP(String id, Config config)
+        throws InvalidConfigException, ClusterCheckpointException
+    {
+      super(id, config);
+    }
+
+    @Override
+    protected void storeZkRecord(List<String> sourceNames, Checkpoint checkpoint)
+    {
+      storedCheckpoint = checkpoint;
+      nStores++;
+    }
+
+    public int getnStores()
+    {
+      return nStores;
+    }
+
+    public Checkpoint getStoredCheckpoint()
+    {
+      return storedCheckpoint;
     }
   }
 }

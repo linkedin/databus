@@ -161,7 +161,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
         }
         default:
         {
-          LOG.error("Unkown Lifecycle message in RelayPullThread: " + lcMessage.getTypeId());
+          LOG.error("Unknown Lifecycle message in RelayPullThread: " + lcMessage.getTypeId());
           success = false;
           break;
         }

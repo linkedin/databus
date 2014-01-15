@@ -21,6 +21,7 @@ package com.linkedin.databus.container.request;
 import java.io.IOException;
 import java.io.StringWriter;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -192,7 +193,7 @@ public class RegisterRequestProcessor implements RequestProcessor
       }
 
       ChunkedWritableByteChannel responseContent = request.getResponseContent();
-      byte[] resultBytes = out.toString().getBytes();
+      byte[] resultBytes = out.toString().getBytes(Charset.defaultCharset());
       responseContent.addMetadata(DatabusHttpHeaders.DBUS_CLIENT_RELAY_PROTOCOL_VERSION_HDR,
                                   registerResponseProtocolVersion);
       responseContent.write(ByteBuffer.wrap(resultBytes));

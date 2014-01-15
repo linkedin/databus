@@ -17,6 +17,10 @@ package com.linkedin.databus2.schemas.utils;
  */
 
 
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.avro.Schema;
@@ -208,6 +212,40 @@ public class SchemaHelper
    */
   public static final byte[] getSchemaId(String schema)
   {
-    return Utils.md5(schema.toString().getBytes());
+    return Utils.md5(schema.getBytes(Charset.defaultCharset()));
+  }
+
+  /**
+   * Order the fields  present in the schema based on the metaFieldName and comparator being passed.
+   *
+   * @param schema  Schema containing the fields to be ordered
+   * @param metaFieldName Meta Field for ordering
+   * @param comparator comparator for sorting
+   * @return ordered Field list or null if schema is null
+   */
+  public static List<Field> getOrderedFieldsByMetaField(final Schema schema,
+                                                        final String metaFieldName,
+                                                        final Comparator<String> comparator )
+  {
+    if ( null == schema)
+      return null;
+
+    // It is safer to create a copy of fields list, as we want to change the order only on the copy
+    // so as to not confuse AVRO in case it returns the internal fields collection
+    List<Field> fields = new ArrayList<Field>(schema.getFields());
+
+    Collections.sort(fields, new Comparator<Field>() {
+
+      @Override
+      public int compare(Field o1, Field o2)
+      {
+        String m1 = getMetaField(o1, metaFieldName);
+        String m2 = getMetaField(o2, metaFieldName);
+        return comparator.compare(m1, m2);
+      }
+
+    });
+    return fields;
+
   }
 }

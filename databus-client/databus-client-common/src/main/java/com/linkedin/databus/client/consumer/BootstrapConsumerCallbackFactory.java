@@ -26,90 +26,155 @@ import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
 import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStats;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
+import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventInternalWritable;
 
 /**
- * A factory for bootstrap consumer callbacks.
- * @author cbotev
- *
+ * A factory for bootstrap-consumer callbacks.
  */
 public class BootstrapConsumerCallbackFactory implements ConsumerCallbackFactory<DatabusCombinedConsumer>
 {
+  protected final ConsumerCallbackStats _consumerStats;
+  protected final UnifiedClientStats _unifiedClientStats;
 
-  @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createCheckpointCallable(long currentNanos, SCN scn, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public BootstrapConsumerCallbackFactory(ConsumerCallbackStats consumerStats,
+                                          UnifiedClientStats unifiedClientStats)
   {
-    return new BootstrapCheckpointCallable(currentNanos, scn, consumer,stats);
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createDataEventCallable(long currentNanos, DbusEvent e, DbusEventDecoder eventDecoder,
-                                 DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createCheckpointCallable(long currentNanos,
+                                                                           SCN scn,
+                                                                           DatabusCombinedConsumer consumer,
+                                                                           boolean updateStats)
   {
-    return new BootstrapDataEventCallable(currentNanos, e, eventDecoder, consumer,stats);
+    if (updateStats) {
+      return new BootstrapCheckpointCallable(currentNanos, scn, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new BootstrapCheckpointCallable(currentNanos, scn, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createEndConsumptionCallable(long currentNanos, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createDataEventCallable(long currentNanos,
+                                                                          DbusEvent e,
+                                                                          DbusEventDecoder eventDecoder,
+                                                                          DatabusCombinedConsumer consumer,
+                                                                          boolean updateStats)
   {
-    return new StopBootstrapCallable(currentNanos, consumer,stats);
+    if (updateStats) {
+      return new BootstrapDataEventCallable(currentNanos, e, eventDecoder, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new BootstrapDataEventCallable(currentNanos, e, eventDecoder, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createEndDataEventSequenceCallable(long currentNanos, SCN scn,
-                                            DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createEndConsumptionCallable(long currentNanos,
+                                                                               DatabusCombinedConsumer consumer,
+                                                                               boolean updateStats)
   {
-    return new EndBootstrapEventSequenceCallable(currentNanos, scn, consumer,stats);
+    if (updateStats) {
+      return new StopBootstrapCallable(currentNanos, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new StopBootstrapCallable(currentNanos, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createEndSourceCallable(long currentNanos, String source, Schema sourceSchema,
-                                 DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createEndDataEventSequenceCallable(long currentNanos,
+                                                                                     SCN scn,
+                                                                                     DatabusCombinedConsumer consumer,
+                                                                                     boolean updateStats)
   {
-    return new EndBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer,stats);
+    if (updateStats) {
+      return new EndBootstrapEventSequenceCallable(currentNanos, scn, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new EndBootstrapEventSequenceCallable(currentNanos, scn, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createRollbackCallable(long currentNanos, SCN scn, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createEndSourceCallable(long currentNanos,
+                                                                          String source,
+                                                                          Schema sourceSchema,
+                                                                          DatabusCombinedConsumer consumer,
+                                                                          boolean updateStats)
   {
-    return new BootstrapRollbackCallable(currentNanos, scn, consumer,stats);
+    if (updateStats) {
+      return new EndBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new EndBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createStartConsumptionCallable(long currentNanos, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createRollbackCallable(long currentNanos,
+                                                                         SCN scn,
+                                                                         DatabusCombinedConsumer consumer,
+                                                                         boolean updateStats)
   {
-    return new StartBootstrapCallable(currentNanos, consumer,stats);
+    if (updateStats) {
+      return new BootstrapRollbackCallable(currentNanos, scn, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new BootstrapRollbackCallable(currentNanos, scn, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createStartDataEventSequenceCallable(long currentNanos, SCN scn,
-                                              DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createStartConsumptionCallable(long currentNanos,
+                                                                                 DatabusCombinedConsumer consumer,
+                                                                                 boolean updateStats)
   {
-    return new StartBootstrapEventSequenceCallable(currentNanos, scn, consumer,stats);
+    if (updateStats) {
+      return new StartBootstrapCallable(currentNanos, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new StartBootstrapCallable(currentNanos, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-         createStartSourceCallable(long currentNanos, String source, Schema sourceSchema,
-                                   DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createStartDataEventSequenceCallable(long currentNanos,
+                                                                                       SCN scn,
+                                                                                       DatabusCombinedConsumer consumer,
+                                                                                       boolean updateStats)
   {
-    return new StartBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer,stats);
+    if (updateStats) {
+      return new StartBootstrapEventSequenceCallable(currentNanos, scn, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new StartBootstrapEventSequenceCallable(currentNanos, scn, consumer, null, null);
+    }
   }
 
   @Override
-  public ConsumerCallable<ConsumerCallbackResult>
-          createOnErrorCallable(long currentNanos, Throwable err, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public ConsumerCallable<ConsumerCallbackResult> createStartSourceCallable(long currentNanos,
+                                                                            String source,
+                                                                            Schema sourceSchema,
+                                                                            DatabusCombinedConsumer consumer,
+                                                                            boolean updateStats)
   {
-    return new OnBootstrapErrorCallable(currentNanos, err, consumer,stats);
+    if (updateStats) {
+      return new StartBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new StartBootstrapSourceCallable(currentNanos, source, sourceSchema, consumer, null, null);
+    }
+  }
+
+  @Override
+  public ConsumerCallable<ConsumerCallbackResult> createOnErrorCallable(long currentNanos,
+                                                                        Throwable err,
+                                                                        DatabusCombinedConsumer consumer,
+                                                                        boolean updateStats)
+  {
+    if (updateStats) {
+      return new OnBootstrapErrorCallable(currentNanos, err, consumer, _consumerStats, _unifiedClientStats);
+    } else {
+      return new OnBootstrapErrorCallable(currentNanos, err, consumer, null, null);
+    }
   }
 
 }
@@ -119,16 +184,18 @@ class OnBootstrapErrorCallable extends ConsumerCallable<ConsumerCallbackResult>
   private final Throwable _err;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
-
+  private final UnifiedClientStats _unifiedClientStats;
 
   public OnBootstrapErrorCallable(long currentNanos, Throwable err,
                                   DatabusCombinedConsumer consumer,
-                                  ConsumerCallbackStats stats)
+                                  ConsumerCallbackStats consumerStats,
+                                  UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _err = err;
     _consumer = consumer;
-    _consumerStats=stats;
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -136,23 +203,29 @@ class OnBootstrapErrorCallable extends ConsumerCallable<ConsumerCallbackResult>
   {
     return _consumer.onBootstrapError(_err);
   }
+
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class BootstrapCheckpointCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -160,15 +233,19 @@ class BootstrapCheckpointCallable extends ConsumerCallable<ConsumerCallbackResul
   private final SCN _scn;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public BootstrapCheckpointCallable(long currentNanos, SCN scn, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public BootstrapCheckpointCallable(long currentNanos,
+                                     SCN scn,
+                                     DatabusCombinedConsumer consumer,
+                                     ConsumerCallbackStats consumerStats,
+                                     UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _scn = scn;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -181,20 +258,25 @@ class BootstrapCheckpointCallable extends ConsumerCallable<ConsumerCallbackResul
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class BootstrapDataEventCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -203,24 +285,32 @@ class BootstrapDataEventCallable extends ConsumerCallable<ConsumerCallbackResult
   private final DbusEventDecoder _eventDecoder;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-  public BootstrapDataEventCallable(long currentNanos, DbusEvent e, DbusEventDecoder eventDecoder,
-          DatabusCombinedConsumer consumer)
+  public BootstrapDataEventCallable(long currentNanos,
+                                    DbusEvent e,
+                                    DbusEventDecoder eventDecoder,
+                                    DatabusCombinedConsumer consumer)
   {
-	  this(currentNanos,e,eventDecoder,consumer,null);
+    this(currentNanos, e, eventDecoder, consumer, null, null);
   }
 
-  public BootstrapDataEventCallable(long currentNanos, DbusEvent e, DbusEventDecoder eventDecoder,
-                                    DatabusCombinedConsumer consumer,ConsumerCallbackStats consumerStats)
+  public BootstrapDataEventCallable(long currentNanos,
+                                    DbusEvent e,
+                                    DbusEventDecoder eventDecoder,
+                                    DatabusCombinedConsumer consumer,
+                                    ConsumerCallbackStats consumerStats,
+                                    UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     if (!(e instanceof DbusEventInternalWritable)) {
-      throw new UnsupportedClassVersionError("Cannot support cloning on non-Dbusevent");
+      throw new UnsupportedClassVersionError("Cannot support cloning on non-DbusEvent");
     }
     _event = ((DbusEventInternalWritable)e).clone(null);
     _eventDecoder = eventDecoder;
     _consumer = consumer;
     _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -232,34 +322,42 @@ class BootstrapDataEventCallable extends ConsumerCallable<ConsumerCallbackResult
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			_consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerDataEventsProcessed(1, totalTime,_event);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerDataErrorsProcessed();
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerDataEventsProcessed(1, totalTime, _event);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class StopBootstrapCallable extends ConsumerCallable<ConsumerCallbackResult>
 {
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public StopBootstrapCallable(long currentNanos, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public StopBootstrapCallable(long currentNanos,
+                               DatabusCombinedConsumer consumer,
+                               ConsumerCallbackStats consumerStats,
+                               UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -267,23 +365,29 @@ class StopBootstrapCallable extends ConsumerCallable<ConsumerCallbackResult>
   {
     return _consumer.onStopBootstrap();
   }
+
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class EndBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -291,16 +395,18 @@ class EndBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallbac
   private final SCN _scn;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
-
+  private final UnifiedClientStats _unifiedClientStats;
 
   public EndBootstrapEventSequenceCallable(long currentNanos, SCN scn,
-                                           DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+                                           DatabusCombinedConsumer consumer,
+                                           ConsumerCallbackStats consumerStats,
+                                           UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _scn = scn;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -312,20 +418,25 @@ class EndBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallbac
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerSysErrorsProcessed();
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerSystemEventProcessed(totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerSysErrorsProcessed();
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerSystemEventProcessed(totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class EndBootstrapSourceCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -334,17 +445,21 @@ class EndBootstrapSourceCallable extends ConsumerCallable<ConsumerCallbackResult
   private final Schema _sourceSchema;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public EndBootstrapSourceCallable(long currentNanos, String source, Schema sourceSchema,
-                                    DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public EndBootstrapSourceCallable(long currentNanos,
+                                    String source,
+                                    Schema sourceSchema,
+                                    DatabusCombinedConsumer consumer,
+                                    ConsumerCallbackStats consumerStats,
+                                    UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _source = source;
     _sourceSchema = sourceSchema;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -356,20 +471,25 @@ class EndBootstrapSourceCallable extends ConsumerCallable<ConsumerCallbackResult
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class BootstrapRollbackCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -377,15 +497,18 @@ class BootstrapRollbackCallable extends ConsumerCallable<ConsumerCallbackResult>
   private final SCN _scn;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public BootstrapRollbackCallable(long currentNanos, SCN scn, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public BootstrapRollbackCallable(long currentNanos, SCN scn,
+                                   DatabusCombinedConsumer consumer,
+                                   ConsumerCallbackStats consumerStats,
+                                   UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _scn = scn;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -393,37 +516,46 @@ class BootstrapRollbackCallable extends ConsumerCallable<ConsumerCallbackResult>
   {
     return _consumer.onBootstrapRollback(_scn);
   }
+
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class StartBootstrapCallable extends ConsumerCallable<ConsumerCallbackResult>
 {
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public StartBootstrapCallable(long currentNanos, DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public StartBootstrapCallable(long currentNanos,
+                                DatabusCombinedConsumer consumer,
+                                ConsumerCallbackStats consumerStats,
+                                UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -435,20 +567,25 @@ class StartBootstrapCallable extends ConsumerCallable<ConsumerCallbackResult>
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }
 
 class StartBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallbackResult>
@@ -456,16 +593,18 @@ class StartBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallb
   private final SCN _scn;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
-
+  private final UnifiedClientStats _unifiedClientStats;
 
   public StartBootstrapEventSequenceCallable(long currentNanos, SCN scn,
-                                             DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+                                             DatabusCombinedConsumer consumer,
+                                             ConsumerCallbackStats consumerStats,
+                                             UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _scn = scn;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -477,18 +616,24 @@ class StartBootstrapEventSequenceCallable extends ConsumerCallable<ConsumerCallb
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
 }
 
@@ -498,17 +643,21 @@ class StartBootstrapSourceCallable extends ConsumerCallable<ConsumerCallbackResu
   private final Schema _sourceSchema;
   private final DatabusCombinedConsumer _consumer;
   private final ConsumerCallbackStats _consumerStats;
+  private final UnifiedClientStats _unifiedClientStats;
 
-
-  public StartBootstrapSourceCallable(long currentNanos, String source, Schema sourceSchema,
-                                      DatabusCombinedConsumer consumer,ConsumerCallbackStats stats)
+  public StartBootstrapSourceCallable(long currentNanos,
+                                      String source,
+                                      Schema sourceSchema,
+                                      DatabusCombinedConsumer consumer,
+                                      ConsumerCallbackStats consumerStats,
+                                      UnifiedClientStats unifiedClientStats)
   {
     super(currentNanos);
     _source = source;
     _sourceSchema = sourceSchema;
     _consumer = consumer;
-    _consumerStats=stats;
-
+    _consumerStats = consumerStats;
+    _unifiedClientStats = unifiedClientStats;
   }
 
   @Override
@@ -520,18 +669,23 @@ class StartBootstrapSourceCallable extends ConsumerCallable<ConsumerCallbackResu
   @Override
   protected void doEndCall(ConsumerCallbackResult result)
   {
- 	 if (_consumerStats != null)
- 	 {
- 		 if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
- 		 {
- 			 _consumerStats.registerErrorEventsProcessed(1);
- 		 }
- 		 else
- 		 {
- 		 	 long totalTime = (getNanoRunTime() + getNanoTimeInQueue())/1000000;
- 			 _consumerStats.registerEventsProcessed(1,totalTime);
- 		 }
- 	 }
+    if (result==ConsumerCallbackResult.ERROR || result==ConsumerCallbackResult.ERROR_FATAL)
+    {
+      if (_consumerStats != null) _consumerStats.registerErrorEventsProcessed(1);
+      if (_unifiedClientStats != null) _unifiedClientStats.registerCallbackError();
+    }
+    else
+    {
+      long nanoRunTime = getNanoRunTime();
+      if (_consumerStats != null)
+      {
+        long totalTime = (nanoRunTime + getNanoTimeInQueue()) / DbusConstants.NUM_NSECS_IN_MSEC;
+        _consumerStats.registerEventsProcessed(1, totalTime);
+      }
+      if (_unifiedClientStats != null)
+      {
+        _unifiedClientStats.registerCallbacksProcessed(nanoRunTime);
+      }
+    }
   }
-
 }

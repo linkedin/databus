@@ -165,7 +165,10 @@ public class DatabusComponentAdmin implements DatabusComponentAdminMBean
       try
       {
         _mbeanServer.registerMBean(this, _mbeanObjectName);
-        LOG.info("MBean registered " + _mbeanObjectName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + _mbeanObjectName);
+        }
       }
       catch (Exception e)
       {
@@ -181,7 +184,10 @@ public class DatabusComponentAdmin implements DatabusComponentAdminMBean
       try
       {
         JmxUtil.unregisterMBeanSafely(_mbeanServer, _mbeanObjectName, LOG);
-        LOG.info("MBean unregistered " + _mbeanObjectName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + _mbeanObjectName);
+        }
       }
       catch (Exception e)
       {

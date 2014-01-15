@@ -20,6 +20,7 @@ package com.linkedin.databus.client.netty;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -1517,7 +1518,7 @@ public class TestResponseProcessors
   {
 	  String result =
 		  "[{\"id\":202,\"version\":1}]";
-	  byte[] b = result.getBytes();
+	  byte[] b = result.getBytes(Charset.defaultCharset());
 	  ByteBuffer buf = ByteBuffer.wrap(b);
 	  ChannelBuffer c = HeapChannelBufferFactory.getInstance().getBuffer(buf);
 	  return c;
@@ -1527,7 +1528,7 @@ public class TestResponseProcessors
   {
 	  String result =
 		  "[{\"name\":\"com.linkedin.events.company.Companies\",\"id\":301}]";
-	  byte[] b = result.getBytes();
+	  byte[] b = result.getBytes(Charset.defaultCharset());
 	  ByteBuffer buf = ByteBuffer.wrap(b);
 	  ChannelBuffer c = HeapChannelBufferFactory.getInstance().getBuffer(buf);
 	  return c;
@@ -1537,7 +1538,7 @@ public class TestResponseProcessors
   {
 	  String result =
 		  "5678912";
-	  byte[] b = result.getBytes();
+	  byte[] b = result.getBytes(Charset.defaultCharset());
 	  ByteBuffer buf = ByteBuffer.wrap(b);
 	  ChannelBuffer c = HeapChannelBufferFactory.getInstance().getBuffer(buf);
 	  return c;

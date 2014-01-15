@@ -23,6 +23,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.JsonParseException;
@@ -49,7 +50,7 @@ public class DbusErrorEvent
   public static DbusErrorEvent createDbusErrorEvent(String serilizedErrorEvent)
     throws JsonParseException, JsonMappingException, IOException
   {
-    return _mapper.readValue(new ByteArrayInputStream(serilizedErrorEvent.getBytes()), DbusErrorEvent.class);
+    return _mapper.readValue(new ByteArrayInputStream(serilizedErrorEvent.getBytes(Charset.defaultCharset())), DbusErrorEvent.class);
   }
 
   @Override

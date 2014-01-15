@@ -114,15 +114,15 @@ public class TestBootstrapPullThread
 
   private void doExecuteAndChangeState(BootstrapPullThread thread, Object msg)
   {
-	  Object obj = msg;
+    Object obj = msg;
 
-	  if ( msg instanceof ConnectionState)
-	  {
-		  ConnectionState o = (ConnectionState)msg;
-		  obj = new ConnectionStateMessage(o.getStateId(), o);
-	  }
+    if ( msg instanceof ConnectionState)
+    {
+      ConnectionState o = (ConnectionState)msg;
+      obj = new ConnectionStateMessage(o.getStateId(), o);
+    }
 
-	  thread.doExecuteAndChangeState(obj);
+    thread.doExecuteAndChangeState(obj);
   }
 
   @Test
@@ -1461,6 +1461,7 @@ public class TestBootstrapPullThread
     EasyMock.expect(sourcesConn2.getConnectionStatus()).andReturn(new DatabusComponentStatus("dummy")).anyTimes();
     EasyMock.expect(sourcesConn2.getLocalRelayCallsStatsCollector()).andReturn(null).anyTimes();
     EasyMock.expect(sourcesConn2.getRelayCallsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getUnifiedClientStats()).andReturn(null).anyTimes();
     EasyMock.expect(sourcesConn2.getBootstrapConnFactory()).andReturn(mockConnFactory).anyTimes();
     EasyMock.expect(sourcesConn2.loadPersistentCheckpoint()).andReturn(null).anyTimes();
     EasyMock.expect(sourcesConn2.getDataEventsBuffer()).andReturn(dbusBuffer).anyTimes();
@@ -1562,29 +1563,29 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.REQUEST_START_SCN, "ServerSetChange while REQUEST_START_SCN");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_START_SCN]", "Queue :ServerSetChange while REQUEST_START_SCN");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.REQUEST_START_SCN, "ServerSetChange while REQUEST_START_SCN");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_START_SCN]", "Queue :ServerSetChange while REQUEST_START_SCN");
     }
 
     // ServerSetChange when New Set excludes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_START_SCN");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_START_SCN");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_START_SCN");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_START_SCN");
     }
   }
 
@@ -1607,48 +1608,48 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.START_SCN_REQUEST_SENT, "ServerSetChange while START_SCN_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while START_SCN_REQUEST_SENT");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.START_SCN_REQUEST_SENT, "ServerSetChange while START_SCN_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while START_SCN_REQUEST_SENT");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.START_SCN_REQUEST_SENT, "ServerSetChange while START_SCN_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while START_SCN_REQUEST_SENT");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.START_SCN_REQUEST_SENT, "ServerSetChange while START_SCN_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while START_SCN_REQUEST_SENT");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
     }
   }
 
@@ -1670,48 +1671,48 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.START_SCN_RESPONSE_SUCCESS, "ServerSetChange while START_SCN_RESPONSE_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [START_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while START_SCN_RESPONSE_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.START_SCN_RESPONSE_SUCCESS, "ServerSetChange while START_SCN_RESPONSE_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [START_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while START_SCN_RESPONSE_SUCCESS");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      Map<Long, List<RegisterResponseEntry>> entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.START_SCN_RESPONSE_SUCCESS, "ServerSetChange while START_SCN_RESPONSE_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [START_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while START_SCN_RESPONSE_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.START_SCN_RESPONSE_SUCCESS, "ServerSetChange while START_SCN_RESPONSE_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [START_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while START_SCN_RESPONSE_SUCCESS");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.START_SCN_RESPONSE_SUCCESS, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.START_SCN_RESPONSE_SUCCESS, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
     }
   }
 
@@ -1742,29 +1743,29 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "ServerSetChange while REQUEST_STREAM");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :ServerSetChange while REQUEST_STREAM");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "ServerSetChange while REQUEST_STREAM");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :ServerSetChange while REQUEST_STREAM");
     }
 
     // ServerSetChange when New Set excludes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_STREAM");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_STREAM");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_STREAM");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_STREAM");
     }
   }
 
@@ -1805,48 +1806,48 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
     }
   }
 
@@ -1885,48 +1886,48 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SUCCESS, "ServerSetChange while STREAM_REQUEST_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [STREAM_REQUEST_SUCCESS]", "Queue :ServerSetChange while STREAM_REQUEST_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SUCCESS, "ServerSetChange while STREAM_REQUEST_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [STREAM_REQUEST_SUCCESS]", "Queue :ServerSetChange while STREAM_REQUEST_SUCCESS");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SUCCESS, "ServerSetChange while STREAM_REQUEST_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [STREAM_REQUEST_SUCCESS]", "Queue :ServerSetChange while STREAM_REQUEST_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SUCCESS, "ServerSetChange while STREAM_REQUEST_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [STREAM_REQUEST_SUCCESS]", "Queue :ServerSetChange while STREAM_REQUEST_SUCCESS");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.START_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
     }
   }
 
@@ -1972,32 +1973,31 @@ public class TestBootstrapPullThread
     Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
     Assert.assertEquals(cp.getCatchupSource(), "source1", "Catchup Source check");
 
-
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.REQUEST_TARGET_SCN, "ServerSetChange while REQUEST_TARGET_SCN");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_TARGET_SCN]", "Queue :ServerSetChange while REQUEST_TARGET_SCN");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.REQUEST_TARGET_SCN, "ServerSetChange while REQUEST_TARGET_SCN");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [REQUEST_TARGET_SCN]", "Queue :ServerSetChange while REQUEST_TARGET_SCN");
     }
 
     // ServerSetChange when New Set excludes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_TARGET_SCN");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_TARGET_SCN");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_TARGET_SCN");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_TARGET_SCN");
     }
   }
 
@@ -2051,52 +2051,52 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_REQUEST_SENT, "ServerSetChange while TARGET_SCN_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while TARGET_SCN_REQUEST_SENT");
-        Assert.assertTrue(cp.isSnapShotSourceCompleted(), "Phase completed");
-        Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_REQUEST_SENT, "ServerSetChange while TARGET_SCN_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while TARGET_SCN_REQUEST_SENT");
+      Assert.assertTrue(cp.isSnapShotSourceCompleted(), "Phase completed");
+      Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_REQUEST_SENT, "ServerSetChange while TARGET_SCN_REQUEST_SENT");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while TARGET_SCN_REQUEST_SENT");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_REQUEST_SENT, "ServerSetChange while TARGET_SCN_REQUEST_SENT");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while TARGET_SCN_REQUEST_SENT");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.TARGET_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
-        Assert.assertTrue(cp.isSnapShotSourceCompleted(), "Phase completed");
-        Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.TARGET_SCN_REQUEST_SENT, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      Assert.assertTrue(cp.isSnapShotSourceCompleted(), "Phase completed");
+      Assert.assertEquals(cp.getConsumptionMode(), DbusClientMode.BOOTSTRAP_SNAPSHOT, "Consumption Mode check");
     }
   }
 
@@ -2151,73 +2151,73 @@ public class TestBootstrapPullThread
 
     // ServerSetChange when New Set includes CurrentServer
     {
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer() != null, true, "Current Server not Null");
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_1,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_RESPONSE_SUCCESS, "ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [TARGET_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(true, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_RESPONSE_SUCCESS, "ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [TARGET_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
     }
 
     // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
     {
-        int oldServerIndex = bsPuller.getCurrentServerIdx();
-        ServerInfo oldServer = bsPuller.getCurentServer();
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
+      int oldServerIndex = bsPuller.getCurrentServerIdx();
+      ServerInfo oldServer = bsPuller.getCurentServer();
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_2,"Server Set");
 
-        entries = new HashMap<Long, List<RegisterResponseEntry>>();
-        entries.put(1L, new ArrayList<RegisterResponseEntry>());
-        connState.setSourcesSchemas(entries);
+      entries = new HashMap<Long, List<RegisterResponseEntry>>();
+      entries.put(1L, new ArrayList<RegisterResponseEntry>());
+      connState.setSourcesSchemas(entries);
 
-        doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
-        Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-        Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
-        Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-        Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_RESPONSE_SUCCESS, "ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
-        Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [TARGET_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
+      doExecuteAndChangeState(bsPuller,createSetServerMessage(false, bsPuller));
+      Assert.assertEquals(bsPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+      Assert.assertEquals(bsPuller.getCurentServer(), oldServer, "Current Server unchanged");
+      Assert.assertEquals(bsPuller.getServers(),EXP_SERVERINFO_3,"Server Set");
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+      Assert.assertEquals(connState.getStateId(),StateId.TARGET_SCN_RESPONSE_SUCCESS, "ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
+      Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [TARGET_SCN_RESPONSE_SUCCESS]", "Queue :ServerSetChange while TARGET_SCN_RESPONSE_SUCCESS");
 
-        // Now Response arrives
-        connState.switchToStartScnSuccess(cp, null, null);
-        testTransitionCase(bsPuller, StateId.TARGET_SCN_RESPONSE_SUCCESS, StateId.PICK_SERVER, null);
-        Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-        Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-        Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
+      // Now Response arrives
+      connState.switchToStartScnSuccess(cp, null, null);
+      testTransitionCase(bsPuller, StateId.TARGET_SCN_RESPONSE_SUCCESS, StateId.PICK_SERVER, null);
+      Assert.assertEquals(bsPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+      Assert.assertEquals(bsPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+      Assert.assertEquals(bsPuller.getCurentServer() == null, true, "Current Server Null");
     }
   }
 
   private ServerSetChangeMessage createSetServerMessage(boolean keepCurrent, BasePullThread puller)
   {
     Set<ServerInfo> serverInfoSet = new HashSet<ServerInfo>();
-	InetSocketAddress inetAddr1 = new InetSocketAddress("localhost",10000);
+  InetSocketAddress inetAddr1 = new InetSocketAddress("localhost",10000);
 
-	ServerInfo s = new ServerInfo("newBs1", "ONLINE", inetAddr1, Arrays.asList("source1"));
-	serverInfoSet.add(s);
+  ServerInfo s = new ServerInfo("newBs1", "ONLINE", inetAddr1, Arrays.asList("source1"));
+  serverInfoSet.add(s);
 
-	if ( keepCurrent )
-	{
-	  serverInfoSet.addAll(puller.getServers());
-	}
+  if ( keepCurrent )
+  {
+    serverInfoSet.addAll(puller.getServers());
+  }
 
-	ServerSetChangeMessage msg = ServerSetChangeMessage.createSetServersMessage(serverInfoSet);
+  ServerSetChangeMessage msg = ServerSetChangeMessage.createSetServersMessage(serverInfoSet);
 
-	return msg;
+  return msg;
   }
 
 
   private void testTransitionCase(BootstrapPullThread bsPuller, StateId currState, StateId finalState, Checkpoint cp)
   {
-	  testTransitionCase(bsPuller, currState, finalState, finalState.toString(), cp);
+    testTransitionCase(bsPuller, currState, finalState, finalState.toString(), cp);
   }
 
 
@@ -2227,30 +2227,30 @@ public class TestBootstrapPullThread
 
     if ( null != cp )
     {
-    	CheckpointMessage cpM = CheckpointMessage.createSetCheckpointMessage(cp);
-    	doExecuteAndChangeState(bsPuller,cpM);
+      CheckpointMessage cpM = CheckpointMessage.createSetCheckpointMessage(cp);
+      doExecuteAndChangeState(bsPuller,cpM);
     }
 
     doExecuteAndChangeState(bsPuller,connState);
-	Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [" + msgQueueState + "]", "Queue :" + currState + " to " + finalState);
-	Assert.assertEquals(connState.getStateId(),finalState, "" + currState + " to " + finalState );
+  Assert.assertEquals(bsPuller.getQueueListString(), "RelayPuller queue: [" + msgQueueState + "]", "Queue :" + currState + " to " + finalState);
+  Assert.assertEquals(connState.getStateId(),finalState, "" + currState + " to " + finalState );
   }
 
 
   private BootstrapPullThread createBootstrapPullThread(boolean failBsConnection, boolean throwBsConnException, boolean muteTransition)
-		  	throws Exception
+        throws Exception
   {
-	  return createBootstrapPullThread(failBsConnection, throwBsConnException, muteTransition, false, false, null, 12000, 1, false);
+    return createBootstrapPullThread(failBsConnection, throwBsConnException, muteTransition, false, false, null, 12000, 1, false);
   }
 
   private BootstrapPullThread createBootstrapPullThread(boolean failBsConnection,
-		                                                boolean throwBsConnException,
-		                                                boolean muteTransition,
-		                                                int freeReadSpace,
-		                                                int numBytesRead)
-		  	throws Exception
+                                                        boolean throwBsConnException,
+                                                        boolean muteTransition,
+                                                        int freeReadSpace,
+                                                        int numBytesRead)
+  throws Exception
   {
-	  return createBootstrapPullThread(failBsConnection, throwBsConnException, muteTransition, false, false, null, freeReadSpace, numBytesRead, false);
+    return createBootstrapPullThread(failBsConnection, throwBsConnException, muteTransition, false, false, null, freeReadSpace, numBytesRead, false);
   }
 
   private BootstrapPullThread createBootstrapPullThread(boolean failBsConnection,
@@ -2262,13 +2262,12 @@ public class TestBootstrapPullThread
                                                         int freeReadSpace,
                                                         int numBytesRead,
                                                         boolean phaseCompleted)
-        throws Exception
+  throws Exception
   {
     return createBootstrapPullThread(failBsConnection, throwBSConnException, muteTransition, readDataThrowException,
                                      readDataException, exceptionName, freeReadSpace, numBytesRead, phaseCompleted,
                                      10, 10);
   }
-
 
   private BootstrapPullThread createBootstrapPullThread(boolean failBsConnection,
                                                         boolean throwBSConnException,
@@ -2281,7 +2280,7 @@ public class TestBootstrapPullThread
                                                         boolean phaseCompleted,
                                                         long startScn,
                                                         long targetScn)
-        throws Exception
+  throws Exception
   {
     return createBootstrapPullThread(failBsConnection, throwBSConnException, muteTransition, readDataThrowException,
                                      readDataException, exceptionName, freeReadSpace, numBytesRead, phaseCompleted,
@@ -2289,223 +2288,224 @@ public class TestBootstrapPullThread
   }
 
   private BootstrapPullThread createBootstrapPullThread(boolean failBsConnection,
-		  												boolean throwBSConnException,
-				  										boolean muteTransition,
-				  										boolean readDataThrowException,
-				  										boolean readDataException,
-				  										String exceptionName,
-				  										int freeReadSpace,
-				  										int numBytesRead,
-				  										boolean phaseCompleted,
-				  										long startScn,
-				  										long targetScn,
-				  										String... sourceNames)
-		throws Exception
+                              boolean throwBSConnException,
+                              boolean muteTransition,
+                              boolean readDataThrowException,
+                              boolean readDataException,
+                              String exceptionName,
+                              int freeReadSpace,
+                              int numBytesRead,
+                              boolean phaseCompleted,
+                              long startScn,
+                              long targetScn,
+                              String... sourceNames)
+  throws Exception
   {
-	  List<String> sources = Arrays.asList(sourceNames);
+    List<String> sources = Arrays.asList(sourceNames);
 
-	  Properties clientProps = new Properties();
+    Properties clientProps = new Properties();
 
-	  clientProps.setProperty("client.container.httpPort", "0");
-      clientProps.setProperty("client.container.jmx.rmiEnabled", "false");
+    clientProps.setProperty("client.container.httpPort", "0");
+    clientProps.setProperty("client.container.jmx.rmiEnabled", "false");
 
-	  clientProps.setProperty("client.runtime.bootstrap.enabled", "true");
-	  clientProps.setProperty("client.runtime.bootstrap.service(1).name", "bs1");
-	  clientProps.setProperty("client.runtime.bootstrap.service(1).host", "localhost");
-	  clientProps.setProperty("client.runtime.bootstrap.service(1).port", "10001");
-	  clientProps.setProperty("client.runtime.bootstrap.service(1).sources", "source1");
-	  clientProps.setProperty("client.runtime.bootstrap.service(2).name", "bs2");
-	  clientProps.setProperty("client.runtime.bootstrap.service(2).host", "localhost");
-	  clientProps.setProperty("client.runtime.bootstrap.service(2).port", "10002");
-	  clientProps.setProperty("client.runtime.bootstrap.service(2).sources", "source1");
-	  clientProps.setProperty("client.runtime.bootstrap.service(3).name", "bs3");
-	  clientProps.setProperty("client.runtime.bootstrap.service(3).host", "localhost");
-	  clientProps.setProperty("client.runtime.bootstrap.service(3).port", "10003");
-	  clientProps.setProperty("client.runtime.bootstrap.service(3).sources", "source1");
+    clientProps.setProperty("client.runtime.bootstrap.enabled", "true");
+    clientProps.setProperty("client.runtime.bootstrap.service(1).name", "bs1");
+    clientProps.setProperty("client.runtime.bootstrap.service(1).host", "localhost");
+    clientProps.setProperty("client.runtime.bootstrap.service(1).port", "10001");
+    clientProps.setProperty("client.runtime.bootstrap.service(1).sources", "source1");
+    clientProps.setProperty("client.runtime.bootstrap.service(2).name", "bs2");
+    clientProps.setProperty("client.runtime.bootstrap.service(2).host", "localhost");
+    clientProps.setProperty("client.runtime.bootstrap.service(2).port", "10002");
+    clientProps.setProperty("client.runtime.bootstrap.service(2).sources", "source1");
+    clientProps.setProperty("client.runtime.bootstrap.service(3).name", "bs3");
+    clientProps.setProperty("client.runtime.bootstrap.service(3).host", "localhost");
+    clientProps.setProperty("client.runtime.bootstrap.service(3).port", "10003");
+    clientProps.setProperty("client.runtime.bootstrap.service(3).sources", "source1");
 
-	  clientProps.setProperty("client.runtime.relay(1).name", "relay1");
-	  clientProps.setProperty("client.runtime.relay(1).port", "10001");
-	  clientProps.setProperty("client.runtime.relay(1).sources", "source1");
-	  clientProps.setProperty("client.runtime.relay(2).name", "relay2");
-	  clientProps.setProperty("client.runtime.relay(2).port", "10002");
-	  clientProps.setProperty("client.runtime.relay(2).sources", "source1");
-	  clientProps.setProperty("client.runtime.relay(3).name", "relay3");
-	  clientProps.setProperty("client.runtime.relay(3).port", "10003");
-	  clientProps.setProperty("client.runtime.relay(3).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(1).name", "relay1");
+    clientProps.setProperty("client.runtime.relay(1).port", "10001");
+    clientProps.setProperty("client.runtime.relay(1).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(2).name", "relay2");
+    clientProps.setProperty("client.runtime.relay(2).port", "10002");
+    clientProps.setProperty("client.runtime.relay(2).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(3).name", "relay3");
+    clientProps.setProperty("client.runtime.relay(3).port", "10003");
+    clientProps.setProperty("client.runtime.relay(3).sources", "source1");
 
-	  clientProps.setProperty("client.connectionDefaults.eventBuffer.maxSize", "100000");
-	  clientProps.setProperty("client.connectionDefaults.pullerRetries.maxRetryNum", "9");
-	  clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncFactor", "1.0");
-	  clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncDelta", "1");
-	  clientProps.setProperty("client.connectionDefaults.pullerRetries.initSleep", "1");
+    clientProps.setProperty("client.connectionDefaults.eventBuffer.maxSize", "100000");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.maxRetryNum", "9");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncFactor", "1.0");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncDelta", "1");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.initSleep", "1");
 
-	  DatabusHttpClientImpl.Config clientConfBuilder = new DatabusHttpClientImpl.Config();
-	  ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
-			  new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("client.", clientConfBuilder);
-	  configLoader.loadConfig(clientProps);
+    DatabusHttpClientImpl.Config clientConfBuilder = new DatabusHttpClientImpl.Config();
+    ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
+        new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("client.", clientConfBuilder);
+    configLoader.loadConfig(clientProps);
 
-	  DatabusHttpClientImpl.StaticConfig clientConf = clientConfBuilder.build();
-	  DatabusSourcesConnection.StaticConfig srcConnConf = clientConf.getConnectionDefaults();
+    DatabusHttpClientImpl.StaticConfig clientConf = clientConfBuilder.build();
+    DatabusSourcesConnection.StaticConfig srcConnConf = clientConf.getConnectionDefaults();
 
-	  DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConf);
+    DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConf);
 
-	  client.registerDatabusBootstrapListener(new LoggingConsumer(), null, "source1");
+    client.registerDatabusBootstrapListener(new LoggingConsumer(), null, "source1");
 
-	  Assert.assertNotNull(client, "client instantiation ok");
+    Assert.assertNotNull(client, "client instantiation ok");
 
-	  DatabusHttpClientImpl.RuntimeConfig clientRtConf = clientConf.getRuntime().build();
+    DatabusHttpClientImpl.RuntimeConfig clientRtConf = clientConf.getRuntime().build();
 
-	  //we keep the index of the next server we expect to see
-	  AtomicInteger serverIdx = new AtomicInteger(-1);
+    //we keep the index of the next server we expect to see
+    AtomicInteger serverIdx = new AtomicInteger(-1);
 
-	  //generate the order in which we should see the servers
-	  List<ServerInfo> relayOrder = new ArrayList<ServerInfo>(clientRtConf.getRelays());
-	  if (LOG.isInfoEnabled())
-	  {
-		  StringBuilder sb = new StringBuilder();
-		  for (ServerInfo serverInfo: relayOrder)
-		  {
-			  sb.append(serverInfo.getName());
-			  sb.append(" ");
-		  }
-		  LOG.info("Relay order:" + sb.toString());
-	  }
+    //generate the order in which we should see the servers
+    List<ServerInfo> relayOrder = new ArrayList<ServerInfo>(clientRtConf.getRelays());
+    if (LOG.isInfoEnabled())
+    {
+      StringBuilder sb = new StringBuilder();
+      for (ServerInfo serverInfo: relayOrder)
+      {
+        sb.append(serverInfo.getName());
+        sb.append(" ");
+      }
+      LOG.info("Relay order:" + sb.toString());
+    }
 
-	  List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-	  sourcesResponse.add(new IdNamePair(1L, "source1"));
+    List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+    sourcesResponse.add(new IdNamePair(1L, "source1"));
 
-	  Map<Long, List<RegisterResponseEntry>> registerResponse = new HashMap<Long, List<RegisterResponseEntry>>();
+    Map<Long, List<RegisterResponseEntry>> registerResponse = new HashMap<Long, List<RegisterResponseEntry>>();
 
-	  List<RegisterResponseEntry> regResponse = new ArrayList<RegisterResponseEntry>();
-	  regResponse.add(new RegisterResponseEntry(1L, (short)1, SCHEMA$.toString()));
-	  registerResponse.put(1L, regResponse);
+    List<RegisterResponseEntry> regResponse = new ArrayList<RegisterResponseEntry>();
+    regResponse.add(new RegisterResponseEntry(1L, (short)1, SCHEMA$.toString()));
+    registerResponse.put(1L, regResponse);
 
-	  ChunkedBodyReadableByteChannel channel = EasyMock.createMock(ChunkedBodyReadableByteChannel.class);
+    ChunkedBodyReadableByteChannel channel = EasyMock.createMock(ChunkedBodyReadableByteChannel.class);
 
-	  if ( ! readDataException)
-	  {
-		  EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(null).anyTimes();
-		  EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(null).anyTimes();
+    if ( ! readDataException)
+    {
+      EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(null).anyTimes();
+      EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(null).anyTimes();
       EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(null).anyTimes();
-	  } else {
-		  EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(exceptionName).anyTimes();
-		  EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(exceptionName).anyTimes();
-		  EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(exceptionName).anyTimes();
-	  }
+    } else {
+      EasyMock.expect(channel.getMetadata("x-dbus-error-cause")).andReturn(exceptionName).anyTimes();
+      EasyMock.expect(channel.getMetadata("x-dbus-req-id")).andReturn(exceptionName).anyTimes();
+      EasyMock.expect(channel.getMetadata("x-dbus-error")).andReturn(exceptionName).anyTimes();
+    }
 
-	  if ( phaseCompleted)
-	    EasyMock.expect(channel.getMetadata("PhaseCompleted")).andReturn("true").anyTimes();
-	  else
-		EasyMock.expect(channel.getMetadata("PhaseCompleted")).andReturn(null).anyTimes();
+    if ( phaseCompleted)
+      EasyMock.expect(channel.getMetadata("PhaseCompleted")).andReturn("true").anyTimes();
+    else
+    EasyMock.expect(channel.getMetadata("PhaseCompleted")).andReturn(null).anyTimes();
 
-	  EasyMock.replay(channel);
+    EasyMock.replay(channel);
 
-	  DbusEventBuffer dbusBuffer = EasyMock.createMock(DbusEventBuffer.class);
-	  dbusBuffer.endEvents(false, -1, false, false, null);
-	  EasyMock.expectLastCall().anyTimes();
-	  EasyMock.expect(dbusBuffer.injectEvent(EasyMock.<DbusEventInternalReadable>notNull())).andReturn(true).anyTimes();
-	  EasyMock.expect(dbusBuffer.getEventSerializationVersion()).andReturn(DbusEventFactory.DBUS_EVENT_V1).anyTimes();
+    DbusEventBuffer dbusBuffer = EasyMock.createMock(DbusEventBuffer.class);
+    dbusBuffer.endEvents(false, -1, false, false, null);
+    EasyMock.expectLastCall().anyTimes();
+    EasyMock.expect(dbusBuffer.injectEvent(EasyMock.<DbusEventInternalReadable>notNull())).andReturn(true).anyTimes();
+    EasyMock.expect(dbusBuffer.getEventSerializationVersion()).andReturn(DbusEventFactory.DBUS_EVENT_V1).anyTimes();
 
-	  EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull(),
-	                                        org.easymock.EasyMock.<List<InternalDatabusEventsListener>>notNull(),
-	                                        org.easymock.EasyMock.<DbusEventsStatisticsCollector>isNull()))
-	          .andReturn(numBytesRead).anyTimes();
+    EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull(),
+                                          org.easymock.EasyMock.<List<InternalDatabusEventsListener>>notNull(),
+                                          org.easymock.EasyMock.<DbusEventsStatisticsCollector>isNull()))
+            .andReturn(numBytesRead).anyTimes();
 
-	  if ( readDataThrowException)
-	  {
-		  EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull()))
-		          .andThrow(new RuntimeException("dummy")).anyTimes();
-	  } else {
-		  EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull()))
-		          .andReturn(numBytesRead).anyTimes();
-	  }
+    if ( readDataThrowException)
+    {
+      EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull()))
+              .andThrow(new RuntimeException("dummy")).anyTimes();
+    } else {
+      EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull()))
+              .andReturn(numBytesRead).anyTimes();
+    }
 
-	  EasyMock.expect(dbusBuffer.acquireIterator(EasyMock.<String>notNull())).andReturn(null).anyTimes();
-	  dbusBuffer.waitForFreeSpace((int)(10000 * 100.0 / clientConf.getPullerBufferUtilizationPct()));
-	  EasyMock.expectLastCall().anyTimes();
-	  EasyMock.expect(dbusBuffer.getBufferFreeReadSpace()).andReturn(freeReadSpace).anyTimes();
+    EasyMock.expect(dbusBuffer.acquireIterator(EasyMock.<String>notNull())).andReturn(null).anyTimes();
+    dbusBuffer.waitForFreeSpace((int)(10000 * 100.0 / clientConf.getPullerBufferUtilizationPct()));
+    EasyMock.expectLastCall().anyTimes();
+    EasyMock.expect(dbusBuffer.getBufferFreeReadSpace()).andReturn(freeReadSpace).anyTimes();
 
-	  EasyMock.replay(dbusBuffer);
+    EasyMock.replay(dbusBuffer);
 
-	  //This guy succeeds on /sources but fails on /register
-	  MockBootstrapConnection mockSuccessConn = new MockBootstrapConnection(startScn, targetScn, channel, serverIdx,
-	                                                                        muteTransition);
+    //This guy succeeds on /sources but fails on /register
+    MockBootstrapConnection mockSuccessConn = new MockBootstrapConnection(startScn, targetScn, channel, serverIdx,
+                                                                          muteTransition);
 
-	  DatabusBootstrapConnectionFactory mockConnFactory =
-			  org.easymock.EasyMock.createMock("mockRelayFactory", DatabusBootstrapConnectionFactory.class);
+    DatabusBootstrapConnectionFactory mockConnFactory =
+        org.easymock.EasyMock.createMock("mockRelayFactory", DatabusBootstrapConnectionFactory.class);
 
-	  //each server should be tried MAX_RETRIES time until all retries are exhausted
+    //each server should be tried MAX_RETRIES time until all retries are exhausted
 
-	  if ( throwBSConnException )
-	  {
-		  EasyMock.expect(mockConnFactory.createConnection(
-				  EasyMock.<ServerInfo>notNull(),
-				  EasyMock.<ActorMessageQueue>notNull(),
-				  EasyMock.<RemoteExceptionHandler>notNull())).andThrow(new RuntimeException("Mock Error")).anyTimes();
-	  } else if ( failBsConnection) {
-		  EasyMock.expect(mockConnFactory.createConnection(
-				  EasyMock.<ServerInfo>notNull(),
-				  EasyMock.<ActorMessageQueue>notNull(),
-				  EasyMock.<RemoteExceptionHandler>notNull())).andReturn(null).anyTimes();
+    if ( throwBSConnException )
+    {
+      EasyMock.expect(mockConnFactory.createConnection(
+          EasyMock.<ServerInfo>notNull(),
+          EasyMock.<ActorMessageQueue>notNull(),
+          EasyMock.<RemoteExceptionHandler>notNull())).andThrow(new RuntimeException("Mock Error")).anyTimes();
+    } else if ( failBsConnection) {
+      EasyMock.expect(mockConnFactory.createConnection(
+          EasyMock.<ServerInfo>notNull(),
+          EasyMock.<ActorMessageQueue>notNull(),
+          EasyMock.<RemoteExceptionHandler>notNull())).andReturn(null).anyTimes();
       } else {
-		  EasyMock.expect(mockConnFactory.createConnection(
-				  EasyMock.<ServerInfo>notNull(),
-				  EasyMock.<ActorMessageQueue>notNull(),
-				  EasyMock.<RemoteExceptionHandler>notNull())).andReturn(mockSuccessConn).anyTimes();
-	  }
+      EasyMock.expect(mockConnFactory.createConnection(
+          EasyMock.<ServerInfo>notNull(),
+          EasyMock.<ActorMessageQueue>notNull(),
+          EasyMock.<RemoteExceptionHandler>notNull())).andReturn(mockSuccessConn).anyTimes();
+    }
 
 
-	  List<DatabusSubscription> sourcesSubList = DatabusSubscription.createSubscriptionList(sources);
+    List<DatabusSubscription> sourcesSubList = DatabusSubscription.createSubscriptionList(sources);
     // Create ConnectionState
     ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
-	  // Mock Bootstrap Puller
-	  RelayPullThread mockRelayPuller = EasyMock.createMock("rpt",RelayPullThread.class);
-	  mockRelayPuller.enqueueMessage(EasyMock.notNull());
-	  EasyMock.expectLastCall().anyTimes();
+    // Mock Bootstrap Puller
+    RelayPullThread mockRelayPuller = EasyMock.createMock("rpt",RelayPullThread.class);
+    mockRelayPuller.enqueueMessage(EasyMock.notNull());
+    EasyMock.expectLastCall().anyTimes();
 
-	  // Mock Relay Dispatcher
-	  BootstrapDispatcher mockDispatcher = EasyMock.createMock("rd", BootstrapDispatcher.class);
-	  mockDispatcher.enqueueMessage(EasyMock.notNull());
-	  EasyMock.expectLastCall().anyTimes();
+    // Mock Relay Dispatcher
+    BootstrapDispatcher mockDispatcher = EasyMock.createMock("rd", BootstrapDispatcher.class);
+    mockDispatcher.enqueueMessage(EasyMock.notNull());
+    EasyMock.expectLastCall().anyTimes();
 
-	  //Set up mock for sources connection
-	  DatabusSourcesConnection sourcesConn2 = EasyMock.createMock(DatabusSourcesConnection.class);
-	  EasyMock.expect(sourcesConn2.getSourcesNames()).andReturn(Arrays.asList("source1")).anyTimes();
-	  EasyMock.expect(sourcesConn2.getSubscriptions()).andReturn(sourcesSubList).anyTimes();
-	  EasyMock.expect(sourcesConn2.getConnectionConfig()).andReturn(srcConnConf).anyTimes();
-	  EasyMock.expect(sourcesConn2.getConnectionStatus()).andReturn(new DatabusComponentStatus("dummy")).anyTimes();
-	  EasyMock.expect(sourcesConn2.getLocalRelayCallsStatsCollector()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getRelayCallsStatsCollector()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getBootstrapConnFactory()).andReturn(mockConnFactory).anyTimes();
-	  EasyMock.expect(sourcesConn2.loadPersistentCheckpoint()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getDataEventsBuffer()).andReturn(dbusBuffer).anyTimes();
-	  EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(true).anyTimes();
-	  EasyMock.expect(sourcesConn2.getBootstrapRegistrations()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getBootstrapServices()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getBootstrapEventsStatsCollector()).andReturn(null).anyTimes();
-	  EasyMock.expect(sourcesConn2.getRelayPullThread()).andReturn(mockRelayPuller).anyTimes();
-	  EasyMock.expect(sourcesConn2.getBootstrapDispatcher()).andReturn(mockDispatcher).anyTimes();
+    //Set up mock for sources connection
+    DatabusSourcesConnection sourcesConn2 = EasyMock.createMock(DatabusSourcesConnection.class);
+    EasyMock.expect(sourcesConn2.getSourcesNames()).andReturn(Arrays.asList("source1")).anyTimes();
+    EasyMock.expect(sourcesConn2.getSubscriptions()).andReturn(sourcesSubList).anyTimes();
+    EasyMock.expect(sourcesConn2.getConnectionConfig()).andReturn(srcConnConf).anyTimes();
+    EasyMock.expect(sourcesConn2.getConnectionStatus()).andReturn(new DatabusComponentStatus("dummy")).anyTimes();
+    EasyMock.expect(sourcesConn2.getLocalRelayCallsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getRelayCallsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getUnifiedClientStats()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapConnFactory()).andReturn(mockConnFactory).anyTimes();
+    EasyMock.expect(sourcesConn2.loadPersistentCheckpoint()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getDataEventsBuffer()).andReturn(dbusBuffer).anyTimes();
+    EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(true).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapRegistrations()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapServices()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapEventsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getRelayPullThread()).andReturn(mockRelayPuller).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapDispatcher()).andReturn(mockDispatcher).anyTimes();
 
 
-	  EasyMock.makeThreadSafe(mockConnFactory, true);
-	  EasyMock.makeThreadSafe(mockDispatcher, true);
-	  EasyMock.makeThreadSafe(mockRelayPuller, true);
-	  EasyMock.makeThreadSafe(sourcesConn2, true);
+    EasyMock.makeThreadSafe(mockConnFactory, true);
+    EasyMock.makeThreadSafe(mockDispatcher, true);
+    EasyMock.makeThreadSafe(mockRelayPuller, true);
+    EasyMock.makeThreadSafe(sourcesConn2, true);
 
-	  EasyMock.replay(mockConnFactory);
-	  EasyMock.replay(sourcesConn2);
-	  EasyMock.replay(mockDispatcher);
-	  EasyMock.replay(mockRelayPuller);
-	  BootstrapPullThread bsPuller = new BootstrapPullThread("RelayPuller", sourcesConn2, dbusBuffer, connStateFactory,
-	                                                         clientRtConf.getBootstrap().getServicesSet(),
-			  new ArrayList<DbusKeyCompositeFilterConfig>(),
-			  clientConf.getPullerBufferUtilizationPct(),
-			  null,
-			  new DbusEventV2Factory(),
-			  null);
-	  mockSuccessConn.setCallback(bsPuller);
+    EasyMock.replay(mockConnFactory);
+    EasyMock.replay(sourcesConn2);
+    EasyMock.replay(mockDispatcher);
+    EasyMock.replay(mockRelayPuller);
+    BootstrapPullThread bsPuller = new BootstrapPullThread("RelayPuller", sourcesConn2, dbusBuffer, connStateFactory,
+                                                           clientRtConf.getBootstrap().getServicesSet(),
+                                                           new ArrayList<DbusKeyCompositeFilterConfig>(),
+                                                           clientConf.getPullerBufferUtilizationPct(),
+                                                           null,
+                                                           new DbusEventV2Factory(),
+                                                           null);
+    mockSuccessConn.setCallback(bsPuller);
 
-	  return bsPuller;
+    return bsPuller;
   }
 }
 
@@ -2524,25 +2524,24 @@ class MockBootstrapConnection implements DatabusBootstrapConnection
   private final long _targetScn;
   private Checkpoint _cp = null;
 
-  public void setMuteTransition(boolean _muteTransition) {
-	this._muteTransition = _muteTransition;
-  }
-
-public MockBootstrapConnection(
-                             long startScn,
-                             long targetScn,
-                             ChunkedBodyReadableByteChannel streamResponse,
-                             AtomicInteger sharedServerIdx)
+  public void setMuteTransition(boolean muteTransition)
   {
-	  this(startScn, targetScn, streamResponse, sharedServerIdx, false);
+    _muteTransition = muteTransition;
   }
 
-  public MockBootstrapConnection(
-          long startScn,
-          long targetScn,
-          ChunkedBodyReadableByteChannel streamResponse,
-          AtomicInteger sharedServerIdx,
-          boolean muteTransition)
+  public MockBootstrapConnection(long startScn,
+                                 long targetScn,
+                                 ChunkedBodyReadableByteChannel streamResponse,
+                                 AtomicInteger sharedServerIdx)
+  {
+    this(startScn, targetScn, streamResponse, sharedServerIdx, false);
+  }
+
+  public MockBootstrapConnection(long startScn,
+                                 long targetScn,
+                                 ChunkedBodyReadableByteChannel streamResponse,
+                                 AtomicInteger sharedServerIdx,
+                                 boolean muteTransition)
   {
     super();
     _streamResponse = streamResponse;
@@ -2555,7 +2554,7 @@ public MockBootstrapConnection(
   @Override
   public void close()
   {
-	  _closeCallCounter++;
+    _closeCallCounter++;
   }
 
   public int getStreamCallCounter()
@@ -2585,85 +2584,86 @@ public MockBootstrapConnection(
     return 0;
   }
 
-  public ChunkedBodyReadableByteChannel getStreamResponse() {
-	return _streamResponse;
+  public ChunkedBodyReadableByteChannel getStreamResponse()
+  {
+    return _streamResponse;
   }
 
 
   @Override
   public void requestTargetScn(Checkpoint checkpoint,
-		  					   DatabusBootstrapConnectionStateMessage stateReuse)
+                   DatabusBootstrapConnectionStateMessage stateReuse)
   {
-	  _cp = checkpoint;
-	  _targetScnCallCounter++;
+    _cp = checkpoint;
+    _targetScnCallCounter++;
 
-	  try
-	  {
-    	  if ( -1 == _targetScn)
-    	  {
-    	    	if ( !_muteTransition) stateReuse.switchToTargetScnResponseError();
-    	  }  else {
-    		  _cp.setBootstrapTargetScn(_targetScn);
-    		  if ( !_muteTransition) stateReuse.switchToTargetScnSuccess();
-    	  }
+    try
+    {
+      if ( -1 == _targetScn)
+      {
+        if ( !_muteTransition) stateReuse.switchToTargetScnResponseError();
+      }  else {
+        _cp.setBootstrapTargetScn(_targetScn);
+        if ( !_muteTransition) stateReuse.switchToTargetScnSuccess();
+      }
 
-    	  if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
-	  }
-	  catch (RuntimeException e)
-	  {
-	    TestBootstrapPullThread.LOG.error("requestTargetScn exception:" + e, e);
-	    stateReuse.switchToTargetScnResponseError();
-	    _callback.enqueueMessage(stateReuse);
-	  }
+      if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
+    }
+    catch (RuntimeException e)
+    {
+      TestBootstrapPullThread.LOG.error("requestTargetScn exception:" + e, e);
+      stateReuse.switchToTargetScnResponseError();
+      _callback.enqueueMessage(stateReuse);
+    }
   }
 
   @Override
   public void requestStartScn(Checkpoint checkpoint,
-		  					DatabusBootstrapConnectionStateMessage stateReuse,
-		  					String sourceNames)
+                DatabusBootstrapConnectionStateMessage stateReuse,
+                String sourceNames)
   {
-	  _cp = checkpoint;
-	  _startScnCallCounter++;
+    _cp = checkpoint;
+    _startScnCallCounter++;
 
-	  try
-	  {
-    	  if ( -1 == _startScn)
-    	  {
-    	    	if ( !_muteTransition) stateReuse.switchToStartScnResponseError();
-    	  }  else {
-    		  _cp.setBootstrapStartScn(_startScn);
-    		  if ( !_muteTransition)  stateReuse.switchToStartScnSuccess(_cp, null, TestBootstrapPullThread._serverInfo);
-    	  }
+    try
+    {
+      if ( -1 == _startScn)
+      {
+        if ( !_muteTransition) stateReuse.switchToStartScnResponseError();
+      }  else {
+        _cp.setBootstrapStartScn(_startScn);
+        if ( !_muteTransition)  stateReuse.switchToStartScnSuccess(_cp, null, TestBootstrapPullThread._serverInfo);
+      }
 
-    	  if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
-	  }
-	  catch (RuntimeException e)
-	  {
-	    TestBootstrapPullThread.LOG.error("requestStartScn exception: " + e, e);
-	    stateReuse.switchToStartScnResponseError();
-	    _callback.enqueueMessage(stateReuse);
-	  }
+      if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
+    }
+    catch (RuntimeException e)
+    {
+      TestBootstrapPullThread.LOG.error("requestStartScn exception: " + e, e);
+      stateReuse.switchToStartScnResponseError();
+      _callback.enqueueMessage(stateReuse);
+    }
   }
 
 
   @Override
   public void requestStream(String sourcesIdList,
-		                    DbusKeyFilter filter,
-		                    int freeBufferSpace, Checkpoint cp,
-		                    DatabusBootstrapConnectionStateMessage stateReuse)
+                            DbusKeyFilter filter,
+                            int freeBufferSpace, Checkpoint cp,
+                            DatabusBootstrapConnectionStateMessage stateReuse)
   {
-	    ++ _streamCallCounter;
-	    if (null == _streamResponse)
-	    {
-	    	if ( !_muteTransition) stateReuse.switchToStreamRequestError();
-	        _sharedServerIdx.incrementAndGet();
-	    }
-	    else
-	    {
-	    	if ( !_muteTransition) stateReuse.switchToStreamSuccess(_streamResponse);
-	    }
+    ++_streamCallCounter;
+    if (null == _streamResponse)
+    {
+      if ( !_muteTransition) stateReuse.switchToStreamRequestError();
+      _sharedServerIdx.incrementAndGet();
+    }
+    else
+    {
+      if ( !_muteTransition) stateReuse.switchToStreamSuccess(_streamResponse);
+    }
 
-	    if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
+    if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
   }
 
   public int getStartScnCallCounter()

@@ -24,6 +24,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStatsMBean;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStatsMBean;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollectorMBean;
@@ -264,4 +265,9 @@ public interface DatabusV3Registration {
    * Obtain statistics for the callbacks for bootstrap events
    */
   public ConsumerCallbackStatsMBean getBootstrapCallbackStats();
+
+  /**
+   * Returns unified relay/bootstrap statistics for client callbacks
+   */
+  public UnifiedClientStatsMBean getUnifiedClientStats();
 }

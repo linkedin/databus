@@ -21,6 +21,7 @@ package com.linkedin.databus2.core.container.request;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.concurrent.ExecutorService;
 
 
@@ -43,7 +44,7 @@ public class EchoRequestProcessor implements RequestProcessor {
 
 	@Override
 	public DatabusRequest process(DatabusRequest request) throws IOException, RequestProcessingException {
-		byte[] echoBytes = request.toString().getBytes();
+		byte[] echoBytes = request.toString().getBytes(Charset.defaultCharset());
 		
 		int repeat = request.getOptionalIntParam(REPEAT_PARAM, 1);
         byte[] responseBytes = new byte[repeat * (echoBytes.length + 2)]; 

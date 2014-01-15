@@ -18,6 +18,7 @@ package com.linkedin.databus.container.netty;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.apache.avro.Schema;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.OptionBuilder;
 import org.apache.log4j.Logger;
@@ -43,6 +45,7 @@ import com.linkedin.databus.container.request.PhysicalSourcesRequestProcessor;
 import com.linkedin.databus.container.request.ReadEventsRequestProcessor;
 import com.linkedin.databus.container.request.RegisterRequestProcessor;
 import com.linkedin.databus.container.request.RelayCommandRequestProcessor;
+import com.linkedin.databus.container.request.RelayContainerStatsRequestProcessor;
 import com.linkedin.databus.container.request.RelayStatsRequestProcessor;
 import com.linkedin.databus.container.request.SourcesRequestProcessor;
 import com.linkedin.databus.core.DbusEventBuffer;
@@ -55,6 +58,7 @@ import com.linkedin.databus.core.EventLogReader;
 import com.linkedin.databus.core.EventLogWriter;
 import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus.core.monitoring.mbean.DbusEventStatsCollectorsPartitioner;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.util.ConfigApplier;
 import com.linkedin.databus.core.util.ConfigBuilder;
@@ -71,6 +75,7 @@ import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdm
 import com.linkedin.databus2.core.container.monitoring.mbean.HttpStatisticsCollector;
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.container.request.ConfigRequestProcessor;
+import com.linkedin.databus2.core.container.request.ContainerStatsRequestProcessor;
 import com.linkedin.databus2.core.container.request.EchoRequestProcessor;
 import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 import com.linkedin.databus2.core.container.request.SleepRequestProcessor;
@@ -87,6 +92,7 @@ import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.SchemaRegistryStaticConfig;
 import com.linkedin.databus2.schemas.SourceIdNameRegistry;
 import com.linkedin.databus2.schemas.StandardSchemaRegistryFactory;
+import com.linkedin.databus2.schemas.utils.SchemaHelper;
 
 /**
  * The HTTP container for the databus relay
@@ -97,7 +103,7 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     private static final Logger LOG = Logger.getLogger(MODULE);
 
     private DbusEventBufferMult _eventBufferMult;
-    private DbusEventFactory _eventFactory;
+    private final DbusEventFactory _eventFactory;
     private final SchemaRegistryService _schemaRegistryService;
     protected final StaticConfig _relayStaticConfig;
     private final ConfigManager<RuntimeConfig> _relayConfigManager;
@@ -108,6 +114,10 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     // from the events from RPL-dbus. If there is a version change, we can detect by checking
     // with the version info stored in the map.
     final Map<String, Short> _sourceSchemaVersionMap = new ConcurrentHashMap<String, Short>();
+    // DB level inbound stats aggregate
+    protected DbusEventStatsCollectorsPartitioner _dbInboundStatsCollectors;
+    // DB level outbound stats aggregate
+    protected DbusEventStatsCollectorsPartitioner _dbOutboundStatsCollectors;
 
     public HttpRelay(Config config, PhysicalSourceStaticConfig [] pConfigs)
     throws IOException, InvalidConfigException, DatabusException
@@ -163,7 +173,12 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
         _eventBufferMult = new DbusEventBufferMult(psscArr,  config.getEventBuffer(), _eventFactory);
       }
       _eventBufferMult.setDropOldEvents(true);
-
+      _dbInboundStatsCollectors = new DbusEventStatsCollectorsPartitioner(getContainerStaticConfig().getId(),
+                                                                          ".inbound",
+                                                                          getMbeanServer());
+      _dbOutboundStatsCollectors = new DbusEventStatsCollectorsPartitioner(getContainerStaticConfig().getId(),
+                                                                           ".outbound",
+                                                                           getMbeanServer());
       if (null != _eventBufferMult.getAllPhysicalPartitionKeys())
       {
         for (PhysicalPartitionKey pkey: _eventBufferMult.getAllPhysicalPartitionKeys())
@@ -195,7 +210,6 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
       _relayStaticConfig.getRuntime().setManagedInstance(this);
       _relayConfigManager = new ConfigManager<RuntimeConfig>("databus.relay.runtime.",
                                                              _relayStaticConfig.getRuntime());
-
       initializeRelayNetworking();
       initializeRelayCommandProcessors();
     }
@@ -225,6 +239,16 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
 
     protected void initializeRelayCommandProcessors() throws DatabusException
     {
+      /**
+       *  Re-register containerStats to expose DB level aggregate inbound/event stats.
+       *  The ContainerStatsRequestProcessor is registered in ServiceContainer. Since,
+       *  we are overriding the behavior of ContainerStatsRequestProcessor, we are
+       *  re-registering the subclass (RelayContainerStatsRequestProcessor) in place
+       *  of ContainerStatsRequestProcessor.
+       */
+      _processorRegistry.reregister(ContainerStatsRequestProcessor.COMMAND_NAME,
+                                    new RelayContainerStatsRequestProcessor(null, this));
+
       _processorRegistry.register(ConfigRequestProcessor.COMMAND_NAME,
                                  new ConfigRequestProcessor(null, this));
       _processorRegistry.register(RelayStatsRequestProcessor.COMMAND_NAME,
@@ -288,6 +312,12 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
         ((FileSystemSchemaRegistryService)_schemaRegistryService).stopSchemasRefreshThread();
         LOG.info("file-system schema registry refresh thread stopped.");
       }
+
+      // unregister PhysicalSrcBased inbound collector
+      _dbInboundStatsCollectors.removeAllStatsCollector();
+
+      // unregister PhysicalSrcBased inbound collector
+      _dbOutboundStatsCollectors.removeAllStatsCollector();
     }
 
     /**
@@ -380,9 +410,36 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
 
       RequestProcessorRegistry processorRegistry = relay.getProcessorRegistry();
 
+      //Changes to add schemaId to event; DDSDBUS-3421
+      //The long term fix is to remove DatabusEventRandomProducer in favour of RelayEventGenerator
+
+      //The medium term fix is to send SchemaRegistry to DatabusEventRandomProducer, but move RandomProducer to databus-relay-impl (from databus-core-impl)
+      //Reason: SchemaHelper classes required to parse/generate schemaId from schemaRegistry requires databus-schemas-core which depends on databus-core-impl
+      SchemaRegistryService sr=relay.getSchemaRegistryService();
+      HashMap<Long,byte[]> schemaIds = new HashMap<Long,byte[]>(staticConfig.getSourceIds().size());
+
+      for (IdNamePair pair: staticConfig.getSourceIds()) {
+        LOG.info("Http Relay Schema Reg:" + pair.getName() + " id=" + pair.getId());
+        String schemaStr = sr.fetchLatestSchemaBySourceName(pair.getName());
+        if (schemaStr != null)
+        {
+          Schema s= Schema.parse(schemaStr);
+          byte[] sid=SchemaHelper.getSchemaId(s.toString());
+          LOG.info("Found schema! Adding schemaId for sourceName="+pair.getName() + " id=" + pair.getId() + " schemaId=" + sid);
+          schemaIds.put(pair.getId(),sid);
+        }
+        else
+        {
+          byte[] defaultSid="abcde".getBytes(Charset.defaultCharset());
+          LOG.info("Didn't find schema! Adding default schemaId for sourceName="+pair.getName() +  "id=" + pair.getId()+ " schemaId=" + defaultSid);
+          schemaIds.put(pair.getId(),defaultSid);
+        }
+      }
+
       DatabusEventProducer randomEventProducer =
           new DatabusEventRandomProducer(relay.getEventBuffer(), 10, 100, 1000,
-                                         staticConfig.getSourceIds());
+                                         staticConfig.getSourceIds(),schemaIds);
+
 
       // specify stats collector for this producer
       ((DatabusEventRandomProducer)randomEventProducer).setStatsCollector(relay.getInboundEventStatisticsCollector());
@@ -1148,29 +1205,47 @@ public class HttpRelay extends ServerContainer implements AddRemovePartitionInte
     {
       String statsCollectorName = pPartition.toSimpleString();
       if (null != _inBoundStatsCollectors)
+      {
         synchronized (_inBoundStatsCollectors)
         {
           if (null == _inBoundStatsCollectors.getStatsCollector(statsCollectorName))
           {
-            _inBoundStatsCollectors.addStatsCollector(statsCollectorName, new DbusEventsStatisticsCollector(getContainerStaticConfig().getId(),
-                    statsCollectorName+".inbound",
-                    true,
-                    false,
-                    getMbeanServer()));
+            DbusEventsStatisticsCollector collector = new DbusEventsStatisticsCollector(getContainerStaticConfig().getId(),
+                                              statsCollectorName+".inbound",
+                                              true,
+                                              false,
+                                              getMbeanServer());
+            _inBoundStatsCollectors.addStatsCollector(statsCollectorName, collector);
+            _dbInboundStatsCollectors.addStatsCollector(pPartition, collector);
           }
         }
+      }
 
       if (null != _outBoundStatsCollectors)
+      {
         synchronized (_outBoundStatsCollectors)
         {
           if (null == _outBoundStatsCollectors.getStatsCollector(statsCollectorName))
           {
-            _outBoundStatsCollectors.addStatsCollector(statsCollectorName, new DbusEventsStatisticsCollector(getContainerStaticConfig().getId(),
-                    statsCollectorName+".outbound",
-                    true,
-                    false,
-                    getMbeanServer()));
+            DbusEventsStatisticsCollector collector = new DbusEventsStatisticsCollector(getContainerStaticConfig().getId(),
+                                                                                        statsCollectorName+".outbound",
+                                                                                        true,
+                                                                                        false,
+                                                                                        getMbeanServer());
+            _outBoundStatsCollectors.addStatsCollector(statsCollectorName, collector);
+            _dbOutboundStatsCollectors.addStatsCollector(pPartition, collector);
           }
         }
+      }
+    }
+
+    public DbusEventStatsCollectorsPartitioner getDbInboundStatsCollectors()
+    {
+      return _dbInboundStatsCollectors;
+    }
+
+    public DbusEventStatsCollectorsPartitioner getDbOutboundStatsCollectors()
+    {
+      return _dbOutboundStatsCollectors;
     }
 }

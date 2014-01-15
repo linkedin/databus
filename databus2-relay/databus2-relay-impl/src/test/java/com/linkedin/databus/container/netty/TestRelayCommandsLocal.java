@@ -97,12 +97,12 @@ public class TestRelayCommandsLocal
   private HttpRelay _relay;
   private final HttpRelay.Config _staticConfigBuilder;
   private final HttpRelay.StaticConfig _staticConfig;
-  private VersionedSchemaSetBackedRegistryService _schemaRegistry;
+  private final VersionedSchemaSetBackedRegistryService _schemaRegistry;
   private DbusEventBufferMult _eventBuffer;
   private LocalAddress _serverAddress;
   private Channel _serverChannel;
   private ServerBootstrap _bootstrap;
-  private ExecutorService _executor = Executors.newCachedThreadPool();
+  private final ExecutorService _executor = Executors.newCachedThreadPool();
 
   public TestRelayCommandsLocal() throws IOException, InvalidConfigException, DatabusException
   {
@@ -179,7 +179,7 @@ public class TestRelayCommandsLocal
     _eventBuffer = _relay.getEventBuffer();
 
     DatabusEventProducer randomEventProducer = new DatabusEventRandomProducer(
-        _eventBuffer, 10, 1, 10, _staticConfig.getSourceIds());
+        _eventBuffer, 10, 1, 10, _staticConfig.getSourceIds(),null,null);
 
     RequestProcessorRegistry processorRegistry = _relay.getProcessorRegistry();
     processorRegistry.register(EchoRequestProcessor.COMMAND_NAME, new EchoRequestProcessor(null));

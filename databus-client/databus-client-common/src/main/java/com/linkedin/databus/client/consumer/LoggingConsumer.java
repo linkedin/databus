@@ -80,6 +80,7 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
   private StringBuffer _perSourceMsgBuilder;
   private FileBasedEventTrackingCallback _fileBasedCallback = null;
 
+  // used only by tests (TestConsumerRegistration, TestMultiConsumerCallback, etc.)
   public LoggingConsumer() throws InvalidConfigException
   {
     this(new Config());
@@ -90,10 +91,12 @@ public class LoggingConsumer extends DelegatingDatabusCombinedConsumer
     this(configBuilder.build());
   }
 
+  // apparently used only by DatabusHttpV3ClientImpl:
   public LoggingConsumer(StaticConfig staticConfig, String regId) throws InvalidConfigException
   {
     this(staticConfig, regId, null);
   }
+
   public LoggingConsumer(StaticConfig staticConfig) throws InvalidConfigException
   {
     this(staticConfig, null, (DatabusCombinedConsumer)null);

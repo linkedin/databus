@@ -32,6 +32,7 @@ import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventFactory;
 import com.linkedin.databus.core.DbusEventInternalReadable;
 import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.InvalidEventException;
 import com.linkedin.databus.core.PullerRetriesExhaustedException;
 import com.linkedin.databus.core.ScnNotFoundException;
@@ -195,12 +196,12 @@ public class RemoteExceptionHandler
     int retryCounter = 0;
     while (!success && retryCounter < 10)
     {
-      LOG.info("Sending an error event to dispatcher: " + exception.getMessage() +
-               "; retry " + retryCounter, exception);
+      String errMsg = "Sending an internal system event to dispatcher. Retry count = " + retryCounter;
+      DbusPrettyLogUtils.logExceptionAtInfo(errMsg, exception, LOG);
       success = _dbusEventBuffer.readEvents(errRbc) > 0 ? true : false;
       if (!success)
       {
-        LOG.warn("Unable to send an error event to dispatcher. Will retry again later! " + retryCounter);
+        LOG.warn("Unable to send an internal system event to dispatcher. Will retry later " + retryCounter);
         retryCounter ++;
         Thread.sleep(1000);
       }

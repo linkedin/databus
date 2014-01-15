@@ -24,6 +24,7 @@ import java.util.Collection;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.pub.mbean.ConsumerCallbackStatsMBean;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStatsMBean;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
@@ -40,7 +41,7 @@ public interface DatabusRegistration
   public enum RegistrationState
   {
     /**
-     * Initialization state. Dbus Client library has not setup registration for its consumers yet.
+     * Initialization state. Dbus Client library has not set up registration for its consumers yet.
      */
     INIT,
     /**
@@ -288,11 +289,14 @@ public interface DatabusRegistration
   /** Obtains the inbound bootstrap event statistics */
   public DbusEventsStatisticsCollectorMBean getBootstrapEventStats();
 
-  /** Obtain statistics for the callbacks for relay events*/
+  /** Obtains statistics for the callbacks for relay events */
   public ConsumerCallbackStatsMBean getRelayCallbackStats();
 
-  /** Obtain statistics for the callbacks for bootstrap events*/
+  /** Obtains statistics for the callbacks for bootstrap events */
   public ConsumerCallbackStatsMBean getBootstrapCallbackStats();
+
+  /** Returns unified relay/bootstrap statistics for client callbacks */
+  public UnifiedClientStatsMBean getUnifiedClientStats();
 
   /**
    * Fetch the most recent sequence number across all relays.

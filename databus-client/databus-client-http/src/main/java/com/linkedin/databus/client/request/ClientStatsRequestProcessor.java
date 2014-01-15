@@ -34,9 +34,11 @@ import com.linkedin.databus.client.pub.DatabusRegistration;
 import com.linkedin.databus.client.pub.DatabusV3Registration;
 import com.linkedin.databus.client.pub.DbusPartitionInfo;
 import com.linkedin.databus.client.pub.RegistrationId;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.client.registration.DatabusMultiPartitionRegistration;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsTotalStats;
+import com.linkedin.databus.core.monitoring.mbean.StatsCollectors;
 import com.linkedin.databus2.core.container.monitoring.mbean.DbusHttpTotalStats;
 import com.linkedin.databus2.core.container.request.AbstractStatsRequestProcessor;
 import com.linkedin.databus2.core.container.request.DatabusRequest;
@@ -62,21 +64,38 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
   private final static String INBOUND_HTTP_RELAYS_PREFIX = "inbound/http/relay/";
   private final static String INBOUND_EVENTS_TOTAL_KEY = "inbound/events/total";
   private final static String BOOTSTRAP_EVENTS_TOTAL_KEY = "bootstrap/events/total";
-  private final static String INBOUND_EVENTS_SOURCES_KEY = "outbound/events/sources";
+  private final static String INBOUND_EVENTS_SOURCES_KEY = "inbound/events/sources";  // was "outbound/events/sources"
 
 
-  /** Stream events for the registration **/
+  /** Stream/relay events (inbound into client lib's event buffer) for the registration. */
   private final static String INBOUND_EVENTS_REG_KEY_PREFIX = "inbound/events/registration/";
 
-  /** Bootstrap events for the registration **/
+  /** Bootstrap events (inbound into client lib's event buffer) for the registration. */
   private final static String BOOTSTRAP_EVENTS_REG_KEY_PREFIX = "bootstrap/events/registration/";
 
-  /** Stream callbacks for the registration **/
+  /** Stream/relay-mode callbacks for the registration (outbound to consumer/app). */
+  // This key is very poorly named...
   private final static String INBOUND_CALLBACKS_REG_KEY_PREFIX = "inbound/callbacks/registration/";
 
-  /** Bootstrap Callbacks for the registration **/
+  /** Bootstrap-mode callbacks for the registration (outbound to consumer/app). */
   private final static String BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX = "bootstrap/callbacks/registration/";
-	
+
+  /**
+   * Unified relay/bootstrap statistics for the registration (both inbound to the client
+   * lib's event buffer and outbound to the consumer/app, but mostly the latter).
+   */
+  // "Registration" might be misnomer?  Client impl's loop is over relay groups, each
+  // corresponding to a set of subscriptions (sources) and each with its own UnifiedClientStats
+  // object.
+  private final static String UNIFIED_REG_KEY_PREFIX = "unified/registration/";
+  /**
+   * Unified relay/bootstrap statistics aggregated across registrations (both inbound to
+   * the client lib's event buffer and outbound to the consumer/app, but mostly the latter).
+   */
+  // Note that there is currently no corresponding REST interface to the aggregated
+  // ConsumerCallbackStats objects.
+  private final static String UNIFIED_TOTAL_KEY = "unified/total";
+
   private final DatabusHttpClientImpl _client;
 
   public ClientStatsRequestProcessor(ExecutorService executorService, DatabusHttpClientImpl client)
@@ -152,14 +171,14 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
       /**
        * TODO :  The reason why there is diverging code below is because V2 and V3 is using different registration objects
        * which results in different containers for V2 and V3 registrations.
-       * Once we make V3 use DatabusRegistration, we should be having one call.  
-       * 
+       * Once we make V3 use DatabusRegistration, we should be having one call.
+       *
        * Note: Couldnt use instanceof for differentiating V2/V3 as V3 Client is not visible here.
        */
-       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )	
-    	   processInboundEventsRegistration(request);
+       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )
+         processInboundEventsRegistration(request);
        else
-    	   processInboundEventsRegistrationV3(request);
+         processInboundEventsRegistrationV3(request);
     }
     else if (category.startsWith(BOOTSTRAP_EVENTS_REG_KEY_PREFIX))
     {
@@ -167,41 +186,59 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
          * TODO :  The reason why there is diverging code below is because V2 and V3 is using different registration objects
          * which results in different containers for V2 and V3 registrations.
          * Once we make V3 use DatabusRegistration, we should be having one call.
-         * 
+         *
          *   Note: Couldnt use instanceof for differentiating V2/V3 as V3 Client is not visible here.
          */
-       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )	
-    	   processBootstrapEventsRegistration(request);
+       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )
+         processBootstrapEventsRegistration(request);
        else
-    	   processBootstrapEventsRegistrationV3(request);
+         processBootstrapEventsRegistrationV3(request);
     }
     else if (category.startsWith(INBOUND_CALLBACKS_REG_KEY_PREFIX))
     {
         /**
          * TODO :  The reason why there is diverging code below is because V2 and V3 is using different registration objects
          * which results in different containers for V2 and V3 registrations.
-         * Once we make V3 use DatabusRegistration, we should be having one call.  
-         * 
+         * Once we make V3 use DatabusRegistration, we should be having one call.
+         *
          * Note: Couldnt use instanceof for differentiating V2/V3 as V3 Client is not visible here.
          */
-       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )	
-    	   processInboundCallbacksRegistration(request);
+       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )
+         processInboundCallbacksRegistration(request);
        else
-    	   processInboundCallbacksRegistrationV3(request);
+         processInboundCallbacksRegistrationV3(request);
     }
     else if (category.startsWith(BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX))
     {
         /**
          * TODO : The reason why there is diverging code below is because V2 and V3 is using different registration objects
          * which results in different containers for V2 and V3 registrations.
-         * Once we make V3 use DatabusRegistration, we should be having one call.  
-         * 
+         * Once we make V3 use DatabusRegistration, we should be having one call.
+         *
          * Note: Couldnt use instanceof for differentiating V2/V3 as V3 Client is not visible here.
          */
-       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )	
-    	   processBootstrapCallbacksRegistration(request);
+       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )
+         processBootstrapCallbacksRegistration(request);
        else
-    	   processBootstrapCallbacksRegistrationV3(request);
+         processBootstrapCallbacksRegistrationV3(request);
+    }
+    else if (category.startsWith(UNIFIED_REG_KEY_PREFIX))
+    {
+        /**
+         * TODO : The reason why there is diverging code below is because V2 and V3 is using different registration objects
+         * which results in different containers for V2 and V3 registrations.
+         * Once we make V3 use DatabusRegistration, we should be having one call.
+         *
+         * Note: Couldn't use instanceof for differentiating V2/V3 as V3 Client is not visible here.
+         */
+       if ( _client.getClass().getSimpleName().equalsIgnoreCase("DatabusHttpClientImpl") )
+         processUnifiedRegistration(request);
+       else
+         processUnifiedRegistrationV3(request);
+    }
+    else if (category.equals(UNIFIED_TOTAL_KEY))
+    {
+      processUnifiedTotalStats(_client.getUnifiedClientStatsCollectors(), request);
     }
     else
     {
@@ -211,7 +248,21 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
     return success;
   }
 
+  private void processUnifiedTotalStats(StatsCollectors<UnifiedClientStats> statsCollectors,
+                                       DatabusRequest request) throws IOException
+  {
+    if (null == statsCollectors) return;
 
+    UnifiedClientStats unifiedTotalStats = statsCollectors.getStatsCollector();
+    if (null == unifiedTotalStats) return;
+
+    writeJsonObjectToResponse(unifiedTotalStats, request);
+
+    if (request.getRequestType() == HttpMethod.PUT || request.getRequestType() == HttpMethod.POST)
+    {
+      enableOrResetStatsMBean(unifiedTotalStats, request);
+    }
+  }
 
   private void processEventsTotalStats(DbusEventsStatisticsCollector statsCollector,
                                        DatabusRequest request) throws IOException
@@ -303,9 +354,7 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
     {
       enableOrResetStatsMBean(clientStats, request);
     }
-
   }
-
 
   private void processOutboundHttpTotalStats(DatabusRequest request) throws IOException
   {
@@ -333,7 +382,7 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
   }
 
   private void processOutboundHttpSourceStats(DatabusRequest request)
-                                              throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
     String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
     String sourceIdStr = category.substring(INBOUND_HTTP_SOURCE_PREFIX.length());
@@ -344,15 +393,13 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
     }
     catch (NumberFormatException nfe)
     {
-      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_SOURCE_PREFIX,
-                                                  sourceIdStr);
+      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_SOURCE_PREFIX, sourceIdStr);
     }
 
     DbusHttpTotalStats sourceStats = _client.getHttpStatsCollector().getSourceStats(sourceId);
     if (null == sourceStats)
     {
-      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_SOURCE_PREFIX,
-                                                  sourceIdStr);
+      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_SOURCE_PREFIX, sourceIdStr);
     }
 
     writeJsonObjectToResponse(sourceStats, request);
@@ -361,11 +408,10 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
     {
       enableOrResetStatsMBean(sourceStats, request);
     }
-
   }
 
   private void processOutboundHttpClientStats(DatabusRequest request)
-                                              throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
     String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
     String client = category.substring(INBOUND_HTTP_RELAYS_PREFIX.length());
@@ -373,8 +419,7 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
     DbusHttpTotalStats clientStats = _client.getHttpStatsCollector().getPeerStats(client);
     if (null == clientStats)
     {
-      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_RELAYS_PREFIX,
-                                                  client);
+      throw new InvalidRequestParamValueException(request.getName(), INBOUND_HTTP_RELAYS_PREFIX, client);
     }
 
     writeJsonObjectToResponse(clientStats, request);
@@ -386,99 +431,112 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
   }
 
   private void processInboundEventsRegistration(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusRegistration reg = findRegistration(request, INBOUND_EVENTS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getRelayEventStats().getTotalStats(), request);
+    DatabusRegistration reg = findRegistration(request, INBOUND_EVENTS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getRelayEventStats().getTotalStats(), request);
   }
 
   private void processBootstrapEventsRegistration(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusRegistration reg = findRegistration(request, BOOTSTRAP_EVENTS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getBootstrapEventStats().getTotalStats(), request);
+    DatabusRegistration reg = findRegistration(request, BOOTSTRAP_EVENTS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getBootstrapEventStats().getTotalStats(), request);
   }
 
   private void processInboundCallbacksRegistration(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusRegistration reg = findRegistration(request, INBOUND_CALLBACKS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getRelayCallbackStats(), request);
+    DatabusRegistration reg = findRegistration(request, INBOUND_CALLBACKS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getRelayCallbackStats(), request);
   }
 
   private void processBootstrapCallbacksRegistration(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusRegistration reg = findRegistration(request, BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getBootstrapCallbackStats(), request);
+    DatabusRegistration reg = findRegistration(request, BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getBootstrapCallbackStats(), request);
   }
-  
+
+  private void processUnifiedRegistration(DatabusRequest request)
+      throws IOException, RequestProcessingException
+  {
+    DatabusRegistration reg = findRegistration(request, UNIFIED_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getUnifiedClientStats(), request);
+  }
+
   private DatabusRegistration findRegistration(DatabusRequest request, String prefix) throws RequestProcessingException
   {
-	  String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
-	  String registrationIdStr = category.substring(prefix.length());
-	  RegistrationId regId = new RegistrationId(registrationIdStr);
+    String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
+    String registrationIdStr = category.substring(prefix.length());
+    RegistrationId regId = new RegistrationId(registrationIdStr);
 
-	  Collection<DatabusRegistration> regs = _client.getAllRegistrations();
+    Collection<DatabusRegistration> regs = _client.getAllRegistrations();
 
-	  for (DatabusRegistration r : regs)
-	  {
-		  if (regId.equals(r.getRegistrationId()))
-			  return r;
+    for (DatabusRegistration r : regs)
+    {
+      if (regId.equals(r.getRegistrationId()))
+        return r;
 
-		  if (r instanceof DatabusMultiPartitionRegistration)
-		  {
-			  Map<DbusPartitionInfo, DatabusRegistration> childRegs =  ((DatabusMultiPartitionRegistration)r).getPartitionRegs();
-			  for (Entry<DbusPartitionInfo, DatabusRegistration> e : childRegs.entrySet())
-				  if ( regId.equals(e.getValue().getRegistrationId()))
-					  return e.getValue();
-		  } 
+      if (r instanceof DatabusMultiPartitionRegistration)
+      {
+        Map<DbusPartitionInfo, DatabusRegistration> childRegs =  ((DatabusMultiPartitionRegistration)r).getPartitionRegs();
+        for (Entry<DbusPartitionInfo, DatabusRegistration> e : childRegs.entrySet())
+          if ( regId.equals(e.getValue().getRegistrationId()))
+            return e.getValue();
+      }
 
-	  }
-	  throw new RequestProcessingException("Unable to find registration (" + regId + ") ");
+    }
+    throw new RequestProcessingException("Unable to find registration (" + regId + ") ");
   }
 
   private void processInboundEventsRegistrationV3(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-      DatabusV3Registration reg = findV3Registration(request, INBOUND_EVENTS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getRelayEventStats().getTotalStats(), request);
+    DatabusV3Registration reg = findV3Registration(request, INBOUND_EVENTS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getRelayEventStats().getTotalStats(), request);
   }
-  
+
   private void processBootstrapEventsRegistrationV3(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusV3Registration reg = findV3Registration(request, BOOTSTRAP_EVENTS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getBootstrapEventStats().getTotalStats(), request);
+    DatabusV3Registration reg = findV3Registration(request, BOOTSTRAP_EVENTS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getBootstrapEventStats().getTotalStats(), request);
   }
 
   private void processInboundCallbacksRegistrationV3(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusV3Registration reg = findV3Registration(request, INBOUND_CALLBACKS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getRelayCallbackStats(), request);
+    DatabusV3Registration reg = findV3Registration(request, INBOUND_CALLBACKS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getRelayCallbackStats(), request);
   }
 
   private void processBootstrapCallbacksRegistrationV3(DatabusRequest request)
-		  throws IOException, RequestProcessingException
+      throws IOException, RequestProcessingException
   {
-	  DatabusV3Registration reg = findV3Registration(request, BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX);
-	  writeJsonObjectToResponse(reg.getBootstrapCallbackStats(), request);
+    DatabusV3Registration reg = findV3Registration(request, BOOTSTRAP_CALLBACKS_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getBootstrapCallbackStats(), request);
   }
-  
+
+  private void processUnifiedRegistrationV3(DatabusRequest request)
+      throws IOException, RequestProcessingException
+  {
+    DatabusV3Registration reg = findV3Registration(request, UNIFIED_REG_KEY_PREFIX);
+    writeJsonObjectToResponse(reg.getUnifiedClientStats(), request);
+  }
+
   private DatabusV3Registration findV3Registration(DatabusRequest request, String prefix)
     throws InvalidRequestParamValueException
   {
-	  String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
-	  String registrationIdStr = category.substring(prefix.length());
+    String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
+    String registrationIdStr = category.substring(prefix.length());
 
-
-      DatabusV3Registration reg = _client.getRegistration(new RegistrationId(registrationIdStr));
-      if ( null == reg )
-      {
-          LOG.warn("Invalid registrationId: " + registrationIdStr );
-          throw new InvalidRequestParamValueException(request.getName(), prefix, "No data available for this RegistrationId yet" );
-      }
-      return reg;
+    DatabusV3Registration reg = _client.getRegistration(new RegistrationId(registrationIdStr));
+    if ( null == reg )
+    {
+        LOG.warn("Invalid registrationId: " + registrationIdStr );
+        throw new InvalidRequestParamValueException(request.getName(), prefix, "No data available for this RegistrationId yet" );
+    }
+    return reg;
   }
 }

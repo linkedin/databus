@@ -17,6 +17,7 @@ package com.linkedin.databus2.producers.gg;
  */
 
 
+import java.nio.charset.Charset;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.util.Calendar;
@@ -210,7 +211,7 @@ public class GGEventGenerationFactory
     {
       if (fieldValue.length() == 0)
       {
-        return fieldValue.getBytes();
+        return fieldValue.getBytes(Charset.defaultCharset());
       }
       if (fieldValue.length() <= 2)
       {

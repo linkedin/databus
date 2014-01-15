@@ -103,7 +103,7 @@ public abstract class ServerContainer
 {
   public static final String MODULE = ServerContainer.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
-  public static final int GLOBAL_STATS_MERGE_INTERVAL_MS=500;
+  public static final int GLOBAL_STATS_MERGE_INTERVAL_MS = 10000;
 
   private static final int SHUTDOWN_TIMEOUT_MS = 30000;
   private Timer _networkTimeoutTimer = null;

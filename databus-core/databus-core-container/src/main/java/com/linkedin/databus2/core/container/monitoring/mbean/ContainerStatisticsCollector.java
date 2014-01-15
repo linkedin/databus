@@ -65,7 +65,7 @@ public class ContainerStatisticsCollector extends ReadWriteSyncedObject
   private final String _name;
   private final String _perPeerNamePrefix;
   private final ObjectName _collectorObjName;
-  private AtomicBoolean _enabled;
+  private final AtomicBoolean _enabled;
 
   public ContainerStatisticsCollector(ServerContainer serverContainer, String name, boolean enabled,
                                       boolean threadSafe,
@@ -133,7 +133,10 @@ public class ContainerStatisticsCollector extends ReadWriteSyncedObject
         _outboundTrafficTotalStatsMBean.registerAsMbean(_mbeanServer);
         _inboundTrafficTotalStatsMBean.registerAsMbean(_mbeanServer);
         _containerStats.registerAsMbean(_mbeanServer);
-        LOG.info("MBean registered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {
@@ -157,8 +160,10 @@ public class ContainerStatisticsCollector extends ReadWriteSyncedObject
         {
           _outboundTrafficPerClientStats.get(clientName).unregisterMbean(_mbeanServer);
         }
-
-        LOG.info("MBean unregistered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {
@@ -574,7 +579,7 @@ public class ContainerStatisticsCollector extends ReadWriteSyncedObject
 
   public static class Config implements ConfigBuilder<StaticConfig>
   {
-    private RuntimeConfigBuilder _runtime;
+    private final RuntimeConfigBuilder _runtime;
 
     public Config()
     {

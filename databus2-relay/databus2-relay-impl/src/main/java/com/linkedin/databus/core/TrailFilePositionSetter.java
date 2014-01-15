@@ -111,12 +111,16 @@ public class TrailFilePositionSetter
    * 1. Get all the list of trail files
    * 2. Iterate the trail files from the latest to earliest trail file until exhausted or successful, do
    *    a) FindResult = Call FindPosition() on the current file
-   *    b) If FindResult was successful( FOUND (exact scn is present) or EXACT_SCN_NOT_FOUND (scn with both lower and higher SCn is seen but not exact), then return
+   *    b) If FindResult was successful( FOUND (exact scn is present) or EXACT_SCN_NOT_FOUND (scn with both lower and higher SCn is seen but not exact) and the found txn was not the first transaction seen, then return
    *    c) Otherwise on the first transaction, reset and look at the previous file
    *
-   * This method is quick because if the currentTrailFile's SCN has higher than requested SCN, then it fails fast (after first transaction) so that lookup happens on the next file.
+   * This method is quick because if the currentTrailFile's SCN has higher than requested SCN or transaction found was the first one, then it fails fast (after first transaction) so that lookup happens on the previous file.
    * In EI/Prod, each trail file is in the order of 50 MB and this jumping should save a lot of time.
    *
+   * Reason for continuing to scan if the requested transaction is the first one :
+   *        In each round of scanning we start from one trail file if the first transaction read has SCN == requestedScn, then we
+   *        would still need to look at previous file as there could be txns with same SCN. So, we need to locate the first txn
+   *        which has this SCN. If there is no previous file present (earliest txn matches requested SCN), then we return error.
    * @param scn : SCN to locate
    * @param callback TransactionSCNFinderCallback to parse and store offsets.
    * @return FilePositionResult of the locate operation
@@ -151,8 +155,24 @@ public class TrailFilePositionSetter
 
         _log.info("Result of the location operation for SCN (" + scn + ") starting from trail file (" + startFile + ") is : " + res);
 
-        if ((res.getStatus() == Status.EXACT_SCN_NOT_FOUND) || (res.getStatus() == Status.FOUND))
+        // If this is the first txn scanned, we need to go to previous file
+        if (((res.getStatus() == Status.EXACT_SCN_NOT_FOUND) || (res.getStatus() == Status.FOUND))
+            && (res.getTxnPos().getTxnRank() > 0)) // TxnRank will be 0 if this is the
+                                                   // first txn scanned
+        {
           break;
+        }
+
+        if ((0 == i) && (res != null))
+        {
+          ScnTxnPos scnTxnPos = res.getTxnPos();
+          if ( (scnTxnPos != null) && (scnTxnPos.getTxnRank() <= 0))
+          {
+            return FilePositionResult.createErrorResult(new DatabusException("A transaction with scn less than requested SCN was not found. "
+              + "Without this txn, we cannot identify if all transactions for requested SCN "
+              + "have been located. Requested SinceSCN is :" + scn));
+          }
+        }
       }
     }
     return res;
@@ -486,6 +506,7 @@ public class TrailFilePositionSetter
     private final ScnTxnPos _txnPos;
 
     private final Throwable _error;
+
 
     public static FilePositionResult createFoundResult(ScnTxnPos scnTxnPos)
     {

@@ -19,16 +19,15 @@ package com.linkedin.databus.core;
 */
 
 
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertTrue;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.Test;
-import org.testng.annotations.BeforeMethod;
 import static org.jboss.netty.channel.Channels.pipeline;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertTrue;
+
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -67,6 +66,10 @@ import org.jboss.netty.handler.logging.LoggingHandler;
 import org.jboss.netty.logging.InternalLogLevel;
 import org.jboss.netty.logging.InternalLoggerFactory;
 import org.jboss.netty.logging.Log4JLoggerFactory;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.Test;
+import org.testng.annotations.BeforeMethod;
+
 import com.linkedin.databus.core.test.netty.FooterAwareHttpChunkAggregator;
 import com.linkedin.databus.core.test.netty.SimpleHttpResponseHandler;
 import com.linkedin.databus2.core.container.netty.ChunkedBodyWritableByteChannel;
@@ -199,7 +202,7 @@ public class TestChunkedBodyWritableByteChannel
 
     String chunk1 = "hello";
     ArrayList<byte[]> chunks = new ArrayList<byte[]>();
-    chunks.add(chunk1.getBytes());
+    chunks.add(chunk1.getBytes(Charset.defaultCharset()));
 
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("header1", "value1");
@@ -225,8 +228,8 @@ public class TestChunkedBodyWritableByteChannel
     assertEquals("Checking header2 value", "value2", response.getHeader("header2"));
 
     byte[] responseBody = _responseHandler.getReceivedBytes();
-    assertEquals("response length", chunk1.getBytes().length, responseBody.length);
-    assertTrue("response content", Arrays.equals(chunk1.getBytes(), responseBody));
+    assertEquals("response length", chunk1.getBytes(Charset.defaultCharset()).length, responseBody.length);
+    assertTrue("response content", Arrays.equals(chunk1.getBytes(Charset.defaultCharset()), responseBody));
     LOG.info("Done: Testing headers with one chunk");
   }
 
@@ -240,8 +243,8 @@ public class TestChunkedBodyWritableByteChannel
     String chunk1 = "hello";
     String chunk2 = "bye";
     ArrayList<byte[]> chunks = new ArrayList<byte[]>();
-    chunks.add(chunk1.getBytes());
-    chunks.add(chunk2.getBytes());
+    chunks.add(chunk1.getBytes(Charset.defaultCharset()));
+    chunks.add(chunk2.getBytes(Charset.defaultCharset()));
 
     HashMap<String, String> headers = new HashMap<String, String>();
     headers.put("header1", "value1");
@@ -271,11 +274,11 @@ public class TestChunkedBodyWritableByteChannel
     assertEquals("Checking footer2 value", "2value", response.getHeader("footer2"));
 
     byte[] responseBody = _responseHandler.getReceivedBytes();
-    assertEquals("response length", chunk1.getBytes().length + chunk2.getBytes().length,
+    assertEquals("response length", chunk1.getBytes(Charset.defaultCharset()).length + chunk2.getBytes(Charset.defaultCharset()).length,
                  responseBody.length);
-    byte[] fullBody = new byte[chunk1.getBytes().length + chunk2.getBytes().length];
-    System.arraycopy(chunk1.getBytes(), 0, fullBody, 0, chunk1.getBytes().length);
-    System.arraycopy(chunk2.getBytes(), 0, fullBody, chunk1.getBytes().length, chunk2.getBytes().length);
+    byte[] fullBody = new byte[chunk1.getBytes(Charset.defaultCharset()).length + chunk2.getBytes(Charset.defaultCharset()).length];
+    System.arraycopy(chunk1.getBytes(Charset.defaultCharset()), 0, fullBody, 0, chunk1.getBytes(Charset.defaultCharset()).length);
+    System.arraycopy(chunk2.getBytes(Charset.defaultCharset()), 0, fullBody, chunk1.getBytes(Charset.defaultCharset()).length, chunk2.getBytes(Charset.defaultCharset()).length);
     assertTrue("response content", Arrays.equals(fullBody, responseBody));
     LOG.info("Done: Testing headers with one chunk");
   }

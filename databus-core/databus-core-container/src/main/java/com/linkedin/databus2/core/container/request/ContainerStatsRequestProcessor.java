@@ -48,15 +48,14 @@ public class ContainerStatsRequestProcessor extends AbstractStatsRequestProcesso
   private final static String OUTBOUND_EVENTS_SOURCES_KEY = "outbound/events/sources";
   private final static String OUTBOUND_EVENTS_SOURCE_PREFIX = "outbound/events/source/";
   private final static String OUTBOUND_EVENTS_PSOURCES_KEY = "outbound/events/psources";
-  private final static String OUTBOUND_EVENTS_PSOURCE_PREFIX = "outbound/events/psource/";
+  protected final static String OUTBOUND_EVENTS_PSOURCE_PREFIX = "outbound/events/psource/";
   private final static String OUTBOUND_EVENTS_CLIENTS_KEY = "outbound/events/clients";
   private final static String OUTBOUND_EVENTS_CLIENT_PREFIX = "outbound/events/client/";
   private final static String INBOUND_EVENTS_TOTAL_KEY = "inbound/events/total";
   private final static String INBOUND_EVENTS_SOURCES_KEY = "inbound/events/sources";
   private final static String INBOUND_EVENTS_SOURCE_PREFIX = "inbound/events/source/";
   private final static String INBOUND_EVENTS_PSOURCES_KEY = "inbound/events/psources";
-  private final static String INBOUND_EVENTS_PSOURCE_PREFIX = "inbound/events/psource/";
-
+  protected final static String INBOUND_EVENTS_PSOURCE_PREFIX = "inbound/events/psource/";
 
   private final ServerContainer _container;
   private final ContainerStatisticsCollector _containerStatsCollector;

@@ -101,293 +101,306 @@ public class TestRelayPullThread
   @BeforeClass
   public void setUp()
   {
-    TestUtil.setupLoggingWithTimestampedFile(true, "TestRelayPullThread", ".log", Level.WARN);
+    TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestRelayPullThread", ".log", Level.WARN);
     InternalLoggerFactory.setDefaultFactory(new Log4JLoggerFactory());
   }
 
-  public static class RelayPullThreadBuilder {
-   public RelayPullThreadBuilder(boolean failRelayConnection, boolean muteTransition) {
-     _failRelayConnection = failRelayConnection; _muteTransition = muteTransition;
-   }
-   // setters
-   RelayPullThreadBuilder setBootstrapEnabled(boolean bootstrapEnabled) {
-     _bootstrapEnabled = bootstrapEnabled;
-     return this;
-   }
-   RelayPullThreadBuilder setReadLatestScnEnabled(boolean readLatestScnEnabled) {
-     _readLatestScnEnabled = readLatestScnEnabled;
-     return this;
-   }
-
-   RelayPullThreadBuilder setReadDataThrowException(boolean readDataThrowException) {
-     _readDataThrowException = readDataThrowException;
-     return this;
-   }
-
-   RelayPullThreadBuilder setReadDataException(boolean readDataException) {
-     _readDataException = readDataException;
-     return this;
-   }
-
-   RelayPullThreadBuilder setExceptionName(String exceptionName) {
-     _exceptionName = exceptionName;
-     return this;
-   }
-
-   RelayPullThreadBuilder setNumRetriesOnFellOff(int numRetriesOnFellOff) {
-     _numRetriesOnFellOff = numRetriesOnFellOff;
-     return this;
-   }
-
-   RelayPullThreadBuilder setFilterConfig(DbusKeyCompositeFilterConfig filterConfig) {
-	 _filterConfig = filterConfig;
-	 return this;
-   }
-
-   boolean _failRelayConnection;
-   boolean _muteTransition;
-   boolean _bootstrapEnabled;
-   boolean _readLatestScnEnabled;
-   boolean _readDataThrowException;
-   boolean _readDataException;
-   String _exceptionName;
-   int _numRetriesOnFellOff;
-   DbusKeyCompositeFilterConfig _filterConfig = null;
-
-   public RelayPullThread createRelayPullThread() throws Exception {
-     return TestRelayPullThread.createRelayPullThread(_failRelayConnection,
-                                  _muteTransition,
-                                  _bootstrapEnabled,
-                                  _readLatestScnEnabled,
-                                  _readDataThrowException,
-                                  _readDataException,
-                                  _exceptionName,
-                                  _numRetriesOnFellOff,
-                                  _filterConfig);
-   }
-
-   public RelayPullThread createFellOffRelayPullThread() throws Exception {
-     RelayPullThread r = createRelayPullThread();
-     r.getConnectionState().setRelayFellOff(true);
-     return r;
-   }
+  public static class RelayPullThreadBuilder
+  {
+    public RelayPullThreadBuilder(boolean failRelayConnection, boolean muteTransition)
+    {
+      _failRelayConnection = failRelayConnection; _muteTransition = muteTransition;
+    }
+    // setters
+    RelayPullThreadBuilder setBootstrapEnabled(boolean bootstrapEnabled)
+    {
+      _bootstrapEnabled = bootstrapEnabled;
+      return this;
+    }
+    RelayPullThreadBuilder setReadLatestScnEnabled(boolean readLatestScnEnabled)
+    {
+      _readLatestScnEnabled = readLatestScnEnabled;
+      return this;
+    }
+   
+    RelayPullThreadBuilder setReadDataThrowException(boolean readDataThrowException)
+    {
+      _readDataThrowException = readDataThrowException;
+      return this;
+    }
+   
+    RelayPullThreadBuilder setReadDataException(boolean readDataException)
+    {
+      _readDataException = readDataException;
+      return this;
+    }
+   
+    RelayPullThreadBuilder setExceptionName(String exceptionName)
+    {
+      _exceptionName = exceptionName;
+      return this;
+    }
+   
+    RelayPullThreadBuilder setNumRetriesOnFellOff(int numRetriesOnFellOff)
+    {
+      _numRetriesOnFellOff = numRetriesOnFellOff;
+      return this;
+    }
+   
+    RelayPullThreadBuilder setFilterConfig(DbusKeyCompositeFilterConfig filterConfig)
+    {
+      _filterConfig = filterConfig;
+      return this;
+    }
+   
+    boolean _failRelayConnection;
+    boolean _muteTransition;
+    boolean _bootstrapEnabled;
+    boolean _readLatestScnEnabled;
+    boolean _readDataThrowException;
+    boolean _readDataException;
+    String _exceptionName;
+    int _numRetriesOnFellOff;
+    DbusKeyCompositeFilterConfig _filterConfig = null;
+   
+    public RelayPullThread createRelayPullThread() throws Exception
+    {
+      return TestRelayPullThread.createRelayPullThread(_failRelayConnection,
+                                   _muteTransition,
+                                   _bootstrapEnabled,
+                                   _readLatestScnEnabled,
+                                   _readDataThrowException,
+                                   _readDataException,
+                                   _exceptionName,
+                                   _numRetriesOnFellOff,
+                                   _filterConfig);
+    }
+   
+    public RelayPullThread createFellOffRelayPullThread() throws Exception
+    {
+      RelayPullThread r = createRelayPullThread();
+      r.getConnectionState().setRelayFellOff(true);
+      return r;
+    }
   }
 
   private static RelayPullThread createRelayPullThread(boolean failRelayConnection,
-		  										boolean muteTransition,
-		  										boolean bootstrapEnabled,
-		  										boolean readLatestScnEnabled,
-		  										boolean readDataThrowException,
-		  										boolean readDataException,
-		  										String exceptionName,
-		  										int numRetriesOnFellOff,
-		  										DbusKeyCompositeFilterConfig filterConfig)
-		  	throws Exception
+                          boolean muteTransition,
+                          boolean bootstrapEnabled,
+                          boolean readLatestScnEnabled,
+                          boolean readDataThrowException,
+                          boolean readDataException,
+                          String exceptionName,
+                          int numRetriesOnFellOff,
+                          DbusKeyCompositeFilterConfig filterConfig)
+  throws Exception
   {
-	    List<String> sources = Arrays.asList("source1");
-	    Properties clientProps = new Properties();
-	    if ( bootstrapEnabled)
-	    {
-  	      clientProps.setProperty("client.runtime.bootstrap.enabled", "true");
-		  clientProps.setProperty("client.runtime.bootstrap.service(1).name", "bs1");
-		  clientProps.setProperty("client.runtime.bootstrap.service(1).port", "10001");
-		  clientProps.setProperty("client.runtime.bootstrap.service(1).sources", "source1");
-	    } else {
-		  clientProps.setProperty("client.runtime.bootstrap.enabled", "false");
-  		}
+    List<String> sources = Arrays.asList("source1");
+    Properties clientProps = new Properties();
+    if (bootstrapEnabled)
+    {
+      clientProps.setProperty("client.runtime.bootstrap.enabled", "true");
+      clientProps.setProperty("client.runtime.bootstrap.service(1).name", "bs1");
+      clientProps.setProperty("client.runtime.bootstrap.service(1).port", "10001");
+      clientProps.setProperty("client.runtime.bootstrap.service(1).sources", "source1");
+    } else {
+      clientProps.setProperty("client.runtime.bootstrap.enabled", "false");
+    }
 
-	    clientProps.setProperty("client.container.jmx.rmiEnabled", "false");
+    clientProps.setProperty("client.container.jmx.rmiEnabled", "false");
 
-	    clientProps.setProperty("client.runtime.relay(1).name", "relay1");
-	    clientProps.setProperty("client.runtime.relay(1).port", "10001");
-	    clientProps.setProperty("client.runtime.relay(1).sources", "source1");
-	    clientProps.setProperty("client.runtime.relay(2).name", "relay2");
-	    clientProps.setProperty("client.runtime.relay(2).port", "10002");
-	    clientProps.setProperty("client.runtime.relay(2).sources", "source1");
-	    clientProps.setProperty("client.runtime.relay(3).name", "relay3");
-	    clientProps.setProperty("client.runtime.relay(3).port", "10003");
-	    clientProps.setProperty("client.runtime.relay(3).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(1).name", "relay1");
+    clientProps.setProperty("client.runtime.relay(1).port", "10001");
+    clientProps.setProperty("client.runtime.relay(1).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(2).name", "relay2");
+    clientProps.setProperty("client.runtime.relay(2).port", "10002");
+    clientProps.setProperty("client.runtime.relay(2).sources", "source1");
+    clientProps.setProperty("client.runtime.relay(3).name", "relay3");
+    clientProps.setProperty("client.runtime.relay(3).port", "10003");
+    clientProps.setProperty("client.runtime.relay(3).sources", "source1");
 
-	    if (readLatestScnEnabled)
-	      clientProps.setProperty("client.enableReadLatestOnRelayFallOff", "true");
+    if (readLatestScnEnabled)
+      clientProps.setProperty("client.enableReadLatestOnRelayFallOff", "true");
 
-	    clientProps.setProperty("client.connectionDefaults.eventBuffer.maxSize", "100000");
-	    clientProps.setProperty("client.connectionDefaults.pullerRetries.maxRetryNum", "9");
-	    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncFactor", "1.0");
-	    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncDelta", "1");
-	    clientProps.setProperty("client.connectionDefaults.pullerRetries.initSleep", "1");
-	    clientProps.setProperty("client.connectionDefaults.numRetriesOnFallOff", "" + numRetriesOnFellOff);
+    clientProps.setProperty("client.connectionDefaults.eventBuffer.maxSize", "100000");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.maxRetryNum", "9");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncFactor", "1.0");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.sleepIncDelta", "1");
+    clientProps.setProperty("client.connectionDefaults.pullerRetries.initSleep", "1");
+    clientProps.setProperty("client.connectionDefaults.numRetriesOnFallOff", "" + numRetriesOnFellOff);
 
-	    DatabusHttpClientImpl.Config clientConfBuilder = new DatabusHttpClientImpl.Config();
-	    ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
-	        new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("client.", clientConfBuilder);
-	    configLoader.loadConfig(clientProps);
+    DatabusHttpClientImpl.Config clientConfBuilder = new DatabusHttpClientImpl.Config();
+    ConfigLoader<DatabusHttpClientImpl.StaticConfig> configLoader =
+        new ConfigLoader<DatabusHttpClientImpl.StaticConfig>("client.", clientConfBuilder);
+    configLoader.loadConfig(clientProps);
 
-	    DatabusHttpClientImpl.StaticConfig clientConf = clientConfBuilder.build();
-	    DatabusSourcesConnection.StaticConfig srcConnConf = clientConf.getConnectionDefaults();
+    DatabusHttpClientImpl.StaticConfig clientConf = clientConfBuilder.build();
+    DatabusSourcesConnection.StaticConfig srcConnConf = clientConf.getConnectionDefaults();
 
-	    DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConf);
+    DatabusHttpClientImpl client = new DatabusHttpClientImpl(clientConf);
 
-	    if (bootstrapEnabled)
-	      client.registerDatabusBootstrapListener(new LoggingConsumer(), null, "source1");
+    if (bootstrapEnabled)
+      client.registerDatabusBootstrapListener(new LoggingConsumer(), null, "source1");
 
-	    Assert.assertNotNull(client, "client instantiation ok");
+    Assert.assertNotNull(client, "client instantiation ok");
 
-	    DatabusHttpClientImpl.RuntimeConfig clientRtConf = clientConf.getRuntime().build();
+    DatabusHttpClientImpl.RuntimeConfig clientRtConf = clientConf.getRuntime().build();
 
-	    //we keep the index of the next server we expect to see
-	    AtomicInteger serverIdx = new AtomicInteger(-1);
+    //we keep the index of the next server we expect to see
+    AtomicInteger serverIdx = new AtomicInteger(-1);
 
-	    //generate the order in which we should see the servers
-	    List<ServerInfo> relayOrder = new ArrayList<ServerInfo>(clientRtConf.getRelays());
-	    if (LOG.isInfoEnabled())
-	    {
-	      StringBuilder sb = new StringBuilder();
-	      for (ServerInfo serverInfo: relayOrder)
-	      {
-	        sb.append(serverInfo.getName());
-	        sb.append(" ");
-	      }
-	      LOG.info("Relay order:" + sb.toString());
-	    }
+    //generate the order in which we should see the servers
+    List<ServerInfo> relayOrder = new ArrayList<ServerInfo>(clientRtConf.getRelays());
+    if (LOG.isInfoEnabled())
+    {
+      StringBuilder sb = new StringBuilder();
+      for (ServerInfo serverInfo: relayOrder)
+      {
+        sb.append(serverInfo.getName());
+        sb.append(" ");
+      }
+      LOG.info("Relay order:" + sb.toString());
+    }
 
-	    List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-	    sourcesResponse.add(new IdNamePair(1L, "source1"));
+    List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+    sourcesResponse.add(new IdNamePair(1L, "source1"));
 
-	    Map<Long, List<RegisterResponseEntry>> registerSourcesResponse = new HashMap<Long, List<RegisterResponseEntry>>();
-	    List<RegisterResponseEntry> regResponse = new ArrayList<RegisterResponseEntry>();
-	    regResponse.add(new RegisterResponseEntry(1L, (short)1, SCHEMA$.toString()));
-	    registerSourcesResponse.put(1L, regResponse);
+    Map<Long, List<RegisterResponseEntry>> registerSourcesResponse = new HashMap<Long, List<RegisterResponseEntry>>();
+    List<RegisterResponseEntry> regResponse = new ArrayList<RegisterResponseEntry>();
+    regResponse.add(new RegisterResponseEntry(1L, (short)1, SCHEMA$.toString()));
+    registerSourcesResponse.put(1L, regResponse);
 
-	    ChunkedBodyReadableByteChannel channel = EasyMock.createMock(ChunkedBodyReadableByteChannel.class);
+    ChunkedBodyReadableByteChannel channel = EasyMock.createMock(ChunkedBodyReadableByteChannel.class);
 
-	    if ( ! readDataException)
-	    {
-	    	EasyMock.expect(channel.getMetadata(EasyMock.<String>notNull())).andReturn(null).anyTimes();
-	    } else {
-	    	EasyMock.expect(channel.getMetadata(EasyMock.<String>notNull())).andReturn(exceptionName).anyTimes();
-	    }
-	    EasyMock.replay(channel);
+    if ( ! readDataException)
+    {
+      EasyMock.expect(channel.getMetadata(EasyMock.<String>notNull())).andReturn(null).anyTimes();
+    } else {
+      EasyMock.expect(channel.getMetadata(EasyMock.<String>notNull())).andReturn(exceptionName).anyTimes();
+    }
+    EasyMock.replay(channel);
 
-	    DbusEventBuffer dbusBuffer = EasyMock.createMock(DbusEventBuffer.class);
-	    EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull(), EasyMock.<List<InternalDatabusEventsListener>>notNull(), EasyMock.<DbusEventsStatisticsCollector>isNull())).andReturn(1).anyTimes();
-	    EasyMock.expect(dbusBuffer.getSeenEndOfPeriodScn()).andReturn(1L).anyTimes();
-	    EasyMock.expect(dbusBuffer.getEventSerializationVersion()).andReturn(DbusEventFactory.DBUS_EVENT_V1).anyTimes();
-	    if ( readDataThrowException)
-	    {
-		  EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull())).andThrow(new RuntimeException("dummy")).anyTimes();
-	    } else {
-	      EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull())).andReturn(1).anyTimes();
-	    }
+    DbusEventBuffer dbusBuffer = EasyMock.createMock(DbusEventBuffer.class);
+    EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull(), EasyMock.<List<InternalDatabusEventsListener>>notNull(), EasyMock.<DbusEventsStatisticsCollector>isNull())).andReturn(1).anyTimes();
+    EasyMock.expect(dbusBuffer.getSeenEndOfPeriodScn()).andReturn(1L).anyTimes();
+    EasyMock.expect(dbusBuffer.getEventSerializationVersion()).andReturn(DbusEventFactory.DBUS_EVENT_V1).anyTimes();
+    if ( readDataThrowException)
+    {
+    EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull())).andThrow(new RuntimeException("dummy")).anyTimes();
+    } else {
+      EasyMock.expect(dbusBuffer.readEvents(EasyMock.<ReadableByteChannel>notNull())).andReturn(1).anyTimes();
+    }
 
-	    EasyMock.expect(dbusBuffer.acquireIterator(EasyMock.<String>notNull())).andReturn(null).anyTimes();
-        dbusBuffer.waitForFreeSpace((int)(clientConf.getConnectionDefaults().getFreeBufferThreshold() * 100.0 / clientConf.getPullerBufferUtilizationPct()));
-	    EasyMock.expectLastCall().anyTimes();
-	    EasyMock.expect(dbusBuffer.getBufferFreeReadSpace()).andReturn(0).anyTimes();
+    EasyMock.expect(dbusBuffer.acquireIterator(EasyMock.<String>notNull())).andReturn(null).anyTimes();
+      dbusBuffer.waitForFreeSpace((int)(clientConf.getConnectionDefaults().getFreeBufferThreshold() * 100.0 / clientConf.getPullerBufferUtilizationPct()));
+    EasyMock.expectLastCall().anyTimes();
+    EasyMock.expect(dbusBuffer.getBufferFreeReadSpace()).andReturn(0).anyTimes();
 
-	    EasyMock.replay(dbusBuffer);
+    EasyMock.replay(dbusBuffer);
 
-	    //This guy succeeds on /sources but fails on /register  [FIXME:  it does? why?]
-	    Map<Long, List<RegisterResponseEntry>> registerKeysResponse = null;
-	    List<RegisterResponseMetadataEntry> registerMetadataResponse = null;
-	    MockRelayConnection mockSuccessConn = new MockRelayConnection(sourcesResponse,
-	                                                                  registerSourcesResponse,
-	                                                                  registerKeysResponse,
-	                                                                  registerMetadataResponse,
-	                                                                  channel,
-	                                                                  serverIdx,
-	                                                                  muteTransition);
+    //This guy succeeds on /sources but fails on /register  [FIXME:  it does? why?]
+    Map<Long, List<RegisterResponseEntry>> registerKeysResponse = null;
+    List<RegisterResponseMetadataEntry> registerMetadataResponse = null;
+    MockRelayConnection mockSuccessConn = new MockRelayConnection(sourcesResponse,
+                                                                  registerSourcesResponse,
+                                                                  registerKeysResponse,
+                                                                  registerMetadataResponse,
+                                                                  channel,
+                                                                  serverIdx,
+                                                                  muteTransition);
 
-	    DatabusRelayConnectionFactory mockConnFactory =
-	            EasyMock.createMock("mockRelayFactory", DatabusRelayConnectionFactory.class);
+    DatabusRelayConnectionFactory mockConnFactory =
+            EasyMock.createMock("mockRelayFactory", DatabusRelayConnectionFactory.class);
 
-	    //each server should be tried MAX_RETRIES time until all retries are exhausted
+    //each server should be tried MAX_RETRIES time until all retries are exhausted
 
-	    if ( failRelayConnection )
-	    {
-		    EasyMock.expect(mockConnFactory.createRelayConnection(
-			          EasyMock.<ServerInfo>notNull(),
-			          EasyMock.<ActorMessageQueue>notNull(),
-			          EasyMock.<RemoteExceptionHandler>notNull())).andThrow(new RuntimeException("Mock Error")).anyTimes();
-	    } else {
-	    	EasyMock.expect(mockConnFactory.createRelayConnection(
-	          EasyMock.<ServerInfo>notNull(),
-	          EasyMock.<ActorMessageQueue>notNull(),
-	          EasyMock.<RemoteExceptionHandler>notNull())).andReturn(mockSuccessConn).anyTimes();
-	    }
-
-
-	    List<DatabusSubscription> sourcesSubList = DatabusSubscription.createSubscriptionList(sources);
-
-		// Mock Bootstrap Puller
-		BootstrapPullThread mockBsPuller = EasyMock.createMock("bpt",BootstrapPullThread.class);
-		mockBsPuller.enqueueMessage(EasyMock.notNull());
-		EasyMock.expectLastCall().anyTimes();
-
-		// Mock Relay Dispatcher
-		RelayDispatcher mockDispatcher = EasyMock.createMock("rd", RelayDispatcher.class);
-		mockDispatcher.enqueueMessage(EasyMock.notNull());
-		EasyMock.expectLastCall().anyTimes();
-
-	   DatabusSourcesConnection sourcesConn2 = EasyMock.createMock(DatabusSourcesConnection.class);
-
-	   DatabusSourcesConnection.SourcesConnectionStatus scs = sourcesConn2.new SourcesConnectionStatus();
-	   EasyMock.expect(sourcesConn2.getSourcesNames()).andReturn(Arrays.asList("source1")).anyTimes();
-	   EasyMock.expect(sourcesConn2.getSubscriptions()).andReturn(sourcesSubList).anyTimes();
-	   EasyMock.expect(sourcesConn2.getConnectionConfig()).andReturn(srcConnConf).anyTimes();
-	   EasyMock.expect(sourcesConn2.getConnectionStatus()).andReturn(scs).anyTimes();
-	   EasyMock.expect(sourcesConn2.getLocalRelayCallsStatsCollector()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getInboundEventsStatsCollector()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getRelayCallsStatsCollector()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getRelayConnFactory()).andReturn(mockConnFactory).anyTimes();
-	   EasyMock.expect(sourcesConn2.loadPersistentCheckpoint()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getDataEventsBuffer()).andReturn(dbusBuffer).anyTimes();
-
-	   if ( bootstrapEnabled)
-	     EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(true).anyTimes();
-	   else
-		 EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(false).anyTimes();
-
-	   EasyMock.expect(sourcesConn2.getBootstrapRegistrations()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getBootstrapServices()).andReturn(null).anyTimes();
-	   EasyMock.expect(sourcesConn2.getBootstrapPuller()).andReturn(mockBsPuller).anyTimes();
-	   EasyMock.expect(sourcesConn2.getRelayDispatcher()).andReturn(mockDispatcher).anyTimes();
+    if ( failRelayConnection )
+    {
+      EasyMock.expect(mockConnFactory.createRelayConnection(
+          EasyMock.<ServerInfo>notNull(),
+          EasyMock.<ActorMessageQueue>notNull(),
+          EasyMock.<RemoteExceptionHandler>notNull())).andThrow(new RuntimeException("Mock Error")).anyTimes();
+    } else {
+      EasyMock.expect(mockConnFactory.createRelayConnection(
+          EasyMock.<ServerInfo>notNull(),
+          EasyMock.<ActorMessageQueue>notNull(),
+          EasyMock.<RemoteExceptionHandler>notNull())).andReturn(mockSuccessConn).anyTimes();
+    }
 
 
-	   EasyMock.makeThreadSafe(mockConnFactory, true);
-	   EasyMock.makeThreadSafe(mockDispatcher, true);
-	   EasyMock.makeThreadSafe(mockBsPuller, true);
-	   EasyMock.makeThreadSafe(sourcesConn2, true);
+    List<DatabusSubscription> sourcesSubList = DatabusSubscription.createSubscriptionList(sources);
 
-	   EasyMock.replay(mockConnFactory);
-	   EasyMock.replay(sourcesConn2);
-	   EasyMock.replay(mockDispatcher);
-	   EasyMock.replay(mockBsPuller);
+    // Mock Bootstrap Puller
+    BootstrapPullThread mockBsPuller = EasyMock.createMock("bpt",BootstrapPullThread.class);
+    mockBsPuller.enqueueMessage(EasyMock.notNull());
+    EasyMock.expectLastCall().anyTimes();
 
-	   ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
-	   ArrayList<DbusKeyCompositeFilterConfig> filters = new ArrayList<DbusKeyCompositeFilterConfig>();
-	   if(filterConfig != null)
-		   filters.add(filterConfig);
-	   RelayPullThread relayPuller = new RelayPullThread("RelayPuller", sourcesConn2, dbusBuffer, connStateFactory, clientRtConf.getRelaysSet(),
-	       filters,
-			   srcConnConf.getConsumeCurrent(),
-			   srcConnConf.getReadLatestScnOnError(),
-			   srcConnConf.getPullerUtilizationPct(),
-			   0, // no threshold for noEventsRest set
-			   ManagementFactory.getPlatformMBeanServer(),
-			   new DbusEventV1Factory());
-	   RemoteExceptionHandler mockRemoteExceptionHandler = new MockRemoteExceptionHandler(sourcesConn2, dbusBuffer, relayPuller);
+    // Mock Relay Dispatcher
+    RelayDispatcher mockDispatcher = EasyMock.createMock("rd", RelayDispatcher.class);
+    mockDispatcher.enqueueMessage(EasyMock.notNull());
+    EasyMock.expectLastCall().anyTimes();
 
-	   Field field = relayPuller.getClass().getDeclaredField("_remoteExceptionHandler");
-	   field.setAccessible(true);
-	   field.set(relayPuller, mockRemoteExceptionHandler);
+    DatabusSourcesConnection sourcesConn2 = EasyMock.createMock(DatabusSourcesConnection.class);
 
-	   mockSuccessConn.setCallback(relayPuller);
+    DatabusSourcesConnection.SourcesConnectionStatus scs = sourcesConn2.new SourcesConnectionStatus();
+    EasyMock.expect(sourcesConn2.getSourcesNames()).andReturn(Arrays.asList("source1")).anyTimes();
+    EasyMock.expect(sourcesConn2.getSubscriptions()).andReturn(sourcesSubList).anyTimes();
+    EasyMock.expect(sourcesConn2.getConnectionConfig()).andReturn(srcConnConf).anyTimes();
+    EasyMock.expect(sourcesConn2.getConnectionStatus()).andReturn(scs).anyTimes();
+    EasyMock.expect(sourcesConn2.getLocalRelayCallsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getInboundEventsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getRelayCallsStatsCollector()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getUnifiedClientStats()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getRelayConnFactory()).andReturn(mockConnFactory).anyTimes();
+    EasyMock.expect(sourcesConn2.loadPersistentCheckpoint()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getDataEventsBuffer()).andReturn(dbusBuffer).anyTimes();
 
-	   return relayPuller;
+    if ( bootstrapEnabled)
+      EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(true).anyTimes();
+    else
+    EasyMock.expect(sourcesConn2.isBootstrapEnabled()).andReturn(false).anyTimes();
+
+    EasyMock.expect(sourcesConn2.getBootstrapRegistrations()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapServices()).andReturn(null).anyTimes();
+    EasyMock.expect(sourcesConn2.getBootstrapPuller()).andReturn(mockBsPuller).anyTimes();
+    EasyMock.expect(sourcesConn2.getRelayDispatcher()).andReturn(mockDispatcher).anyTimes();
+
+
+    EasyMock.makeThreadSafe(mockConnFactory, true);
+    EasyMock.makeThreadSafe(mockDispatcher, true);
+    EasyMock.makeThreadSafe(mockBsPuller, true);
+    EasyMock.makeThreadSafe(sourcesConn2, true);
+
+    EasyMock.replay(mockConnFactory);
+    EasyMock.replay(sourcesConn2);
+    EasyMock.replay(mockDispatcher);
+    EasyMock.replay(mockBsPuller);
+
+    ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
+    ArrayList<DbusKeyCompositeFilterConfig> filters = new ArrayList<DbusKeyCompositeFilterConfig>();
+    if(filterConfig != null)
+      filters.add(filterConfig);
+    RelayPullThread relayPuller = new RelayPullThread("RelayPuller", sourcesConn2, dbusBuffer, connStateFactory, clientRtConf.getRelaysSet(),
+        filters,
+        srcConnConf.getConsumeCurrent(),
+        srcConnConf.getReadLatestScnOnError(),
+        srcConnConf.getPullerUtilizationPct(),
+        0, // no threshold for noEventsRest set
+        ManagementFactory.getPlatformMBeanServer(),
+        new DbusEventV1Factory());
+    RemoteExceptionHandler mockRemoteExceptionHandler = new MockRemoteExceptionHandler(sourcesConn2, dbusBuffer, relayPuller);
+
+    Field field = relayPuller.getClass().getDeclaredField("_remoteExceptionHandler");
+    field.setAccessible(true);
+    field.set(relayPuller, mockRemoteExceptionHandler);
+
+    mockSuccessConn.setCallback(relayPuller);
+
+    return relayPuller;
   }
 
-  private static DbusKeyCompositeFilterConfig createFakeFilter() throws DatabusException {
+  private static DbusKeyCompositeFilterConfig createFakeFilter() throws DatabusException
+  {
     DbusModPartitionedFilterFactory filterFactory = new DbusModPartitionedFilterFactory("source1");
     DbusClusterInfo cluster = new DbusClusterInfo("cluster", 2, 2);
     DbusPartitionInfo partition = new DbusPartitionInfo() {
@@ -397,14 +410,13 @@ public class TestRelayPullThread
       public boolean equalsPartition(DbusPartitionInfo other) { return true; }
     };
 
-
     return filterFactory.createServerSideFilter(cluster, partition);
   }
 
   private void validateConnState(ConnectionState connState)
   {
-	   Assert.assertEquals(connState.getHostName(), _HOSTNAME);
-	   Assert.assertEquals(connState.getSvcName(), _SVCNAME);
+     Assert.assertEquals(connState.getHostName(), _HOSTNAME);
+     Assert.assertEquals(connState.getSvcName(), _SVCNAME);
   }
 
   @Test(groups={"small", "functional"})
@@ -412,840 +424,841 @@ public class TestRelayPullThread
   {
     final Logger log = Logger.getLogger("TestRelayPullThread.testRelayTransition");
     log.info("---------- start ---------------");
-	   // Test Case : Initial State Check
-	   {
-	     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-		   //RelayPullThread relayPuller = createRelayPullThread(false, false);
-	     RelayPullThread relayPuller = bldr.createRelayPullThread();
-		   Assert.assertEquals(relayPuller.getConnectionState().getStateId(), StateId.INITIAL, "Initial State Check");
-
-		   //Let the show begin
-		   Thread relayPullerThread = new Thread(relayPuller);
-		   relayPullerThread.setDaemon(false);
-		   relayPullerThread.start();
-
-		   relayPuller.enqueueMessage(LifecycleMessage.createStartMessage());
-
-		   try
-		   {
-			   Thread.sleep(500);
-		   } catch (InterruptedException ie){}
-
-		   for (int i = 0 ; i < 100; i++ )
-		   {
-			   try
-			   {
-				   Thread.sleep(5);
-				   Assert.assertTrue(relayPuller.getConnectionState().getStateId() != StateId.INITIAL,"StateId can never be INITIAL once started");
-			   } catch (InterruptedException ie){}
-		   }
-		   //EasyMock.verify(mockConnFactory);
-
-		   relayPuller.enqueueMessage(LifecycleMessage.createShutdownMessage());
-		   relayPuller.awaitShutdown();
-	   }
-
-
-	   // Main Transition Test (Without Server-Set Change)
-	   {
-		   // PICK_SERVER - Happy Path
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-		     RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-		   }
-
-		   // PICK_SERVER  - Relays exhausted
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(true, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.PICK_SERVER, "SUSPEND_ON_ERROR");
-		   }
-
-
-		   // PICK_SERVER  - No Servers
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   relayPuller.getServers().clear();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.PICK_SERVER, "SUSPEND_ON_ERROR");
-		   }
-
-
-		   // Request_Sources to Re Sources_Request_Sent
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-		   }
-
-
-		   // Request_Sources to Sources_Response_Success
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-		   }
-
-		   // Sources_Response_Success - Happy Path
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   validateConnState(connState);
-			   String expSubsListStr = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"ANY\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":1,\"name\":\"source1\"},\"id\":-1}}]";
-			   String expSourcesIdListStr = "1";
-			   Assert.assertEquals(connState.getSourcesIdListString(), expSourcesIdListStr,
-			                       "SourcesId Added");
-			   String subsListStr = connState.getSubsListString();
-			   Assert.assertEquals(subsListStr, expSubsListStr);
-		   }
-
-		   // Sources_Response_Success - When source not found in server
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   connState.getSourcesNameMap().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.PICK_SERVER);
-               validateConnState(connState);
-		   }
-
-		   // Request_Register to Register_Request_Sent
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-			   validateConnState(connState);
-		   }
-
-		   // Request_Register to Register_Response_success
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-		   }
-
-		   // Register_Response_Success : Error Case
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   connState.getSourcesSchemas().clear();
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.PICK_SERVER);
-		   }
-
-		   // Register_Response_Success to Request Stream
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
-		   }
-
-		   // Register_Response_Success to Request Stream, when partially consumed window
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   Checkpoint cp = new Checkpoint();
-			   cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
-			   cp.setWindowScn(100L);
-			   cp.setWindowOffset(20);
-			   cp.setPrevScn(80L);
-			   relayPuller.getConnectionState().setCheckpoint(cp);
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowScn(), 80L, "WindowSCN check");
-			   Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowOffset(), new Long(-1), "WindowOffset check");
-			   Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), true, "SCN Regress check");
-		   }
-
-		   // Register_Response_Success, No PrevSCN for partially consumed window
-		   {
-		     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-         RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   Checkpoint cp = new Checkpoint();
-			   cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
-			   cp.setWindowScn(100L);
-			   cp.setWindowOffset(20);
-			   relayPuller.getConnectionState().setCheckpoint(cp);
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS,StateId.REGISTER_RESPONSE_SUCCESS, "SUSPEND_ON_ERROR");
-		   }
-
-		   // Register_Response_Success to Bootstrap ( when checkpoint is Bootstrap_SnapShot
-		   {
-			   //RelayPullThread relayPuller = createRelayPullThread(false, false, true);
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
-
-			   Checkpoint cp = new Checkpoint();
-			   cp.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
-			   connState.setCheckpoint(cp);
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.BOOTSTRAP);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
-		   }
-
-		   // Register_Response_Success to Bootstrap ( when checkpoint is Bootstrap_Catchup
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
-
-			   Checkpoint cp = new Checkpoint();
-			   cp.setConsumptionMode(DbusClientMode.BOOTSTRAP_CATCHUP);
-			   connState.setCheckpoint(cp);
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.BOOTSTRAP);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
-		   }
-
-
-		   // Request_Stream to Request_Stream_Sent
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-			   relayPuller.getMessageQueue().clear();
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
-               validateConnState(connState);
-		   }
-
-		   // Request_Stream to Stream_Response_Success
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-		   }
-
-
-		   //Stream_Request_Success to Stream_Request_Done
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
-		   }
-
-
-		   //Stream_Request_Success : ScnNotFoundException but retries set to 5 and  bootstrap enabled
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-
-			   for ( int i = 1; i <= 6 ; i++)
-			   {
-				   System.out.println("Iteration :" + i);
-				   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   if ( i < 6 )
-				   {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
-				   } else {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
-				   }
-				   relayPuller.getMessageQueue().clear();
-			   }
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "RelayFellOff State");
-		   }
-
-		   //Stream_Request_Success : ScnNotFoundException and  bootstrap enabled
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-		   }
-
-		   //Stream_Request_Success : ScnNotFoundException but retries set to 5, bootstrap disabled and readLatestScnOnFallOff enabled.
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(true).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   for (int i=1; i<=6;i++)
-			   {
-				   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   if ( i < 6 )
-				   {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
-				   } else {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
-				   }
-				   relayPuller.getMessageQueue().clear();
-			   }
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   Assert.assertEquals(conn.isReadFromLatestScn(),true, "ReadFromLatestScn set");
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "RelayFellOff State");
-
-		   }
-
-		   //Stream_Request_Success : ScnNotFoundException, bootstrap disabled and readLatestScnOnFallOff enabled.
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(true).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   Assert.assertEquals(conn.isReadFromLatestScn(),true, "ReadFromLatestScn set");
-		   }
-
-		   //Stream_Request_Success : ScnNotFoundException but retries set to 5, bootstrap disabled and readLatestScnOnFallOff disabled.
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   for (int i = 1; i <= 6; i++)
-			   {
-				   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-				   relayPuller.getMessageQueue().clear();
-				   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-				   relayPuller.getMessageQueue().clear();
-				   if ( i < 6 )
-				   {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
-				   } else {
-					   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_REQUEST_SUCCESS, "SUSPEND_ON_ERROR");
-					   Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
-				   }
-				   relayPuller.getMessageQueue().clear();
-			   }
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "RelayFellOff State");
-
-		   }
-
-
-		   //Stream_Request_Success : ScnNotFoundException, bootstrap disabled and readLatestScnOnFallOff disabled.
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_REQUEST_SUCCESS, "SUSPEND_ON_ERROR");
-		   }
-
-		   //Stream_Request_Success : Non-ScnNotFoundException
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName("DummyError");
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_ERROR);
-		   }
-
-		   //Stream_Request_Done to Request_Stream
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_RESPONSE_DONE,StateId.REQUEST_STREAM);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
-		   }
-
-		   // Bootstrap to Bootstrap_Requested
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-		   }
-
-		   //Exception while doBootstrap()
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(true)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP, "SUSPEND_ON_ERROR");
-		   }
-
-		   // Bootstrap Failed : Case 1
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-			   BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapFailedMessage(new Exception("Dummy"));
-			   doExecuteAndChangeState(relayPuller,msg);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "BOOTSTRAP_REQUESTED to BOOTSTRAP");
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :BOOTSTRAP_REQUESTED to BOOTSTRAP");
-		   }
-
-		   // Bootstrap Failed : Case 2
-		   {
-			   //RelayPullThread relayPuller = createRelayPullThread(false, false, true, false, false, true, ScnNotFoundException.class.getName());
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-			   BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(null);
-			   doExecuteAndChangeState(relayPuller,msg);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "BOOTSTRAP_REQUESTED to BOOTSTRAP");
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :BOOTSTRAP_REQUESTED to BOOTSTRAP");
-		   }
-
-		   // Bootstrap Success
-		   {
-			   //RelayPullThread relayPuller = createRelayPullThread(false, false, true, false, false, true, ScnNotFoundException.class.getName());
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-			   BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(new Checkpoint());
-			   doExecuteAndChangeState(relayPuller,msg);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
-			   Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "BOOTSTRAP_REQUESTED to REQUEST_STREAM");
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
-		   }
-
-		   // Error States to Pick_Server
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToSourcesRequestError();
-			   testTransitionCase(relayPuller, StateId.SOURCES_REQUEST_ERROR, StateId.PICK_SERVER);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToSourcesResponseError();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_ERROR, StateId.PICK_SERVER);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToRegisterRequestError();
-			   testTransitionCase(relayPuller, StateId.REGISTER_REQUEST_ERROR, StateId.PICK_SERVER);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToRegisterResponseError();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_ERROR, StateId.PICK_SERVER);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToStreamRequestError();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_ERROR, StateId.PICK_SERVER);
-			   relayPuller.getMessageQueue().clear();
-			   connState.switchToStreamResponseError();
-			   testTransitionCase(relayPuller, StateId.STREAM_RESPONSE_ERROR, StateId.PICK_SERVER);
-		   }
-	   }
-	    log.info("--------- end -------------");
+    // Test Case : Initial State Check
+    {
+      RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+      //RelayPullThread relayPuller = createRelayPullThread(false, false);
+      RelayPullThread relayPuller = bldr.createRelayPullThread();
+      Assert.assertEquals(relayPuller.getConnectionState().getStateId(), StateId.INITIAL, "Initial State Check");
+
+      //Let the show begin
+      Thread relayPullerThread = new Thread(relayPuller);
+      relayPullerThread.setDaemon(false);
+      relayPullerThread.start();
+
+      relayPuller.enqueueMessage(LifecycleMessage.createStartMessage());
+
+      try
+      {
+        Thread.sleep(500);
+      } catch (InterruptedException ie){}
+
+      for (int i = 0 ; i < 100; i++ )
+      {
+        try
+        {
+          Thread.sleep(5);
+          Assert.assertTrue(relayPuller.getConnectionState().getStateId() != StateId.INITIAL,"StateId can never be INITIAL once started");
+        } catch (InterruptedException ie){}
+      }
+      //EasyMock.verify(mockConnFactory);
+
+      relayPuller.enqueueMessage(LifecycleMessage.createShutdownMessage());
+      relayPuller.awaitShutdown();
     }
+
+
+    // Main Transition Test (Without Server-Set Change)
+    {
+      // PICK_SERVER - Happy Path
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+      }
+
+      // PICK_SERVER  - Relays exhausted
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(true, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.PICK_SERVER, "SUSPEND_ON_ERROR");
+      }
+
+
+      // PICK_SERVER  - No Servers
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        relayPuller.getServers().clear();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.PICK_SERVER, "SUSPEND_ON_ERROR");
+      }
+
+
+      // Request_Sources to Re Sources_Request_Sent
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+      }
+
+
+      // Request_Sources to Sources_Response_Success
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+      }
+
+      // Sources_Response_Success - Happy Path
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        validateConnState(connState);
+        String expSubsListStr = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"ANY\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":1,\"name\":\"source1\"},\"id\":-1}}]";
+        String expSourcesIdListStr = "1";
+        Assert.assertEquals(connState.getSourcesIdListString(), expSourcesIdListStr,
+                            "SourcesId Added");
+        String subsListStr = connState.getSubsListString();
+        Assert.assertEquals(subsListStr, expSubsListStr);
+      }
+
+      // Sources_Response_Success - When source not found in server
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        connState.getSourcesNameMap().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.PICK_SERVER);
+              validateConnState(connState);
+      }
+
+      // Request_Register to Register_Request_Sent
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+        validateConnState(connState);
+      }
+
+      // Request_Register to Register_Response_success
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+      }
+
+      // Register_Response_Success : Error Case
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        connState.getSourcesSchemas().clear();
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.PICK_SERVER);
+      }
+
+      // Register_Response_Success to Request Stream
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
+      }
+
+      // Register_Response_Success to Request Stream, when partially consumed window
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        Checkpoint cp = new Checkpoint();
+        cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+        cp.setWindowScn(100L);
+        cp.setWindowOffset(20);
+        cp.setPrevScn(80L);
+        relayPuller.getConnectionState().setCheckpoint(cp);
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowScn(), 80L, "WindowSCN check");
+        Assert.assertEquals(relayPuller.getConnectionState().getCheckpoint().getWindowOffset(), new Long(-1), "WindowOffset check");
+        Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), true, "SCN Regress check");
+      }
+
+      // Register_Response_Success, No PrevSCN for partially consumed window
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        Checkpoint cp = new Checkpoint();
+        cp.setConsumptionMode(DbusClientMode.ONLINE_CONSUMPTION);
+        cp.setWindowScn(100L);
+        cp.setWindowOffset(20);
+        relayPuller.getConnectionState().setCheckpoint(cp);
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS,StateId.REGISTER_RESPONSE_SUCCESS, "SUSPEND_ON_ERROR");
+      }
+
+      // Register_Response_Success to Bootstrap ( when checkpoint is Bootstrap_SnapShot
+      {
+        //RelayPullThread relayPuller = createRelayPullThread(false, false, true);
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
+
+        Checkpoint cp = new Checkpoint();
+        cp.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
+        connState.setCheckpoint(cp);
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.BOOTSTRAP);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
+      }
+
+      // Register_Response_Success to Bootstrap ( when checkpoint is Bootstrap_Catchup
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
+
+        Checkpoint cp = new Checkpoint();
+        cp.setConsumptionMode(DbusClientMode.BOOTSTRAP_CATCHUP);
+        connState.setCheckpoint(cp);
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.BOOTSTRAP);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        Assert.assertEquals(relayPuller.getConnectionState().isSCNRegress(), false, "SCN Regress check");
+      }
+
+
+      // Request_Stream to Request_Stream_Sent
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+        relayPuller.getMessageQueue().clear();
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
+              validateConnState(connState);
+      }
+
+      // Request_Stream to Stream_Response_Success
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+      }
+
+
+      //Stream_Request_Success to Stream_Request_Done
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
+      }
+
+
+      //Stream_Request_Success : ScnNotFoundException but retries set to 5 and  bootstrap enabled
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+
+        for ( int i = 1; i <= 6 ; i++)
+        {
+          System.out.println("Iteration :" + i);
+          testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          if ( i < 6 )
+          {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
+          } else {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
+          }
+          relayPuller.getMessageQueue().clear();
+        }
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "RelayFellOff State");
+      }
+
+      //Stream_Request_Success : ScnNotFoundException and  bootstrap enabled
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+      }
+
+      //Stream_Request_Success : ScnNotFoundException but retries set to 5, bootstrap disabled and readLatestScnOnFallOff enabled.
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(true).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        for (int i=1; i<=6;i++)
+        {
+          testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          if ( i < 6 )
+          {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
+          } else {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
+          }
+          relayPuller.getMessageQueue().clear();
+        }
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        Assert.assertEquals(conn.isReadFromLatestScn(),true, "ReadFromLatestScn set");
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "RelayFellOff State");
+
+      }
+
+      //Stream_Request_Success : ScnNotFoundException, bootstrap disabled and readLatestScnOnFallOff enabled.
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(true).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        Assert.assertEquals(conn.isReadFromLatestScn(),true, "ReadFromLatestScn set");
+      }
+
+      //Stream_Request_Success : ScnNotFoundException but retries set to 5, bootstrap disabled and readLatestScnOnFallOff disabled.
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        for (int i = 1; i <= 6; i++)
+        {
+          testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+          relayPuller.getMessageQueue().clear();
+          testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+          relayPuller.getMessageQueue().clear();
+          if ( i < 6 )
+          {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.PICK_SERVER);
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 6-i ,"Retry State");
+          } else {
+            testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_REQUEST_SUCCESS, "SUSPEND_ON_ERROR");
+            Assert.assertEquals(relayPuller.getRetryonFallOff().getRemainingRetriesNum(), 5 ,"Retry State"); //reset
+          }
+          relayPuller.getMessageQueue().clear();
+        }
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "RelayFellOff State");
+
+      }
+
+
+      //Stream_Request_Success : ScnNotFoundException, bootstrap disabled and readLatestScnOnFallOff disabled.
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(false).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_REQUEST_SUCCESS, "SUSPEND_ON_ERROR");
+      }
+
+      //Stream_Request_Success : Non-ScnNotFoundException
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName("DummyError");
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_ERROR);
+      }
+
+      //Stream_Request_Done to Request_Stream
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_RESPONSE_DONE,StateId.REQUEST_STREAM);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
+      }
+
+      // Bootstrap to Bootstrap_Requested
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+      }
+
+      //Exception while doBootstrap()
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(true)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP, "SUSPEND_ON_ERROR");
+      }
+
+      // Bootstrap Failed : Case 1
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+        BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapFailedMessage(new Exception("Dummy"));
+        doExecuteAndChangeState(relayPuller,msg);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "BOOTSTRAP_REQUESTED to BOOTSTRAP");
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :BOOTSTRAP_REQUESTED to BOOTSTRAP");
+      }
+
+      // Bootstrap Failed : Case 2
+      {
+        //RelayPullThread relayPuller = createRelayPullThread(false, false, true, false, false, true, ScnNotFoundException.class.getName());
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+        BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(null);
+        doExecuteAndChangeState(relayPuller,msg);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "BOOTSTRAP_REQUESTED to BOOTSTRAP");
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :BOOTSTRAP_REQUESTED to BOOTSTRAP");
+      }
+
+      // Bootstrap Success
+      {
+        //RelayPullThread relayPuller = createRelayPullThread(false, false, true, false, false, true, ScnNotFoundException.class.getName());
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Is Relay FellOff");
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+        BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(new Checkpoint());
+        doExecuteAndChangeState(relayPuller,msg);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Is Relay FellOff");
+        Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "BOOTSTRAP_REQUESTED to REQUEST_STREAM");
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
+      }
+
+      // Error States to Pick_Server
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToSourcesRequestError();
+        testTransitionCase(relayPuller, StateId.SOURCES_REQUEST_ERROR, StateId.PICK_SERVER);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToSourcesResponseError();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_ERROR, StateId.PICK_SERVER);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToRegisterRequestError();
+        testTransitionCase(relayPuller, StateId.REGISTER_REQUEST_ERROR, StateId.PICK_SERVER);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToRegisterResponseError();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_ERROR, StateId.PICK_SERVER);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToStreamRequestError();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_ERROR, StateId.PICK_SERVER);
+        relayPuller.getMessageQueue().clear();
+        connState.switchToStreamResponseError();
+        testTransitionCase(relayPuller, StateId.STREAM_RESPONSE_ERROR, StateId.PICK_SERVER);
+      }
+    }
+    log.info("--------- end -------------");
+  }
 
   // make sure the filter is passed along to the doRequestStream call
   @Test
-  public void testRelayPullerThreadV3WithFilter() throws Exception {
+  public void testRelayPullerThreadV3WithFilter() throws Exception
+  {
     RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
     // create filter
     DbusKeyCompositeFilterConfig filterConfig = createFakeFilter();
@@ -1288,1078 +1301,1078 @@ public class TestRelayPullThread
     Assert.assertTrue(eq, "Same Filter");
   }
 
-    @Test
-    public void testServerSetChanges()
-    	throws Exception
+  @Test
+  public void testServerSetChanges()
+    throws Exception
+  {
+    // Server-Set Change TestCases
     {
-	   // Server-Set Change TestCases
-	   {
-		   Set<ServerInfo> expServerInfo = new TreeSet<ServerInfo>();
-		   expServerInfo.add(new ServerInfo("relay1", "ONLINE", new InetSocketAddress("localhost",10001),"source1"));
-		   expServerInfo.add(new ServerInfo("relay2","ONLINE",  new InetSocketAddress("localhost",10002),"source1"));
-		   expServerInfo.add(new ServerInfo("relay3","ONLINE", new InetSocketAddress("localhost",10003),"source1"));
-
-		   Set<ServerInfo> expServerInfo2 = new TreeSet<ServerInfo>(expServerInfo);
-		   expServerInfo2.add(new ServerInfo("relay4","ONLINE", new InetSocketAddress("localhost",10000),"source1"));
-
-		   Set<ServerInfo> expServerInfo3 = new TreeSet<ServerInfo>();
-		   expServerInfo3.add(new ServerInfo("relay4","ONLINE", new InetSocketAddress("localhost",10000),"source1"));
-
-
-		   // when on PICK_SERVER
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   relayPuller.enqueueMessage(connState);
-
-			   // ServerSetChange
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), -1, "Current Server Index");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), -1, "Current Server Index");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while Pick_Server");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while Pick_Server");
-			   }
-
-		   }
-
-		   // When on Request_Sources
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REQUEST_SOURCES, "ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_SOURCES]", "Queue :ServerSetChange while REQUEST_SOURCES");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on SOURCES-REQUEST-SENT and Response Successful
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff Check");
-
-				   // Now Response arrives
-				   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-				   sourcesResponse.add(new IdNamePair(1L, "source1"));
-				   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-				   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-				   validateConnState(connState);
-			   }
-		   }
-
-		   // When on SOURCES-REQUEST-SENT and SOURCES_RESPONSE_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SOURCES_RESPONSE_ERROR
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-				   sourcesResponse.add(new IdNamePair(1L, "source1"));
-				   connState.switchToSourcesResponseError();
-				   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_ERROR, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on SOURCES-REQUEST-SENT and SOURCES_REQUEST_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SOURCES_REQUEST_ERROR
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-				   sourcesResponse.add(new IdNamePair(1L, "source1"));
-				   connState.switchToSourcesRequestError();
-				   testTransitionCase(relayPuller, StateId.SOURCES_REQUEST_ERROR, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-
-			   }
-		   }
-
-		   // When on Request Register
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   validateConnState(connState);
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REQUEST_REGISTER, "ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_REGISTER]", "Queue :ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on REGISTER-REQUEST-SENT and REGISTER_RESPONSE_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   connState.switchToRegisterResponseError();
-				   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_ERROR, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-
-			   }
-		   }
-
-		   // When on REGISTER-REQUEST-SENT and REGISTER_REQUEST_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   connState.switchToSourcesRequestError();
-				   testTransitionCase(relayPuller, StateId.REGISTER_REQUEST_ERROR, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-
-			   }
-		   }
-
-		   // When on REGISTER-REQUEST-SENT and Response Successful
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   validateConnState(connState);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-				   connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
-				   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-
-			   }
-		   }
-
-		   // when on REQUEST_STREAM
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on STREAM_REQUEST_SENT and response successful
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-			   relayPuller.getMessageQueue().clear();
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   conn = (MockRelayConnection)connState.getRelayConnection();
-				   connState.switchToStreamSuccess(conn.getStreamResponse());
-				   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on STREAM_REQUEST_SENT and STREAM_RESPONSE_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-			   relayPuller.getMessageQueue().clear();
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and StreamResponse Error
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   connState.switchToStreamResponseError();
-				   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When on STREAM_REQUEST_SENT and STREAM_REQUEST_ERROR
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
-			   List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
-			   sourcesResponse.add(new IdNamePair(1L, "source1"));
-			   connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   validateConnState(connState);
-			   relayPuller.getMessageQueue().clear();
-			   String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
-			   String sourcesIdListString = "1";
-			   connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
-			   relayPuller.getMessageQueue().clear();
-			   MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
-			   connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
-
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and StreamRequest Error
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   connState.switchToStreamRequestError();
-				   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-
-			   }
-		   }
-
-		   // when Stream_Response_done
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
-			   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   relayPuller.getConnectionState().setRelayFellOff(true);
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.STREAM_RESPONSE_DONE, "ServerSetChange while STREAM_RESPONSE_DONE");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [STREAM_RESPONSE_DONE]", "Queue :ServerSetChange while STREAM_RESPONSE_DONE");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while STREAM_RESPONSE_DONE");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while STREAM_RESPONSE_DONE");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When doBootstrap
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When doBootstrapRequested and bootstrap Successful
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP_REQUESTED");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP_REQUESTED");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(new Checkpoint());
-				   doExecuteAndChangeState(relayPuller,msg);
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "BOOTSTRAP_REQUESTED to PICK_SERVER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // When doBootstrapRequested and bootstrap failed
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
-
-			   // ServerSetChange when New Set includes CurrentServer
-			   {
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP_REQUESTED");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP_REQUESTED");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-			   }
-
-			   // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
-			   {
-				   int oldServerIndex = relayPuller.getCurrentServerIdx();
-				   ServerInfo oldServer = relayPuller.getCurentServer();
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
-				   doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
-				   Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
-				   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
-				   Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
-
-				   // Now Response arrives
-				   BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapFailedMessage(new RuntimeException("dummy"));
-				   doExecuteAndChangeState(relayPuller,msg);
-				   Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "BOOTSTRAP_REQUESTED to PICK_SERVER");
-				   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
-				   Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
-				   Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
-				   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
-				   Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
-			   }
-		   }
-
-		   // Server-Set-Change message when suspended_due_to_error
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   ServerSetChangeMessage msg = createSetServerMessage(false, relayPuller);
-			   relayPuller.enqueueMessage(msg);
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SOURCES_RESPONSE_SUCCESS, SET_SERVERS]", "Queue :ServerSetChange");
-			   doExecuteAndChangeState(relayPuller,LifecycleMessage.createSuspendOnErroMessage(new RuntimeException("null")));
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SET_SERVERS]", "Queue :ServerSetChange");
-			   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-			   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-			   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-			   Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.SUSPENDED_ON_ERROR,"Suspended state check");
-
-			   connState.switchToRequestSourcesSchemas(null, null);
-			   relayPuller.getMessageQueue().clear();
-			   doExecuteAndChangeState(relayPuller,msg);
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [RESUME]", "Queue :ServerSetChange");
-			   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server null");
-			   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-
-			   // on doResume verify if PICK_SERVER happens
-			   doExecuteAndChangeState(relayPuller,relayPuller.getMessageQueue().poll());
-			   Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.RUNNING," state check");
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange");
-		   }
-
-		   // Server-Set-Change message when PAUSED
-		   {
-			   RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
-			   bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
-			   .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
-			   RelayPullThread relayPuller = bldr.createRelayPullThread();
-			   relayPuller.getComponentStatus().start();
-
-			   ConnectionState connState = relayPuller.getConnectionState();
-			   connState.switchToPickServer();
-			   testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
-			   relayPuller.getMessageQueue().clear();
-			   testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
-			   ServerSetChangeMessage msg = createSetServerMessage(false, relayPuller);
-			   relayPuller.enqueueMessage(msg);
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SOURCES_RESPONSE_SUCCESS, SET_SERVERS]", "Queue :ServerSetChange");
-			   doExecuteAndChangeState(relayPuller,LifecycleMessage.createPauseMessage());
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SET_SERVERS]", "Queue :ServerSetChange");
-			   Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
-			   Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
-			   Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
-			   Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.PAUSED,"PAUSED state check");
-
-			   connState.switchToRequestSourcesSchemas(null, null);
-			   relayPuller.getMessageQueue().clear();
-			   doExecuteAndChangeState(relayPuller,msg);
-			   Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange");
-			   Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server null");
-			   Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
-		   }
-	   }
+      Set<ServerInfo> expServerInfo = new TreeSet<ServerInfo>();
+      expServerInfo.add(new ServerInfo("relay1", "ONLINE", new InetSocketAddress("localhost",10001),"source1"));
+      expServerInfo.add(new ServerInfo("relay2","ONLINE",  new InetSocketAddress("localhost",10002),"source1"));
+      expServerInfo.add(new ServerInfo("relay3","ONLINE", new InetSocketAddress("localhost",10003),"source1"));
+
+      Set<ServerInfo> expServerInfo2 = new TreeSet<ServerInfo>(expServerInfo);
+      expServerInfo2.add(new ServerInfo("relay4","ONLINE", new InetSocketAddress("localhost",10000),"source1"));
+
+      Set<ServerInfo> expServerInfo3 = new TreeSet<ServerInfo>();
+      expServerInfo3.add(new ServerInfo("relay4","ONLINE", new InetSocketAddress("localhost",10000),"source1"));
+
+
+      // when on PICK_SERVER
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        relayPuller.enqueueMessage(connState);
+
+        // ServerSetChange
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), -1, "Current Server Index");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), -1, "Current Server Index");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while Pick_Server");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while Pick_Server");
+        }
+
+      }
+
+      // When on Request_Sources
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REQUEST_SOURCES, "ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_SOURCES]", "Queue :ServerSetChange while REQUEST_SOURCES");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on SOURCES-REQUEST-SENT and Response Successful
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff Check");
+
+          // Now Response arrives
+          List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+          sourcesResponse.add(new IdNamePair(1L, "source1"));
+          connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+          testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+          validateConnState(connState);
+        }
+      }
+
+      // When on SOURCES-REQUEST-SENT and SOURCES_RESPONSE_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SOURCES_RESPONSE_ERROR
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+          sourcesResponse.add(new IdNamePair(1L, "source1"));
+          connState.switchToSourcesResponseError();
+          testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_ERROR, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on SOURCES-REQUEST-SENT and SOURCES_REQUEST_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while SOURCES_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while SOURCES_REQUEST_SENT");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SOURCES_REQUEST_ERROR
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.SOURCES_REQUEST_SENT, "ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_SOURCES");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+          sourcesResponse.add(new IdNamePair(1L, "source1"));
+          connState.switchToSourcesRequestError();
+          testTransitionCase(relayPuller, StateId.SOURCES_REQUEST_ERROR, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+
+        }
+      }
+
+      // When on Request Register
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        validateConnState(connState);
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REQUEST_REGISTER, "ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_REGISTER]", "Queue :ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on REGISTER-REQUEST-SENT and REGISTER_RESPONSE_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          connState.switchToRegisterResponseError();
+          testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_ERROR, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+
+        }
+      }
+
+      // When on REGISTER-REQUEST-SENT and REGISTER_REQUEST_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          connState.switchToSourcesRequestError();
+          testTransitionCase(relayPuller, StateId.REGISTER_REQUEST_ERROR, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+
+        }
+      }
+
+      // When on REGISTER-REQUEST-SENT and Response Successful
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        validateConnState(connState);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REGISTER_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REGISTER_REQUEST_SENT");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REGISTER_REQUEST_SENT, "ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_REGISTER");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+          connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
+          testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+
+        }
+      }
+
+      // when on REQUEST_STREAM
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.REQUEST_STREAM, "ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [REQUEST_STREAM]", "Queue :ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on STREAM_REQUEST_SENT and response successful
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+        relayPuller.getMessageQueue().clear();
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          conn = (MockRelayConnection)connState.getRelayConnection();
+          connState.switchToStreamSuccess(conn.getStreamResponse());
+          testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on STREAM_REQUEST_SENT and STREAM_RESPONSE_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+        relayPuller.getMessageQueue().clear();
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and StreamResponse Error
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          connState.switchToStreamResponseError();
+          testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When on STREAM_REQUEST_SENT and STREAM_REQUEST_ERROR
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, true);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_REQUEST_SENT, "");
+        List<IdNamePair> sourcesResponse = new ArrayList<IdNamePair>();
+        sourcesResponse.add(new IdNamePair(1L, "source1"));
+        connState.switchToSourcesSuccess(sourcesResponse, _HOSTNAME, _SVCNAME);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        validateConnState(connState);
+        relayPuller.getMessageQueue().clear();
+        String subsListString = "[{\"physicalSource\":{\"uri\":\"databus:physical-source:ANY\",\"role\":\"MASTER\"},\"physicalPartition\":{\"id\":-1,\"name\":\"*\"},\"logicalPartition\":{\"source\":{\"id\":0,\"name\":\"source1\"},\"id\":-1}}]";
+        String sourcesIdListString = "1";
+        connState.switchToRequestSourcesSchemas(sourcesIdListString, subsListString);
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_REQUEST_SENT,"");
+        relayPuller.getMessageQueue().clear();
+        MockRelayConnection conn = (MockRelayConnection)connState.getRelayConnection();
+        connState.switchToRegisterSuccess(conn.getRegisterResponse(), conn.getRegisterResponse(), conn.getRegisterMetadataResponse());
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SENT, "");
+
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while STREAM_REQUEST_SENT");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and StreamRequest Error
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_REQUEST_SENT, "ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          connState.switchToStreamRequestError();
+          testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS, StateId.PICK_SERVER);
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+
+        }
+      }
+
+      // when Stream_Response_done
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        RelayPullThread relayPuller = bldr.createFellOffRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.STREAM_RESPONSE_DONE);
+        Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        relayPuller.getConnectionState().setRelayFellOff(true);
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.STREAM_RESPONSE_DONE, "ServerSetChange while STREAM_RESPONSE_DONE");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [STREAM_RESPONSE_DONE]", "Queue :ServerSetChange while STREAM_RESPONSE_DONE");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while STREAM_RESPONSE_DONE");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while STREAM_RESPONSE_DONE");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When doBootstrap
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP, "ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [BOOTSTRAP]", "Queue :ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When doBootstrapRequested and bootstrap Successful
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP_REQUESTED");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP_REQUESTED");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapCompleteMessage(new Checkpoint());
+          doExecuteAndChangeState(relayPuller,msg);
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "BOOTSTRAP_REQUESTED to PICK_SERVER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // When doBootstrapRequested and bootstrap failed
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.SOURCES_RESPONSE_SUCCESS, StateId.REQUEST_REGISTER);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_REGISTER, StateId.REGISTER_RESPONSE_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REGISTER_RESPONSE_SUCCESS, StateId.REQUEST_STREAM);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_STREAM, StateId.STREAM_REQUEST_SUCCESS);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.STREAM_REQUEST_SUCCESS,StateId.BOOTSTRAP);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.BOOTSTRAP,StateId.BOOTSTRAP_REQUESTED,"");
+
+        // ServerSetChange when New Set includes CurrentServer
+        {
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(true, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP_REQUESTED");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP_REQUESTED");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+        }
+
+        // ServerSetChange when New Set excludes CurrentServer and SuccessFul Response
+        {
+          int oldServerIndex = relayPuller.getCurrentServerIdx();
+          ServerInfo oldServer = relayPuller.getCurentServer();
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo2,"Server Set");
+          doExecuteAndChangeState(relayPuller,createSetServerMessage(false, relayPuller));
+          Assert.assertEquals(relayPuller.getCurrentServerIdx(), oldServerIndex, "Current Server Index unchanged");
+          Assert.assertEquals(relayPuller.getCurentServer(), oldServer, "Current Server unchanged");
+          Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), true, "Tear Conn After Handling Response");
+          Assert.assertEquals(connState.getStateId(),StateId.BOOTSTRAP_REQUESTED, "ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange while BOOTSTRAP");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), true, "Relay FellOff CHeck");
+
+          // Now Response arrives
+          BootstrapResultMessage msg = BootstrapResultMessage.createBootstrapFailedMessage(new RuntimeException("dummy"));
+          doExecuteAndChangeState(relayPuller,msg);
+          Assert.assertEquals(connState.getStateId(),StateId.PICK_SERVER, "BOOTSTRAP_REQUESTED to PICK_SERVER");
+          Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :BOOTSTRAP_REQUESTED to REQUEST_STREAM");
+          Assert.assertEquals(relayPuller.toTearConnAfterHandlingResponse(), false, "Tear Conn After Handling Response");
+          Assert.assertEquals(relayPuller.getCurrentServerIdx() == -1, true, "Current Server Index undefined");
+          Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server Null");
+          Assert.assertEquals(relayPuller.getConnectionState().isRelayFellOff(), false, "Relay FellOff CHeck");
+        }
+      }
+
+      // Server-Set-Change message when suspended_due_to_error
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName()).setNumRetriesOnFellOff(5);
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        ServerSetChangeMessage msg = createSetServerMessage(false, relayPuller);
+        relayPuller.enqueueMessage(msg);
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SOURCES_RESPONSE_SUCCESS, SET_SERVERS]", "Queue :ServerSetChange");
+        doExecuteAndChangeState(relayPuller,LifecycleMessage.createSuspendOnErroMessage(new RuntimeException("null")));
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SET_SERVERS]", "Queue :ServerSetChange");
+        Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+        Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+        Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+        Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.SUSPENDED_ON_ERROR,"Suspended state check");
+
+        connState.switchToRequestSourcesSchemas(null, null);
+        relayPuller.getMessageQueue().clear();
+        doExecuteAndChangeState(relayPuller,msg);
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [RESUME]", "Queue :ServerSetChange");
+        Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server null");
+        Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+
+        // on doResume verify if PICK_SERVER happens
+        doExecuteAndChangeState(relayPuller,relayPuller.getMessageQueue().poll());
+        Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.RUNNING," state check");
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [PICK_SERVER]", "Queue :ServerSetChange");
+      }
+
+      // Server-Set-Change message when PAUSED
+      {
+        RelayPullThreadBuilder bldr = new RelayPullThreadBuilder(false, false);
+        bldr.setBootstrapEnabled(true).setReadLatestScnEnabled(false).setReadDataThrowException(false)
+        .setReadDataException(true).setExceptionName(ScnNotFoundException.class.getName());
+        RelayPullThread relayPuller = bldr.createRelayPullThread();
+        relayPuller.getComponentStatus().start();
+
+        ConnectionState connState = relayPuller.getConnectionState();
+        connState.switchToPickServer();
+        testTransitionCase(relayPuller, StateId.PICK_SERVER, StateId.REQUEST_SOURCES);
+        relayPuller.getMessageQueue().clear();
+        testTransitionCase(relayPuller, StateId.REQUEST_SOURCES, StateId.SOURCES_RESPONSE_SUCCESS);
+        ServerSetChangeMessage msg = createSetServerMessage(false, relayPuller);
+        relayPuller.enqueueMessage(msg);
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SOURCES_RESPONSE_SUCCESS, SET_SERVERS]", "Queue :ServerSetChange");
+        doExecuteAndChangeState(relayPuller,LifecycleMessage.createPauseMessage());
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [SET_SERVERS]", "Queue :ServerSetChange");
+        Assert.assertEquals(relayPuller.getCurrentServerIdx() != -1, true, "Current Server Index defined");
+        Assert.assertEquals(relayPuller.getCurentServer() != null, true, "Current Server not Null");
+        Assert.assertEquals(relayPuller.getServers(),expServerInfo,"Server Set");
+        Assert.assertEquals(relayPuller.getComponentStatus().getStatus(),Status.PAUSED,"PAUSED state check");
+
+        connState.switchToRequestSourcesSchemas(null, null);
+        relayPuller.getMessageQueue().clear();
+        doExecuteAndChangeState(relayPuller,msg);
+        Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: []", "Queue :ServerSetChange");
+        Assert.assertEquals(relayPuller.getCurentServer() == null, true, "Current Server null");
+        Assert.assertEquals(relayPuller.getServers(),expServerInfo3,"Server Set");
+      }
+    }
   }
 
 
   private ServerSetChangeMessage createSetServerMessage(boolean keepCurrent, BasePullThread puller)
   {
     Set<ServerInfo> serverInfoSet = new HashSet<ServerInfo>();
-	InetSocketAddress inetAddr1 = new InetSocketAddress("localhost",10000);
+    InetSocketAddress inetAddr1 = new InetSocketAddress("localhost",10000);
 
-	ServerInfo s = new ServerInfo("newRelay1", "ONLINE", inetAddr1, Arrays.asList("source1"));
-	serverInfoSet.add(s);
+    ServerInfo s = new ServerInfo("newRelay1", "ONLINE", inetAddr1, Arrays.asList("source1"));
+    serverInfoSet.add(s);
 
-	if ( keepCurrent )
-	{
-	  serverInfoSet.addAll(puller.getServers());
-	}
+    if ( keepCurrent )
+    {
+      serverInfoSet.addAll(puller.getServers());
+    }
 
-	ServerSetChangeMessage msg = ServerSetChangeMessage.createSetServersMessage(serverInfoSet);
+    ServerSetChangeMessage msg = ServerSetChangeMessage.createSetServersMessage(serverInfoSet);
 
-	return msg;
+    return msg;
   }
 
   private void testTransitionCase(RelayPullThread relayPuller, StateId currState, StateId finalState)
   {
-	  testTransitionCase(relayPuller, currState, finalState, finalState.toString());
+    testTransitionCase(relayPuller, currState, finalState, finalState.toString());
   }
 
 
   private void testTransitionCase(RelayPullThread relayPuller, StateId currState, StateId finalState, String msgQueueState)
   {
     ConnectionState connState = relayPuller.getConnectionState();
-	doExecuteAndChangeState(relayPuller,connState);
-	Assert.assertEquals(connState.getStateId(),finalState, "" + currState + " to " + finalState );
-	Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [" + msgQueueState + "]", "Queue :" + currState + " to " + finalState);
+    doExecuteAndChangeState(relayPuller,connState);
+    Assert.assertEquals(connState.getStateId(),finalState, "" + currState + " to " + finalState );
+    Assert.assertEquals(relayPuller.getQueueListString(), "RelayPuller queue: [" + msgQueueState + "]", "Queue :" + currState + " to " + finalState);
   }
 
   @Test(groups={"small", "functional"})
@@ -2440,8 +2453,8 @@ public class TestRelayPullThread
     ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
     DatabusSourcesConnection sourcesConn = new DatabusSourcesConnection(
         srcConnConf, sourcesSubList, relays, null, null, null, relayBuffer, null,
-        Executors.newCachedThreadPool(), null, null, null, null, null, null, mockConnFactory, null,
-        null,null, null, new DbusEventV1Factory(), connStateFactory);
+        Executors.newCachedThreadPool(), null, null, null, null, null, null, null, mockConnFactory, null,
+        null, null, null, new DbusEventV1Factory(), connStateFactory);
 
     final RelayPullThread relayPuller =
         new RelayPullThread("RelayPuller", sourcesConn, relayBuffer, connStateFactory, relays,
@@ -2583,8 +2596,8 @@ public class TestRelayPullThread
     ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
     DatabusSourcesConnection sourcesConn = new DatabusSourcesConnection(
         srcConnConf, sourcesSubList, relays, null, null, null, relayBuffer, bootstrapBuffer,
-        Executors.newCachedThreadPool(), null, null, null, null, null, null, mockConnFactory, null,
-        null,null, null, new DbusEventV1Factory(), connStateFactory);
+        Executors.newCachedThreadPool(), null, null, null, null, null, null, null, mockConnFactory, null,
+        null, null, null, new DbusEventV1Factory(), connStateFactory);
 
     final RelayPullThread relayPuller =
         new RelayPullThread("RelayPuller", sourcesConn, relayBuffer, connStateFactory, relays,
@@ -2768,8 +2781,8 @@ public class TestRelayPullThread
     ConnectionStateFactory connStateFactory = new ConnectionStateFactory(sources);
     DatabusSourcesConnection sourcesConn = new DatabusSourcesConnection(
         srcConnConf, sourcesSubList, relays, null, null, null, relayBuffer, bootstrapBuffer,
-        Executors.newCachedThreadPool(), null, null, null, null, null, null, mockConnFactory, null, null,null, null,
-        new DbusEventV1Factory(), connStateFactory);
+        Executors.newCachedThreadPool(), null, null, null, null, null, null, null, mockConnFactory, null,
+        null, null, null, new DbusEventV1Factory(), connStateFactory);
 
     final RelayPullThread relayPuller =
         new RelayPullThread("RelayPuller", sourcesConn, relayBuffer, connStateFactory, relays,
@@ -2833,17 +2846,16 @@ public class TestRelayPullThread
 
   private void doExecuteAndChangeState(RelayPullThread thread, Object msg)
   {
-	  Object obj = msg;
+    Object obj = msg;
 
-	  if ( msg instanceof ConnectionState)
-	  {
-		  ConnectionState o = (ConnectionState)msg;
-		  obj = new ConnectionStateMessage(o.getStateId(), o);
-	  }
+    if ( msg instanceof ConnectionState)
+    {
+      ConnectionState o = (ConnectionState)msg;
+      obj = new ConnectionStateMessage(o.getStateId(), o);
+    }
 
-	  thread.doExecuteAndChangeState(obj);
+    thread.doExecuteAndChangeState(obj);
   }
-
 
 }
 
@@ -2959,8 +2971,8 @@ class MockRelayConnection implements DatabusRelayConnection
     }
     else
     {
-    	if ( !_muteTransition) stateReuse.switchToSourcesSuccess(_sourceIds, TestRelayPullThread._HOSTNAME,
-    			TestRelayPullThread._SVCNAME);
+      if ( !_muteTransition) stateReuse.switchToSourcesSuccess(_sourceIds, TestRelayPullThread._HOSTNAME,
+          TestRelayPullThread._SVCNAME);
     }
 
     if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
@@ -2975,12 +2987,12 @@ class MockRelayConnection implements DatabusRelayConnection
 
     if (null == _registerSourcesResponse)
     {
-    	if ( !_muteTransition) stateReuse.switchToRegisterRequestError();
+      if ( !_muteTransition) stateReuse.switchToRegisterRequestError();
       _sharedServerIdx.incrementAndGet();
     }
     else
     {
-    	if ( !_muteTransition) stateReuse.switchToRegisterSuccess(_registerSourcesResponse, _registerSourcesResponse, _registerMetadataResponse);
+      if ( !_muteTransition) stateReuse.switchToRegisterSuccess(_registerSourcesResponse, _registerSourcesResponse, _registerMetadataResponse);
     }
 
     if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
@@ -2988,7 +3000,7 @@ class MockRelayConnection implements DatabusRelayConnection
 
   @Override
   public void requestStream(String sourcesIdList,
-		  				DbusKeyCompositeFilter filter,
+              DbusKeyCompositeFilter filter,
                             int freeBufferSpace,
                             CheckpointMult cp,
                             Range keyRange,
@@ -2999,12 +3011,12 @@ class MockRelayConnection implements DatabusRelayConnection
     ++ _streamCallCounter;
     if (null == _streamResponse)
     {
-    	if ( !_muteTransition) stateReuse.switchToStreamRequestError();
+      if ( !_muteTransition) stateReuse.switchToStreamRequestError();
       _sharedServerIdx.incrementAndGet();
     }
     else
     {
-    	if ( !_muteTransition) stateReuse.switchToStreamSuccess(_streamResponse);
+      if ( !_muteTransition) stateReuse.switchToStreamSuccess(_streamResponse);
     }
 
     if (null != _callback && !_muteTransition) _callback.enqueueMessage(stateReuse);
@@ -3085,7 +3097,7 @@ class MockRelayConnection implements DatabusRelayConnection
   }
 
   public ChunkedBodyReadableByteChannel getStreamResponse() {
-	return _streamResponse;
+  return _streamResponse;
   }
 
   /**

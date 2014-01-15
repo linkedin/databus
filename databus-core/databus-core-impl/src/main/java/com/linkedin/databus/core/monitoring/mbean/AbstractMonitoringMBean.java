@@ -44,8 +44,8 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
   public static final Logger LOG = Logger.getLogger(MODULE);
   public static final String JMX_DOMAIN = "com.linkedin.databus2";
   private static final Pattern BAD_CHARS_PATTERN = Pattern.compile("[:,?=]");
-  
-  // we use -1 in both cases(instead of real MAX and MIN) because we want to 
+
+  // we use -1 in both cases(instead of real MAX and MIN) because we want to
   // avoid spikes on the graphs.
   public static final long DEFAULT_MAX_LONG_VALUE = -1;
   public static final long DEFAULT_MIN_LONG_VALUE = -1;
@@ -185,12 +185,18 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
 
         if (mbeanServer.isRegistered(objName))
         {
-          LOG.warn("unregistering old MBean: " + objName);
+          if (LOG.isDebugEnabled())
+          {
+            LOG.debug("unregistering old MBean: " + objName);
+          }
           mbeanServer.unregisterMBean(objName);
         }
 
         mbeanServer.registerMBean(this, objName);
-        LOG.info("MBean registered " + objName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + objName);
+        }
         success = true;
       }
       catch (Exception e)
@@ -212,10 +218,17 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
         ObjectName objName = generateObjectName();
         if (!isThreadSafe())
         {
-          LOG.warn("The mbean " + objName.toString() + " is not thread-safe which is probably not a good idea.");
+          // For e.g., ConsumerCallbackStats uses thread unsafe mode by design
+          if (LOG.isDebugEnabled())
+          {
+            LOG.debug("The mbean " + objName.toString() + " is not thread-safe which is probably not a good idea.");
+          }
         }
         JmxUtil.unregisterMBeanSafely(mbeanServer, objName, LOG);
-        LOG.info("MBean unregistered " + objName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + objName);
+        }
         success = true;
       }
       catch (Exception e)
@@ -260,7 +273,7 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
 
     return mbeanProps;
   }
-  
+
   /**
    * @param val1
    * @param val2
@@ -271,12 +284,12 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
       return val2;
     if(val2 == DEFAULT_MAX_LONG_VALUE)
       return val1;
-    
+
     return Math.max(val1, val2);
   }
-  
+
   /**
-   * 
+   *
    * @param val1
    * @param val2
    * @return min of two (takes into account default value)
@@ -286,7 +299,13 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
       return val2;
     if(val2 == DEFAULT_MIN_LONG_VALUE)
       return val1;
-    
+
     return Math.min(val1, val2);
+  }
+
+  @Override
+  public String toString()
+  {
+    return "AbstractMonitoringMBean [_event=" + _event + "]";
   }
 }

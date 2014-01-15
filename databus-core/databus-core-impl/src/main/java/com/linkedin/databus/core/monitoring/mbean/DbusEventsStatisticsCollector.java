@@ -19,15 +19,6 @@ package com.linkedin.databus.core.monitoring.mbean;
 */
 
 
-import com.linkedin.databus.core.DbusEventInternalReadable.EventScanStatus;
-import com.linkedin.databus.core.DbusEventInternalReadable;
-import com.linkedin.databus.core.DbusEventUtils;
-import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
-import com.linkedin.databus.core.util.ConfigApplier;
-import com.linkedin.databus.core.util.ConfigBuilder;
-import com.linkedin.databus.core.util.InvalidConfigException;
-import com.linkedin.databus.core.util.JmxUtil;
-import com.linkedin.databus.core.util.ReadWriteSyncedObject;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
@@ -35,14 +26,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+
 import org.apache.log4j.Logger;
+
+import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventInternalReadable.EventScanStatus;
+import com.linkedin.databus.core.DbusEventUtils;
+import com.linkedin.databus.core.monitoring.events.DbusEventsTotalStatsEvent;
+import com.linkedin.databus.core.util.ConfigApplier;
+import com.linkedin.databus.core.util.ConfigBuilder;
+import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus.core.util.JmxUtil;
+import com.linkedin.databus.core.util.ReadWriteSyncedObject;
 
 
 /**
  * Container for all monitoring mbeans
- * @author cbotev
  */
 public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
                                            implements DbusEventsStatisticsCollectorMBean,StatsCollectorMergeable<DbusEventsStatisticsCollector>
@@ -142,7 +144,10 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
 
         _mbeanServer.registerMBean(this, _collectorObjName);
         _totalStats.registerAsMbean(_mbeanServer);
-        LOG.info("MBean registered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean registered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {
@@ -170,8 +175,10 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
           _perSourceStats.get(srcId).unregisterMbean(_mbeanServer);
         }
 
-
-        LOG.info("MBean unregistered " + _collectorObjName);
+        if (LOG.isDebugEnabled())
+        {
+          LOG.debug("MBean unregistered " + _collectorObjName);
+        }
       }
       catch (Exception e)
       {
@@ -360,15 +367,15 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
 		  releaseLock(otherReadLock);
 	  }
   }
-  
+
   @Override
   public void reset()
   {
     _totalStats.reset();
      resetInternalStats();
   }
-  
-  //helper methods 
+
+  //helper methods
   void resetInternalStats()
   {
 	  Lock writeLock = acquireWriteLock();
@@ -389,9 +396,9 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
 		  releaseLock(writeLock);
 	  }
   }
-  
+
   @Override
-  public void resetAndMerge(List<DbusEventsStatisticsCollector> objList) 
+  public void resetAndMerge(List<DbusEventsStatisticsCollector> objList)
   {
 	  //make a copy ; reset; aggregate; then do atomic copy
 	  DbusEventsTotalStats t = _totalStats.clone(true);
@@ -403,8 +410,8 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
 	  //update this object's state atomically
 	  Lock writeLock = acquireWriteLock();
 	  try
-	  {	  
-		  //atomic clone of t into totalStats; 
+	  {
+		  //atomic clone of t into totalStats;
 		  _totalStats.cloneData(t);
 		  resetInternalStats();
 		  for (DbusEventsStatisticsCollector o: objList)
@@ -509,7 +516,7 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
     curBean.mergeStats(other);
   }
 
-  
+
 
   public class RuntimeConfig implements ConfigApplier<RuntimeConfig>
   {
@@ -674,6 +681,12 @@ public class DbusEventsStatisticsCollector extends ReadWriteSyncedObject
     return _id;
   }
 
-
+  @Override
+  public String toString()
+  {
+    return "DbusEventsStatisticsCollector [_totalStats=" + _totalStats + ", _id=" + _id
+        + ", _name=" + _name + ", _sanitizedName=" + _sanitizedName + ", _enabled="
+        + _enabled + "]";
+  }
 }
 

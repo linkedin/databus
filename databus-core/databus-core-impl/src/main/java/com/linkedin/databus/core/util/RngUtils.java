@@ -20,6 +20,7 @@ package com.linkedin.databus.core.util;
 
 
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.Random;
 
 import com.linkedin.databus.core.DbusEvent;
@@ -40,7 +41,7 @@ public class RngUtils {
   public static final Random seededRandom = new Random(192348092834L);
   public static final Random random = new Random();
   public static final DbusEventFactory _eventFactory = new DbusEventV1Factory();
-  public static final byte[] schemaMd5 = "abcdefghijklmnop".getBytes();
+  public static final byte[] schemaMd5 = "abcdefghijklmnop".getBytes(Charset.defaultCharset());
 
 
   public static String randomString(int length) {
@@ -108,7 +109,7 @@ public class RngUtils {
                                                   System.currentTimeMillis(),
                                                   srcId,
                                                   schemaMd5,
-                                                  randomString(20).getBytes(),
+                                                  randomString(20).getBytes(Charset.defaultCharset()),
                                                   randomPositiveShort() % 100 <= 1,
                                                   false /* autoCommit */);
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V1);  // make this explicit

@@ -72,7 +72,7 @@ public class BootstrapProcessor
                             IllegalAccessException,
                             ClassNotFoundException,
                             SQLException
-                            {
+  {
     _curStatsCollector = curStatsCollector;
     BootstrapConn dbConn = new BootstrapConn();
     this.config = config;
@@ -96,7 +96,18 @@ public class BootstrapProcessor
     {
     	LOG.debug("BootstrapProcessor: config=" + config + ", dbConn=" + dbConn);
     }
-                            }
+  }
+
+  /**
+   * Used for unit-testing only
+   */
+  protected BootstrapProcessor()
+  {
+    _curStatsCollector = null;
+    _maxSnapshotRowsPerFetch = -1;
+    _maxCatchupRowsPerFetch = -1;
+    _queryTimeInSec = -1;
+  }
 
   public DbusKeyFilter getKeyFilter()
   {
@@ -389,7 +400,7 @@ public class BootstrapProcessor
                                 BootstrapEventCallback callback,
                                 long maxRowsPerFetch) throws SQLException,
                                 BootstrapProcessingException
-                                {
+  {
     BootstrapEventProcessResult result = null;
     long windowScn = Long.MIN_VALUE;
     long numRowsReadFromDb = 0;  // Number or rows returned in the result-set so far
@@ -414,68 +425,30 @@ public class BootstrapProcessor
         windowScn = rs.getLong(3);
         ckpt.onCatchupEvent(windowScn, rid);
       }
+      else
+      {
+        String errMsg = "The checkpoint received by bootstrap server is neither SNAPSHOT nor CATCHUP" + ckpt;
+        LOG.error(errMsg);
+        throw new RuntimeException(errMsg);
+      }
     }
 
-    boolean isPhaseCompleted = false;
-
-    /**
-     * Phase Completed logic :
-     *
-     * Snapshot Mode: ( All 3 cases : No Filtering, Push-Down Filter, User-Level Filter)
-     * Phase is said to be completed if (a) result == null (implies no rows were selected
-     * in the last chunked-select query in tab table) or (b) Number of rows read from the
-     * last select is less than limit and client buffer size is exceeded.
-     *
-     * Please note there could be error cases where numRowsReadFromDB is less than is less
-     * than maxRowsPerFetch ( and client buffer not exceeded). In this case, phase is not
-     * set to be completed.
-     *
-     * Catchup Mode:
-     *
-     * A single Select query will NOT span tables.So Client buffer not being exceeded and
-     * numRowsReadFromDB being less than the limit are not sufficient conditions for phase
-     * completed as this condition could be true when we are streaming out log tables that
-     * are older than the one containing targetSCN.
-     *
-     * There are 2 cases w.r.t to whether we saw events (from the select query) with
-     * windowSCN that matches targetSCN
-     *
-     * 1. Events will be seen (a) For the No filtering and User-level filtering case when
-     * there are atleast one event in the targetSCN window for the source (b) For the
-     * Push-Down Filter case, only if the window contains events that match the filter 2.
-     * Events will not be seen Otherwise
-     *
-     * Also, Please note a single window will not span multiple log tables.
-     *
-     * Hence, For (1), we will be able to detect the phase completion by also ensuring
-     * targetSCN matches windowSCN of the last event read. For (2), after streaming out
-     * the last chunk, phase completion will not be set immediately. It will be set only
-     * in next client bootstrap request when no more data has to be read and the case
-     * (null == result) will be true
-     */
-    if (null == result
-        || !result.isClientBufferLimitExceeded()
-        && (numRowsReadFromDb < maxRowsPerFetch)
-        && (DbusClientMode.BOOTSTRAP_SNAPSHOT == ckpt.getConsumptionMode() || 
-            (DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()
-              && ckpt.getBootstrapTargetScn() == windowScn)))
-    { // if we get here w/o having filled client buffer and the total
-      // rows processed is less than the max rows per fetch
-      // and the client is either in snapshot mode; or if in catchup mode we are up to the targetScn, 
-      isPhaseCompleted = true;
-    }
-
-    if ((null != result) && result.isError())
+    if(numRowsReadFromDb > maxRowsPerFetch)
     {
-      // If error, dont write checkpoint and dont write phase completed.
-      isPhaseCompleted = false;
-    } else if ((null != result) && (result.getNumRowsWritten() > 0)) {
-      // don't send checkpoint if nothing has been sent
-      callback.onCheckpointEvent(ckpt, _curStatsCollector);
+      String errMsg = "Number of rows read from DB = " + numRowsReadFromDb +
+                      " are greater than sepcfied maxRowsPerFetch = " + maxRowsPerFetch;
+      LOG.error(errMsg);
+      throw new RuntimeException(errMsg);
     }
 
-    LOG.info("Terminating batch with result: " + result);
+    // Sends checkpoint to client if prescribed conditions are met
+    writeCkptIfAppropriate(result, callback, numRowsReadFromDb, ckpt, rs.getStatement().toString());
 
+    // Computes whether or not "a bootstrap phase" has completed
+    boolean isPhaseCompleted = computeIsPhaseCompleted(result, ckpt, numRowsReadFromDb, maxRowsPerFetch, windowScn);
+
+    // Detect an error about having streamed higher SCNs than were requested.
+    // TBD : Isn't this too late to have the check here ?
     if (DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()
         && ckpt.getBootstrapTargetScn() < windowScn)
     {
@@ -483,6 +456,164 @@ public class BootstrapProcessor
           + ckpt.getBootstrapTargetScn() + " event windowscn=" + windowScn);
     }
 
+    return isPhaseCompleted;
+  }
+
+  /**
+   * A checkpoint is sent if there are no errors (and)
+   * 1. There are non-zero rows written on the channel to the client
+   * 2. Or, if all the results in the chunked query response are filtered out.
+   *    The filtering may be due to a user-level filter or a predicate push down filter
+   */
+  protected void writeCkptIfAppropriate(BootstrapEventProcessResult result,
+                                      BootstrapEventCallback callback,
+                                      long numRowsReadFromDb,
+                                      Checkpoint ckpt,
+                                      String resultSetStmtStr)
+  throws SQLException
+  {
+    assert (null != callback);
+    assert (numRowsReadFromDb >= 0);
+    assert (null != ckpt);
+    if (null != result && !result.isError())
+    {
+      assert (numRowsReadFromDb >= result.getNumRowsWritten());
+      if (result.getNumRowsWritten() > 0)
+      {
+        callback.onCheckpointEvent(ckpt, _curStatsCollector);
+      }
+      else if ((result.getNumRowsWritten() == 0) && (numRowsReadFromDb > 0))
+      {
+        if (!result.isClientBufferLimitExceeded())
+        {
+          // The first sentence in the log message below is used for an integration test. Please do not change.
+          LOG.info("All the rows read from DB have been filtered out by user-level filter. numRowsReadFromDb = "
+              + numRowsReadFromDb + " sending checkpoint = " + ckpt);
+          callback.onCheckpointEvent(ckpt, _curStatsCollector);
+        }
+        else
+        {
+          // pendingEvent header will be set
+          LOG.info("There have been rowsReadFromDb that could not be written as the clientBufferLimit has been exceeded. " +
+                   "A checkpoint will not be sent, but pendingEvent header will be set. numRowsReadFromDb = " +
+                    numRowsReadFromDb + " checkpoint = " + ckpt);
+        }
+      }
+      else
+      {
+        // For the case of predicatePushDownFilter=true, where no events have been read / none written on channel,
+        // result == null and we will not enter this loop. That is, it is not possible that numRowsReadFromDb == 0
+        // and result.getNumRowsWritten() == 0
+        String errMsg = "This is an error-case that should not happen. First, there were no rows in the resultSet " +
+            " Second, this is not a case where all the events have been filtered out. Both of these cannot happen simulateneously. " +
+            " Debug information is logged below. " +
+            " numRowsReadFromDb = " + numRowsReadFromDb +
+            " result = " + result +
+            " resultSet statement " + resultSetStmtStr;
+        LOG.error(errMsg);
+        throw new RuntimeException(errMsg);
+      }
+    }
+  }
+
+  /**
+   * Phase Completed logic :
+   *
+   * Snapshot Mode: ( All 3 cases : No Filtering, Push-Down Filter, User-Level Filter)
+   * Phase is said to be completed if (a) result == null (implies no rows were selected
+   * in the last chunked-select query in tab table) or (b) Number of rows read from the
+   * last select is less than limit and client buffer size is exceeded.
+   *
+   * Please note there could be error cases where numRowsReadFromDB is less than is less
+   * than maxRowsPerFetch ( and client buffer not exceeded). In this case, phase is not
+   * set to be completed.
+   *
+   * Catchup Mode:
+   *
+   * A single Select query will NOT span tables.So Client buffer not being exceeded and
+   * numRowsReadFromDB being less than the limit are not sufficient conditions for phase
+   * completed as this condition could be true when we are streaming out log tables that
+   * are older than the one containing targetSCN.
+   *
+   * There are 2 cases w.r.t to whether we saw events (from the select query) with
+   * windowSCN that matches targetSCN
+   *
+   * 1. Events will be seen (a) For the No filtering and User-level filtering case when
+   * there are atleast one event in the targetSCN window for the source (b) For the
+   * Push-Down Filter case, only if the window contains events that match the filter 2.
+   * Events will not be seen Otherwise
+   *
+   * Also, Please note a single window will not span multiple log tables.
+   *
+   * Hence, For (1), we will be able to detect the phase completion by also ensuring
+   * targetSCN matches windowSCN of the last event read. For (2), after streaming out
+   * the last chunk, phase completion will not be set immediately. It will be set only
+   * in next client bootstrap request when no more data has to be read and the case
+   * (null == result) will be true
+   */
+  protected boolean computeIsPhaseCompleted(BootstrapEventProcessResult result,
+                                            Checkpoint ckpt,
+                                            long numRowsReadFromDb,
+                                            long maxRowsPerFetch,
+                                            long windowScn)
+  {
+    assert(numRowsReadFromDb <= maxRowsPerFetch);
+    boolean isPhaseCompleted = false;
+    if (null == result)
+    {
+      /**
+       * There are no rows read from the DB in the resultSet.
+       * In this case, it definitely means that "isPhaseCompleted" is true, i.e., bootstrap has finished
+       */
+      assert(numRowsReadFromDb == 0);
+      isPhaseCompleted = true;
+    }
+    else
+    {
+      /**
+       * Note that 0<= numRowsReadFromDb <= maxRowsPerFetch in this case
+       * i.e., numRowsReadFromDb == 0 is possible
+       * in the case when all events are filtered out
+       */
+      if (
+          (numRowsReadFromDb < maxRowsPerFetch) &&
+          (DbusClientMode.BOOTSTRAP_SNAPSHOT == ckpt.getConsumptionMode())
+          )
+      {
+        /**
+         * 1. The total rows processed is less than the max rows per fetch
+         * 2. The client is in snapshot mode
+         */
+        isPhaseCompleted = true;
+      }
+      else if (
+          (numRowsReadFromDb < maxRowsPerFetch) &&
+          (DbusClientMode.BOOTSTRAP_CATCHUP == ckpt.getConsumptionMode()) &&
+          (ckpt.getBootstrapTargetScn() == windowScn)
+          )
+      {
+        /**
+         * 1. If the total rows processed is less than the max rows per fetch
+         * 2. The client is in catchup mode
+         * 3. We are caught up to targetScn
+         */
+        isPhaseCompleted = true;
+      }
+
+      LOG.info("Terminating batch with result: " + result);
+
+      if (result.isError() || result.isClientBufferLimitExceeded())
+      {
+        /**
+         * Don't write either checkpoint or phaseCompleted when
+         * 1. There was an error, or
+         * 2. ClientBufferLimit was exceeded
+         *
+         * Note that even if isPhaseCompleted was set earlier, it is overruled
+         */
+        isPhaseCompleted = false;
+      }
+    }
     return isPhaseCompleted;
   }
 

@@ -20,6 +20,7 @@ package com.linkedin.databus2.core.container;
 
 
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.Charset;
 
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.buffer.ChannelBuffers;
@@ -78,7 +79,7 @@ public class TestExtendedWriteTimeoutHandler
 
     //send a request in a separate thread because the client will intentionally block to simulate
     //a timeout
-    final ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes());
+    final ChannelBuffer msg = ChannelBuffers.wrappedBuffer("hello".getBytes(Charset.defaultCharset()));
     Thread sendThread1 = new Thread(new Runnable()
         {
           @Override

@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
+import java.nio.charset.Charset;
 
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -104,8 +105,8 @@ public class TestDatabusRelayEvents
       PhysicalPartition pPartition = new PhysicalPartition(pId, pSourceName);
       DbusEventBufferAppendable buf = bufMult.getDbusEventBufferAppendable(pPartition);
       DbusEventKey key = new DbusEventKey(123L);
-      byte[] schemaId = "abcdefghijklmnop".getBytes();
-      byte[] payload = RngUtils.randomString(100).getBytes();
+      byte[] schemaId = relay1.getSchemaRegistryService().fetchSchemaIdForSourceNameAndVersion(srcs[0], 2).getByteArray();
+      byte[] payload = RngUtils.randomString(100).getBytes(Charset.defaultCharset());
       DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, 100L, (short)pId, (short)pId, 897L,
                                                   (short)srcId, schemaId, payload, false, true);
       eventInfo.setEventSerializationVersion(DbusEventFactory.DBUS_EVENT_V2);
@@ -192,11 +193,10 @@ public class TestDatabusRelayEvents
    * @return - buffer with serialized events
    * @throws KeyTypeNotImplementedException
    */
-  private ByteBuffer addEvent(long scn, short srcId, short pId, byte ver) throws KeyTypeNotImplementedException
+  private ByteBuffer addEvent(long scn, short srcId, byte[] schemaId,short pId, byte ver) throws KeyTypeNotImplementedException
   {
     DbusEventKey key = new DbusEventKey(123L);
-    byte[] schemaId = "abcdefghijklmnop".getBytes();
-    byte[] payload = RngUtils.randomString(100).getBytes();
+    byte[] payload = RngUtils.randomString(100).getBytes(Charset.defaultCharset());
     DbusEventInfo eventInfo = new DbusEventInfo(DbusOpcode.UPSERT, scn, pId, pId, 897L,
                                                 srcId, schemaId, payload, false, true);
     eventInfo.setEventSerializationVersion(ver);
@@ -269,14 +269,16 @@ public class TestDatabusRelayEvents
 
       log.info("create some events");
       long windowScn = 100L;
-      ByteBuffer serializationBuffer = addEvent(windowScn, srcId, pId, DbusEventFactory.DBUS_EVENT_V2);
+      ByteBuffer serializationBuffer = addEvent(windowScn, srcId, relay1.getSchemaRegistryService().fetchSchemaIdForSourceNameAndVersion(srcs[0], 2).getByteArray(),
+          pId, DbusEventFactory.DBUS_EVENT_V2);
       ReadableByteChannel channel = Channels.newChannel(new ByteBufferInputStream(serializationBuffer));
       int readEvents = buf.readEvents(channel);
       log.info("successfully read in " + readEvents + " events ");
       channel.close();
 
       windowScn = 101L;
-      serializationBuffer = addEvent(windowScn, srcId, pId, DbusEventFactory.DBUS_EVENT_V1);
+      serializationBuffer = addEvent(windowScn, srcId, relay1.getSchemaRegistryService().fetchSchemaIdForSourceNameAndVersion(srcs[0], 2).getByteArray(),
+          pId, DbusEventFactory.DBUS_EVENT_V1);
       channel = Channels.newChannel(new ByteBufferInputStream(serializationBuffer));
       readEvents = buf.readEvents(channel);
       log.info("successfully read in " + readEvents + " events ");

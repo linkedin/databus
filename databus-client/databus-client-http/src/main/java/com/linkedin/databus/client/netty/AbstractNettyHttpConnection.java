@@ -43,6 +43,7 @@ import com.linkedin.databus.client.DatabusSourcesConnection;
 import com.linkedin.databus.client.pub.ServerInfo;
 import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusEventFactory;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.util.DbusHttpUtils;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.DatabusHttpHeaders;
@@ -57,7 +58,7 @@ import com.linkedin.databus2.core.container.monitoring.mbean.ContainerStatistics
 public class AbstractNettyHttpConnection implements DatabusServerConnection
 {
   /** Connection state */
-  private static enum State
+  static enum State
   {
     INIT,
     CONNECTING,
@@ -408,6 +409,25 @@ public class AbstractNettyHttpConnection implements DatabusServerConnection
     }
   }
 
+  /**
+   * Checks if there is network connection is available. Note that if the connection is in a
+   * transitional state (CONNECTING, CLOSING), the method will still return true to avoid race
+   * conditions where the caller will try to re-establish the connection while these transitions are
+   * in progress. If the caller tries an operation that is not allowed on the channel, e.g. send data
+   * over a closed channel, netty should be able to detect that and throw a ClosedChannelException.   *
+   */
+  protected boolean hasConnection()
+  {
+    return null != _channel && State.INIT != _state && State.CLOSED != _state;
+    //return null != _channel && _channel.isConnected();
+  }
+
+  /** For testing */
+  State getNetworkState()
+  {
+    return _state;
+  }
+
   protected void connectWithListener(ConnectResultListener listener)
   {
 
@@ -610,7 +630,7 @@ public class AbstractNettyHttpConnection implements DatabusServerConnection
     @Override
     public void onConnectFailure(Throwable cause)
     {
-      _log.error("Connect cancelled/failed", cause);
+      DbusPrettyLogUtils.logExceptionAtError("Connect cancelled/failed", cause, _log);
       switchToInit();
       _listener.onConnectFailure(cause);
     }
