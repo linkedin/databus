@@ -249,33 +249,34 @@ subprojects {
   }
 }
 
-// ======= Integration tests group 1 ======
-task test_group1 << {
-}
-//Add the tests to be run as part of this group as dependencies
-test_group1.dependsOn ':integration-test:integration-test-espresso:leaderElectionTests', ':integration-test:integration-test-espresso:staticHelixIntegrationTests', ':integration-test:integration-test-gg:ggAllTests', ':integration-test:integration-test-integ-ng:integTests'
+if (!System.getProperty('open_source')) {
+    // ======= Integration tests group 1 ======
+    task test_group1 << {
+    }
+    //Add the tests to be run as part of this group as dependencies
+    test_group1.dependsOn ':integration-test:integration-test-espresso:leaderElectionTests', ':integration-test:integration-test-espresso:staticHelixIntegrationTests', ':integration-test:integration-test-gg:ggAllTests', ':integration-test:integration-test-integ-ng:integTests'
 
-// ======= Integration tests group 2 =======
-task test_group2 << {
-}
-//Add the tests to be run as part of this group as dependencies
-test_group2.dependsOn ':integration-test:integration-test-espresso:espressoClientTests'
+    // ======= Integration tests group 2 =======
+    task test_group2 << {
+    }
+    //Add the tests to be run as part of this group as dependencies
+    test_group2.dependsOn ':integration-test:integration-test-espresso:espressoClientTests'
 
-// ======= Integration tests group 3 ======
-task test_group3 << {
-}
-//Add the tests to be run as part of this group as dependencies
-test_group3.dependsOn ':integration-test:integration-test-espresso:espressoDynamicRelayTests'
+    // ======= Integration tests group 3 ======
+    task test_group3 << {
+    }
+    //Add the tests to be run as part of this group as dependencies
+    test_group3.dependsOn ':integration-test:integration-test-espresso:espressoDynamicRelayTests'
 
-// ======= Integration tests group 4 =====
-task test_group4 << {
-}
-//Add the tests to be run as part of this group as dependencies
-test_group4.dependsOn ':integration-test:integration-test-espresso:espressoRpldbusAndMultipartitionTests', ':integration-test:integration-test-espresso:espressoBootstrapTests'
+    // ======= Integration tests group 4 =====
+    task test_group4 << {
+    }
+    //Add the tests to be run as part of this group as dependencies
+    test_group4.dependsOn ':integration-test:integration-test-espresso:espressoRpldbusAndMultipartitionTests', ':integration-test:integration-test-espresso:espressoBootstrapTests'
 
-// ======= Integration tests group 5 =====
-task test_group5 << {
+    // ======= Integration tests group 5 =====
+    task test_group5 << {
+    }
+    //Add the tests to be run as part of this group as dependencies
+    test_group5.dependsOn ':integration-test:integration-test-integ:integTests', ':integration-test:integration-test-or:openReplicatorTests'
 }
-//Add the tests to be run as part of this group as dependencies
-test_group5.dependsOn ':integration-test:integration-test-integ:integTests', ':integration-test:integration-test-or:openReplicatorTests'
-
