@@ -1483,6 +1483,7 @@ public class TestBootstrapPullThread
                                                            clientConf.getPullerBufferUtilizationPct(),
                                                            ManagementFactory.getPlatformMBeanServer(),
                                                            new DbusEventV2Factory(),
+                                                           null,
                                                            null);
     mockSuccessConn.setCallback(bsPuller);
 
@@ -2502,6 +2503,7 @@ public class TestBootstrapPullThread
                                                            clientConf.getPullerBufferUtilizationPct(),
                                                            null,
                                                            new DbusEventV2Factory(),
+                                                           null,
                                                            null);
     mockSuccessConn.setCallback(bsPuller);
 

@@ -506,7 +506,7 @@ public class TestDatabusHttpClient
 	@Test
 	public void testDispatcherRetriesExhausted() throws Exception
 	{
-	    final Logger log = Logger.getLogger("TestDatabusHttpClientImpl.testDispatcherRetriesExhausted");
+	    final Logger log = Logger.getLogger("TestDatabusHttpClient.testDispatcherRetriesExhausted");
 	    log.info("start");
 		DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
 		clientConfig.getConnectionDefaults().getPullerRetries().setMaxRetryNum(3);
@@ -2334,28 +2334,29 @@ public class TestDatabusHttpClient
 	}
 
 
-	  @Test
-		/**
-		 *
-		 * R1 EVB Boundaries --------------------------------------------------------------------------------
-		 *                   ^      ^        ^         ^         ^       ^       ^      ^     ^        ^
-		 *                   0      10       20        30        40      50      60     70    80       90
-		 *
-		 * R2 EVB Boundaries --------------------------------------------------------------------------------
-		 *                   ^               ^                   ^               ^            ^
-		 *                   0               20                  40              60           80
-		 *
-		 * R3 EVB Boundaries ------------------------------------------------------------------------------
-		 *                   ^                        ^                          ^                    ^
-		 *                   0                        30                         60                   90
-		 *
-		 *  Client switches from R1 to R2 on server close and from R2 to R3 on timeout while in the middle of the windows.
-		 *
-		 *  Switch from R1 -> R2 happens when windowScn = 10 and WindowOffset = 8th event
-		 *  Switch from R2 -> R3 happens when windowScn = 40 and windowOffset = 3rd event
-		 *
-		 * @throws Exception
-		 */
+  /**
+   * Client switches from R1 to R2 on server close and from R2 to R3 on timeout while in the middle of the windows.
+   *
+   * <pre>
+   * R1 EVB Boundaries --------------------------------------------------------------------------------
+   *                   ^      ^        ^         ^         ^       ^       ^      ^     ^        ^
+   *                   0      10       20        30        40      50      60     70    80       90
+   *
+   * R2 EVB Boundaries --------------------------------------------------------------------------------
+   *                   ^               ^                   ^               ^            ^
+   *                   0               20                  40              60           80
+   *
+   * R3 EVB Boundaries --------------------------------------------------------------------------------
+   *                   ^                        ^                          ^                    ^
+   *                   0                        30                         60                   90
+   * </pre>
+   *
+   * Switch from R1 to R2 happens when windowScn = 10 and windowOffset = 8th event.
+   * Switch from R2 to R3 happens when windowScn = 40 and windowOffset = 3rd event.
+   *
+   * @throws Exception
+   */
+  @Test
 	  public void testRelayFailoverPartialWindow1() throws Exception
 	  {
 	    final boolean debugOn = false;

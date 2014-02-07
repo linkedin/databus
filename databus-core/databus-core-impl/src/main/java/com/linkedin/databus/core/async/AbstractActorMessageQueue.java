@@ -40,7 +40,7 @@ import com.linkedin.databus2.core.BackoffTimerStaticConfig;
 public abstract class AbstractActorMessageQueue implements Runnable, ActorMessageQueue
 {
   public static final String MODULE = AbstractActorMessageQueue.class.getName();
-  public static final Logger LOG = Logger.getLogger(MODULE);
+  public final Logger _log;
 
   public static final int MAX_QUEUED_MESSAGE_HISTORY_SIZE = 100;
   public static final int MAX_QUEUED_MESSAGES = 10;
@@ -64,14 +64,16 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
   private long _numEnqueuedMessages = 0;
   private final boolean _enablePullerMessageQueueLogging;
+
   public AbstractActorMessageQueue(String name, BackoffTimerStaticConfig errorRetriesConf)
   {
-	  this(name, errorRetriesConf,false);
+	  this(name, errorRetriesConf,false,null);
   }
 
   public AbstractActorMessageQueue(String name,
 		  						   BackoffTimerStaticConfig errorRetriesConf,
-		  						   boolean enablePullerMessageQueueLogging)
+		  						   boolean enablePullerMessageQueueLogging,
+		  						   Logger log)
   {
     super();
     _name = name;
@@ -79,9 +81,22 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     _componentStatus = new DatabusComponentStatus(name, errorRetriesConf);
     _enablePullerMessageQueueLogging = enablePullerMessageQueueLogging;
     _hasMessages = false;
+    if (null != log)
+    {
+      _log = log;
+    }
+    else
+    {
+      // Should happen only for unit-tests
+      _log = Logger.getLogger(MODULE);
+    }
   }
 
-  public AbstractActorMessageQueue(String name)
+  // Used only for unit-testing. Ideally moved to a factory method and reduce scope to
+  // be private. But there are unit tests which inherit from this class and require
+  // simple super() methods
+
+  protected AbstractActorMessageQueue(String name)
   {
     this(name,BackoffTimerStaticConfig.UNLIMITED_RETRIES);
   }
@@ -100,7 +115,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
   private void performShutdown()
   {
     onShutdown();
-    LOG.info(getName() + " shutdown.");
+    _log.info(getName() + " shutdown.");
     clearQueue(shutdownFilter);
   }
 
@@ -116,7 +131,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 	  {
 		  success = executeAndChangeState(message);
 	  } catch (RuntimeException re) {
-		  LOG.error("Stopping because of runtime exception :", re);
+		  _log.error("Stopping because of runtime exception :", re);
 		  success = false;
 	  }
 
@@ -125,13 +140,13 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
 	  if ( ! success )
 	  {
-		  LOG.info("Message Queue History (earliest first) at end:" + getMessageHistoryLog());
+		  _log.info("Message Queue History (earliest first) at end:" + getMessageHistoryLog());
 	  } else if (_numEnqueuedMessages%MAX_QUEUED_MESSAGE_HISTORY_SIZE == 0) {
 		  if (_enablePullerMessageQueueLogging)
 		  {
-			  LOG.info("Message Queue History (earliest first) :" + getMessageHistoryLog());
-		  } else if (LOG.isDebugEnabled()) {
-			  LOG.debug("Message Queue History (earliest first) :" + getMessageHistoryLog());
+			  _log.info("Message Queue History (earliest first) :" + getMessageHistoryLog());
+		  } else if (_log.isDebugEnabled()) {
+			  _log.debug("Message Queue History (earliest first) :" + getMessageHistoryLog());
 		  }
 	  }
 
@@ -155,13 +170,13 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
         case RESUME: doResume(lcMessage); break;
         case SHUTDOWN:
         {
-          LOG.error("Shutdown message is seen in the queue but not expected : Message :" + lcMessage);
+          _log.error("Shutdown message is seen in the queue but not expected : Message :" + lcMessage);
           success = false;
           break;
         }
         default:
         {
-          LOG.error("Unknown Lifecycle message in RelayPullThread: " + lcMessage.getTypeId());
+          _log.error("Unknown Lifecycle message in RelayPullThread: " + lcMessage.getTypeId());
           success = false;
           break;
         }
@@ -169,7 +184,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     }
     else
     {
-      LOG.error("Unknown message of type " + message.getClass().getName() + ": " + message.toString());
+      _log.error("Unknown message of type " + message.getClass().getName() + ": " + message.toString());
       success = false;
     }
 
@@ -178,7 +193,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
   protected void doResume(LifecycleMessage lcMessage)
   {
-    LOG.info(getName() + ": resuming");
+    _log.info(getName() + ": resuming");
     _componentStatus.resume();
     onResume();
   }
@@ -188,35 +203,35 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
     final Throwable lastError = lcMessage.getLastError();
     if (null != lastError)
     {
-      LOG.info(getName() + ": suspending due to " + lastError, lastError);
+      _log.info(getName() + ": suspending due to " + lastError, lastError);
     }
     else
     {
-      LOG.info(getName() + ": suspending");
+      _log.info(getName() + ": suspending");
     }
-	 if (LOG.isDebugEnabled())
-		 LOG.debug(" because of message: " + lcMessage.getLastError());
+	 if (_log.isDebugEnabled())
+		 _log.debug(" because of message: " + lcMessage.getLastError());
     _componentStatus.suspendOnError(lcMessage.getLastError());
     clearQueue(suspendFilter);
   }
 
   protected void doPause(LifecycleMessage lcMessage)
   {
-    LOG.info(getName() + ": pausing");
+    _log.info(getName() + ": pausing");
     _componentStatus.pause();
     clearQueue(pauseFilter);
   }
 
   protected void doStart(LifecycleMessage lcMessage)
   {
-    LOG.info(getName() + ": starting");
+    _log.info(getName() + ": starting");
     _componentStatus.start();
   }
 
   @Override
   public void run()
   {
-    boolean isDebugEnabled = LOG.isDebugEnabled();
+    boolean isDebugEnabled = _log.isDebugEnabled();
 
     Object nextState = null;
 
@@ -233,14 +248,14 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
         }
         else
         {
-          if (isDebugEnabled) LOG.debug(getName() + ": new state: " + nextState.toString());
+          if (isDebugEnabled) _log.debug(getName() + ": new state: " + nextState.toString());
           running = doExecuteAndChangeState(nextState);
         }
       }
     }
     catch (Exception e)
     {
-      LOG.error(getName() + ": stopping because of unhandled exception: ", e);
+      _log.error(getName() + ": stopping because of unhandled exception: ", e);
       running = false;
     }
 
@@ -255,7 +270,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
             sb.append(' ');
         }
 
-        LOG.debug(sb.toString());
+        _log.debug(sb.toString());
     }
 
     try
@@ -273,8 +288,8 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
         _controlLock.unlock();
       }
 
-      LOG.info("Message Queue History (earliest first) at shutdown:" + getMessageHistoryLog());
-      if (isDebugEnabled) LOG.debug(getName() + ": exited message loop.");
+      _log.info("Message Queue History (earliest first) at shutdown:" + getMessageHistoryLog());
+      if (isDebugEnabled) _log.debug(getName() + ": exited message loop.");
     }
   }
 
@@ -309,7 +324,7 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
   {
     if (null == message)
     {
-      LOG.warn("Attempt to queue empty state");
+      _log.warn("Attempt to queue empty state");
       return;
     }
 
@@ -321,26 +336,26 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
       if (_componentStatus.getStatus() == DatabusComponentStatus.Status.SHUTDOWN)
       {
-        LOG.warn(getName() + ": shutdown: ignoring " + message.toString());
+        _log.warn(getName() + ": shutdown: ignoring " + message.toString());
       }
       else if (checkForShutdownRequest())
       {
-        LOG.warn(getName() + ": shutdown requested: ignoring " + message.toString());
+        _log.warn(getName() + ": shutdown requested: ignoring " + message.toString());
       }
       else if ((_componentStatus.getStatus() == DatabusComponentStatus.Status.PAUSED)  &&
                   (! shouldRetainMessageOnPause(message)))
       {
-        LOG.warn(getName() + ": ignoring message while paused: " + message.toString());
+        _log.warn(getName() + ": ignoring message while paused: " + message.toString());
       }
       else if ((_componentStatus.getStatus() == DatabusComponentStatus.Status.SUSPENDED_ON_ERROR)  &&
               (! shouldRetainMessageOnSuspend(message)))
       {
-        LOG.warn(getName() + ": ignoring message while suspended_on_error: " + message.toString());
+        _log.warn(getName() + ": ignoring message while suspended_on_error: " + message.toString());
       }
       else
       {
         boolean offerSuccess = _messageQueue.offer(message);
-        if (!offerSuccess) LOG.error(getName() + ": adding a new state failed: " + message.toString()
+        if (!offerSuccess) _log.error(getName() + ": adding a new state failed: " + message.toString()
                                      + "; queue.size=" + _messageQueue.size());
 
         if (1 == _messageQueue.size()) _newStateCondition.signalAll();
@@ -357,18 +372,18 @@ public abstract class AbstractActorMessageQueue implements Runnable, ActorMessag
 
   public void shutdown()
   {
-    LOG.info(getName() + ": shutdown requested.");
+    _log.info(getName() + ": shutdown requested.");
     _shutdownRequest = LifecycleMessage.createShutdownMessage();
   }
 
   public void awaitShutdown()
   {
-    LOG.info(getName() + ": waiting for shutdown" );
+    _log.info(getName() + ": waiting for shutdown" );
     _controlLock.lock();
     try
     {
-      LOG.info(getName() + ": status at shutdown: " + _componentStatus.getStatus());
-      LOG.info(getName() + ": queue at shutdown: " + _messageQueue);
+      _log.info(getName() + ": status at shutdown: " + _componentStatus.getStatus());
+      _log.info(getName() + ": queue at shutdown: " + _messageQueue);
       while (_componentStatus.getStatus() != DatabusComponentStatus.Status.SHUTDOWN &&
              _componentStatus.getStatus() != DatabusComponentStatus.Status.INITIALIZING)
       {

@@ -60,7 +60,6 @@ import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollectorMBean;
-import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
 
 public class DatabusV2RegistrationImpl
@@ -130,7 +129,8 @@ public class DatabusV2RegistrationImpl
     _state = RegistrationState.INIT;
     _sources = new ArrayList<String>();
     _consumers = new ArrayList<DatabusCombinedConsumer>();
-    _log = Logger.getLogger(getClass().getName() + (null  == _id ? "" : "." + _id.getId()));
+    final String loggerName = (_id != null) ? _id.getId(): getClass().getName();
+    _log = Logger.getLogger(loggerName);
     if ( null != sources)
       _sources.addAll(Arrays.asList(sources));
     if ( null != consumers)

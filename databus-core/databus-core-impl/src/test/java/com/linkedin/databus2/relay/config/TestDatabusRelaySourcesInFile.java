@@ -33,6 +33,7 @@ import com.linkedin.databus2.test.TestUtil;
 
 public class TestDatabusRelaySourcesInFile
 {
+  public static final String tmpDir ="/tmp";
 
   static
   {
@@ -72,9 +73,8 @@ public class TestDatabusRelaySourcesInFile
   {
       //create a physcial source config object
       int numConfigs = 3;
-      String dir = ".";
       PhysicalSourceConfig[] pConfigs = new PhysicalSourceConfig[numConfigs];
-      DatabusRelaySourcesInFiles databusSources = new DatabusRelaySourcesInFiles(dir);
+      DatabusRelaySourcesInFiles databusSources = new DatabusRelaySourcesInFiles(tmpDir);
       String[] pNames = new String[numConfigs];
       for (int i=0; i < numConfigs;++i)
       {
@@ -85,7 +85,7 @@ public class TestDatabusRelaySourcesInFile
       }
       Assert.assertTrue(databusSources.save());
 
-      DatabusRelaySourcesInFiles readSources = new DatabusRelaySourcesInFiles(dir);
+      DatabusRelaySourcesInFiles readSources = new DatabusRelaySourcesInFiles(tmpDir);
       Assert.assertTrue(readSources.load());
       PhysicalSourceConfig[] readConfigs = readSources.getAll();
       Assert.assertEquals(numConfigs,readConfigs.length);
@@ -111,9 +111,8 @@ public class TestDatabusRelaySourcesInFile
   public void testLoadWithBadFiles() throws Exception
   {
     int numConfigs = 1;
-    String dir = ".";
     PhysicalSourceConfig[] pConfigs = new PhysicalSourceConfig[numConfigs];
-    DatabusRelaySourcesInFiles databusSources = new DatabusRelaySourcesInFiles(dir);
+    DatabusRelaySourcesInFiles databusSources = new DatabusRelaySourcesInFiles(tmpDir);
     String[] pNames = new String[numConfigs];
     for (int i=0; i < numConfigs;++i)
     {
@@ -125,8 +124,8 @@ public class TestDatabusRelaySourcesInFile
     //save 1 legal json file
     Assert.assertTrue(databusSources.save());
     //now add bad jsob files
-    String badJson = dir+"/bad.json";
-    String emptyJson = dir+"/empty.json";
+    String badJson = tmpDir+"/bad.json";
+    String emptyJson = tmpDir+"/empty.json";
 
     File fBad = new File(badJson);
     fBad.createNewFile();
@@ -136,7 +135,7 @@ public class TestDatabusRelaySourcesInFile
     w1.append("This is bad json");
     w1.close();
 
-    DatabusRelaySourcesInFiles readSources = new DatabusRelaySourcesInFiles(dir);
+    DatabusRelaySourcesInFiles readSources = new DatabusRelaySourcesInFiles(tmpDir);
 
     boolean t = readSources.load();
 

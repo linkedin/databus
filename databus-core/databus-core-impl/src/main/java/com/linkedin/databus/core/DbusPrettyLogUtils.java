@@ -18,10 +18,34 @@ package com.linkedin.databus.core;
  * under the License.
  *
  */
+import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 
 public class DbusPrettyLogUtils
 {
+  /**
+   * 
+   * @param msg
+   * @param t
+   * @param log
+   * @param level
+   */
+  public static void logAtLevel(String msg, Throwable t, Logger log, Level level) {
+    switch(level.toInt()) {
+    case Level.INFO_INT:
+      logExceptionAtInfo(msg, t, log);
+      break;
+    case Level.WARN_INT:
+      logExceptionAtWarn(msg, t, log);
+      break;
+    case Level.ERROR_INT:
+      logExceptionAtError(msg, t, log);
+      break;
+    default:
+      logExceptionAtInfo(msg, t, log);
+      break;
+    }
+  }
 
   /**
    * A helper method to uniformly print log messages where

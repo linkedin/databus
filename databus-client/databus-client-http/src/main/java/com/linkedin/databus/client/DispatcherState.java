@@ -46,23 +46,34 @@ public class DispatcherState
 
   public enum StateId
   {
+    //Initial state when is the dispatcher is started
     INITIAL,
+    //Start reading from event buffer and dispatch events.
     START_DISPATCH_EVENTS,
+    //First event of a new window (end of window for the previous window has been seen)
     EXPECT_EVENT_WINDOW,
+    //Start of a window (which will be followed by data events)
     START_STREAM_EVENT_WINDOW,
+    //End of events for a source within a window
     START_STREAM_SOURCE,
+    //Beginning of data events to be streamed
     EXPECT_STREAM_DATA_EVENTS,
+    //End of events for a source within a window (which maybe followed by more sources)
     END_STREAM_SOURCE,
+    //End of a window
     END_STREAM_EVENT_WINDOW,
+    //Rollback is triggered (after error in the consumer)
     ROLLBACK,
+    //After rollback, events are replayed to the consumer
     REPLAY_DATA_EVENTS,
+    //Not used (???)
     STOP_DISPATCH_EVENTS,
+    //Shutdown the dispatcher
     CLOSED
   }
 
   private StateId _stateId;
 
-  //INIITIAL
 
   //START_DISPATCH_EVENTS
   private final Map<Long, IdNamePair> _sources = new HashMap<Long, IdNamePair>();

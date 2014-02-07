@@ -92,8 +92,4 @@ public interface DatabusMonitoringMBean<T>
   /** Merges all statistics accumulated in another bean */
   void mergeStats(DatabusMonitoringMBean<T> other);
 
-  /** Merges all statistics accumulated in another event. It is responsibility of the caller to
-   * ensure that the event is not updated by other threads.  */
-  void mergeStats(T otherEvent);
-
 }

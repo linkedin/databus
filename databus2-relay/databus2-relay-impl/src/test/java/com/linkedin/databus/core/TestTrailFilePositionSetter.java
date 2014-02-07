@@ -235,7 +235,8 @@ public class TestTrailFilePositionSetter
   public void setUpClass() throws InvalidConfigException
   {
     //set up logging
-    TestUtil.setupLoggingWithTimestampedFile(true, "/tmp/TestTrailFilePositionSetter_", ".log", Level.INFO);  // FATAL
+    // TODO Setting the first argument to 'true' and make DDSDBUS-3577 not happen
+    TestUtil.setupLoggingWithTimestampedFile(false, "/tmp/TestTrailFilePositionSetter_", ".log", Level.INFO);  // FATAL
   }
 
   @AfterClass  // optionally could do this after every test instead

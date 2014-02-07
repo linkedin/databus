@@ -57,9 +57,10 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
                              RelayPullThread relayPuller,
                              MBeanServer mbeanServer,
                              DatabusHttpClientImpl serverHandle,
-                             RegistrationId registrationId)
+                             RegistrationId registrationId,
+                             Logger log)
   {
-    super(name, connConfig, subs, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId, connConfig.getBstDispatcherRetries());
+    super(name, connConfig, subs, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId, connConfig.getBstDispatcherRetries(), log);
     _relayPuller = relayPuller;
   }
 
@@ -93,7 +94,7 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
           String cpString = new String(eventBytes, "UTF-8");
           ckptInEvent = new Checkpoint(cpString);
           _lastCkpt = ckptInEvent;
-          getLog().info("bootstrap checkpoint received: " + ckptInEvent);
+          getLog().info("Bootstrap checkpoint received from the bootstrap server: " + ckptInEvent);
 
           _bootstrapMode = _lastCkpt.getConsumptionMode();
 
@@ -101,7 +102,7 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
 
           if (_bootstrapMode == DbusClientMode.ONLINE_CONSUMPTION)
           {
-            getLog().info("bootstrap done");
+            getLog().info("Bootstrap is complete. Switching to relay consumption");
             Checkpoint restartCkpt = _lastCkpt.clone();
             _relayPuller.enqueueMessage(
                 BootstrapResultMessage.createBootstrapCompleteMessage(restartCkpt));
@@ -109,12 +110,12 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
         }
         catch (RuntimeException e )
         {
-          getLog().error("checkpoint deserialization failed", e);
+          getLog().error("Error while processing internal databus event", e);
           success = false;
         }
         catch (IOException e )
         {
-          getLog().error("checkpoint deserialization failed", e);
+          getLog().error("Error while processing internal databus event", e);
           success = false;
         }
       }
@@ -140,14 +141,11 @@ public class BootstrapDispatcher extends GenericDispatcher<DatabusCombinedConsum
     {
       if (null == _lastCkpt)
       {
-        throw new DatabusRuntimeException("unable to create a checkpoint");
+        throw new DatabusRuntimeException("Unable to create a checkpoint");
         //NOTE: we cannot create a checkpoint here as we don't know the sinceSCN, bootstrap stage, etc.
       }
-
       _lastCkpt.onEvent(event);
-
     }
-
     return _lastCkpt;
   }
 

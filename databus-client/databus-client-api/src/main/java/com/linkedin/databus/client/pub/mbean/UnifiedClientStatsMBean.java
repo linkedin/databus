@@ -64,15 +64,41 @@ public interface UnifiedClientStatsMBean
   // [NOTE:  consumers can trivially do their own callback counts if they care]
   public long getNumDataEvents();
 
-///**
-// * Time interval, in milliseconds, between the time the most recently received
-// * event was committed at the source database and the time it was received by
-// * the Databus client library.  When aggregated, this is the max interval across
-// * all subscribed partitions.
-// *
-// * TODO:  we actually want four percentiles (50/90/95/99) across some sliding-window interval
-// */
-//public long getTimeLagSourceToReceiptMs();
+  /**
+   * Median time interval, in milliseconds, between the time recently received
+   * events were committed at the source database and the time they were received
+   * by the Databus client library.  This is a sampled approximation, weighted most
+   * heavily toward events received in the past five minutes.  When aggregated, this
+   * is the median interval across all subscribed partitions.
+   */
+  public double getTimeLagSourceToReceiptMs_HistPct_50();
+
+  /**
+   * 90th-percentile time interval, in milliseconds, between the time recently received
+   * events were committed at the source database and the time they were received
+   * by the Databus client library.  This is a sampled approximation, weighted most
+   * heavily toward events received in the past five minutes.  When aggregated, this
+   * is the 90th-percentile interval across all subscribed partitions.
+   */
+  public double getTimeLagSourceToReceiptMs_HistPct_90();
+
+  /**
+   * 95th-percentile time interval, in milliseconds, between the time recently received
+   * events were committed at the source database and the time they were received
+   * by the Databus client library.  This is a sampled approximation, weighted most
+   * heavily toward events received in the past five minutes.  When aggregated, this
+   * is the 95th-percentile interval across all subscribed partitions.
+   */
+  public double getTimeLagSourceToReceiptMs_HistPct_95();
+
+  /**
+   * 99th-percentile time interval, in milliseconds, between the time recently received
+   * events were committed at the source database and the time they were received
+   * by the Databus client library.  This is a sampled approximation, weighted most
+   * heavily toward events received in the past five minutes.  When aggregated, this
+   * is the 99th-percentile interval across all subscribed partitions.
+   */
+  public double getTimeLagSourceToReceiptMs_HistPct_99();
 
   /**
    * Time interval, in milliseconds, between the receipt of the most recent event
@@ -81,16 +107,50 @@ public interface UnifiedClientStatsMBean
    */
   public long getTimeLagLastReceivedToNowMs();
 
-///**
-// * Average time interval, in milliseconds, for the consumer application to process
-// * callbacks.  The average is "since the beginning of time," i.e., since the app
-// * was last restarted.  When aggregated, this is the corresponding average across
-// * all subscribed partitions.
-// *
-// * TODO:  we actually want max (worst-case) value within some sliding-window interval
-// */
-//// [NOTE:  assuming across all callbacks, not just onDataEvent() ones]
-//public long getTimeLagConsumerCallbacksMs();
+  /**
+   * Max time interval, in milliseconds, for the consumer application to process
+   * callbacks.  This is a sampled approximation, weighted most heavily toward events
+   * received in the past five minutes.  When aggregated, this is the corresponding
+   * max across all subscribed partitions.  Note that all callbacks are considered,
+   * not just onDataEvent() ones.
+   */
+  public double getTimeLagConsumerCallbacksMs_Max();
+
+  /**
+   * Median time interval, in milliseconds, for the consumer application to process
+   * callbacks.  This is a sampled approximation, weighted most heavily toward events
+   * received in the past five minutes.  When aggregated, this is the corresponding
+   * median across all subscribed partitions.  Note that all callbacks are considered,
+   * not just onDataEvent() ones.
+   */
+  public double getTimeLagConsumerCallbacksMs_HistPct_50();
+
+  /**
+   * 90th-percentile time interval, in milliseconds, for the consumer application to
+   * process callbacks.  This is a sampled approximation, weighted most heavily toward
+   * events received in the past five minutes.  When aggregated, this is the corresponding
+   * 90th-percentile interval across all subscribed partitions.  Note that all callbacks
+   * are considered, not just onDataEvent() ones.
+   */
+  public double getTimeLagConsumerCallbacksMs_HistPct_90();
+
+  /**
+   * 95th-percentile time interval, in milliseconds, for the consumer application to
+   * process callbacks.  This is a sampled approximation, weighted most heavily toward
+   * events received in the past five minutes.  When aggregated, this is the corresponding
+   * 95th-percentile interval across all subscribed partitions.  Note that all callbacks
+   * are considered, not just onDataEvent() ones.
+   */
+  public double getTimeLagConsumerCallbacksMs_HistPct_95();
+
+  /**
+   * 99th-percentile time interval, in milliseconds, for the consumer application to
+   * process callbacks.  This is a sampled approximation, weighted most heavily toward
+   * events received in the past five minutes.  When aggregated, this is the corresponding
+   * 99th-percentile interval across all subscribed partitions.  Note that all callbacks
+   * are considered, not just onDataEvent() ones.
+   */
+  public double getTimeLagConsumerCallbacksMs_HistPct_99();
 
 
   /** MUTATORS */

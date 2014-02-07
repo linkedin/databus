@@ -13,7 +13,7 @@ ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
 File getEnvironmentScript()
 {
   final File env = file(isDefaultEnvironment ? 'defaultEnvironment.gradle' : project.overrideBuildEnvironment)
-  assert env.isFile() : "The environment script [$env] does not exists or is not a file."
+  assert env.isFile() : "The environment script [$env] does not exist or is not a file."
   return env
 }
 
@@ -29,6 +29,7 @@ externalDependency = [
     'commonsLang': 'commons-lang:commons-lang:2.5',
     'commonsLogging': 'commons-logging:commons-logging:1.1',
     'commonsParent': 'org.apache.commons:commons-parent:5',
+    'commonsStats': 'org.apache.commons:commons-math3:3.2',
     'easymock': 'org.easymock:easymock:3.1',
     'easymockext': 'org.easymock:easymockclassextension:3.1',
     'googleCollections': 'com.google.collections:google-collections:1.0-rc2',
@@ -42,6 +43,7 @@ externalDependency = [
     'luceneAnalyzers': 'org.apache.lucene:lucene-analyzers:2.9.1',
     'luceneCore': 'org.apache.lucene:lucene-core:2.9.1',
     'luceneQueries': 'org.apache.lucene:lucene-queries:2.9.1',
+    'metricsCore': 'com.codahale.metrics:metrics-core:3.0.1',
     'mysqlConnectorJava': 'org.mysql:mysql-connector-java:5.1.14',
     'netty': 'org.jboss.netty:netty:3.2.4.Final',
     'snakeyaml': 'org.yaml:snakeyaml:1.8',
@@ -51,8 +53,8 @@ externalDependency = [
     'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
     'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
     'ojdbc6': 'com.oracle:ojdbc6:11.2.0.2.0',
-    'databusEvents': 'com.linkedin.databus-events:databus-events:3.0.100',
-    'databusSchemas': 'com.linkedin.databus-events:databus-schemas:3.0.100',
+    'databusEvents': 'com.linkedin.databus-events:databus-events:3.0.102',
+    'databusSchemas': 'com.linkedin.databus-events:databus-schemas:3.0.102',
     'espressoSchema': 'com.linkedin.espresso:espresso-schema-impl:0.8.1602',
     'espressoCommonImpl': 'com.linkedin.espresso:espresso-common-impl:0.8.1602',
     'espressoStoreImpl': 'com.linkedin.espresso:espresso-store-impl:0.8.1602',
@@ -108,6 +110,18 @@ allprojects {
 task wrapper(type: Wrapper) {
   gradleVersion = '1.3'
 }
+
+// This shows that evaluation (part of configuration phase?) is hierarchical
+// (top down) and alphabetical within each level of the hierarchy, and that an
+// "afterEvaluate" clause triggers as soon as the _individual_ module's evaluation
+// is done, not after all of them are:
+//gradle.afterProject {project, projectState ->
+//  if (projectState.failure) {
+//    println "Evaluation of $project FAILED"
+//  } else {
+//    println "Evaluation of $project succeeded"
+//  }
+//}
 
 class GitLIGenerateClasspath extends DefaultTask {
 

@@ -64,9 +64,6 @@ import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
 
 public class BootstrapPullThread extends BasePullThread
 {
-  public static final String MODULE = BootstrapPullThread.class.getName();
-  public static final Logger LOG = Logger.getLogger(MODULE);
-
   public static final Short START_OF_SNAPSHOT_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 1);
   public static final Short START_OF_CATCHUP_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 2);
   public static final Short END_OF_BOOTSTRAP_SRCID = (short)(DbusEventInternalWritable.PRIVATE_RANGE_MAX_SRCID - 3);
@@ -114,9 +111,11 @@ public class BootstrapPullThread extends BasePullThread
       List<DbusKeyCompositeFilterConfig> bootstrapFilterConfigs,
       double pullerBufferUtilPct,
       MBeanServer mbeanServer,
-      DbusEventFactory eventFactory)
+      DbusEventFactory eventFactory
+      )
   {
-    this(name, sourcesConn, dbusEventBuffer, connStateFactory, bootstrapServers, bootstrapFilterConfigs, pullerBufferUtilPct, mbeanServer, eventFactory, null);
+    this(name, sourcesConn, dbusEventBuffer, connStateFactory, bootstrapServers, bootstrapFilterConfigs,
+        pullerBufferUtilPct, mbeanServer, eventFactory, null, null);
   }
 
   public BootstrapPullThread(String name,
@@ -128,10 +127,11 @@ public class BootstrapPullThread extends BasePullThread
                              double pullerBufferUtilPct,
                              MBeanServer mbeanServer,
                              DbusEventFactory eventFactory,
-                             ReentrantLock v3BootstrapLock)
+                             ReentrantLock v3BootstrapLock,
+                             Logger log)
   {
     super(name, sourcesConn.getConnectionConfig().getBstPullerRetries(), sourcesConn, dbusEventBuffer,
-          connStateFactory, bootstrapServers, mbeanServer, eventFactory);
+          connStateFactory, bootstrapServers, mbeanServer, eventFactory, log);
 
     _retriesBeforeCkptCleanup = new BackoffTimer("BSPullerRetriesBeforeCkptCleanup",
                                                  sourcesConn.getConnectionConfig().getBsPullerRetriesBeforeCkptCleanup());

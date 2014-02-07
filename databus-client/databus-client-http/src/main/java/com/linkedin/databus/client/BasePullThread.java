@@ -28,8 +28,8 @@ import javax.management.MBeanServer;
 import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.ConnectionState.StateId;
-import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.DatabusComponentStatus.Status;
 import com.linkedin.databus.core.DbusEventBuffer;
@@ -48,7 +48,6 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
   protected final ConnectionState _currentState;
   protected final DatabusComponentStatus _status;
   protected final DatabusReadOnlyStatus _statusMbean;
-  protected final Logger _log;
 
   protected DatabusSourcesConnection _sourcesConn;
 
@@ -69,12 +68,13 @@ public abstract class BasePullThread extends AbstractActorMessageQueue
                         ConnectionStateFactory connStateFactory,
                         Set<ServerInfo> servers,
                         MBeanServer mbeanServer,
-                        DbusEventFactory eventFactory)
+                        DbusEventFactory eventFactory,
+                        Logger log)
   {
     super(name,
           pullerRetries,
-          sourcesConn.getConnectionConfig().isPullerMessageQueueLoggingEnabled());
-    _log = Logger.getLogger(getClass().getName() + "." + name);
+          sourcesConn.getConnectionConfig().isPullerMessageQueueLoggingEnabled(),
+          log);
     _sourcesConn = sourcesConn;
     _currentState = connStateFactory.create(dbusEventBuffer);
 

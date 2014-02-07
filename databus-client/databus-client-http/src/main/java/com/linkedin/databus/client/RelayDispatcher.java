@@ -23,6 +23,7 @@ import java.util.List;
 
 import javax.management.MBeanServer;
 
+import org.apache.log4j.Logger;
 import com.linkedin.databus.client.DatabusSourcesConnection.StaticConfig;
 import com.linkedin.databus.client.consumer.MultiConsumerCallback;
 import com.linkedin.databus.client.pub.CheckpointPersistenceProvider;
@@ -33,13 +34,13 @@ import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventUtils;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.SCNRegressMessage;
 import com.linkedin.databus.core.async.LifecycleMessage;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 
 public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
 {
-
   private final BootstrapPullThread _bootstrapPuller;
 
   public RelayDispatcher(String name,
@@ -51,9 +52,11 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
                          BootstrapPullThread bootstrapPuller,
                          MBeanServer mbeanServer,
                          DatabusHttpClientImpl serverHandle,
-                         RegistrationId registrationId)
+                         RegistrationId registrationId,
+                         Logger log)
   {
-    super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer, asyncCallback,mbeanServer,serverHandle, registrationId, connConfig.getDispatcherRetries());
+    super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer, asyncCallback, mbeanServer,
+          serverHandle, registrationId, connConfig.getDispatcherRetries(), log);
     _bootstrapPuller = bootstrapPuller;
   }
 
@@ -79,13 +82,13 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
         if (bootstrapMode != DbusClientMode.ONLINE_CONSUMPTION)
         {
           if(_bootstrapPuller == null) {
-            LOG.error("checkpoint specifies bootstrap mode, but bootstrapPuller is null (boostrap disabled)");
+            _log.error("Checkpoint specifies that the consumer is bootstrapping, but bootstrapPuller is not present (Is bootstrap disabled ?)");
             return false;
           }
           ckpt.setConsumptionMode(DbusClientMode.BOOTSTRAP_SNAPSHOT);
           if (curState.getStateId() != DispatcherState.StateId.EXPECT_EVENT_WINDOW)
           {
-            LOG.warn("state before bootstrap: " + curState.getStateId());
+            _log.warn("The current state of the dispatcher is NOT as expected (" + DispatcherState.StateId.EXPECT_EVENT_WINDOW.name() + "). State prior to this: " + curState.getStateId().name());
             //Fixing bug that caused TestRelayBootstrapSwitch to fail; no apparent need to rollback
             //curState.switchToRollback();
             //doRollback(curState);
@@ -95,7 +98,7 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
           curState.switchToExpectEventWindow();
 
           _bootstrapPuller.enqueueMessage(LifecycleMessage.createStartMessage());
-          LOG.info("Notifying bootstrap puller to start boostraping");
+          _log.info("Switching to bootstrap mode");
         }
         else
         {
@@ -104,17 +107,17 @@ public class RelayDispatcher extends GenericDispatcher<DatabusCombinedConsumer>
       }
       catch (Exception e )
       {
-        LOG.error(getName() + ": checkpoint deserialization failed", e);
+        DbusPrettyLogUtils.logExceptionAtError("Internal error processing a system event", e, _log);
         success = false;
       }
     }
     else if (event.isSCNRegressMessage())
     {
     	SCNRegressMessage message = DbusEventUtils.getSCNRegressFromEvent(event);
-    	LOG.warn("RelayDispatcher acting on SCNRegress : " + message);
+    	_log.info("Switching relays, some of the events maybe replayed. The Checkpoint to which the client with regress: " + message);
     	curState.setSCNRegress(true);
-        curState.switchToExpectEventWindow();
-        //enqueueMessage(curState);
+      curState.switchToExpectEventWindow();
+      //enqueueMessage(curState);
     }
     else
     {

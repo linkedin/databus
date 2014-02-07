@@ -14,6 +14,7 @@ def base_modules = [
 'databus2-example',
 'databus2-relay',
 'database',
+'metrics-histograms',
 'script'
 ]
 
@@ -52,7 +53,7 @@ def nonReleaseModules = [
 base_modules.each { module ->
   file(module).eachDir { submodule ->
     if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-      //println "including1 " + "${module}:${submodule.name}"
+      //println "including base module " + "${module}:${submodule.name}" 
       include "${module}:${submodule.name}"
     }
   }
@@ -63,7 +64,7 @@ if (System.getProperty('open_source') == null) {
   non_os_modules.each { module ->
     file(module).eachDir { submodule ->
       if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-        //println "including non os modules" + "${module}:${submodule.name}"
+        //println "including non-oss module " + "${module}:${submodule.name}" 
         include "${module}:${submodule.name}"
       }
     }

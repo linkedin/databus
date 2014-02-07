@@ -46,6 +46,7 @@ import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventInternalReadable;
 import com.linkedin.databus.core.DbusEventSerializable;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.DispatcherRetriesExhaustedException;
 import com.linkedin.databus.core.async.AbstractActorMessageQueue;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
@@ -81,7 +82,6 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
   private final DatabusSourcesConnection.StaticConfig _connConfig;
   private boolean _inInternalLoop;
   private DatabusHttpClientImpl _serverHandle = null;
-  private Logger _log;
   private long _currentWindowSizeInBytes = 0;
   private long _numCheckPoints = 0;
   //sequence num (event.sequence()) of last complete window seen
@@ -95,10 +95,11 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
                            List<DatabusSubscription> subsList,
                            CheckpointPersistenceProvider checkpointPersistor,
                            DbusEventBuffer dataEventsBuffer,
-                           MultiConsumerCallback asyncCallback
+                           MultiConsumerCallback asyncCallback,
+                           Logger log
                            )
   {
-    this(name,connConfig,subsList,checkpointPersistor,dataEventsBuffer,asyncCallback,null,null, null, connConfig.getDispatcherRetries());
+    this(name,connConfig,subsList,checkpointPersistor,dataEventsBuffer,asyncCallback,null,null, null, connConfig.getDispatcherRetries(), log);
   }
 
 
@@ -111,10 +112,10 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
                            MBeanServer mbeanServer,
                            DatabusHttpClientImpl serverHandle,
                            RegistrationId registrationId,
-                           BackoffTimerStaticConfig dispatcherRetries)
+                           BackoffTimerStaticConfig dispatcherRetries,
+                           Logger log)
   {
-    super(name, dispatcherRetries);
-    _log = Logger.getLogger(MODULE + "." + name);
+    super(name, dispatcherRetries, false, log);
     _subsList = subsList;
     _checkpointPersistor = checkpointPersistor;
     _dataEventsBuffer = dataEventsBuffer;
@@ -180,7 +181,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           case EXPECT_STREAM_DATA_EVENTS: doDispatchEvents(); break;
           default:
           {
-            _log.error("Unknown internal: " + _internalState.getStateId());
+            _log.error("Unknown internal state id: " + _internalState.getStateId());
             success = false;
             break;
           }
@@ -231,7 +232,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     }
     catch (RuntimeException e)
     {
-      _log.error("internal stopConsumption error: " + e.getMessage(), e);
+      DbusPrettyLogUtils.logExceptionAtError("Internal stopConsumption error", e,_log);
     }
     if (ConsumerCallbackResult.SUCCESS == stopSuccess || ConsumerCallbackResult.CHECKPOINT == stopSuccess)
     {
@@ -240,10 +241,10 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     else
     {
 
-      getStatus().suspendOnError(new RuntimeException("stop failed"));
+      getStatus().suspendOnError(new RuntimeException("Stop dispatcher failed"));
       _log.error("stopConsumption failed.");
     }
-    getStatus().suspendOnError(new RuntimeException("dispatched stopped"));
+    getStatus().suspendOnError(new RuntimeException("Processing of events stopped"));
     _stopDispatch.set(true);
     if ((_serverHandle != null) && _serverHandle.isClusterEnabled())
     {
@@ -267,7 +268,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (!curState.getStateId().equals(StateId.ROLLBACK))
     {
       success = false;
-      _log.error("ROLLBACK state expected but was :" + curState.getStateId());
+      _log.error("ROLLBACK state is expected by the dispatcher, but the current state is:" + curState.getStateId());
     }
 
     int retriesLeft = Integer.MAX_VALUE;
@@ -275,7 +276,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (checkRetries)
     {
     	retriesLeft = getStatus().getRetriesLeft();
-    	_log.info("rolling back; retries left: " + retriesLeft);
+    	_log.info("Rolling back the dispatcher to last successful checkpoint. Number of remaining retries for dispatcher to replay events = " + retriesLeft);
     	success = success && (retriesLeft > 0);
 
     	if (success)
@@ -294,22 +295,22 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         ConsumerCallbackResult callbackResult = ConsumerCallbackResult.ERROR;
         try
         {
-          _log.warn("Rollback to SCN : " + rollbackScn);
+          _log.info("Rolling back to SCN : " + rollbackScn);
           callbackResult = getAsyncCallback().onRollback(rollbackScn);
         }
         catch (RuntimeException e)
         {
-          _log.error("internal onRollback error: " + e.getMessage(), e);
+          _log.error("Internal onRollback error: " + e.getMessage(), e);
         }
 
         success = ConsumerCallbackResult.isSuccess(callbackResult);
         if (success)
         {
-          if (debugEnabled) _log.debug("rollback callback succeeded");
+          if (debugEnabled) _log.debug("Rollback consumer callback succeeded");
         }
         else
         {
-          _log.error("rollback callback failed");
+          _log.error("Rollback consumer callback failed");
         }
       }
 
@@ -317,14 +318,16 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       {
     	  if (null != curState.getLastSuccessfulIterator())
     	  {
-    		  _log.info("rollback to last successful iterator!" +
+    		  _log.info("Rolled back to last successful checkpoint position in the buffer: " +
     		            curState.getLastSuccessfulIterator());
     		  _currentWindowSizeInBytes=0;
     		  curState.switchToReplayDataEvents();
     	  }
     	  else
     	  {
-    		  _log.fatal("No iterator found to rollback,  last checkpoint found: \n" + lastCp);
+    		  _log.fatal("Unable to rollback, this usually means that the events belonging to the last checkpoint" +
+                         " are no longer to be found in the buffer. Please checkpoint more frequently to avoid this. Restarting the client " +
+                         "will fix this problem, last checkpoint found: \n" + lastCp);
     		  curState.switchToClosed();
     	  }
       }
@@ -351,7 +354,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (!curState.getStateId().equals(StateId.START_STREAM_EVENT_WINDOW))
     {
       success = false;
-      _log.error("START_STREAM_EVENT_WINDOW state expected");
+      _log.error("START_STREAM_EVENT_WINDOW state expected but found : " + curState.getStateId());
     }
     else
     {
@@ -362,7 +365,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       catch (RuntimeException e)
       {
-        _log.error("internal onStartDataEventSequence error: " + e.getMessage(), e);
+        _log.error("Internal onStartDataEventSequence error: " + e.getMessage(), e);
       }
       success = ConsumerCallbackResult.isSuccess(callbackResult);
       if (success)
@@ -387,7 +390,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (!curState.getStateId().equals(StateId.END_STREAM_EVENT_WINDOW))
     {
       success = false;
-      _log.error("END_STREAM_EVENT_WINDOW state expected");
+      _log.error("END_STREAM_EVENT_WINDOW state expected but found :" + curState.getStateId());
     }
     else
     {
@@ -398,7 +401,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       catch (RuntimeException e)
       {
-        _log.error("internal onEndDataEventSequence error: " + e.getMessage(), e);
+        _log.error("Internal onEndDataEventSequence error: " + e.getMessage(), e);
       }
       success = ConsumerCallbackResult.isSuccess(callbackResult);
       if (success)
@@ -407,7 +410,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       else
       {
-        _log.error("endDataEventSequence callback failed:" + curState.getEndWinScn());
+        _log.error("endDataEventSequence callback failed, the end window scn is: " + curState.getEndWinScn());
       }
     }
 
@@ -424,7 +427,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (!curState.getStateId().equals(StateId.START_STREAM_SOURCE))
     {
       success = false;
-      _log.error("START_STREAM_SOURCE state expected");
+      _log.error("START_STREAM_SOURCE state expected but found:" + curState.getStateId());
     }
     else
     {
@@ -436,16 +439,16 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       catch (RuntimeException e)
       {
-        _log.error("internal onStartSource error: " + e.getMessage(), e);
+        _log.error("Internal onStartSource error: " + e.getMessage(), e);
       }
       success = ConsumerCallbackResult.isSuccess(callbackResult);
       if (!success)
       {
-        _log.error("startSource failed:" + sourceName);
+        _log.error("startSource failed for the source: " + sourceName);
       }
       else
       {
-        if (debugEnabled) _log.debug("startSource succeeded: " + sourceName);
+        if (debugEnabled) _log.debug("startSource succeeded for the source: " + sourceName);
         curState.switchToExpectStreamDataEvents();
       }
     }
@@ -462,12 +465,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     if (!curState.getStateId().equals(StateId.END_STREAM_SOURCE))
     {
       success = false;
-      _log.error("END_STREAM_SOURCE state expected");
+      _log.error("END_STREAM_SOURCE state expected but found :" + curState.getStateId());
     }
     else if (null == curState.getCurrentSource())
     {
       success = false;
-      _log.error("missing source");
+      _log.error("Missing source information in the current state");
     }
     else if (curState.getCurrentSource().getId() >= 0)
     {
@@ -479,12 +482,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       catch (RuntimeException e)
       {
-        _log.error("internal onEndSource error:" + e.getMessage(), e);
+        _log.error("Internal onEndSource error:" + e.getMessage(), e);
       }
       success = ConsumerCallbackResult.isSuccess(callbackResult);
       if (!success)
       {
-        _log.error("endSource() failed:" + sourceName);
+        _log.error("Method endSource() failed for the source : " + sourceName);
       }
       else
       {
@@ -556,12 +559,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       curState.storeCheckpoint(cp, winScn);
       removeEvents(curState);
-      if (debugEnabled) _log.debug("checkpoint saved: " + cp.toString());
+      if (debugEnabled) _log.debug("Checkpoint saved: " + cp.toString());
     }
     else
     {
       if (debugEnabled)
-    	_log.debug("checkpoint " + cp + " not saved as callback returned " + callbackResult);
+    	_log.debug("Checkpoint " + cp + " not saved as callback returned " + callbackResult);
     }
     return success;
   }
@@ -580,7 +583,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (!success)
     {
-      _log.error("dataEvent failed.");
+      _log.error("Method onDataEvent failed on consumer callback returned an error.");
     }
     else
     {
@@ -592,11 +595,14 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
   protected boolean processDataEventsBatch(DispatcherState curState)
   {
-    _log.debug("Flushing batched events");
+    DbusPrettyLogUtils.logExceptionAtDebug("Flushing batched events",null,_log);
 
     ConsumerCallbackResult callbackResult = getAsyncCallback().flushCallQueue(-1);
     boolean success = ConsumerCallbackResult.isSuccess(callbackResult);
-    if (! success) _log.error("Error dispatching events");
+    if (! success)
+    {
+      _log.error("Error dispatching events, the consumer callback returned an error");
+    }
 
     return success;
   }
@@ -626,12 +632,12 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     }
     catch (RuntimeException e)
     {
-      _log.error("internal startConsumption error: " + e.getMessage(), e);
+      _log.error("Internal startConsumption error: " + e.getMessage(), e);
     }
     Boolean callSuccess = ConsumerCallbackResult.isSuccess(callbackResult);
     if (!callSuccess)
     {
-      getStatus().suspendOnError(new RuntimeException("start failed"));
+//      getStatus().suspendOnError(new RuntimeException("Unable to start processing of events"));
       _log.error("StartConsumption failed.");
       _internalState.switchToStopDispatch();
       doStopDispatch(_internalState);
@@ -656,7 +662,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
       }
       if (exceeded)
       {
-          _log.info("Exceeded threshold check: CurrentWindowSize=" + getCurrentWindowSizeInBytes() +
+          _log.info("The checkpoint threshold has exceeded. The CurrentWindowSize=" + getCurrentWindowSizeInBytes() +
               " MaxWindowSize=" + maxWindowSizeInBytes + " bufferFreeSpace=" + _dataEventsBuffer.getBufferFreeSpace());
       }
       return exceeded;
@@ -674,7 +680,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (! _stopDispatch.get() && !curState.getEventsIterator().hasNext() && !checkForShutdownRequest())
     {
-      if (debugEnabled) _log.debug("waiting for events");
+      if (debugEnabled) _log.debug("Waiting for events");
       curState.getEventsIterator().await(50, TimeUnit.MILLISECONDS);
     }
     boolean success = true;
@@ -689,13 +695,13 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     {
       DbusEventInternalReadable nextEvent = curState.getEventsIterator().next();
       _currentWindowSizeInBytes += nextEvent.size();
-      if (traceEnabled) _log.trace("got event:" + nextEvent);
+      if (traceEnabled) _log.trace("Got event:" + nextEvent);
       Long eventSrcId = (long)nextEvent.srcId();
       if (curState.isSCNRegress())
       {
     	  SingleSourceSCN scn = new SingleSourceSCN(nextEvent.physicalPartitionId(),
     	                                            nextEvent.sequence());
-    	  _log.warn("Regress to SCN :" + scn);
+    	  _log.info("We are regressing to SCN: " + scn);
     	  curState.switchToRollback();
     	  doRollback(curState, scn, false, false);
     	  curState.setSCNRegress(false);
@@ -748,9 +754,9 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
           {
             //empty window
             success = true;
-            if (LOG.isDebugEnabled())
+            if (_log.isDebugEnabled())
             {
-              LOG.debug("skipping empty window: " + nextEvent.sequence());
+              _log.debug("skipping empty window: " + nextEvent.sequence());
             }
 
             //write a checkpoint; takes care of slow sources ; but skip storing the first control eop with 0 scn
@@ -777,7 +783,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
             }
             else
             {
-                LOG.warn("EOP with scn=" + nextEvent.sequence());
+                _log.warn("EOP with scn=" + nextEvent.sequence());
             }
           }
           if (success)
@@ -792,7 +798,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         }
         else if (nextEvent.isErrorEvent())
         {
-          LOG.info("Error event: " + nextEvent.sequence());
+          _log.info("Error event: " + nextEvent.sequence());
           success = processErrorEvent(curState, nextEvent);
         }
         else
@@ -873,7 +879,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         	hasQueuedEvents = true;
             if (hasCheckpointThresholdBeenExceeded())
             {
-              _log.info("Flushing events because of " + getCurrentWindowSizeInBytes() + " bytes reached without checkpoint ");
+              _log.info("Attempting to checkpoint (only if the consumer callback for onCheckpoint returns SUCCESS), because " + getCurrentWindowSizeInBytes() + " bytes reached without checkpoint ");
               success = processDataEventsBatch(curState);
               if (success)
               {
@@ -923,7 +929,8 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               success = processDataEventsBatch(curState);
               if (success)
               {
-                  _log.warn("Checkpoint not saved, but removing events to guarantee progress. Triggered on control-event=" + nextEvent.isControlMessage());
+                  _log.warn("Checkpoint not stored, but removing older events from buffer to guarantee progress (checkpoint threshold has" +
+                                " exceeded), consider checkpointing more frequently. Triggered on control-event=" + nextEvent.isControlMessage());
                   // guarantee progress: risk being unable to rollback by
                   // removing events, but hope for the best
                   removeEvents(curState);
@@ -943,7 +950,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
               success = processDataEventsBatch(curState);
               if (!success)
               {
-                _log.error("unable to flush partial window");
+                _log.error("Unable to flush partial window");
               }
           }
           if (debugEnabled) _log.debug("doDispatchEvents to " + curState.toString() );
@@ -969,8 +976,8 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     boolean success = processDataEventsBatch(curState);
     if (!success)
     {
-        LOG.error("Outstanding callbacks failed. This event: checkpoint= " + nextEvent.isCheckpointMessage()
-            + " eop=" + nextEvent.isEndOfPeriodMarker() );
+        _log.error("Consumers did not process callback successfully (callback did not return success). The current checkpoint= " + nextEvent.isCheckpointMessage()
+            + " end of period marker=" + nextEvent.isEndOfPeriodMarker() );
     }
     else
     {
@@ -981,7 +988,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         }
         catch (IOException e)
         {
-            _log.error("checkpoint persisting failed: " + cp);
+            _log.error("Checkpoint persisting failed, the checkpoint is : " + cp);
             if (isSharedCheckpoint())
             {
                 handleErrStoringSharedCheckpoint();
@@ -1030,7 +1037,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
         }
         catch (RuntimeException e)
         {
-          _log.error("internal onError error: " + e.getMessage(), e);
+          _log.error("Internal onError error: " + e.getMessage(), e);
         }
         success = ConsumerCallbackResult.isSuccess(callbackResult);
       }
@@ -1120,8 +1127,8 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (isDebugEnabled)
     {
-      _log.debug("removing events after checkpoint");
-      _log.debug("buffer space available before remove: " +
+      _log.debug("Removing events after checkpoint");
+      _log.debug("Buffer space available before remove: " +
                 state.getEventsIterator().getEventBuffer().getBufferFreeSpace());
     }
 
@@ -1130,7 +1137,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
 
     if (isDebugEnabled)
     {
-      _log.debug("buffer space available after remove: " +
+      _log.debug("Buffer space available after remove: " +
                 state.getEventsIterator().getEventBuffer().getBufferFreeSpace());
     }
   }
@@ -1175,7 +1182,7 @@ public abstract class GenericDispatcher<C> extends AbstractActorMessageQueue
     {
       if (_inInternalLoop)
       {
-        throw new RuntimeException("loop already scheduled; queued messages: " +
+        throw new RuntimeException("Loop already scheduled; queued messages: " +
                                    getQueueListString() + "; new message: " + message);
       }
       else
