@@ -129,14 +129,21 @@ public class OracleTxlogEventReader
     _scnChunkSize = scnChunkSize;
     _chunkedScnThreshold = chunkedScnThreshold;
     _maxScnDelayMs = maxScnDelayMs;
+    _lastquerytime = System.currentTimeMillis();
 
-    _lastquerytime = System.currentTimeMillis() ;
-    // Make sure all logical sources come from the same database schema
-    for(OracleTriggerMonitoredSourceInfo source : sourcesTemp)
+    // Make sure all logical sources come from the same database schema.
+    // Note that Oracle treats quoted names as case-sensitive, but we
+    // don't quote ours, so a case-insensitive comparison is fine.
+    for (OracleTriggerMonitoredSourceInfo source : sourcesTemp)
     {
-      if(!source.getEventSchema().equals(sourcesTemp.get(0).getEventSchema()))
+      if(!source.getEventSchema().equalsIgnoreCase(sourcesTemp.get(0).getEventSchema()))
       {
-        throw new IllegalArgumentException("All logical sources must have the same schema.");
+        throw new IllegalArgumentException("All logical sources must have the same Oracle schema:\n   " +
+                                           source.getSourceName() + " (id " + source.getSourceId() +
+                                           ") schema = " + source.getEventSchema() + ";\n   " +
+                                           sourcesTemp.get(0).getSourceName() + " (id " +
+                                           sourcesTemp.get(0).getSourceId() + ") schema = " +
+                                           sourcesTemp.get(0).getEventSchema());
       }
     }
     _selectSchema = sourcesTemp.get(0).getEventSchema() == null ? "" : sourcesTemp.get(0).getEventSchema() + ".";

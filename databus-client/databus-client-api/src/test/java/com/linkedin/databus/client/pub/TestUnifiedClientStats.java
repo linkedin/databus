@@ -156,21 +156,22 @@ public class TestUnifiedClientStats
     // Q[90th]  =  x[180-1] + (180.9  - 180)*(x[180-1+1] - x[180-1])  =  1790.0 + 0.9 *(1800.0 - 1790.0)  =  1799.0
     // Q[95th]  =  x[190-1] + (190.95 - 190)*(x[190-1+1] - x[190-1])  =  1890.0 + 0.95*(1900.0 - 1890.0)  =  1899.5
     // Q[99th]  =  x[198-1] + (198.99 - 198)*(x[198-1+1] - x[198-1])  =  1970.0 + 0.99*(1980.0 - 1970.0)  =  1979.9
+    // ...but allow +/-1 for jitter
     double percentile = unifiedClientStats.getTimeLagSourceToReceiptMs_HistPct_50();
     assertTrue("unexpected timeLagSourceToReceiptMs 50th percentile: " + percentile,
-               994.5 <= percentile && percentile <= 995.5);    // nominal value is 995.0
+               994.0 <= percentile && percentile <= 996.0);    // nominal value is 995.0
 
     percentile = unifiedClientStats.getTimeLagSourceToReceiptMs_HistPct_90();
     assertTrue("unexpected timeLagSourceToReceiptMs 90th percentile: " + percentile,
-               1798.5 <= percentile && percentile <= 1799.5);  // nominal value is 1799.0
+               1798.0 <= percentile && percentile <= 1800.0);  // nominal value is 1799.0
 
     percentile = unifiedClientStats.getTimeLagSourceToReceiptMs_HistPct_95();
     assertTrue("unexpected timeLagSourceToReceiptMs 95th percentile: " + percentile,
-               1899.0 <= percentile && percentile <= 1900.0);  // nominal value is 1899.5
+               1898.5 <= percentile && percentile <= 1900.5);  // nominal value is 1899.5, but saw 1900.45 once
 
     percentile = unifiedClientStats.getTimeLagSourceToReceiptMs_HistPct_99();
     assertTrue("unexpected timeLagSourceToReceiptMs 99th percentile: " + percentile,
-               1979.4 <= percentile && percentile <= 1980.4);  // nominal value is 1979.9
+               1978.9 <= percentile && percentile <= 1980.9);  // nominal value is 1979.9
   }
 
 
@@ -477,11 +478,11 @@ public class TestUnifiedClientStats
 
     percentile = unifiedClientStats1.getTimeLagSourceToReceiptMs_HistPct_50();
     assertTrue("unexpected timeLagSourceToReceiptMs 50th percentile for connection #1: " + percentile,
-               1513.0 <= percentile && percentile <= 1514.0);    // nominal value is 1513.5
+               1512.5 <= percentile && percentile <= 1514.5);    // nominal value is 1513.5
 
     percentile = unifiedClientStats2.getTimeLagSourceToReceiptMs_HistPct_50();
     assertTrue("unexpected timeLagSourceToReceiptMs 50th percentile for connection #2: " + percentile,
-               5513.0 <= percentile && percentile <= 5514.0);    // nominal value is 5513.5
+               5512.5 <= percentile && percentile <= 5514.5);    // nominal value is 5513.5
 
     // same caveat as above:  the median depends strongly on the relative proportion of unifiedClientStats1
     // and unifiedClientStats2 data points retained in the aggregate, so the inequality is quite loose

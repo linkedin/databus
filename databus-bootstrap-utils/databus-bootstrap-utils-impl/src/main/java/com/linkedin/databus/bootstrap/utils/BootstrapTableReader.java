@@ -26,14 +26,9 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 import org.apache.avro.Schema;
-import org.apache.avro.Schema.Field;
-import org.apache.avro.Schema.Type;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -51,8 +46,8 @@ import org.apache.log4j.PropertyConfigurator;
 import com.linkedin.databus.bootstrap.common.BootstrapConn;
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.core.DbusEventFactory;
-import com.linkedin.databus.core.DbusEventV1Factory;
 import com.linkedin.databus.core.DbusEventInternalReadable;
+import com.linkedin.databus.core.DbusEventV1Factory;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.ConfigLoader;
 import com.linkedin.databus.core.util.InvalidConfigException;
@@ -60,7 +55,6 @@ import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.VersionedSchema;
 import com.linkedin.databus2.schemas.VersionedSchemaSet;
-import com.linkedin.databus2.schemas.utils.SchemaHelper;
 import com.linkedin.databus2.util.DBHelper;
 
 public class BootstrapTableReader
@@ -228,8 +222,6 @@ public class BootstrapTableReader
     VersionedSchemaSet schemaSet = new VersionedSchemaSet();
     schemaSet.add(vs);
     _decoder = new DbusEventAvroDecoder(schemaSet);
-
-    List<Field> fields = _schema.getFields();
   }
 
   public static Schema getSchema()

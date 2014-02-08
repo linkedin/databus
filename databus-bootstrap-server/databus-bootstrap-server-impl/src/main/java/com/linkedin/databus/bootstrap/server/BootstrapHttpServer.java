@@ -34,7 +34,6 @@ import com.linkedin.databus2.core.container.monitoring.mbean.DatabusComponentAdm
 import com.linkedin.databus2.core.container.netty.ServerContainer;
 import com.linkedin.databus2.core.container.request.ConfigRequestProcessor;
 import com.linkedin.databus2.core.container.request.ContainerOperationProcessor;
-import com.linkedin.databus2.core.container.request.EchoRequestProcessor;
 import com.linkedin.databus2.core.container.request.RequestProcessorRegistry;
 
 public class BootstrapHttpServer extends ServerContainer
@@ -153,7 +152,6 @@ public class BootstrapHttpServer extends ServerContainer
     LOG.info("Config=" + _bootstrapServerConfig);
     try{
       RequestProcessorRegistry processorRegistry = getProcessorRegistry();
-      processorRegistry.register(EchoRequestProcessor.COMMAND_NAME, new EchoRequestProcessor(null));
       processorRegistry.register(ConfigRequestProcessor.COMMAND_NAME,
                                  new ConfigRequestProcessor(null, this));
       processorRegistry.register(BootstrapRequestProcessor.COMMAND_NAME,

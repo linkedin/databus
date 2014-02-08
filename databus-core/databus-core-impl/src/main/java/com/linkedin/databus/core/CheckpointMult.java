@@ -37,6 +37,7 @@ import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus.core.util.StringUtils;
 
 /**
  * Constructs a checkpoint for multiple buffers.
@@ -174,9 +175,10 @@ public class CheckpointMult
       Checkpoint cp = e.getValue();
       cp.serialize(baos);
       String pPartJson = e.getKey().toJsonString();
-      map.put(pPartJson, baos.toString());
+      String cpStr = StringUtils.bytesToString(baos.toByteArray());
+      map.put(pPartJson, cpStr);
       if(debugEnabled)
-        LOG.debug("phSourId=" + e.getKey() + ";cp =" + baos.toString());
+        LOG.debug("phSourId=" + e.getKey() + ";cp =" + cpStr);
     }
     _mapper.writeValue(outStream, map);
   }

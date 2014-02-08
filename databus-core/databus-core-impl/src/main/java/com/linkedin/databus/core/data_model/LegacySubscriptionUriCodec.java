@@ -53,7 +53,7 @@ public class LegacySubscriptionUriCodec implements SubscriptionUriCodec
     String scheme = uri.getScheme();
     String s = getScheme().equals(scheme) ? uri.getSchemeSpecificPart() : uri.toString();
 
-    return DatabusSubscription.createSimpleSourceSubscription(s);
+    return DatabusSubscription.createSimpleSourceSubscription(new LogicalSource(s));
   }
 
   @Override
@@ -61,7 +61,7 @@ public class LegacySubscriptionUriCodec implements SubscriptionUriCodec
   {
     try
     {
-      String uriSsc = DatabusSubscription.createStringFromSubscription(sub);
+      String uriSsc = sub.generateSubscriptionString();;
       URI result = uriSsc.indexOf(':') >=0 ? new URI(getScheme(), uriSsc, null) : new URI(uriSsc);
       return result;
     }

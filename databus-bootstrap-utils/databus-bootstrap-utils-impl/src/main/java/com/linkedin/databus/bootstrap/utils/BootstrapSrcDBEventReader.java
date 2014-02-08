@@ -22,7 +22,6 @@ package com.linkedin.databus.bootstrap.utils;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -52,6 +51,7 @@ import com.linkedin.databus.core.UnsupportedKeyException;
 import com.linkedin.databus.core.util.ConfigBuilder;
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus.core.util.RateMonitor;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.EventCreationException;
 import com.linkedin.databus2.producers.db.EventReaderSummary;
@@ -89,7 +89,7 @@ public class BootstrapSrcDBEventReader
 	private final Map<String,String> _beginSrcKeyMap;
 	private final Map<String,String> _endSrcKeyMap;
     private final Method _setLobPrefetchSizeMethod;
-    private final Class _oraclePreparedStatementClass;
+    private final Class<?> _oraclePreparedStatementClass;
 
 	public Map<String, File> getKeyTxnFilesMap() {
 		return _keyTxnFilesMap;
@@ -155,7 +155,7 @@ public class BootstrapSrcDBEventReader
 		_endSrcKeyMap = config.getEndSrcKeyMap();
 
         File file = new File("ojdbc6-11.2.0.2.0.jar");
-		URL ojdbcJarFile = file.toURL();
+		URL ojdbcJarFile = file.toURI().toURL();
 		URLClassLoader cl = URLClassLoader.newInstance(new URL[]{ojdbcJarFile});
 		_oraclePreparedStatementClass = cl.loadClass("oracle.jdbc.OraclePreparedStatement");
 		_setLobPrefetchSizeMethod = _oraclePreparedStatementClass.getMethod("setLobPrefetchSize", int.class);
@@ -309,7 +309,6 @@ public class BootstrapSrcDBEventReader
 		KeyType keyType = _pKeyTypeMap.get(sourceInfo.getEventView());
 		String keyName = _pKeyNameMap.get(sourceInfo.getEventView());
 		String sql = _eventQueryMap.get(sourceInfo.getEventView());
-		String beginSrcKey = _beginSrcKeyMap.get(sourceInfo.getEventView());
 		String endSrcKey = _endSrcKeyMap.get(sourceInfo.getEventView());
 
 		if (sql == null)
@@ -792,8 +791,8 @@ public class BootstrapSrcDBEventReader
 		PrimaryKeyTxn oldKeyTxn = null;
 		try
 		{
-			reader = new BufferedReader(new FileReader(file));
-			writer = new BufferedWriter(new FileWriter(tmpFile));
+			reader = new BufferedReader(StringUtils.createFileReader(file));
+			writer = new BufferedWriter(StringUtils.createFileWriter(tmpFile));
 
 			keyTxn = new PrimaryKeyTxn(Long.MIN_VALUE);
 			oldKeyTxn = new PrimaryKeyTxn(Long.MIN_VALUE);
@@ -905,7 +904,8 @@ public class BootstrapSrcDBEventReader
 	private String getStream(InputStream stream)
 		throws IOException
 	{
-		BufferedReader reader = new BufferedReader(new InputStreamReader(stream));
+		BufferedReader reader =
+		    new BufferedReader(new InputStreamReader(stream, StringUtils.DEFAULT_CHARSET));
 		StringBuilder str = new StringBuilder();
 
 		while (true)

@@ -565,7 +565,7 @@ public class TestGenericDispatcher
         schemaMap.put(3L, l3);
 
         log.info("Switch to start dispatch events");
-        DispatcherState ds = DispatcherState.create().addSources(sourcesMap.values()).addSchemas(schemaMap);
+        DispatcherState ds = DispatcherState.create().addSources(sourcesMap.values());
         ds.getSchemaSet().clear();
         long initSize = 0, finalSize = 0;
         try
@@ -578,7 +578,7 @@ public class TestGenericDispatcher
         } catch (Exception e){}
 
 
-        ds.refreshSchemas();
+        ds.addSchemas(schemaMap);
         log.info("Schemas have been refreshed");
         finalSize = ds.getEventDecoder().getSchemaSet().getSchemaBaseNames().size();
         log.info("===Printing the decoder object's schema set\n" + ds.getEventDecoder().getSchemaSet());

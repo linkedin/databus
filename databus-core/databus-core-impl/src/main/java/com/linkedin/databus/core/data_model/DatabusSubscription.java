@@ -185,47 +185,14 @@ public class DatabusSubscription
                                    LogicalSourceId.createAllPartitionsWildcard(source));
   }
 
-  /**
-   * DO NOT USE externally. This is meant for internal databus usage
-   * The behavior of this method will be altered in the future.
-   * @deprecated will be removed in 2.13
-   */
-  @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscriptionV3(String source)
-  {
-    PhysicalPartition pPart = PhysicalPartition.createAnyPartitionWildcard();
-    LogicalSourceId.Builder lidB = new LogicalSourceId.Builder();
-    lidB.setId((short)0);
-    int idx = source.indexOf(':');
-    if(idx != -1) {
-      String sourceName = source.substring(0, idx);
-      int dotIdx = source.indexOf('.');
-      String dbName = sourceName.substring(0, dotIdx);
-      String tableName = sourceName.substring(dotIdx+1);
-      String pPid = source.substring(idx+1);
-      Integer pPidInt = Integer.parseInt(pPid);
-      pPart = new PhysicalPartition(pPidInt, dbName);
-      lidB.setId(pPidInt.shortValue());
-      lidB.getSource().setName(tableName);
-    }
-    LogicalSourceId ls = lidB.build();
-    return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
-        pPart,
-        ls);
-  }
-
-  /**
+   /**
    * DO NOT USE externally. This is meant for internal databus usage
    * This may be removed in a future release
    * TODO Make private and/or change name when we are sure nobody is using these.
    */
   @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscription(String source)
+  private static DatabusSubscription createSimpleSourceSubscription(String source)
   {
-    int idx = source.indexOf(':');
-    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
-    if(idx != -1)
-      return createSimpleSourceSubscriptionV3(source);
     LogicalSource ls = new LogicalSource(source);
     return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
                                PhysicalPartition.createAnyPartitionWildcard(),
@@ -233,30 +200,12 @@ public class DatabusSubscription
   }
 
   /**
-   * DO NOT USE externally. This is meant for internal databus usage
-   * This may be removed in a future release
-   * TODO Make private and/or change name when we are sure nobody is using these.
-   */
-  @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscription(String dbName, String source)
-  {
-    int idx = source.indexOf(':');
-    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
-    if(idx != -1)
-      return createSimpleSourceSubscriptionV3(source);
-    LogicalSource ls = new LogicalSource(source);
-    return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
-                               PhysicalPartition.createAnyPartitionWildcard(dbName),
-                               LogicalSourceId.createAllPartitionsWildcard(ls));
-  }
-
-  /**
    * A method to convert from a subscription to a string representation of a source
    * TODO Look like this method also uses old-style epsresso subscriptions strings?
    */
-  public static String createStringFromSubscription(DatabusSubscription sub)
+  public String generateSubscriptionString()
   {
-	  String name = sub.getLogicalSource().getName();
+	  String name = getLogicalSource().getName();
 	  String[] idx = name.split("\\.");
 	  //v2 mode may have source of form com.linkedin.databus.member2.
 	  // Also wild card logical sources are only supported in V3.
@@ -264,21 +213,9 @@ public class DatabusSubscription
 		  return name;
 
 	  // v3 case
-    SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
-	  URI u = codec.encode(sub);
+      SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
+	  URI u = codec.encode(this);
 	  return u.toString();
-
-	  /*
-	  String ppName = sub.getPhysicalPartition().getName();
-	  String lpName = name;
-	  String s = ppName + "." + lpName;
-	  Integer pp = sub.getPhysicalPartition().getId();
-	  short lp = sub.getLogicalPartition().getId();
-	  if (pp != null && pp.shortValue() == lp){
-		  s += ":" + pp.intValue();
-	  }
-	  return s;
-	  */
   }
 
   /**
@@ -302,7 +239,7 @@ public class DatabusSubscription
    */
   public String createPrettyNameFromSubscription()
   {
-    String s = createStringFromSubscription(this);
+    String s = generateSubscriptionString();
     URI u = null;
     try
     {
@@ -461,7 +398,7 @@ public class DatabusSubscription
 	  List<String> strSources = new ArrayList<String>();
 	  for (DatabusSubscription sub : sources)
 	  {
-		  String s = DatabusSubscription.createStringFromSubscription(sub);
+		  String s = sub.generateSubscriptionString();
 		  strSources.add(s);
 	  }
 	  return strSources;

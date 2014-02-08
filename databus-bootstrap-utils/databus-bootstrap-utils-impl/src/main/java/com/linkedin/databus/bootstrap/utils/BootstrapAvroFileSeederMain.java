@@ -56,7 +56,7 @@ import com.linkedin.databus2.schemas.SchemaRegistryConfigBuilder;
 import com.linkedin.databus2.schemas.SchemaRegistryStaticConfig;
 
 
-public class BootstrapAvroFileSeederMain 
+public class BootstrapAvroFileSeederMain
 {
 	public static final String MODULE = BootstrapAvroFileSeederMain.class.getName();
 	public static final Logger LOG = Logger.getLogger(MODULE);
@@ -69,7 +69,7 @@ public class BootstrapAvroFileSeederMain
 	public static final char   BOOTSTRAP_DB_PROP_OPT_CHAR = 'p';
 	public static final char   PHYSICAL_CONFIG_OPT_CHAR = 'c';
 	public static final char LOG4J_PROPS_OPT_CHAR = 'l';
-	
+
 	private static Properties  _sBootstrapConfigProps = null;
 	private static String      _sSourcesConfigFile    = null;
 	private static StaticConfig _sStaticConfig        = null;
@@ -78,7 +78,7 @@ public class BootstrapAvroFileSeederMain
 	private static BootstrapAvroFileEventReader _sReader = null;
 	private static BootstrapSeederWriterThread _sWriterThread = null;
 	private static BootstrapEventBuffer  _sBootstrapBuffer = null;
-	
+
     public static BootstrapDBSeeder getSeeder()
     {
       return _sSeeder;
@@ -148,7 +148,7 @@ public class BootstrapAvroFileSeederMain
 	    }
 
 	    OracleEventProducerFactory factory = new BootstrapSeederOracleEventProducerFactory(_sStaticConfig.getController().getPKeyNameMap());
-	    
+
 	    // Parse each one of the logical sources
 	    _sources = new ArrayList<OracleTriggerMonitoredSourceInfo>();
 	    FileSystemSchemaRegistryService schemaRegistryService =
@@ -252,8 +252,15 @@ public class BootstrapAvroFileSeederMain
 	    LOG.info("Loading bootstrap DB config from properties file " + propFile);
 
 	    _sBootstrapConfigProps = new Properties();
-	    _sBootstrapConfigProps.load(new FileInputStream(propFile));
-
+	    FileInputStream fis = new FileInputStream(propFile);
+	    try
+	    {
+	      _sBootstrapConfigProps.load(fis);
+	    }
+	    finally
+	    {
+	      fis.close();
+	    }
 	}
 
     private static void printCliHelp(Options cliOptions)

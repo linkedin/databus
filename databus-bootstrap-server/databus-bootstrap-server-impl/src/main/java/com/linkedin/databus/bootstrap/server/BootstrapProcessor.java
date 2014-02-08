@@ -39,6 +39,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapDBTimedQuery;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooYoungException;
 import com.linkedin.databus2.core.filter.DbusFilter;
@@ -68,10 +69,8 @@ public class BootstrapProcessor
   BootstrapServerStaticConfig config;
 
   public BootstrapProcessor(BootstrapServerStaticConfig config,
-                            DbusEventsStatisticsCollector curStatsCollector) throws InstantiationException,
-                            IllegalAccessException,
-                            ClassNotFoundException,
-                            SQLException
+                            DbusEventsStatisticsCollector curStatsCollector)
+      throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, DatabusException
   {
     _curStatsCollector = curStatsCollector;
     BootstrapConn dbConn = new BootstrapConn();

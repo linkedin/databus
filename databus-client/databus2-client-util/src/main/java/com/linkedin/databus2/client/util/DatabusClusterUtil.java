@@ -115,7 +115,11 @@ public class DatabusClusterUtil
 
         public void createCluster(int numPartitions)
         {
-            DatabusCluster.create(_admin, _clusterName, numPartitions);
+          int part = DatabusCluster.create(_admin, _zkClient, _clusterName, numPartitions);
+          if ( part < 0)
+          {
+            throw new RuntimeException("Unable to create cluster (" + _clusterName + ") !!");
+          }
         }
 
         public void removeCluster()

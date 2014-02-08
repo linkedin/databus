@@ -46,10 +46,10 @@ public class RelayCommandRequestProcessor extends AbstractRequestProcesser
   public final static String SAVE_META_STATE_PARAM = "saveMetaInfo";
   public final static String SHUTDOWN_RELAY_PARAM = "shutdownRelay";
   public final static String VALIDATE_RELAY_BUFFER_PARAM = "validateRelayBuffer";
-  public final static String RESET_RELAY_BUFFER_PARAM = "resetRelayBuffer";
   public final static String RUN_GC_PARAM = "runGC";
-  public final static String PREV_SCN_PARAM = "prevScn";
-  public final static String BINLOG_OFFSET_PARAM = "binlogOffset";
+  public final static String RESET_RELAY_BUFFER_PARAM = "resetRelayBuffer";
+  public final static String PREV_SCN_PARAM = "prevScn";            // required sub-param of RESET_RELAY_BUFFER_PARAM
+  public final static String BINLOG_OFFSET_PARAM = "binlogOffset";  // optional sub-param of RESET_RELAY_BUFFER_PARAM
   public final static String GET_BINLOG_OFFSET_PARAM = "getLastEventBinlogOffset";
   public final static String PRINT_RELAY_INFO_PARAM = "printRelayInfo";
   public final static String DISCONNECT_CLIENTS = "disconnectClients";
@@ -158,12 +158,14 @@ public class RelayCommandRequestProcessor extends AbstractRequestProcesser
     } else {
       // invalid command
       reply = new String("command " + command + " is invalid. Valid commands are: " +
-              SAVE_META_STATE_PARAM + "|" +
-              SHUTDOWN_RELAY_PARAM + "|" +
-              RUN_GC_PARAM + "|" +
-              RESET_RELAY_BUFFER_PARAM + "|" +
-              GET_BINLOG_OFFSET_PARAM + "|" +
-              PRINT_RELAY_INFO_PARAM + "|" + DISCONNECT_CLIENTS);
+                         SAVE_META_STATE_PARAM + "|" +
+                         SHUTDOWN_RELAY_PARAM + "|" +
+                         VALIDATE_RELAY_BUFFER_PARAM + "|" +
+                         RUN_GC_PARAM + "|" +
+                         RESET_RELAY_BUFFER_PARAM + "|" +
+                         GET_BINLOG_OFFSET_PARAM + "|" +
+                         PRINT_RELAY_INFO_PARAM + "|" +
+                         DISCONNECT_CLIENTS);
      }
 
     byte[] responseBytes = new byte[(reply.length() + 2)];

@@ -32,6 +32,7 @@ import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.BootstrapDBException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 
@@ -49,12 +50,9 @@ public class DatabusBootstrapClient
   private final BootstrapCheckpointHandler _bstCheckpointHandler;
   final long _targetScn ;
 
-  public DatabusBootstrapClient(Checkpoint initCheckpoint, String bootstrapSources[]) throws InstantiationException,
-      IllegalAccessException,
-      ClassNotFoundException,
-      SQLException,
-      IOException,
-      InvalidConfigException
+  public DatabusBootstrapClient(Checkpoint initCheckpoint, String bootstrapSources[])
+      throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, IOException,
+             DatabusException
   {
     _targetScn = -1;
     _initState = initCheckpoint;
@@ -64,12 +62,9 @@ public class DatabusBootstrapClient
     init();
   }
 
-  public DatabusBootstrapClient(String bootstrapSources[]) throws InstantiationException,
-      IllegalAccessException,
-      ClassNotFoundException,
-      SQLException,
-      IOException,
-      InvalidConfigException
+  public DatabusBootstrapClient(String bootstrapSources[])
+      throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, IOException,
+             DatabusException
   {
     init();
 
@@ -85,12 +80,9 @@ public class DatabusBootstrapClient
     _currState = _initState;
   }
 
-  private void init() throws InstantiationException,
-      IllegalAccessException,
-      ClassNotFoundException,
-      SQLException,
-      IOException,
-      InvalidConfigException
+  private void init()
+      throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, IOException,
+             DatabusException
   {
 
     BootstrapServerConfig configBuilder = new BootstrapServerConfig();

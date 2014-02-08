@@ -46,6 +46,7 @@ import com.linkedin.databus.core.BootstrapCheckpointHandler;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.DbusClientMode;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.BootstrapDBException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.test.TestUtil;
@@ -61,8 +62,8 @@ public class TestBootstrap
 
 	  @Test
 	  public void testBootstrapProcessor()
-	    throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException,
-	    IOException, BootstrapProcessingException, InvalidConfigException, BootstrapDatabaseTooOldException ,BootstrapDBException
+        throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, IOException,
+               BootstrapProcessingException, DatabusException, BootstrapDatabaseTooOldException, BootstrapDBException
 	    {
 		  EventProcessor processorCallback = new EventProcessor();
 		  BootstrapConfig config = new BootstrapConfig();
@@ -162,9 +163,8 @@ public class TestBootstrap
 	  }
 	  @Test
 	  public void testBootstrapService()
-	              throws InstantiationException, IllegalAccessException, ClassNotFoundException,
-	                     SQLException, IOException, BootstrapProcessingException, InvalidConfigException,
-	                     BootstrapDatabaseTooOldException,BootstrapDBException
+        throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, IOException,
+               BootstrapProcessingException, DatabusException, BootstrapDatabaseTooOldException, BootstrapDBException
 	  {
 	      final Logger log = Logger.getLogger("TestBootstrap.testBootstrapService");
 		  EventProcessor processorCallback = new EventProcessor();

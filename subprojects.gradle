@@ -1,0 +1,166 @@
+ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
+
+File getEnvironmentScript()
+{
+  final File env = rootProject.file(isDefaultEnvironment ? 'defaultEnvironment.gradle' : project.overrideBuildEnvironment)
+  assert env.isFile() : "The environment script [$env] does not exists or is not a file."
+  return env
+}
+
+apply from: environmentScript
+
+ext.externalDependency = [
+    'avro': 'org.apache.avro:avro:1.4.0',
+    'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
+    'commonsCli': 'commons-cli:commons-cli:1.2',
+    'commonsCodec': 'commons-codec:commons-codec:1.6',
+    'commonsCollections': 'commons-collections:commons-collections:3.2.1',
+    'commonsIo': 'commons-io:commons-io:1.4',
+    'commonsLang': 'commons-lang:commons-lang:2.5',
+    'commonsLogging': 'commons-logging:commons-logging:1.1',
+    'commonsParent': 'org.apache.commons:commons-parent:5',
+    'commonsStats': 'org.apache.commons:commons-math3:3.2',
+    'easymock': 'org.easymock:easymock:3.1',
+    'easymockext': 'org.easymock:easymockclassextension:3.1',
+    'guava': 'com.google.guava:guava:10.0',
+    'hadoopCore': 'org.apache.hadoop:hadoop-core:0.20.2',
+    'jacksonCoreAsl': 'org.codehaus.jackson:jackson-core-asl:1.8.5',
+    'jacksonMapperAsl': 'org.codehaus.jackson:jackson-mapper-asl:1.8.5',
+    'jline': 'jline:jline:1.0',
+    'json': 'org.json:json:20070829',
+    'junit': 'junit:junit:4.8.1',
+    'log4j': 'log4j:log4j:1.2.15',
+    'luceneAnalyzers': 'org.apache.lucene:lucene-analyzers:2.9.1',
+    'luceneCore': 'org.apache.lucene:lucene-core:2.9.1',
+    'luceneQueries': 'org.apache.lucene:lucene-queries:2.9.1',
+    'metricsCore': 'com.codahale.metrics:metrics-core:3.0.1',
+    'mysqlConnectorJava': 'org.mysql:mysql-connector-java:5.1.14',
+    'netty': 'org.jboss.netty:netty:3.2.4.Final',
+    'snakeyaml': 'org.yaml:snakeyaml:1.8',
+    'testng': 'org.testng:testng:6.4',
+    'zkclient': 'zkclient:zkclient:0.2.0',
+    'zkclientHelix': 'com.github.sgroschupf:zkclient:0.1',
+    'zookeeper': 'org.apache.zookeeper:zookeeper:3.3.3',
+    'ojdbc6': 'com.oracle:ojdbc6:11.2.0.2.0',
+    'helixCore': 'org.apache.helix:helix-core:0.6.2.0',
+    'or': 'com.linkedin.dds-mysql:open-replicator-impl:1.0.63'
+];
+
+if (isDefaultEnvironment) {
+  externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
+  externalDependency['helixCore'] = 'org.apache.helix:helix-core:0.6.2-incubating'
+  externalDependency['or'] = 'com.google:open-replicator:1.0.5'
+
+
+}
+
+tasks.withType(Compile).all { Compile compile ->
+  compile.options.compilerArgs = ['-Xlint', '-Xlint:-path']
+}
+/* workaround for GRADLE-2243 (http://issues.gradle.org/browse/GRADLE-2243) */
+tasks.withType(FindBugs) {
+  ignoreFailures=true
+  effort="max"
+  reportLevel="medium"
+  def f = new File("${project.projectDir}", "FindBugs-excludes.xml")
+  if ( f.exists()) {
+	  logger.info("{} uses FindBugs excludes: {}", project, f.getAbsolutePath())
+	  excludeFilter= file("${project.projectDir}/FindBugs-excludes.xml")
+  }
+}
+
+plugins.withType(JavaPlugin) {
+
+   // Please see TOOLS-17168, regarding how runtime dependencies can
+   // get interpreted as compile time dependency
+   // configurations.compile.exclude module: 'ojdbc6'
+
+    plugins.apply('eclipse')
+    plugins.apply('idea')
+
+	if (isDefaultEnvironment) {
+	    plugins.apply('findbugs')
+	}
+
+    sourceCompatibility = JavaVersion.VERSION_1_6
+    configurations {
+
+      all*.exclude group: 'com.sun.jdmk', module: 'jmxtools'
+      all*.exclude group: 'com.sun.jmx', module: 'jmxri'
+      all*.exclude group: 'javax.jms', module: 'jms'
+
+      /* Uncomment for Cobertura integration */
+      // testRuntime.exclude group: 'net.sourceforge.cobertura', module: 'cobertura'
+
+      testArtifacts
+    }
+
+    // Default dependencies for all subprojects
+    dependencies {
+        runtime ext.externalDependency.log4j
+        // Force easymock to version 3.1. One of the espresso dependencies changes it to 2.4
+        // and v2.4 does not support mocking of classes, causing our espresso unit tests
+        // to break.
+        runtime(ext.externalDependency.easymock) {
+            force = true
+        }
+        compile(ext.externalDependency.easymock) {
+            force = true
+        }
+    }
+
+    if (isDefaultEnvironment) {
+      task sourcesJar(type: Jar, dependsOn: classes) {
+        from sourceSets.main.allSource
+        classifier = 'sources'
+      }
+
+      task javadocJar(type: Jar, dependsOn: javadoc) {
+        from javadoc.destinationDir
+        classifier = 'javadoc'
+      }
+
+      artifacts {
+        archives sourcesJar
+        archives javadocJar
+      }
+    }
+
+    task testJar(type: Jar){
+      from sourceSets.test.output
+      classifier = 'tests'
+    }
+
+    artifacts {
+      testArtifacts testJar
+    }
+
+    test {
+      	maxHeapSize = '6200m'
+        jvmArgs '-XX:MaxDirectMemorySize=8192m', '-XX:PermSize=512M', '-XX:MaxPermSize=1024M',  '-ea', '-verbose:gc', '-Xloggc:/tmp/test-gc.log', '-XX:+PrintGCDetails', '-XX:+PrintGCDateStamps', '-XX:+UseConcMarkSweepGC', '-XX:+UseParNewGC', '-XX:CMSInitiatingOccupancyFraction=75', '-XX:+UseCMSInitiatingOccupancyOnly', '-XX:NewSize=256m', '-XX:MaxNewSize=256m'
+        useTestNG()
+
+        doFirst { desc->
+          logger.lifecycle("Running task: " + desc);
+        }
+        beforeTest { desc->
+          logger.lifecycle("Running test: " + desc);
+        }
+    }
+}
+
+task cleanBuildDir(type: Exec){
+  commandLine = ['rm', '-rf', rootDir.toString() + '/build']
+  workingDir = rootDir
+}
+
+task makedir(type:Exec) {
+  // gradle mkdir does not create dir with "-p" flag on so this is a generic task that takes -Ddirpath=..... parameter
+  // Usage examples:
+  // gradle makedir -Ddirpath=abc/xyz
+  def dir = System.getProperties()['dirpath'] ?: null
+  if (dir != null){
+	commandLine = ['mkdir','-p', dir]
+	workingDir = file(rootDir.toString())
+  }
+}

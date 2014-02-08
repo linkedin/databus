@@ -13,6 +13,5 @@ dependencies {
 
   compile externalDependency.log4j
   compile externalDependency.mysqlConnectorJava
-  compile externalDependency.spring
   compile externalDependency.avro
 }

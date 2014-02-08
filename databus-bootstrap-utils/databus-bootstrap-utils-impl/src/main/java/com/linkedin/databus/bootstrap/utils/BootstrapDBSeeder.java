@@ -65,7 +65,6 @@ implements DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   private final Map<Short, PreparedStatement> _statementMap;
   private short                   _currSrcId    		 = -1;
   private long                    _totLatency          = 0;
-  private long                    _numRecords          = 0;
   private long                    _scn                 = 0;
   private List<OracleTriggerMonitoredSourceInfo> _sources           = null;
   private Map<String, Long>         _lastRows          = null;
@@ -405,7 +404,6 @@ implements DbusEventBufferAppendable, DbusEventBufferStreamAppendable
       _totLatency += (end2 - end);
 
       _currSrcId = srcId;
-      _numRecords++;
       ret = true;
     } catch (SQLException sqlEx) {
       LOG.error("Error occured while inserting record for key:" +

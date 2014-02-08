@@ -1,4 +1,7 @@
 package com.linkedin.databus.client.pub;
+
+import com.linkedin.databus.core.data_model.PhysicalPartition;
+
 /*
  *
  * Copyright 2013 LinkedIn Corp. All rights reserved
@@ -33,7 +36,7 @@ public interface DbusPartitionInfo
 	public long getPartitionId();
 
 	/**
-	 * 
+	 *
 	 * Checks if other partition is equal to this instance
 	 * @param other
 	 * @return true if equal otherwise false

@@ -110,13 +110,13 @@ public class BootstrapDBSingleSourceCleaner implements Runnable
       LOG.info("<<<< Creating Bootstrap Connection!! >>>>");
       BootstrapConn dbConn = new BootstrapConn();
       final boolean autoCommit = true;
+      try
+      {
       _bootstrapDao = new BootstrapDBMetaDataDAO(dbConn,
           _bootstrapReadOnlyConfig.getBootstrapDBHostname(),
           _bootstrapReadOnlyConfig.getBootstrapDBUsername(),
           _bootstrapReadOnlyConfig.getBootstrapDBPassword(),
           _bootstrapReadOnlyConfig.getBootstrapDBName(), autoCommit);
-      try
-      {
         dbConn.initBootstrapConn(autoCommit,
             _bootstrapReadOnlyConfig.getBootstrapDBUsername(),
             _bootstrapReadOnlyConfig.getBootstrapDBPassword(),

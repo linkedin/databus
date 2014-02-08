@@ -18,7 +18,16 @@
 */
 package com.linkedin.databus.core.util;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,6 +43,34 @@ public class StringUtils
       Pattern.compile("(jdbc:oracle:thin:)([^/@]*)(/[^@]*)(@.*)");
   private static final Pattern MYSQL_JDBC_PATTERN1 = Pattern.compile("\\((user=|password=)([^)]*)\\)");
   private static final Pattern MYSQL_JDBC_PATTERN2 = Pattern.compile("(user=|password=)([^&]*)");
+
+  public static final String DEFAULT_ENCODING_NAME = "UTF-8";
+  public static final Charset DEFAULT_CHARSET = Charset.forName(DEFAULT_ENCODING_NAME);
+
+  public static String bytesToString(byte[] bytes)
+  {
+    return new String(bytes, DEFAULT_CHARSET);
+  }
+
+  public static Reader createFileReader(File file) throws FileNotFoundException
+  {
+    return new InputStreamReader(new FileInputStream(file), StringUtils.DEFAULT_CHARSET);
+  }
+
+  public static Reader createFileReader(String fileName) throws FileNotFoundException
+  {
+    return new InputStreamReader(new FileInputStream(fileName), StringUtils.DEFAULT_CHARSET);
+  }
+
+  public static Writer createFileWriter(File file) throws FileNotFoundException
+  {
+    return new OutputStreamWriter(new FileOutputStream(file), StringUtils.DEFAULT_CHARSET);
+  }
+
+  public static Writer createFileWriter(String fileName) throws FileNotFoundException
+  {
+    return new OutputStreamWriter(new FileOutputStream(fileName), StringUtils.DEFAULT_CHARSET);
+  }
 
   /**
    * Dumps as a hex string the contents of a buffer around a position

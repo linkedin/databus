@@ -717,6 +717,19 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   {
     return _dscUpdater ;
   }
+
+  /**
+   * Returns the set of client clusters that are currently "active". A cluster is considered active, if it has atleast one registration in
+   * one of the following states (REGISTERED,  REGISTERED, STARTED, PAUSED, RESUMED, SUSPENDED_ON_ERROR). The states which are not considered
+   * to be active are INIT, DEREGISTERED states.
+   *
+   * This is applicable for load-balanced mode only in both V2(Oracle) and V3(Espresso).
+   */
+  public Set<String> getActiveClientClusters()
+  {
+    return _activeClusters;
+  }
+
   @Override
   public DatabusRegistration register(DatabusCombinedConsumer consumer,
                                       String... sources)
