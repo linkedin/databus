@@ -52,6 +52,11 @@ public class PhysicalPartition implements NamedObject, Comparable<PhysicalPartit
     this(ANY_PHYSICAL_PARTITION_ID, ANY_PHYSICAL_PARTITION_NAME);
   }
 
+  /**
+   * For Espresso consumers, a database (e.g. EspressoDB8 with 8 partitions), the physical partition for partition 2 will be instantiated as (2, "EspressoDB8")
+   * @param id Partition id
+   * @param name The name of the database
+   */
   public PhysicalPartition(Integer id, String name) {
     super();
     if (null == id) throw new NullPointerException("id");

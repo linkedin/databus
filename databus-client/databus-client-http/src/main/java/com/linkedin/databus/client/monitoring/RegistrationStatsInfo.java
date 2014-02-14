@@ -20,6 +20,7 @@ package com.linkedin.databus.client.monitoring;
 
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -32,11 +33,14 @@ import com.linkedin.databus.client.DispatcherState;
 import com.linkedin.databus.client.GenericDispatcher;
 import com.linkedin.databus.client.RelayPullThread;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
+import com.linkedin.databus.client.pub.DatabusRegistration;
 import com.linkedin.databus.client.pub.DatabusV3MultiPartitionRegistration;
 import com.linkedin.databus.client.pub.DatabusV3Registration;
+import com.linkedin.databus.client.pub.DbusPartitionInfo;
 import com.linkedin.databus.client.pub.RegistrationId;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.registration.DatabusMultiPartitionRegistration;
 import com.linkedin.databus.core.DatabusComponentStatus;
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
@@ -45,7 +49,7 @@ public class RegistrationStatsInfo
 {
 	private RegistrationId regId;
 	private RegistrationId parentRegId;
-	private List<DatabusSubscription> subscriptions;
+	private Collection<DatabusSubscription> subscriptions;
 	private ServerInfo currentRelay;
 	private ServerInfo currentBootstrapServer;
 	private Set<ServerInfo> candidateRelays;
@@ -66,6 +70,29 @@ public class RegistrationStatsInfo
 	{
 	}
 
+  public RegistrationStatsInfo(DatabusRegistration reg,
+                               DatabusSourcesConnection sourcesConn)
+  {
+    setRegId(reg.getRegistrationId());
+    setParentRegId(null != reg.getParent() ? reg.getParent().getRegistrationId() : null);
+    setSubscriptions(reg.getSubscriptions());
+
+    if (reg instanceof DatabusMultiPartitionRegistration)
+    {
+      DatabusMultiPartitionRegistration mpReg = (DatabusMultiPartitionRegistration) reg;
+      setMultiPartition(true);
+      ArrayList<RegistrationId> childrenRegs =
+          new ArrayList<RegistrationId>(mpReg.getPartitions().size());
+      for (Map.Entry<DbusPartitionInfo, DatabusRegistration> child : mpReg.getPartitionRegs()
+                                                                          .entrySet())
+      {
+        childrenRegs.add(child.getValue().getRegistrationId());
+      }
+      setChildrenRegistrations(childrenRegs);
+    }
+    initSourcesConn(sourcesConn);
+  }
+
 	public RegistrationStatsInfo(DatabusV3Registration reg, DatabusSourcesConnection sourcesConn)
     {
 	  setRegId(reg.getId());
@@ -84,52 +111,57 @@ public class RegistrationStatsInfo
         }
         setChildrenRegistrations(childrenRegs);
       }
+      initSourcesConn(sourcesConn);
+    }
 
-      if ( null != sourcesConn )
-      {
-        RelayPullThread rp = sourcesConn.getRelayPullThread();
-        BootstrapPullThread bp = sourcesConn.getBootstrapPullThread();
-        GenericDispatcher<DatabusCombinedConsumer>  rd = sourcesConn.getRelayDispatcher();
-        GenericDispatcher<DatabusCombinedConsumer>  bd = sourcesConn.getBootstrapDispatcher();
+  private void initSourcesConn(DatabusSourcesConnection sourcesConn)
+  {
+    if (null != sourcesConn)
+    {
+      RelayPullThread rp = sourcesConn.getRelayPullThread();
+      BootstrapPullThread bp = sourcesConn.getBootstrapPullThread();
+      GenericDispatcher<DatabusCombinedConsumer> rd = sourcesConn.getRelayDispatcher();
+      GenericDispatcher<DatabusCombinedConsumer> bd =
+          sourcesConn.getBootstrapDispatcher();
 
-      if ( null != rp)
+      if (null != rp)
       {
         setRelayPullerConnectionState(rp.getConnectionState().getStateId());
-        if ( null != rp.getComponentStatus())
+        if (null != rp.getComponentStatus())
           setRelayPullerComponentStatus(rp.getComponentStatus().getStatus());
 
         setCurrentRelay(rp.getCurentServer());
         setCandidateRelays(rp.getServers());
-        }
+      }
 
-        if ( null != bp)
-        {
-          setBootstrapPullerConnectionState(bp.getConnectionState().getStateId());
-          if ( null != bp.getComponentStatus())
-            setBootstrapPullerComponentStatus(bp.getComponentStatus().getStatus());
+      if (null != bp)
+      {
+        setBootstrapPullerConnectionState(bp.getConnectionState().getStateId());
+        if (null != bp.getComponentStatus())
+          setBootstrapPullerComponentStatus(bp.getComponentStatus().getStatus());
 
-          setCurrentBootstrapServer(bp.getCurentServer());
-          setCandidateBootstrapServers(bp.getServers());
-        }
+        setCurrentBootstrapServer(bp.getCurentServer());
+        setCandidateBootstrapServers(bp.getServers());
+      }
 
-        if ( null != rd)
-        {
-          if ( null != rd.getComponentStatus())
-            setRelayDispatcherComponentStatus(rd.getComponentStatus().getStatus());
+      if (null != rd)
+      {
+        if (null != rd.getComponentStatus())
+          setRelayDispatcherComponentStatus(rd.getComponentStatus().getStatus());
 
-          if (null != rd.getDispatcherState())
-            setRelayDispatcherConnectionState(rd.getDispatcherState().getStateId());
-        }
+        if (null != rd.getDispatcherState())
+          setRelayDispatcherConnectionState(rd.getDispatcherState().getStateId());
+      }
 
-        if ( null != bd)
-        {
-          if ( null != bd.getComponentStatus())
-            setBootstrapDispatcherComponentStatus(bd.getComponentStatus().getStatus());
-          if ( null != bd.getDispatcherState())
-            setBootstrapDispatcherConnectionState(bd.getDispatcherState().getStateId());
-        }
+      if (null != bd)
+      {
+        if (null != bd.getComponentStatus())
+          setBootstrapDispatcherComponentStatus(bd.getComponentStatus().getStatus());
+        if (null != bd.getDispatcherState())
+          setBootstrapDispatcherConnectionState(bd.getDispatcherState().getStateId());
       }
     }
+  }
 
 	public RegistrationId getRegId() {
 		return regId;
@@ -147,11 +179,11 @@ public class RegistrationStatsInfo
     parentRegId = regId;
   }
 
-	public List<DatabusSubscription> getSubscriptions() {
+	public Collection<DatabusSubscription> getSubscriptions() {
 		return subscriptions;
 	}
 
-	public void setSubscriptions(List<DatabusSubscription> subscriptions) {
+	public void setSubscriptions(Collection<DatabusSubscription> subscriptions) {
 		this.subscriptions = subscriptions;
 	}
 

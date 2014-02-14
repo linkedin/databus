@@ -47,20 +47,6 @@ import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
  * The persisted checkpoint for this particular consumerGroup is identified
  * through the RegistrationId, which is a hash generated off the consumer subscriptions.
  *
- * There is a notion of a child and parent registration.
- * Child : A registration object created internally by Databus client in load-balanced configuration or multi-partition
- *         configuration. This is not exposed to the application in default configuration.
- *         The one exception is when using a load-balanced configuration, and the application sets up a partition listener. Please see
- *         {@link DbusV3PartitionListener#onAddPartition(PhysicalPartition, DatabusV3Registration)} for details
- *
- * Parent: A registration that creates and manages a collection of child registrations.
- *         There will be a parent registration only when using load-balanced configuration (or)
- *         a multi-partition consumer configuration.
- *
- * When there is only one physical partition to deal with, it is defined as a parent registration ( it is child-less)
- *
- * Unless explicitly stated, when we say a "registration", we mean the "parent registration" which is
- * the registration object returned as part of the
  * {@link DatabusV3Client#registerDatabusListener(DatabusV3Consumer, RegistrationId, DbusKeyCompositeFilterConfig, DatabusSubscription)}/
  * {@link DatabusV3Client#registerCluster(String, DbusClusterConsumerFactory, String)}
  * DatabusClient interface methods implemented by DatabusHttpV3ClientImpl
@@ -76,8 +62,7 @@ public interface DatabusV3Registration
    * A connection is made to an appropriate relay / bootstrap server depending on the subscription and delivered
    * to the consumer
    *
-   * @throws IllegalStateException If the registration is a child registration
-   *                               If the registration is started multiple times
+   * @throws IllegalStateException If the registration is started multiple times
    *
    * Please note that this method does not declare explicitly that it throws an IllegalStateException. Reasons are explained below:
    * (1) It was not listed explicitly in releases prior to 2.13.2
@@ -94,7 +79,6 @@ public interface DatabusV3Registration
    * The registration object can still be inspected by client REST API.
    *
    * @throws IllegalStateException If the registration is not running.
-   *                               If the registration is a child registration
    */
   public void shutdown()
   throws IllegalStateException;
@@ -108,7 +92,6 @@ public interface DatabusV3Registration
    * (if desired).
    *
    * @throws IllegalStateException If the registration is not running
-   *                               If the registration is a child registration
    */
   public void pause()
   throws IllegalStateException;
@@ -123,7 +106,6 @@ public interface DatabusV3Registration
    *
    * @param ex Throwable for the exceptional/error condition.
    * @throws IllegalStateException If the registration is not running.
-   *                               If the registration is a child registration
    */
   public void suspendOnError(Throwable ex)
   throws IllegalStateException;
@@ -133,7 +115,6 @@ public interface DatabusV3Registration
    * This can be called when the consumption is paused/suspended.
    *
    * @throws IllegalStateException If the registration is not paused or suspended.
-   *                               If the registration is a child registration
    */
   public void resume()
   throws IllegalStateException;
@@ -159,7 +140,6 @@ public interface DatabusV3Registration
    *
    * @return DeregisterResult
    * @throws IllegalStateException If the registration is already in DEREGISTERED state
-   *                               If the registration is a child registration
    *
    * Please note that this method does not declare explicitly that it throws an IllegalStateException. Reasons are explained below:
    * (1) It was not listed explicitly in releases prior to 2.13.2
@@ -177,7 +157,7 @@ public interface DatabusV3Registration
 
   /**
    * Returns an object that implements DatabusComponentStatus.
-   * Helpful for obtaining diagnostics regarding the registration, and for invoking dignostic operations
+   * Helpful for obtaining diagnostics regarding the registration, and for invoking diagnostic operations
    * via JMX like pausing a consumer.
    */
   public DatabusComponentStatus getStatus();
@@ -192,18 +172,10 @@ public interface DatabusV3Registration
    */
   public Logger getLogger();
 
-  /**
-   * @note WARNING: For Databus internal use only
-   *
-   * Obtains the parent registration if any. Parent registrations are generally
-   * created when consuming from multiple partitions simultaneously.
-   *
-   * @return the parent registration or null if there isn't any
-   */
-  public DatabusV3Registration getParent();
 
   /**
-   * @deprecated Please use {@link #getParent() instead}
+   *  @note WARNING: For Databus internal use only
+   *  @deprecated
    */
   @Deprecated
   public DatabusV3Registration getParentRegistration();
@@ -219,7 +191,7 @@ public interface DatabusV3Registration
    * @throws DatabusClientException if the regId is already being used.
    * @throws IllegalStateException if the registration has already started.
    */
-  public DatabusRegistration withRegId(RegistrationId regId)
+  public DatabusV3Registration withRegId(RegistrationId regId)
       throws DatabusClientException, IllegalStateException;
 
   /**
@@ -241,49 +213,29 @@ public interface DatabusV3Registration
    * Returns the last persisted checkpoint.  It is a copy of the actual checkpoint, so
    * changing this will not alter the actual checkpoint used by Databus Client.
    *
-   * This method may be invoked on the child registration object only (i.e., per physicalPartition
-   * registration object) that is returned as part of @link{DbusPartitionListener#onAddPartition(PhysicalPartition, DatabusV3Registration)}
-   *  callback
-   *
-   * @throws DatabusClientException If invoked on a parent registration
+   * @param physicalPartition The partition for which the checkpoint has to be fetched. If only one partition is
+   *                          associated with this registration, a null or the actual PhysicalPartition should be passed.
+   * @throws DatabusClientException if it violates the following
+   * For client load balanced scenario: The physicalPartition must be one of the partitions hosted in this client instance.
+   * For any other scenario: The physicalPartition must be one of the partitions that the client has subscribed to.
    */
-  public Checkpoint getLastPersistedCheckpoint()
+  public Checkpoint getLastPersistedCheckpoint(PhysicalPartition physicalPartition)
   throws DatabusClientException;
 
   /**
-   * Returns the last persisted checkpoint for each physical partition in the registration.
-   * It is a copy of the actual checkpoint, so changing this will not alter the actual checkpoint
-   * used by Databus Client.
+   * Allow the client application to set a checkpoint for a particular physical partition.
    *
-   * This method may be invoked on the parent registration object only (i.e., the registration returned as
-   * part of {@link DatabusClient#registerCluster(String, DbusConsumerFactory, String)
-   *
-   * @throws DatabusClientException If invoked on a child registration
+   * @param ckpt The checkpoint to be set
+   * @param physicalPartition The particular partition for which the checkpoint is set.
+   * @throws IllegalStateException If the registration is not in REGISTERED state.
+   * @throws DatabusClientException if it violates the following
+   * For client load balanced scenario: The physicalPartition must be one of the partitions hosted in this client instance.
+   * For any other scenario: The physicalPartition must be one of the partitions that the client has subscribed to.
    */
-  public CheckpointMult getLastPersistedCheckpointMult()
-  throws DatabusClientException;
+  public boolean storeCheckpoint(PhysicalPartition physicalPartition, Checkpoint ckpt)
+  throws DatabusClientException, IllegalStateException;
 
-  /**
-   * Allow the client application to set a checkpoint for the physical partition.
-   * This can be invoked only on the child registration returned as part of {@link DbusV3PartitionListener#onAddPartition(PhysicalPartition, DatabusV3Registration),
-   * when the registration is in INIT state.
-   *
-   * @throws IllegalStateException If the registration state is not INIT (or REGISTERED (TBD))
-   *                               If the registration is a parent registration
-   */
-  public boolean storeCheckpoint(Checkpoint ckpt)
-  throws IllegalStateException;
-
-  /**
-   * Exposes functionality to read / write a checkpoint with a checkpoint provider object.
-   *
-   * A typical example of how checkpoint is manipulated on the client library to start from newScn
-   * {@code
-     CheckpointPersistenceProvider ckp = reg.getCheckpoint();
-     Checkpoint cp = Checkpoint.createOnlineConsumption(newScn);
-     ckp.storeCheckpointV3(getSubscriptions(), cp, getId());
-     }
-   */
+  //TODO deprecate this and use storeCheckPoint and getCheckPoint with Partition information instead
   public CheckpointPersistenceProvider getCheckpointPersistenceProvider();
 
   /**

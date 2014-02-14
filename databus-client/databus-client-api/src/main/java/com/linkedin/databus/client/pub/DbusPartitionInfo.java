@@ -1,6 +1,5 @@
 package com.linkedin.databus.client.pub;
 
-import com.linkedin.databus.core.data_model.PhysicalPartition;
 
 /*
  *

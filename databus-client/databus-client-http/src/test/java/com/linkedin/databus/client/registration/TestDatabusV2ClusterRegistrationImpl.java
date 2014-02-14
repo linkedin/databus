@@ -64,6 +64,9 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import junit.framework.Assert;
+
 import org.apache.avro.Schema;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -84,7 +87,7 @@ import org.testng.annotations.Test;
 
 import static org.testng.AssertJUnit.assertEquals;
 
-public class TestDatabusV2ClusterRegistrationImpl 
+public class TestDatabusV2ClusterRegistrationImpl
 {
 	public static final Logger LOG = Logger.getLogger("TestDatabusV2ClusterRegistrationImpl");
 	static final Schema SOURCE1_SCHEMA =
@@ -155,7 +158,62 @@ public class TestDatabusV2ClusterRegistrationImpl
 
 		_bufCfg = bufCfgBuilder.build();
 	}
-	
+
+ @Test
+ public void testRegistrationStartFromInvalidState() throws Exception
+ {
+   DatabusHttpClientImpl client = null;
+
+   try
+   {
+     DatabusHttpClientImpl.Config clientConfig = new DatabusHttpClientImpl.Config();
+     clientConfig.getContainer().getJmx().setRmiEnabled(false);
+     clientConfig.getContainer().setHttpPort(12003);
+     client = new DatabusHttpClientImpl(clientConfig);
+
+     registerRelay(1, "relay1", new InetSocketAddress("localhost", 8888), "S1,S2", client);
+     registerRelay(2, "relay2", new InetSocketAddress("localhost", 7777), "S1,S3", client);
+     registerRelay(3, "relay1.1", new InetSocketAddress("localhost", 8887), "S1,S2", client);
+     registerRelay(4, "relay3", new InetSocketAddress("localhost", 6666), "S3,S4,S5", client);
+
+     TestDbusPartitionListener listener = new TestDbusPartitionListener();
+     StaticConfig ckptConfig = new StaticConfig("localhost:1356", "dummy", 1,1);
+     DbusClusterInfo clusterInfo = new DbusClusterInfo("dummy", 10,1);
+
+     DatabusV2ClusterRegistrationImpl reg = new TestableDatabusV2ClusterRegistrationImpl(null,
+                                                                                client,
+                                                                                ckptConfig,
+                                                                                clusterInfo,
+                                                                                new TestDbusClusterConsumerFactory(),
+                                                                                new TestDbusServerSideFilterFactory(),
+                                                                                listener,
+                                                                                "S1", "S3");
+     try
+     {
+       // Invoking start from INIT state in illegal
+       reg.start();
+       Assert.fail();
+     } catch (IllegalStateException e) {}
+
+     try
+     {
+       // Invoking start from DEREGISTERED state in illegal
+       reg.onRegister();
+       reg.start();
+       reg.shutdown();
+       reg.deregister();
+       reg.start();
+       Assert.fail();
+     } catch (IllegalStateException e) {}
+
+   } finally
+   {
+     if (null != client)
+     {
+       client.shutdown();
+     }
+   }
+ }
 	@Test
 	public void testRegistration() throws Exception
 	{
@@ -176,20 +234,21 @@ public class TestDatabusV2ClusterRegistrationImpl
 			TestDbusPartitionListener listener = new TestDbusPartitionListener();
 			StaticConfig ckptConfig = new StaticConfig("localhost:1356", "dummy", 1,1);
 			DbusClusterInfo clusterInfo = new DbusClusterInfo("dummy", 10,1);
-			
+
 			DatabusV2ClusterRegistrationImpl reg = new TestableDatabusV2ClusterRegistrationImpl(null,
-					                                                                       client, 
+					                                                                       client,
 					                                                                       ckptConfig,
 					                                                                       clusterInfo,
 					                                                                       new TestDbusClusterConsumerFactory(),
 					                                                                       new TestDbusServerSideFilterFactory(),
 					                                                                       listener,
 					                                                                       "S1", "S3");
-			
+			reg.onRegister();
+
 			// Start
 			reg.start();
 			assertEquals("State CHeck", reg.getState(), RegistrationState.STARTED);
-			
+
 			// Add Partition(s)
 			reg.onGainedPartitionOwnership(1);
 			assertEquals("Listener called ", listener.isAddPartitionCalled(1), true);
@@ -206,24 +265,24 @@ public class TestDatabusV2ClusterRegistrationImpl
 			reg.onGainedPartitionOwnership(4);
 			assertEquals("Listener called ", listener.isAddPartitionCalled(4), false);
 			assertEquals("Partition Regs size ", 4, reg.getPartitionRegs().size());
-			
+
 			List<String> gotPartitionList = new ArrayList<String>();
 			for (DbusPartitionInfo p : reg.getPartitions())
 				gotPartitionList.add(p.toString());
 			Collections.sort(gotPartitionList);
-			
+
 			assertEquals("Partitions Check", gotPartitionList.toString(), "[1, 2, 3, 4]");
-			
+
 			// Drop Partitions
 			reg.onLostPartitionOwnership(1);
 			gotPartitionList.clear();
 			for (DbusPartitionInfo p : reg.getPartitions())
 				gotPartitionList.add(p.toString());
 			Collections.sort(gotPartitionList);
-			
+
 			assertEquals("Partitions Check", "[2, 3, 4]", gotPartitionList.toString());
 			assertEquals("Listener called ", true, listener.isDropPartitionCalled(1));
-			
+
 			reg.onLostPartitionOwnership(2);
 			assertEquals("Listener called ", true, listener.isDropPartitionCalled(2));
 			//duplicate call
@@ -241,7 +300,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			assertEquals("Listener called ", false, listener.isDropPartitionCalled(3));
 			assertEquals("Partitions Check", "[4]", reg.getPartitions().toString());
 			assertEquals("Partition Regs size ", 1, reg.getPartitionRegs().size());
-			
+
 			reg.onError(4);
 			assertEquals("Listener called ", true, listener.isDropPartitionCalled(4));
 			//duplicate call
@@ -250,7 +309,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			assertEquals("Listener called ", false, listener.isDropPartitionCalled(4));
 			assertEquals("Partitions Check", "[]", reg.getPartitions().toString());
 			assertEquals("Partition Regs size ", 0, reg.getPartitionRegs().size());
-			
+
 			// Add Partiton 1 again
 			listener.clearCallbacks();
 			reg.onGainedPartitionOwnership(1);
@@ -258,7 +317,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			assertEquals("Partition Regs size ", 1, reg.getPartitionRegs().size());
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.STARTED);
 
-			// Pausing 
+			// Pausing
 			reg.pause();
 			assertEquals("State CHeck", reg.getState(), RegistrationState.PAUSED);
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.PAUSED);
@@ -268,17 +327,17 @@ public class TestDatabusV2ClusterRegistrationImpl
 			assertEquals("State CHeck", reg.getState(), RegistrationState.RESUMED);
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.RESUMED);
 
-			// Suspended 
+			// Suspended
 			reg.suspendOnError(null);
 			assertEquals("State CHeck", reg.getState(), RegistrationState.SUSPENDED_ON_ERROR);
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.SUSPENDED_ON_ERROR);
-			
+
 			// resume
 			reg.resume();
 			assertEquals("State CHeck", reg.getState(), RegistrationState.RESUMED);
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.RESUMED);
-			
-			
+
+
 			// Active node change notification
 			List<String> newActiveNodes = new ArrayList<String>();
 			newActiveNodes.add("localhost:7070");
@@ -292,7 +351,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			newActiveNodes.add("localhost:1010");
 			reg.onInstanceChange(newActiveNodes);
 			assertEquals("Active Nodes", newActiveNodes, reg.getCurrentActiveNodes());
-			
+
 			// Partition Mapping change notification
 			Map<Integer, String> activePartitionMap = new HashMap<Integer, String>();
 			for (int i = 0 ; i < 10; i++)
@@ -306,7 +365,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			}
 			reg.onPartitionMappingChange(activePartitionMap);
 			assertEquals("Partition Mapping Check", activePartitionMap, reg.getActivePartitionMap());
-			
+
 			activePartitionMap.remove(9);
 			reg.onPartitionMappingChange(activePartitionMap);
 			assertEquals("Partition Mapping Check", activePartitionMap, reg.getActivePartitionMap());
@@ -319,7 +378,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			reg.shutdown();
 			assertEquals("State Check", reg.getState(), RegistrationState.SHUTDOWN);
 			assertEquals("Child State CHeck", reg.getPartitionRegs().values().iterator().next().getState(), RegistrationState.SHUTDOWN);
-			
+
 			// Operations during shutdown state
 			boolean gotException = false;
 			try
@@ -339,7 +398,7 @@ public class TestDatabusV2ClusterRegistrationImpl
 			}
 			assertEquals("Exception", true, gotException);
 
-			
+
 			gotException = false;
 			try
 			{
@@ -366,18 +425,18 @@ public class TestDatabusV2ClusterRegistrationImpl
 				gotException = true;
 			}
 			assertEquals("Exception", true, gotException);
-			
+
 			// deregister
 			reg.deregister();
 			assertEquals("State Check", reg.getState(), RegistrationState.DEREGISTERED);
 			assertEquals("Child State CHeck", 0,reg.getPartitionRegs().size());
-			
+
 		} finally {
 			if ( null != client)
 				client.shutdown();
 		}
 	}
-	
+
 	private ServerInfo registerRelay(int id, String name, InetSocketAddress addr, String sources,
 			DatabusHttpClientImpl client)
 					throws InvalidConfigException
@@ -486,8 +545,8 @@ public class TestDatabusV2ClusterRegistrationImpl
 		}
 
 	}
-	
-	public class TestDbusClusterConsumerFactory 
+
+	public class TestDbusClusterConsumerFactory
 			implements DbusClusterConsumerFactory
 	{
 		@Override
@@ -499,8 +558,8 @@ public class TestDatabusV2ClusterRegistrationImpl
 			return consumers;
 		}
 	}
-	
-	public class TestDbusServerSideFilterFactory 
+
+	public class TestDbusServerSideFilterFactory
 	    implements DbusServerSideFilterFactory
 	{
 		@Override
@@ -508,19 +567,19 @@ public class TestDatabusV2ClusterRegistrationImpl
 				DbusClusterInfo cluster, DbusPartitionInfo partition)
 				throws InvalidConfigException {
 			return null;
-		}	    
+		}
 	}
-	
-	public class TestDbusPartitionListener 
+
+	public class TestDbusPartitionListener
 	    implements DbusPartitionListener
 	{
 
-		private Map<Long, Boolean> addCallbacks = new HashMap<Long, Boolean>();
-		private Map<Long, Boolean> dropCallbacks = new HashMap<Long, Boolean>();
+		private final Map<Long, Boolean> addCallbacks = new HashMap<Long, Boolean>();
+		private final Map<Long, Boolean> dropCallbacks = new HashMap<Long, Boolean>();
 
 		@Override
 		public void onAddPartition(DbusPartitionInfo partitionInfo,
-				DatabusRegistration reg) {			
+				DatabusRegistration reg) {
 			addCallbacks.put(partitionInfo.getPartitionId(), true);
 		}
 
@@ -532,32 +591,32 @@ public class TestDatabusV2ClusterRegistrationImpl
 
 		public boolean isAddPartitionCalled(long partition) {
 			Boolean o = addCallbacks.get(partition);
-			
+
 			if ( null == o)
 				return false;
-			
+
 			return o;
 		}
 
 		public boolean isDropPartitionCalled(long partition) {
 			Boolean o = dropCallbacks.get(partition);
-			
+
 			if ( null == o)
 				return false;
-			
-			return o;		
+
+			return o;
 		}
-		
+
 		public void clearCallbacks()
 		{
 			addCallbacks.clear();
 			dropCallbacks.clear();
 		}
-		
+
 	}
-	
-	
-	public class TestableDatabusV2ClusterRegistrationImpl 
+
+
+	public class TestableDatabusV2ClusterRegistrationImpl
 		extends DatabusV2ClusterRegistrationImpl
 	{
 
@@ -571,55 +630,57 @@ public class TestDatabusV2ClusterRegistrationImpl
 			super(id, client, ckptPersistenceProviderConfig, clusterInfo, consumerFactory,
 					filterFactory, partitionListener, sources);
 		}
-		
+
 		@Override
 		protected DatabusCluster createCluster() throws Exception
 		{
 			return new TestDatabusCluster();
 		}
-		
+
 		@Override
-		public CheckpointPersistenceProvider createCheckpointPersistenceProvider(DbusPartitionInfo partition) 
+		public CheckpointPersistenceProvider createCheckpointPersistenceProvider(DbusPartitionInfo partition)
 				throws InvalidConfigException
 		{
 			return new FileSystemCheckpointPersistenceProvider();
 		}
-		
+
 	}
-	
-	public class TestDatabusCluster 
+
+	public class TestDatabusCluster
 		extends DatabusCluster
 	{
-		
+
 		public TestDatabusCluster()
 		{
-			
+
 		}
-		
-		public DatabusClusterMember addMember(String id,DatabusClusterNotifier notifier)
+
+		@Override
+    public DatabusClusterMember addMember(String id,DatabusClusterNotifier notifier)
 		{
 			return new TestDatabusClusterMember(this);
 		}
-		
-		public void start()
+
+		@Override
+    public void start()
 		{
 		}
 	}
-	
-	public class TestDatabusClusterMember 
+
+	public class TestDatabusClusterMember
 	   extends DatabusClusterMember
 	{
 
 		TestDatabusClusterMember(DatabusCluster databusCluster) {
 			databusCluster.super();
 		}
-	
+
 		@Override
 		public boolean join()
 		{
 			return true;
 		}
-		
+
 		@Override
 		public boolean leave()
 		{

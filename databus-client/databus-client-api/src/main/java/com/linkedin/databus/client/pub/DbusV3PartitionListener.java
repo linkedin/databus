@@ -24,41 +24,32 @@ import com.linkedin.databus.core.data_model.PhysicalPartition;
 /**
  * An optional interface that the application may choose to implement to be able to get notifications
  * before a physical partition is added/dropped
- * 
- * Such a concrete implementation (say dbusPartitionListener) may be registered with the databus3 client as follows
+ *
+ *
  * databusHttpV3ClientImpl.registerCluster(clusterName, dbusConsumerFactory,source(s) ).withDbusv3PartitionListener(dbusPartitionListener))
  */
 public interface DbusV3PartitionListener
 {
-	/**
-	 * This method is invoked before the client instance starts listening to a new physicalPartition
-	 * of Espresso
-	 *
-	 * The registration is created with subscriptions and is set to INIT state.
-	 * The client application may change checkpoint if needed. Only the following operations are allowed on 
-	 * @param reg {@link DatabusV3Registration#getLastPersistedCheckpoint()}, {@link DatabusV3Registration#storeCheckpoint(Checkpoint)
-	 * 
-	 * If the application is caching the child registration, it is expected to remove the cache entry in the 
-	 * {@link #onDropPartition(PhysicalPartition, DatabusV3Registration)}
-	 * 
-	 * @param physicalPartition : PhysicalPartition object representing a single partition in Espresso
-	 *                            E.g., if partition is MyDB_2, getId() == 2, getName() == "MyDB"
-	 * @param reg : DatabusV3Registration object for the above specified partition ( a child registration )
-	 */
-	public void onAddPartition(PhysicalPartition physicalPartition, DatabusV3Registration reg);
+  /**
+   * This method is invoked before the client instance starts listening to a new physicalPartition
+   * of Espresso
+   *
+   * The client application may change checkpoint in this method, by invoking
+   * {{@link com.linkedin.databus.client.pub.DatabusV3Registration#storeCheckpoint(com.linkedin.databus.core.Checkpoint, com.linkedin.databus.core.data_model.PhysicalPartition)}}
+   * on the registration object returned by {{@link com.linkedin.databus.client.pub.DatabusV3Client#registerCluster(String, DbusV3ClusterConsumerFactory, String...)}}
+   *
+   * @param physicalPartition : PhysicalPartition object representing a single partition in Espresso
+   *                            E.g., if partition is MyDB_2, getId() == 2, getName() == "MyDB"
+   * @param clusterRegistration: Handle to the instance of the registration (same as returned by {{@link com.linkedin.databus.client.pub.DatabusV3Client#registerCluster(String, DbusV3ClusterConsumerFactory, String...)}}.
+   */
+  public void onAddPartition(PhysicalPartition physicalPartition, DatabusV3Registration clusterRegistration);
 
-	/**
-	 * This method is invoked after the client instance stops listening to an Espresso partition
-	 *
-	 * The registration returned is the same as what was presented in the {{@link #onAddPartition(PhysicalPartition, DatabusV3Registration)}
-	 * for the physicalPartition. ( The client library guarantees that there would have been such an invocation
-	 * earlier )
-	 * 
-	 * This method is invoked purely for informational purpose for the client
-	 * 
-	 * @param physicalPartition : PhysicalPartition object representing a single partition in Espresso
-	 *                            E.g., if partition is MyDB_2, getId() == 2, getName() == "MyDB"
-	 * @param reg : DatabusV3Registration object for the above specified partition ( a child registration )
-	 */
-	public void onDropPartition(PhysicalPartition physicalPartition, DatabusV3Registration reg);
+  /**
+   * This method is invoked after the client instance stops listening to an Espresso partition and is purely for informational purpose for the client
+   *
+   * @param physicalPartition : PhysicalPartition object representing a single partition in Espresso
+   *                            E.g., if partition is MyDB_2, getId() == 2, getName() == "MyDB"
+   * @param clusterRegistration: Handle to the instance of the registration (same as returned by {{@link com.linkedin.databus.client.pub.DatabusV3Client#registerCluster(String, DbusV3ClusterConsumerFactory, String...)}}.
+   */
+  public void onDropPartition(PhysicalPartition physicalPartition, DatabusV3Registration clusterRegistration);
 }

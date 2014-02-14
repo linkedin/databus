@@ -2949,5 +2949,29 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     return _eventFactory;
   }
 
+  /**
+   * Fetch all the client clusters which have been registered in this client instance keyed by their
+   * registrationIds. This has been overridden by V3 client to provide both V2 and V3 clusters.
+   *
+   * Only a copy of the registration ids are returned. Hence modifying the registration ids should not
+   * affect the global Registration Id map.
+   * @return Client clusters registered in this client instance keyed by their registration ids.
+   */
+  public Map<RegistrationId, DbusClusterInfo> getAllClientClusters()
+  {
+    Map<RegistrationId, DbusClusterInfo> clusters = new HashMap<RegistrationId, DbusClusterInfo>();
+
+    Collection<DatabusMultiPartitionRegistration> regs =
+        getAllClientClusterRegistrations();
+    for (DatabusMultiPartitionRegistration reg : regs)
+    {
+      if (reg instanceof DatabusV2ClusterRegistrationImpl)
+      {
+        DatabusV2ClusterRegistrationImpl r = (DatabusV2ClusterRegistrationImpl) reg;
+        clusters.put(new RegistrationId(r.getRegistrationId().getId()),r.getClusterInfo());
+      }
+    }
+    return clusters;
+  }
 }
 

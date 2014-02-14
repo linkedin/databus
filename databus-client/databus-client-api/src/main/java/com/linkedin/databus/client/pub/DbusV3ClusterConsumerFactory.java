@@ -22,7 +22,6 @@ package com.linkedin.databus.client.pub;
 import java.util.Collection;
 
 import com.linkedin.databus.core.data_model.PhysicalPartition;
-import com.linkedin.databus.core.util.InvalidConfigException;
 
 
 public interface DbusV3ClusterConsumerFactory
@@ -48,8 +47,7 @@ public interface DbusV3ClusterConsumerFactory
     *  @param physicalPartition: physicalPartition corresponding to the helix notification
     *
     *  @return Collection<DatabusV3Consumer> A collection of consumers that process the incoming event stream in parallel.
-    *                                              That is, each of the consumers processes a subset of the event stream.
-    *
+    *                                        That is, each of the consumers processes a subset of the event stream.
     */
   Collection<DatabusV3Consumer> createPartitionedConsumers(DbusClusterInfo clusterInfo, PhysicalPartition physicalPartition);
 
