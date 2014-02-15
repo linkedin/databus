@@ -122,37 +122,37 @@ public class TestRelayPullThread
       _readLatestScnEnabled = readLatestScnEnabled;
       return this;
     }
-   
+
     RelayPullThreadBuilder setReadDataThrowException(boolean readDataThrowException)
     {
       _readDataThrowException = readDataThrowException;
       return this;
     }
-   
+
     RelayPullThreadBuilder setReadDataException(boolean readDataException)
     {
       _readDataException = readDataException;
       return this;
     }
-   
+
     RelayPullThreadBuilder setExceptionName(String exceptionName)
     {
       _exceptionName = exceptionName;
       return this;
     }
-   
+
     RelayPullThreadBuilder setNumRetriesOnFellOff(int numRetriesOnFellOff)
     {
       _numRetriesOnFellOff = numRetriesOnFellOff;
       return this;
     }
-   
+
     RelayPullThreadBuilder setFilterConfig(DbusKeyCompositeFilterConfig filterConfig)
     {
       _filterConfig = filterConfig;
       return this;
     }
-   
+
     boolean _failRelayConnection;
     boolean _muteTransition;
     boolean _bootstrapEnabled;
@@ -162,7 +162,7 @@ public class TestRelayPullThread
     String _exceptionName;
     int _numRetriesOnFellOff;
     DbusKeyCompositeFilterConfig _filterConfig = null;
-   
+
     public RelayPullThread createRelayPullThread() throws Exception
     {
       return TestRelayPullThread.createRelayPullThread(_failRelayConnection,
@@ -175,7 +175,7 @@ public class TestRelayPullThread
                                    _numRetriesOnFellOff,
                                    _filterConfig);
     }
-   
+
     public RelayPullThread createFellOffRelayPullThread() throws Exception
     {
       RelayPullThread r = createRelayPullThread();
@@ -387,7 +387,8 @@ public class TestRelayPullThread
         srcConnConf.getPullerUtilizationPct(),
         0, // no threshold for noEventsRest set
         ManagementFactory.getPlatformMBeanServer(),
-        new DbusEventV1Factory());
+        new DbusEventV1Factory(),
+        null);
     RemoteExceptionHandler mockRemoteExceptionHandler = new MockRemoteExceptionHandler(sourcesConn2, dbusBuffer, relayPuller);
 
     Field field = relayPuller.getClass().getDeclaredField("_remoteExceptionHandler");
@@ -2464,7 +2465,8 @@ public class TestRelayPullThread
                             clientConf.getPullerBufferUtilizationPct(),
                             Integer.MAX_VALUE,
                             ManagementFactory.getPlatformMBeanServer(),
-                            new DbusEventV1Factory());
+                            new DbusEventV1Factory(),
+                            null);
     final MockRemoteExceptionHandler mockRemoteExceptionHandler =
         new MockRemoteExceptionHandler(sourcesConn, relayBuffer, relayPuller);
 
@@ -2607,7 +2609,8 @@ public class TestRelayPullThread
                             clientConf.getPullerBufferUtilizationPct(),
                             Integer.MAX_VALUE,
                             ManagementFactory.getPlatformMBeanServer(),
-                            new DbusEventV1Factory());
+                            new DbusEventV1Factory(),
+                            null);
     RemoteExceptionHandler mockRemoteExceptionHandler =
         new MockRemoteExceptionHandler(sourcesConn, relayBuffer, relayPuller);
 
@@ -2792,7 +2795,8 @@ public class TestRelayPullThread
                             clientConf.getPullerBufferUtilizationPct(),
                             Integer.MAX_VALUE,
                             ManagementFactory.getPlatformMBeanServer(),
-                            new DbusEventV1Factory());
+                            new DbusEventV1Factory(),
+                            null);
     //relayPuller.getLog().setLevel(Level.INFO);
     RemoteExceptionHandler mockRemoteExceptionHandler =
         new MockRemoteExceptionHandler(sourcesConn, relayBuffer, relayPuller);

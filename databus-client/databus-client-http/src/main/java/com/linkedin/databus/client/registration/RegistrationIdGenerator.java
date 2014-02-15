@@ -59,9 +59,9 @@ public class RegistrationIdGenerator
 		for (DatabusSubscription ds : subsSources)
 		{
 			if (ds != null)
-				subscription.append(DatabusSubscription.createStringFromSubscription(ds));
+				subscription.append(ds.generateSubscriptionString());
 		}
-		
+
 		String id = generateUniqueString(prefix, subscription.toString());
 		RegistrationId rid = new RegistrationId(id);
 		return rid;

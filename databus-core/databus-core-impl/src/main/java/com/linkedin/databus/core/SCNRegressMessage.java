@@ -40,7 +40,13 @@ public class SCNRegressMessage
 	public SCNRegressMessage()
 	{		
 	}
-	
+
+  /**
+   * The SCNRegressMessage is a special message used to rollback to the last seen window when there is the relay switch.
+   * @param ckpt A checkpoint with SCN as the previous scn (or the last window) that the client has seen from the previous relay
+   *             it was connecting to.
+   *
+   */
 	public SCNRegressMessage(Checkpoint ckpt)
 	{
 		this.cp = ckpt;

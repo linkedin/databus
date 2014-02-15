@@ -18,19 +18,104 @@ package com.linkedin.databus.client.pub;
  *
 */
 
+public enum RegistrationState
+{
+  /**
+   * Initialization state. Dbus Client library has not set up registration for its consumers yet.
+   */
+  INIT,
+  /**
+   * Consumers have been registered but consumption has not yet started.
+   */
+  REGISTERED,
+  /**
+   * Consumption has started.
+   */
+  STARTED,
+  /**
+   * Consumption is paused.
+   */
+  PAUSED,
+  /**
+   * Consumption is resumed.
+   */
+  RESUMED,
+  /**
+   * Consumption is suspended because of error.
+   */
+  SUSPENDED_ON_ERROR,
+  /**
+   * Consumption is shut down.
+   */
+  SHUTDOWN,
+  /**
+   * Client library is unregistered and removed from client's internal data structures.
+   */
+  DEREGISTERED;
 
-/**
- * The allowed transitions are as follows
- * CREATED -> STARTED
- * CREATED -> DEREGISTERED
- * STARTED -> DEREGISTERED
- */
+  /**
+   * @return true if consumption has not yet started
+   */
+  public boolean isPreStartState()
+  {
+    switch(this)
+    {
+    case INIT :
+    case REGISTERED :
+      return true;
+    default:
+      return false;
+    }
+  }
 
-public enum RegistrationState {
-	 // Default state for a registration
-     CREATED,
-     // Goes to this state from CREATED, when a start() is invoked
-     STARTED,
-     // Enters this state from either CREATED or STARTED state when a deregister() is invoked 
-     DEREGISTERED
-}
+  /**
+   * @return true if consumption has completed
+   */
+  public boolean isPostRunState()
+  {
+    switch(this)
+    {
+    case SHUTDOWN:
+    case DEREGISTERED:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  /**
+   * @return true if consumption is actively running
+   */
+  public boolean isRunning()
+  {
+    switch (this)
+    {
+    case STARTED:
+    case PAUSED:
+    case SUSPENDED_ON_ERROR:
+    case RESUMED:
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  /**
+   * @return true if registration is actively maintained in the client library
+   */
+  public boolean isActiveRegistration()
+  {
+    switch (this)
+    {
+    case REGISTERED:
+    case STARTED:
+    case PAUSED:
+    case RESUMED:
+    case SUSPENDED_ON_ERROR:
+    case SHUTDOWN:
+      return true;
+    default:
+      return false;
+    }
+  }
+};

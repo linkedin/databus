@@ -33,6 +33,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO;
 import com.linkedin.databus.bootstrap.common.BootstrapDBMetaDataDAO.SourceStatusInfo;
 import com.linkedin.databus.bootstrap.common.BootstrapDBTimedQuery;
 import com.linkedin.databus.core.monitoring.mbean.DbusEventsStatisticsCollector;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.container.request.BootstrapDatabaseTooOldException;
 import com.linkedin.databus2.util.DBHelper;
 
@@ -55,8 +56,8 @@ public class BootstrapSCNProcessor
 
 	  public BootstrapSCNProcessor(BootstrapServerStaticConfig config,
               DbusEventsStatisticsCollector curStatsCollector)
-	  	throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException
-	  {
+        throws InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException, DatabusException
+    {
 		  _config = config;
           BootstrapConn conn = new BootstrapConn();
           final boolean autoCommit = true;

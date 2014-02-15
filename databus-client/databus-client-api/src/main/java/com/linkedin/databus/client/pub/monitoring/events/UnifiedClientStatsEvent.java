@@ -22,12 +22,12 @@
 package com.linkedin.databus.client.pub.monitoring.events;
 
 @SuppressWarnings("all")
-/** Client stats, both inbound/puller (from relay and bootstrap) and outbound/dispatcher (to consumer via callbacks).  Manually run 'ant -f build.xml' in schemas_registry/monitoring/client to generate UnifiedClientStatsEvent.java. */
+/** Client stats, both inbound/puller (from relay and bootstrap) and outbound/dispatcher (to consumer via callbacks).  Manually run 'ant -f build.xml' in schemas_registry/monitoring/client to generate UnifiedClientStatsEvent.java from UnifiedClientStatsEvent.1.avsc. */
 public class UnifiedClientStatsEvent extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  public static final org.apache.avro.Schema SCHEMA$ = org.apache.avro.Schema.parse("{\"type\":\"record\",\"name\":\"UnifiedClientStatsEvent\",\"namespace\":\"com.linkedin.databus.client.pub.monitoring.events\",\"fields\":[{\"name\":\"ownerId\",\"type\":\"int\",\"doc\":\"ID of the owner that generated the event\"},{\"name\":\"dimension\",\"type\":\"string\",\"doc\":\"[NUKE?  why needed?]\"},{\"name\":\"timestampLastResetMs\",\"type\":\"long\",\"doc\":\"timestamp (ms) of the last reset() call\"},{\"name\":\"aggregated\",\"type\":\"boolean\",\"doc\":\"flag indicating that this is an aggregated (not lowest-level) set of stats\"},{\"name\":\"curBootstrappingPartitions\",\"type\":\"int\",\"doc\":\"number of partitions (or tables) currently bootstrapping\"},{\"name\":\"curDeadConnections\",\"type\":\"int\",\"doc\":\"number of connections (per-table or per-partition) currently suspended/dead\"},{\"name\":\"numConsumerErrors\",\"type\":\"long\",\"doc\":\"number of errors returned by consumer callbacks (i.e., by application code) across all partitions or tables\"},{\"name\":\"numDataEvents\",\"type\":\"long\",\"doc\":\"number of data events received by the Databus client library\"},{\"name\":\"numCallbacksProcessed\",\"type\":\"long\",\"doc\":\"number of consumer callbacks that have completed\"},{\"name\":\"totalTimeLagCallbacksProcessed\",\"type\":\"long\",\"doc\":\"total time (ms) for the consumer application to process all 'numCallbacksProcessed' callbacks so far\"},{\"name\":\"timestampOfLastHeartbeat\",\"type\":\"long\",\"doc\":\"timestamp (ms) of the most recent 'heartbeat' from the relay or bootstrap puller; indicates connection is still alive\"},{\"name\":\"sourceTimestampOfLastEventReceived\",\"type\":\"long\",\"doc\":\"timestamp (ms) of the most recent event's source-DB commit (when aggregated, oldest one across all partitions)\"},{\"name\":\"timestampLastDataEventWasReceived\",\"type\":\"long\",\"doc\":\"timestamp (ms) of receipt of the most recent event (when aggregated, receipt time of event with oldest source-DB commit time across all partitions)\"}]}");
+  public static final org.apache.avro.Schema SCHEMA$ = org.apache.avro.Schema.parse("{\"type\":\"record\",\"name\":\"UnifiedClientStatsEvent\",\"namespace\":\"com.linkedin.databus.client.pub.monitoring.events\",\"fields\":[{\"name\":\"ownerId\",\"type\":\"int\",\"doc\":\"ID of the owner that generated the event\"},{\"name\":\"dimension\",\"type\":\"string\",\"doc\":\"namespace component for autometrics/monitoring\"},{\"name\":\"timestampLastResetMs\",\"type\":\"long\",\"doc\":\"timestamp (ms) of the last reset() call\"},{\"name\":\"aggregated\",\"type\":\"boolean\",\"doc\":\"flag indicating that this is an aggregated (not lowest-level) set of stats\"},{\"name\":\"curBootstrappingPartitions\",\"type\":\"int\",\"doc\":\"number of partitions (or tables) currently bootstrapping\"},{\"name\":\"curDeadConnections\",\"type\":\"int\",\"doc\":\"number of connections (per-table or per-partition) currently suspended/dead\"},{\"name\":\"numConsumerErrors\",\"type\":\"long\",\"doc\":\"number of errors returned by consumer callbacks (i.e., by application code) across all partitions or tables\"},{\"name\":\"numDataEvents\",\"type\":\"long\",\"doc\":\"number of data events received by the Databus client library\"},{\"name\":\"timestampOfLastHeartbeatMs\",\"type\":\"long\",\"doc\":\"timestamp (ms) of the most recent 'heartbeat' from the relay or bootstrap puller; indicates connection is still alive\"},{\"name\":\"timestampLastDataEventWasReceivedMs\",\"type\":\"long\",\"doc\":\"timestamp (ms) of receipt of the most recent event (when aggregated, receipt time of event with oldest source-DB commit time across all partitions)\"}]}");
   /** ID of the owner that generated the event */
   public int ownerId;
-  /** [NUKE?  why needed?] */
+  /** namespace component for autometrics/monitoring */
   public java.lang.CharSequence dimension;
   /** timestamp (ms) of the last reset() call */
   public long timestampLastResetMs;
@@ -41,16 +41,10 @@ public class UnifiedClientStatsEvent extends org.apache.avro.specific.SpecificRe
   public long numConsumerErrors;
   /** number of data events received by the Databus client library */
   public long numDataEvents;
-  /** number of consumer callbacks that have completed */
-  public long numCallbacksProcessed;
-  /** total time (ms) for the consumer application to process all 'numCallbacksProcessed' callbacks so far */
-  public long totalTimeLagCallbacksProcessed;
   /** timestamp (ms) of the most recent 'heartbeat' from the relay or bootstrap puller; indicates connection is still alive */
-  public long timestampOfLastHeartbeat;
-  /** timestamp (ms) of the most recent event's source-DB commit (when aggregated, oldest one across all partitions) */
-  public long sourceTimestampOfLastEventReceived;
+  public long timestampOfLastHeartbeatMs;
   /** timestamp (ms) of receipt of the most recent event (when aggregated, receipt time of event with oldest source-DB commit time across all partitions) */
-  public long timestampLastDataEventWasReceived;
+  public long timestampLastDataEventWasReceivedMs;
   public org.apache.avro.Schema getSchema() { return SCHEMA$; }
   // Used by DatumWriter.  Applications should not call. 
   public java.lang.Object get(int field$) {
@@ -63,11 +57,8 @@ public class UnifiedClientStatsEvent extends org.apache.avro.specific.SpecificRe
     case 5: return curDeadConnections;
     case 6: return numConsumerErrors;
     case 7: return numDataEvents;
-    case 8: return numCallbacksProcessed;
-    case 9: return totalTimeLagCallbacksProcessed;
-    case 10: return timestampOfLastHeartbeat;
-    case 11: return sourceTimestampOfLastEventReceived;
-    case 12: return timestampLastDataEventWasReceived;
+    case 8: return timestampOfLastHeartbeatMs;
+    case 9: return timestampLastDataEventWasReceivedMs;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }
@@ -83,11 +74,8 @@ public class UnifiedClientStatsEvent extends org.apache.avro.specific.SpecificRe
     case 5: curDeadConnections = (java.lang.Integer)value$; break;
     case 6: numConsumerErrors = (java.lang.Long)value$; break;
     case 7: numDataEvents = (java.lang.Long)value$; break;
-    case 8: numCallbacksProcessed = (java.lang.Long)value$; break;
-    case 9: totalTimeLagCallbacksProcessed = (java.lang.Long)value$; break;
-    case 10: timestampOfLastHeartbeat = (java.lang.Long)value$; break;
-    case 11: sourceTimestampOfLastEventReceived = (java.lang.Long)value$; break;
-    case 12: timestampLastDataEventWasReceived = (java.lang.Long)value$; break;
+    case 8: timestampOfLastHeartbeatMs = (java.lang.Long)value$; break;
+    case 9: timestampLastDataEventWasReceivedMs = (java.lang.Long)value$; break;
     default: throw new org.apache.avro.AvroRuntimeException("Bad index");
     }
   }

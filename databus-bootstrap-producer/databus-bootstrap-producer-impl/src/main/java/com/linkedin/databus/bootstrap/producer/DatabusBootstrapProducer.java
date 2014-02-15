@@ -361,8 +361,8 @@ public class DatabusBootstrapProducer extends DatabusHttpClientImpl implements
   }
 
   private void registerProducerCallback(List<String> logicalSourceList,
-      BootstrapProducerStatsCollector statsCollector) throws SQLException,
-      DatabusClientException
+      BootstrapProducerStatsCollector statsCollector)
+      throws SQLException, DatabusClientException, DatabusException
   {
 
     // create callback for producer to populate data into log_* tables

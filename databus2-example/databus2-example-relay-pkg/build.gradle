@@ -4,9 +4,9 @@ dependencies {
   compile project(':databus2-relay:databus2-relay-impl')
   compile project(':databus2-example:databus2-example-relay')
 
-  if ((System.getProperty('open_source') == null) || (System.getProperty('open_source').trim().equalsIgnoreCase("false"))) {
-    compile externalDependency.databusSchemas
-  }
+  //if ((System.getProperty('open_source') == null) || (System.getProperty('open_source').trim().equalsIgnoreCase("false"))) {
+  //  compile externalDependency.databusSchemas
+  //}
 }
 
 task myTar(type: Tar) {

@@ -717,6 +717,19 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
   {
     return _dscUpdater ;
   }
+
+  /**
+   * Returns the set of client clusters that are currently "active". A cluster is considered active, if it has atleast one registration in
+   * one of the following states (REGISTERED,  REGISTERED, STARTED, PAUSED, RESUMED, SUSPENDED_ON_ERROR). The states which are not considered
+   * to be active are INIT, DEREGISTERED states.
+   *
+   * This is applicable for load-balanced mode only in both V2(Oracle) and V3(Espresso).
+   */
+  public Set<String> getActiveClientClusters()
+  {
+    return _activeClusters;
+  }
+
   @Override
   public DatabusRegistration register(DatabusCombinedConsumer consumer,
                                       String... sources)
@@ -2936,5 +2949,29 @@ public class DatabusHttpClientImpl extends ServerContainer implements DatabusCli
     return _eventFactory;
   }
 
+  /**
+   * Fetch all the client clusters which have been registered in this client instance keyed by their
+   * registrationIds. This has been overridden by V3 client to provide both V2 and V3 clusters.
+   *
+   * Only a copy of the registration ids are returned. Hence modifying the registration ids should not
+   * affect the global Registration Id map.
+   * @return Client clusters registered in this client instance keyed by their registration ids.
+   */
+  public Map<RegistrationId, DbusClusterInfo> getAllClientClusters()
+  {
+    Map<RegistrationId, DbusClusterInfo> clusters = new HashMap<RegistrationId, DbusClusterInfo>();
+
+    Collection<DatabusMultiPartitionRegistration> regs =
+        getAllClientClusterRegistrations();
+    for (DatabusMultiPartitionRegistration reg : regs)
+    {
+      if (reg instanceof DatabusV2ClusterRegistrationImpl)
+      {
+        DatabusV2ClusterRegistrationImpl r = (DatabusV2ClusterRegistrationImpl) reg;
+        clusters.put(new RegistrationId(r.getRegistrationId().getId()),r.getClusterInfo());
+      }
+    }
+    return clusters;
+  }
 }
 

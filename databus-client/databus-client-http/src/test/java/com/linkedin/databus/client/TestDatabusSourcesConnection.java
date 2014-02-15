@@ -18,6 +18,12 @@ package com.linkedin.databus.client;
  *
 */
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 import org.apache.log4j.Level;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
@@ -25,6 +31,7 @@ import org.testng.annotations.Test;
 
 import com.linkedin.databus.core.DbusEventBuffer;
 import com.linkedin.databus.core.DbusEventBuffer.AllocationPolicy;
+import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus2.test.TestUtil;
 
 public class TestDatabusSourcesConnection
@@ -163,5 +170,45 @@ public class TestDatabusSourcesConnection
     sConfig = config.build();
     Assert.assertEquals(sConfig.getEventBuffer().getMaxEventSize(), (int)(bufCfg.maxMaxEventSize() * 0.7));
     Assert.assertEquals(sConfig.getBstEventBuffer().getMaxEventSize(), (int)(bstBufCfg.maxMaxEventSize() * 0.7));
+  }
+
+  @Test
+  public void testLoggerNameV2_1()
+  throws InvocationTargetException,NoSuchMethodException,IllegalAccessException
+  {
+  	String source = "com.linkedin.events.dbName.tableName";
+  	List<DatabusSubscription> ds = DatabusSubscription.createSubscriptionList(Arrays.asList(source));
+  	DatabusSourcesConnection dsc = DatabusSourcesConnection.createDatabusSourcesConnectionForTesting();
+    String partName = DatabusSubscription.getPrettyNameForListOfSubscriptions(ds);
+    Assert.assertEquals(partName, "dbName_tableName");
+
+    Class<?>[] arg1 = new Class<?>[] {List.class, String.class};
+    Method constructPrettyNameForLogging = DatabusSourcesConnection.class.getDeclaredMethod("constructPrettyNameForLogging", arg1);
+    constructPrettyNameForLogging.setAccessible(true);
+    Object prettyName = constructPrettyNameForLogging.invoke(dsc, ds, "test_1234");
+    Assert.assertEquals(prettyName, "dbName_tableName_test_1234");
+  }
+
+  @Test
+  public void testLoggerNameV2_2()
+  throws InvocationTargetException,NoSuchMethodException,IllegalAccessException
+  {
+    // They are of same db, but may have different
+    String source1 = "com.linkedin.events.db.dbPrefix1.tableName1";
+    String source2 = "com.linkedin.events.db.dbPrefix2.tableName2";
+    List<String> ls = new ArrayList<String>();
+    ls.add(source1);
+    ls.add(source2);
+    List<DatabusSubscription> ds = DatabusSubscription.createSubscriptionList(ls);
+    DatabusSourcesConnection dsc = DatabusSourcesConnection.createDatabusSourcesConnectionForTesting();
+
+    String partName = DatabusSubscription.getPrettyNameForListOfSubscriptions(ds);
+    Assert.assertEquals(partName, "dbPrefix1_tableName1_dbPrefix2_tableName2");
+
+    Class<?>[] arg1 = new Class<?>[] {List.class, String.class};
+    Method constructPrettyNameForLogging = DatabusSourcesConnection.class.getDeclaredMethod("constructPrettyNameForLogging", arg1);
+    constructPrettyNameForLogging.setAccessible(true);
+    Object prettyName = constructPrettyNameForLogging.invoke(dsc, ds, "test_1234");
+    Assert.assertEquals(prettyName, "dbPrefix1_tableName1_dbPrefix2_tableName2_test_1234");
   }
 }

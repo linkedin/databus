@@ -93,7 +93,7 @@ public class DatabusCluster
         _dataNotifiers = new HashSet<DatabusClusterDataNotifier>(5);
 
         //attempt to create a cluster
-        int part = create(_admin, _clusterName, _numPartitions);
+        int part = create(_admin, _zkClient, _clusterName, _numPartitions);
 
         //at this stage a cluster and resources should have been created, either by this instance or someone else
         if (part >= 0)
@@ -183,14 +183,40 @@ public class DatabusCluster
      * only one of them will win . If a cluster exists, the number returned however will be the same in both those instances.
      * If the cluster could not be reached 0 is returned (retry possible) , and if there are other errors -1 is returned (retry not possible)
      */
-    static public int create(ZKHelixAdmin admin, String clusterName,
+    static public int create(ZKHelixAdmin admin, ZkClient zkClient, String clusterName,
             int numPartitions)
     {
         boolean clusterAdded = true;
         // add cluster
         try
         {
-            admin.addCluster(clusterName, false);
+          /**
+           *  TODO : HACK !! : Copying this logic from OLD Helix library to mimic similar old "behavior".
+           *
+           *  Please see DDSDBUS-2579/HELIX-137
+           *  The helix addCluster() ( in 0.6.2.3) API  has a new problem  where callers could not differentiate
+           *  between the case when new cluster is created and the case where it was created by some other client. This was needed
+           *  so that the follow-up steps of adding state-model (non-idempotent operation) can be done only by the client creating the cluster.
+           *  Both old (0.6.1.3) and new Helix (0.6.2.3 ) library has the following issue:
+           *   (a)  "No Atomicity in the face of the ZK client disconnects which results in cluster only partly
+           *       initialized and unusable. This is noticed in PCL/PCS environment"
+           *
+           *  In order to workaround the backwards incompatibility issue between the 2 helix versions, we are reproducing part
+           *  of the old addCluster() implementation below to get the same behavior as that of using 0.6.1.3 . The problem referred
+           *  as (a) still exists.
+           *
+           */
+          if (zkClient.exists("/" + clusterName))
+          {
+            throw new Exception("Cluster already exists !!");
+          }
+
+          clusterAdded = admin.addCluster(clusterName, false);
+
+          if ( ! clusterAdded )
+          {
+            LOG.error("Problem creating cluster (" + clusterName + ")");
+          }
         }
         catch (Exception e)
         {

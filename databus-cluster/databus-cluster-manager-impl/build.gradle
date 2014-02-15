@@ -4,6 +4,7 @@ dependencies {
   compile project(':databus-core:databus-core-impl')
   testCompile project(':databus-core:databus-core-fwk-test')
   compile externalDependency.log4j
+  compile externalDependency.guava
   compile externalDependency.helixCore
   testCompile externalDependency.testng
 }

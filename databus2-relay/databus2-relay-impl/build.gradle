@@ -31,5 +31,9 @@ dependencies {
   testCompile externalDependency.easymock
 }
 
+test {
+  ggTestDataDirName = projectDir.absolutePath + "/src/test/TestData"
+  systemProperties.put('test.ggTestDataDir', "${ggTestDataDirName}")
+}
 test.useTestNG()
 test.workingDir = "${project.rootDir}"

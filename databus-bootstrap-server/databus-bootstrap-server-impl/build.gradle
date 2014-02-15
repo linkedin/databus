@@ -1,7 +1,7 @@
 apply plugin: 'java'
 
 test.workingDir = "${project.rootDir}"
-test.dependsOn(':database:databus2-bootstrap:reinit')
+test.dependsOn(':db:databus2-bootstrap:reinit')
 
 dependencies {
   compile project(':databus-bootstrap-common:databus-bootstrap-common-api')
@@ -14,7 +14,6 @@ dependencies {
 
   compile externalDependency.log4j
   compile externalDependency.mysqlConnectorJava
-  compile externalDependency.spring
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
   compile externalDependency.json

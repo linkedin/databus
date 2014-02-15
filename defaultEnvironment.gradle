@@ -1,38 +1,31 @@
-subprojects {
-  repositories {
-      if (System.getProperty('open_source') != null) {
-        // for open source we cannot user internal repo
-        // so we add few open source ones
-        mavenCentral()
-        maven {
-          url "http://repo.fusesource.com/maven2"
-        }
-        maven {
-          url "http://maven.restlet.org"
-        }
+repositories {
+  // for open source we cannot user internal repo
+  // so we add few open source ones
+  mavenCentral()
+  maven {
+	url "http://repo.fusesource.com/maven2"
+  }
+  maven {
+	url "http://maven.restlet.org"
+  }
 
-        // local repo for libs we have to ship with 
-        add(new org.apache.ivy.plugins.resolver.FileSystemResolver()) {
-        name = 'SANDBOX_REPO'
-        ivypattern = "${project.rootProject.rootDir}/sandbox-repo/[organisation]/[module]/[revision]/[module]-[revision].ivy" 
-        artpattern = "${project.rootProject.rootDir}/sandbox-repo/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
-        //println "ADDING $name repository. ivypatern=" + ivypattern
-        //println "ADDING $name repository. artifactorypatern=" + artpattern
-        addIvyPattern ivypattern
-        addArtifactPattern artpattern
+  // local repo for libs we have to ship with     
+  def sandBoxRepo = "${project.rootDir}/sandbox-repo"
+  def sandBoxExists = new File(sandBoxRepo).isDirectory()
+  if (sandBoxExists) {
+    logger.debug "Adding repository $sandBoxRepo"
+	project.repositories.ivy {
+	  name "sanboxRepo"
+      url sandBoxRepo
+      layout "pattern", {
+        artifact "[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]"
+        ivy "[organisation]/[module]/[revision]/[module]-[revision].ivy"
         m2compatible = true
-        checkmodified = true
-        changingPattern = '.*'
-       }
-     } else {
-       add(new org.apache.ivy.plugins.resolver.URLResolver()) {
-         name = 'release'
-         addIvyPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[module]-[revision].ivy'
-         addArtifactPattern 'http://artifactory.corp.linkedin.com:8081/artifactory/release/[organisation]/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]'
-         m2compatible = true
       }
     }
+  } else {
+    logger.debug "Not adding repository $sandBoxRepo as the directory does not exist."
   }
-  
-  project.buildDir = new File(project.rootProject.buildDir, project.name)
 }
+
+project.buildDir = new File(project.rootProject.buildDir, project.name)

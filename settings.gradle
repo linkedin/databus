@@ -8,37 +8,16 @@ def base_modules = [
 'databus-client',
 'databus-core',
 'databus-cluster',
-'databus-tools',
 'databus-group-leader',
+'databus-relay',
+'databus-tools',
 'databus-util-cmdline',
 'databus2-example',
 'databus2-relay',
-'database',
-'script'
+'db',
+'script',
+'metrics-histograms'
 ]
-
-def non_os_modules = [
-'databus-relay',
-'databus3-core',
-'databus3-relay',
-'databus3-client',
-'databus3-example',
-'databus3-scripts',
-'databus3-linkedin-relay',
-'databus3-bootstrap-server',
-'databus-profile-client',
-'databus2-linkedin-relay',
-'databus-events',
-'databus-linkedin-client',
-'databus2-linkedin-pkgs',
-'databus2-gg',
-'perf',
-'integration-test',
-'sitetools',
-'code-coverage-all'
-]
-
-
 
 // add above to get hadoop artifacts uploaded 'hadoop',
 
@@ -49,24 +28,15 @@ def non_os_modules = [
 def nonReleaseModules = [
 ]
 
+//consuming of root.dir property allows us to 'wrap' the open source project with a master gradle project if necessary
+String rootDir = hasProperty("root.dir") ? getProperty("root.dir") : settingsDir
+
 base_modules.each { module ->
-  file(module).eachDir { submodule ->
+  file("$rootDir/$module").eachDir { submodule ->
     if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-      //println "including1 " + "${module}:${submodule.name}"
-      include "${module}:${submodule.name}"
+      def path = ":${module}:${submodule.name}"
+      include path
+      project(path).projectDir = file("$rootDir/$module/$submodule.name")
     }
   }
 }
-
-if (System.getProperty('open_source') == null) {
-  println ">>>>>>>>>>>>>>>>>>>>>>>> LI version (not Open Source)"
-  non_os_modules.each { module ->
-    file(module).eachDir { submodule ->
-      if (!submodule.name.startsWith('.') && !nonReleaseModules.contains(submodule.name)) {
-        //println "including non os modules" + "${module}:${submodule.name}"
-        include "${module}:${submodule.name}"
-      }
-    }
-  }
-}
-

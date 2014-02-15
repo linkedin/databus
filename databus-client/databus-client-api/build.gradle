@@ -1,16 +1,34 @@
 apply plugin: 'java'
 
+// The metrics-core stuff from codahale is split across 2 or 3 locations:  the local extensions for
+// aggregation (MergeableExponentiallyDecayingReservoir) in :metrics-histograms:metrics-core-impl,
+// and the main metrics-core library in the metricsCore external dependency (for LinkedIn builds)
+// or in sandbox-repo/com/codahale/metrics/metrics-core/3.0.1/metrics-core-3.0.1.{jar,ivy} (for
+// open-source builds, including findbugs).  In fact, the sole reason (currently) for the external
+// dependency is the ThreadLocalRandom and Clock classes; if the sources for those were copied into
+// the local metrics-histograms package, we could eliminate both the sandbox-repo copy and the
+// external dependency.  But aggregation seems generally useful, so if we're eventually going to
+// contribute back the extensions (and assuming they're accepted), we'll ultimately eliminate
+// the local :metrics-histograms:metrics-core-impl instead.
+//
+// (As an interim step, we may move :metrics-histograms:metrics-core-impl to its own multi-product
+// on Artifactory so other teams can use it without having either to reinvent the wheel or to depend
+// on the full databus2 multi-product just to get MergeableExponentiallyDecayingReservoir.)
+
 dependencies {
   compile project(':databus-core:databus-core-impl')
   compile project(':databus-core:databus-core-schemas')
   compile project(':databus-group-leader:databus-group-leader-api')
   compile project(':databus-group-leader:databus-group-leader-impl')
   compile project(':databus-cluster:databus-cluster-manager-impl')
+  compile project(':metrics-histograms:metrics-core-impl')
   
   compile externalDependency.avro
+  compile externalDependency.commonsStats
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
   compile externalDependency.log4j
+  compile externalDependency.metricsCore
   compile externalDependency.netty
   compile externalDependency.helixCore
   

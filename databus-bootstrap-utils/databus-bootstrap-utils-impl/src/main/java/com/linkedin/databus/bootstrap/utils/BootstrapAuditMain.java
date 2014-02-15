@@ -20,7 +20,6 @@ package com.linkedin.databus.bootstrap.utils;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.sql.Connection;
@@ -46,6 +45,7 @@ import com.linkedin.databus.bootstrap.utils.BootstrapAuditTableReader.ResultSetE
 import com.linkedin.databus.bootstrap.utils.BootstrapSrcDBEventReader.PrimaryKeyTxn;
 import com.linkedin.databus.client.DbusEventAvroDecoder;
 import com.linkedin.databus.core.DbusEventKey;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.producers.db.OracleTriggerMonitoredSourceInfo;
 import com.linkedin.databus2.relay.OracleJarUtils;
 import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
@@ -969,7 +969,7 @@ public class BootstrapAuditMain
     private PreparedStatement _rangeRecordStmt = null;
 
     Method _setLobPrefetchSizeMethod = null;
-    Class _oraclePreparedStatementClass = null;
+    Class<?> _oraclePreparedStatementClass = null;
 
     public OracleTableReader(Connection conn, String tableName,
         Field pkeyField, String pkeyName, Type pkeyType, int interval,
@@ -1102,15 +1102,13 @@ public class BootstrapAuditMain
 
   public static class KeyTxnReader
   {
-    private final File _file;
     private final BufferedReader _reader;
 
     public KeyTxnReader(File file)
     {
       try
       {
-        _file = file;
-        _reader = new BufferedReader(new FileReader(file));
+        _reader = new BufferedReader(StringUtils.createFileReader(file));
       }
       catch (IOException ioe)
       {

@@ -76,7 +76,11 @@ public class DatabusSourcesConnection
   public static final long REGISTER_TIMEOUT_MS = 1000;
 
   public final Logger _log;
+  // Legacy naming for a DatabusSourcesConnection which is of the form conn[AnyPPart_Person]_DatabusFileLoggingConsumer_23d9d8dc
+  // The name is kept as is for mbeans so as to not break autometrics
   private final String _name;
+  // Logical name given for a DatabusSourcesConnection. It is used to identify loggers and threads
+  private final String _prettyName;
   private final DatabusSourcesConnection.StaticConfig _connectionConfig;
   private final List<DatabusSubscription> _subscriptions;
   private final RelayPullThread _relayPuller;
@@ -88,7 +92,7 @@ public class DatabusSourcesConnection
   private final ExecutorService _ioThreadPool;
   private final CheckpointPersistenceProvider _checkpointPersistenceProvider;
   private final ContainerStatisticsCollector _containerStatisticsCollector;
-  /** Statistics collector about databus events */
+  // Statistics collector about databus events
   private final DbusEventsStatisticsCollector _inboundEventsStatsCollector;
   private final DbusEventsStatisticsCollector _bootstrapEventsStatsCollector;
 
@@ -117,6 +121,9 @@ public class DatabusSourcesConnection
 
   private final boolean _isBootstrapEnabled;
   private final RegistrationId _registrationId;
+  // This is needed to be stored because only registrationName will be used for identifying threads like RelayPuller
+  // However, the parameter registrationId will be passed as null to ensure that checkpoints are created in V2 format
+  private final String _connRawId;
   private ReentrantLock _v3BootstrapLock = null;
 
   public ExecutorService getIoThreadPool()
@@ -221,9 +228,10 @@ public class DatabusSourcesConnection
     _localRelayCallsStatsCollector = null != relayCallsStatsCollector ?
         relayCallsStatsCollector.createForClientConnection(toString()) : null;
     _registrationId = registrationId;
-    _name = composeName(connRawId); // will be used as MBean name for
-                      // example
-    _log = Logger.getLogger(DatabusSourcesConnection.class.getName() + ".srcconn-" + _name);
+    _connRawId = (null == connRawId) ? "": connRawId;
+    _name = composeName(connRawId); // will be used as MBean name for example
+    _prettyName = constructPrettyNameForLogging(subscriptions, connRawId);
+    _log = Logger.getLogger(_prettyName);
     _connectionStatus = new SourcesConnectionStatus();
     _v3BootstrapLock = v3BootstrapLock;
     _connStateFactory = connStateFactory;
@@ -283,7 +291,8 @@ public class DatabusSourcesConnection
                                                                     _unifiedClientStats),
                                   _relayConsumerStats,
                                   _unifiedClientStats,
-                                  loggingConsumer);
+                                  loggingConsumer,
+                                  _log);
 
     MultiConsumerCallback bootstrapAsyncCallback =
         new MultiConsumerCallback((null != _bootstrapRegistrations) ?
@@ -295,43 +304,45 @@ public class DatabusSourcesConnection
                                                                        _unifiedClientStats),
                                   _bootstrapConsumerStats,
                                   _unifiedClientStats,
-                                  loggingConsumer);
+                                  loggingConsumer,
+                                  _log);
 
     if (_bootstrapEventsBuffer != null) {
-      _bootstrapPuller = new BootstrapPullThread(_name
+      _bootstrapPuller = new BootstrapPullThread(_connRawId
           + "-BootstrapPuller", this, _bootstrapEventsBuffer, _connStateFactory,
           bootstrapServices, bootstrapFilterConfigs,
           connConfig.getPullerUtilizationPct(),
           ManagementFactory.getPlatformMBeanServer(),
-          _eventFactory, _v3BootstrapLock);
+          _eventFactory, _v3BootstrapLock, _log);
     } else {
       _bootstrapPuller = null;
     }
 
-    _relayDispatcher = new RelayDispatcher(_name + "-RelayDispatcher",
+    _relayDispatcher = new RelayDispatcher(_connRawId + "-RelayDispatcher",
         connConfig, getSubscriptions(), checkpointPersistenceProvider,
         dataEventsBuffer, relayAsyncCallback, _bootstrapPuller,
         ManagementFactory.getPlatformMBeanServer(), serverHandle,
-        _registrationId);
+        _registrationId, _log);
 
-    _relayPuller = new RelayPullThread(_name + "-RelayPuller", this,
+    _relayPuller = new RelayPullThread(_connRawId + "-RelayPuller", this,
         _dataEventsBuffer, _connStateFactory, relays, relayFilterConfigs,
         connConfig.getConsumeCurrent(),
         connConfig.isReadLatestScnOnErrorEnabled(),
         connConfig.getPullerUtilizationPct(),
         connConfig.getNoEventsConnectionResetTimeSec(),
         ManagementFactory.getPlatformMBeanServer(),
-        _eventFactory);
+        _eventFactory,
+        _log);
 
     _relayPuller.enqueueMessage(LifecycleMessage.createStartMessage());
 
     if (_bootstrapEventsBuffer != null) {
-      _bootstrapDispatcher = new BootstrapDispatcher(_name
+      _bootstrapDispatcher = new BootstrapDispatcher(_connRawId
           + "-BootstrapDispatcher", connConfig, getSubscriptions(),
           checkpointPersistenceProvider, bootstrapEventsBuffer,
           bootstrapAsyncCallback, _relayPuller,
           ManagementFactory.getPlatformMBeanServer(), serverHandle,
-          _registrationId);
+          _registrationId, _log);
     } else {
       _bootstrapDispatcher = null;
     }
@@ -352,6 +363,66 @@ public class DatabusSourcesConnection
             .size()));
 
     _nannyRunnable = new NannyRunnable();
+  }
+
+
+  /**
+   * A bare-bones private constructor to be able to instantiate DatabusSourcesConnection,
+   * where all values are null. To prevent use outside of unit-tests, this may be instantiated
+   * with only a factory constructor
+   */
+  private DatabusSourcesConnection()
+  {
+    _log = null;
+    _name = null;
+    _prettyName = null;
+    _connectionConfig = null;
+    _subscriptions = null;
+    _relayPuller = null;
+    _relayDispatcher = null;
+    _bootstrapPuller = null;
+    _bootstrapDispatcher = null;
+    _dataEventsBuffer = null;
+    _bootstrapEventsBuffer = null;
+    _ioThreadPool = null;
+    _checkpointPersistenceProvider = null;
+    _containerStatisticsCollector = null;
+    _inboundEventsStatsCollector = null;
+    _bootstrapEventsStatsCollector = null;
+    _relayCallsStatsCollector = null;
+    _localRelayCallsStatsCollector = null;
+    _relayConnFactory = null;
+    _bootstrapConnFactory = null;
+    _relayRegistrations = null;
+    _relayConsumerStats = null;
+    _bootstrapConsumerStats =null;
+    _unifiedClientStats = null;
+    _nannyRunnable = null;
+    _eventFactory = null;
+    _connStateFactory = null;
+    _bootstrapRegistrations = null;
+    _connectionStatus = null;
+    _relayPullerThread = null;
+    _relayDispatcherThread = null;
+    _bootstrapPullerThread = null;
+    _bootstrapDispatcherThread = null;
+    _messageQueuesMonitorThread = null;
+    _nannyThread = null;
+    _consumerCallbackExecutor = null;
+    _isBootstrapEnabled = false;
+    _registrationId = null;
+    _connRawId = null;
+    _v3BootstrapLock = null;
+  }
+
+  /*
+   * A factory method to instantiate a DatabusSourcesConnection object.
+   * This object is meant to be used only for unit-testing
+   */
+  public static DatabusSourcesConnection createDatabusSourcesConnectionForTesting()
+  {
+    DatabusSourcesConnection dsc = new DatabusSourcesConnection();
+    return dsc;
   }
 
   // figure out name for the connection - to be used in mbean
@@ -391,7 +462,8 @@ public class DatabusSourcesConnection
   {
     _log.info("Starting http relay connection for sources:"
         + _subscriptions);
-    _nannyThread = new Thread(_nannyRunnable, _name + ".Nanny");
+    // Thread names are represented by a hyphen(-) followed by its logical name
+    _nannyThread = new Thread(_nannyRunnable, _connRawId + "-Nanny");
     _nannyThread.setDaemon(true);
 
     _connectionStatus.start();
@@ -1522,5 +1594,36 @@ public class DatabusSourcesConnection
     if (_unifiedClientStats != null) {
       _unifiedClientStats.unregisterAsMbean();
     }
+  }
+
+  /**
+   * Given a list of subscriptions and registrationId, the method below constructs a pretty name
+   * that may be used to identify
+   * 1. Loggers
+   * 2. Thread identifiers
+   *
+   * The expected input/output is of the following formats, given regId="reg1234":
+   * 1. subs = ["com.linkedin.events.db.dbPrefix.tableName"]
+   *    prettyName = "dbName_tableName_reg1234"
+   *
+   * 2. subs = ["com.linkedin.events.db.dbPrefix1.tableName1","com.linkedin.events.db.dbPrefix2.tableName2"],
+   *    prettyName = "dbPrefix1_tableName1_dbPrefix2_tableName2_reg1234"
+   *
+   * 3. subs =["espresso:/db/1/tableName1"
+   *    prettyName = "db_tableName1_1_reg1234"
+   *
+   * 4. subs =["espresso:/db/<wildcard>/tableName1"]. where wildcard=*
+   *    prettyName = "db_tableName1_anyPartition_reg1234"
+   *
+   * 5. subs =["espresso:/db/1/<wildcard>"]. where wildcard=*
+   *    prettyName = "db_anyTable_anyPartition_reg1234"
+   */
+  public String constructPrettyNameForLogging(List<DatabusSubscription> subscriptions, String regId)
+  {
+    StringBuilder sb = new StringBuilder();
+    sb.append(DatabusSubscription.getPrettyNameForListOfSubscriptions(subscriptions));
+    sb.append("_");
+    sb.append(regId);
+    return sb.toString();
   }
 }

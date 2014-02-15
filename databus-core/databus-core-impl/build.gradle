@@ -24,5 +24,6 @@ dependencies {
 
 test {
   useTestNG()
-  systemProperties.put('test.datadir', 'databus-core/databus-core-impl/test_data')
+  testDataDirName = projectDir.absolutePath + "/test_data"
+  systemProperties.put('test.datadir', "${testDataDirName}")
 }

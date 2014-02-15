@@ -47,9 +47,12 @@ import com.linkedin.databus.client.pub.DbusEventDecoder;
 import com.linkedin.databus.client.pub.SCN;
 import com.linkedin.databus.core.DbusEvent;
 import com.linkedin.databus.core.DbusEventInternalWritable;
+import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.ScnNotFoundException;
 import com.linkedin.databus.core.util.RateMonitor;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.BackoffTimer;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.util.DBHelper;
 
 public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
@@ -98,7 +101,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   public BootstrapProducerCallback(BootstrapReadOnlyConfig config,
       BootstrapProducerStatsCollector statsCollector,
       ErrorCaseHandler errorHandler, List<String> logicalSources)
-      throws SQLException
+      throws SQLException, DatabusException
   {
     _config = config;
     _logicalSources = logicalSources;
@@ -111,7 +114,8 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
     init();
   }
 
-  public void init() throws SQLException
+  public void init()
+      throws SQLException, DatabusException
   {
     Set<String> configedSources = new HashSet<String>(_logicalSources);
     _trackedSources = _bootstrapDao.getDBTrackedSources(configedSources);
@@ -176,11 +180,14 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       try
       {
         reset();
-      } catch (SQLException sqlEx)
+      }
+      catch (DatabusException e2)
       {
-        LOG.error(
-            "Got exception while resetting connections. Stopping Client !!",
-            sqlEx);
+        DbusPrettyLogUtils.logExceptionAtError("Unable to reset connection", e2, LOG);
+      }
+      catch (SQLException sqlEx)
+      {
+        DbusPrettyLogUtils.logExceptionAtError("Got exception while resetting connections. Stopping Client !!", sqlEx, LOG);
         return ConsumerCallbackResult.ERROR_FATAL;
       }
       success = ConsumerCallbackResult.ERROR;
@@ -261,7 +268,12 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       try
       {
         reset();
-      } catch (SQLException sqlEx)
+      }
+      catch (DatabusException e2)
+      {
+        DbusPrettyLogUtils.logExceptionAtError("Unable to reset connection", e2, LOG);
+      }
+      catch (SQLException sqlEx)
       {
         LOG.error(
             "Got exception while resetting connections. Stopping Client !!",
@@ -322,7 +334,12 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       try
       {
         reset();
-      } catch (SQLException sqlEx)
+      }
+      catch (DatabusException e2)
+      {
+        DbusPrettyLogUtils.logExceptionAtError("Unable to reset connection", e2, LOG);
+      }
+      catch (SQLException sqlEx)
       {
         LOG.error(
             "Got exception while resetting connections. Stopping Client !!",
@@ -331,7 +348,7 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       }
       return ConsumerCallbackResult.ERROR;
     }
-
+    
     return ret ? ConsumerCallbackResult.SUCCESS : ConsumerCallbackResult.ERROR;
   }
 
@@ -360,7 +377,12 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       try
       {
         reset();
-      } catch (SQLException sqlEx)
+      }
+      catch (DatabusException e2)
+      {
+        DbusPrettyLogUtils.logExceptionAtError("Unable to reset connection", e2, LOG);
+      }
+      catch (SQLException sqlEx)
       {
         LOG.error(
             "Got exception while resetting connections. Stopping Client !!",
@@ -406,11 +428,19 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       String keyStr = null;
       if (e.isKeyNumber())
       {
-        keyStr = new Long(e.key()).toString();
+        keyStr = Long.toString(e.key());
       }
-      else
+      else if (e.isKeyString())
       {
-        keyStr = new String(e.keyBytes());
+        keyStr = StringUtils.bytesToString(e.keyBytes());
+      }
+      else if (e.isKeySchema()) {
+        LOG.error("schema key type not supported: " + e);
+        return ConsumerCallbackResult.ERROR;
+      }
+      else {
+        LOG.error("unknown event key type: " + e);
+        return ConsumerCallbackResult.ERROR;
       }
       _stmt.setString(3, keyStr);
       if (!(e instanceof DbusEventInternalWritable))
@@ -437,7 +467,12 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
       try
       {
         reset();
-      } catch (SQLException sqlEx)
+      }
+      catch (DatabusException e2)
+      {
+        DbusPrettyLogUtils.logExceptionAtError("Unable to reset connection", e2, LOG);
+      }
+      catch (SQLException sqlEx)
       {
         LOG.error(
             "Got exception while resetting connections. Stopping Client !!",
@@ -498,7 +533,8 @@ public class BootstrapProducerCallback extends AbstractDatabusStreamConsumer
   /*
    * Reset the Bootstrap Connection and in memory state of Producer
    */
-  private void reset() throws SQLException
+  private void reset()
+      throws SQLException, DatabusException
   {
     boolean success = false;
     /*

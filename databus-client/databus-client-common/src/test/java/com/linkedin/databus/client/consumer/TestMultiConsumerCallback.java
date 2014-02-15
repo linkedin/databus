@@ -30,6 +30,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.easymock.EasyMock;
@@ -44,6 +45,7 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
+
 import com.linkedin.databus.client.SingleSourceSCN;
 import com.linkedin.databus.client.pub.ConsumerCallbackResult;
 import com.linkedin.databus.client.pub.DatabusCombinedConsumer;
@@ -372,6 +374,7 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
             consumerStatsCollector,
             unifiedStatsCollector,
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -433,6 +436,7 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(null, null),
             null,
             null,
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -491,6 +495,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null,
             null);
@@ -559,6 +564,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null,
             null);
@@ -635,6 +641,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null,
             null);
@@ -717,6 +724,7 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(null, null),
             null,
             null,
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -794,6 +802,7 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(null, null),
             null,
             null,
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -869,6 +878,7 @@ public class TestMultiConsumerCallback
             Executors.newCachedThreadPool(),
             1000,
             new StreamConsumerCallbackFactory(null, null),
+            null,
             null,
             null,
             null);
@@ -993,6 +1003,7 @@ public class TestMultiConsumerCallback
             new StreamConsumerCallbackFactory(consumerStatsCollector, unifiedStatsCollector),
             consumerStatsCollector,
             unifiedStatsCollector,
+            null,
             null);
     callback.setSourceMap(sourcesMap);
 
@@ -1272,7 +1283,7 @@ public class TestMultiConsumerCallback
         ConsumerCallbackStats consumerStats,
         UnifiedClientStats unifiedClientStats,
         int errorCallNumber) {
-      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats, unifiedClientStats, null);
+      super(consumers, executorService, timeBudgetMs, callbackFactory, consumerStats, unifiedClientStats, null, null);
       _failOnCall = errorCallNumber;
     }
 

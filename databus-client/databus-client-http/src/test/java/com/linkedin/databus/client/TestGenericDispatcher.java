@@ -225,6 +225,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -232,7 +233,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null, null);
+                        eventsBuf, callback, null,null,null, null, null);
         dispatcher.setSchemaIdCheck(false);
 
         Thread dispatcherThread = new Thread(dispatcher, "testOneWindowHappyPath-dispatcher");
@@ -348,6 +349,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -365,7 +367,7 @@ public class TestGenericDispatcher
         final RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", connStaticCfg, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null, null);
+                        eventsBuf, callback, null,null,null, null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         //dispatcherThread.setDaemon(true);
@@ -468,6 +470,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -475,7 +478,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null,null);
+                        eventsBuf, callback, null,null,null,null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         //dispatcherThread.setDaemon(true);
@@ -562,7 +565,7 @@ public class TestGenericDispatcher
         schemaMap.put(3L, l3);
 
         log.info("Switch to start dispatch events");
-        DispatcherState ds = DispatcherState.create().addSources(sourcesMap.values()).addSchemas(schemaMap);
+        DispatcherState ds = DispatcherState.create().addSources(sourcesMap.values());
         ds.getSchemaSet().clear();
         long initSize = 0, finalSize = 0;
         try
@@ -575,7 +578,7 @@ public class TestGenericDispatcher
         } catch (Exception e){}
 
 
-        ds.refreshSchemas();
+        ds.addSchemas(schemaMap);
         log.info("Schemas have been refreshed");
         finalSize = ds.getEventDecoder().getSchemaSet().getSchemaBaseNames().size();
         log.info("===Printing the decoder object's schema set\n" + ds.getEventDecoder().getSchemaSet());
@@ -653,6 +656,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -660,7 +664,7 @@ public class TestGenericDispatcher
         final RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null,null);
+                        eventsBuf, callback, null,null,null,null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         dispatcherThread.setDaemon(true);
@@ -772,6 +776,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -779,7 +784,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null, null,null,null);
+                        eventsBuf, callback, null, null,null,null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         //dispatcherThread.setDaemon(true);
@@ -873,6 +878,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -880,7 +886,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null,null);
+                        eventsBuf, callback, null,null,null,null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         //dispatcherThread.setDaemon(true);
@@ -996,6 +1002,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -1003,7 +1010,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null,null);
+                        eventsBuf, callback, null,null,null,null, null);
 
         Thread dispatcherThread = new Thread(dispatcher);
         //dispatcherThread.setDaemon(true);
@@ -1083,7 +1090,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(sdccTConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null);
+                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 50.0;
@@ -1185,7 +1192,7 @@ public class TestGenericDispatcher
             DatabusV2ConsumerRegistration consumerReg = new DatabusV2ConsumerRegistration(tConsumer, sources, null);
             List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
             MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(2),
-                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null);
+                    1000, new StreamConsumerCallbackFactory(null, null), null, null, null, null);
 
             /* Source configuration */
             double thresholdChkptPct = 10.0;
@@ -1355,6 +1362,7 @@ public class TestGenericDispatcher
                                           new StreamConsumerCallbackFactory(null, unifiedStats),
                                           null,
                                           unifiedStats,
+                                          null,
                                           null);
 
             /* Generate events */
@@ -1624,7 +1632,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null);
+                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null, null);
 
         /* Generate events **/
         Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
@@ -1774,6 +1782,7 @@ public class TestGenericDispatcher
                         new StreamConsumerCallbackFactory(null, null),
                         null,
                         null,
+                        null,
                         null);
         callback.setSourceMap(sourcesMap);
 
@@ -1781,7 +1790,7 @@ public class TestGenericDispatcher
         RelayDispatcher dispatcher =
                 new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                         new InMemoryPersistenceProvider(),
-                        eventsBuf, callback, null,null,null, null);
+                        eventsBuf, callback, null,null,null, null, null);
 
         Thread dispatcherThread = new Thread(dispatcher, "testMetadataSchema-dispatcher");
         //dispatcherThread.setDaemon(true);
@@ -1916,7 +1925,7 @@ public class TestGenericDispatcher
         List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
         //Single threaded execution of consumer
         MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null);
+                consumerTimeBudgetMs, new StreamConsumerCallbackFactory(null, null), null, null, null, null);
 
         /* Generate events **/
         Vector<DbusEvent> srcTestEvents = new Vector<DbusEvent>();
@@ -1968,7 +1977,8 @@ public class TestGenericDispatcher
                 null, //relaypuller
                 null, //mbean server
                 null, //ClientImpl
-                null  //registrationId
+                null, //registrationId
+                null // logger
                 );
         dispatcher.setSchemaIdCheck(false);
 
@@ -2070,7 +2080,7 @@ public class TestGenericDispatcher
       List<DatabusV2ConsumerRegistration> allRegistrations =  Arrays.asList(consumerReg);
       //Single threaded execution of consumer
       MultiConsumerCallback mConsumer = new MultiConsumerCallback(allRegistrations,Executors.newFixedThreadPool(1),
-              consumerTimeBudgetMs,new StreamConsumerCallbackFactory(null,null),null,null, null);
+              consumerTimeBudgetMs,new StreamConsumerCallbackFactory(null,null),null,null, null, null);
 
 
 
@@ -2311,13 +2321,14 @@ public class TestGenericDispatcher
                                     new StreamConsumerCallbackFactory(callbackStats, unifiedStats),
                                     callbackStats,
                                     unifiedStats,
+                                    null,
                                     null);
       callback.setSourceMap(sourcesMap);
       List<DatabusSubscription> subs = DatabusSubscription.createSubscriptionList(sources);
       final RelayDispatcher dispatcher =
           new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                               new InMemoryPersistenceProvider(),
-                              destEventsBuf, callback, null,null,null,null);
+                              destEventsBuf, callback, null,null,null,null,null);
 
       final Thread dispatcherThread = new Thread(dispatcher);
       log.info("starting dispatcher thread");
@@ -2502,6 +2513,7 @@ public class TestGenericDispatcher
                                     new StreamConsumerCallbackFactory(callbackStats, unifiedStats),
                                     callbackStats,
                                     unifiedStats,
+                                    null,
                                     null);
       callback.setSourceMap(sourcesMap);
 
@@ -2510,7 +2522,7 @@ public class TestGenericDispatcher
       final RelayDispatcher dispatcher =
               new RelayDispatcher("dispatcher", _genericRelayConnStaticConfig, subs,
                       new InMemoryPersistenceProvider(),
-                      destEventsBuf, callback, null,null,null,null);
+                      destEventsBuf, callback, null,null,null,null,null);
       dispatcher.setSchemaIdCheck(false);
 
       Thread dispatcherThread = new Thread(dispatcher);
@@ -2658,7 +2670,7 @@ class TestDispatcher<C> extends GenericDispatcher<C>
                           MultiConsumerCallback asyncCallback,
                           boolean isRelayDispatcher) {
         super(name, connConfig, subsList, checkpointPersistor, dataEventsBuffer,
-                asyncCallback);
+                asyncCallback, null);
         _isRelayDispatcher = isRelayDispatcher;
         //disable schemaIdCheck at onStartSource() by default, in the interest of many unit tests written without paying attention to same schemaIds being present in events
         _schemaIdCheck=false;

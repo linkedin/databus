@@ -95,9 +95,7 @@ public class BootstrapConn
       stmt =
           conn.prepareStatement("SELECT logid from " + tab + " where srcid = ?");
       stmt.setInt(1, srcId);
-      stmt.executeQuery();
-
-      rs = stmt.getResultSet();
+      rs = stmt.executeQuery();
 
       while (rs.next())
       {
@@ -235,7 +233,6 @@ public class BootstrapConn
 		  DBHelper.close(stmt);
 	  }
   }
-
 
   public void initBootstrapConn(boolean autoCommit,
                                 int isolationLevel,

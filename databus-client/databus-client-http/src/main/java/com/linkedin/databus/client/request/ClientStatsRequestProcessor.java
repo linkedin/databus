@@ -530,7 +530,6 @@ public class ClientStatsRequestProcessor extends AbstractStatsRequestProcessor
   {
     String category = request.getParams().getProperty(DatabusRequest.PATH_PARAM_NAME);
     String registrationIdStr = category.substring(prefix.length());
-
     DatabusV3Registration reg = _client.getRegistration(new RegistrationId(registrationIdStr));
     if ( null == reg )
     {

@@ -36,8 +36,8 @@ import org.apache.log4j.Logger;
 
 import com.linkedin.databus.client.ConnectionState.StateId;
 import com.linkedin.databus.client.netty.RemoteExceptionHandler;
-import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.client.pub.ServerInfo;
+import com.linkedin.databus.client.pub.mbean.UnifiedClientStats;
 import com.linkedin.databus.core.Checkpoint;
 import com.linkedin.databus.core.CheckpointMult;
 import com.linkedin.databus.core.DatabusComponentStatus;
@@ -69,10 +69,6 @@ import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
 
 public class RelayPullThread extends BasePullThread
 {
-
-  public static final String MODULE = RelayPullThread.class.getName();
-  public static final Logger LOG = Logger.getLogger(MODULE);
-
   private final static int RELAY_CALLS_MERGE_FREQ = 10;
   private static final ArrayList<RegisterResponseEntry> EMPTY_REGISTER_LIST =
       new ArrayList<RegisterResponseEntry>();
@@ -148,10 +144,11 @@ public class RelayPullThread extends BasePullThread
                          double pullerBufferUtilPct,
                          int noEventsConnectionResetTimeSec,
                          MBeanServer mbeanServer,
-                         DbusEventFactory eventFactory)
+                         DbusEventFactory eventFactory,
+                         Logger log)
   {
     super(name, sourcesConn.getConnectionConfig().getPullerRetries(), sourcesConn, dbusEventBuffer,
-          connStateFactory, relays, mbeanServer, eventFactory);
+          connStateFactory, relays, mbeanServer, eventFactory, log);
     _relayFilterConfigs = relayFilterConfigs;
     _isConsumeCurrent = isConsumeCurrent;
     _remoteExceptionHandler = new RemoteExceptionHandler(sourcesConn, dbusEventBuffer, eventFactory);
@@ -643,7 +640,7 @@ public class RelayPullThread extends BasePullThread
         if (_isConsumeCurrent)
         {
           cp.setFlexible();
-          LOG.info("Setting flexible checkpoint: consumeCurrent is true");
+          _log.info("Setting flexible checkpoint: consumeCurrent is true");
         }
       }
       else
@@ -690,24 +687,24 @@ public class RelayPullThread extends BasePullThread
           if (cp.getWindowOffset() > 0)
           {
             // switched when in middle of Window
-            LOG.info("RelayPuller reconnecting when in middle of event window. Will regress. Current Checkpoint :" + cp);
+            _log.info("RelayPuller reconnecting when in middle of event window. Will regress. Current Checkpoint :" + cp);
             if (cp.getPrevScn() > 0)
             {
               cp.setWindowScn(cp.getPrevScn());
               cp.setWindowOffset(-1);
               curState.setSCNRegress(true);
             } else if (curState.isFlexibleCheckpointRequest()) {
-              LOG.info("Switched relays after reading partial window with flexible checkpoint !!");
+              _log.info("Switched relays after reading partial window with flexible checkpoint !!");
               cp.setFlexible();
                 curState.setSCNRegress(true);
               } else {
-              LOG.fatal("Checkpoint does not have prevSCN !!. Suspending !! Checkpoint :" + cp);
+              _log.fatal("Checkpoint does not have prevSCN !!. Suspending !! Checkpoint :" + cp);
               enqueueMessage(LifecycleMessage.createSuspendOnErroMessage(
                   new Exception("Checkpoint does not have prevSCN !!. Suspending !! Checkpoint :" + cp)));
               enqueueMessage = false;
             }
           }
-        
+
           if ( enqueueMessage )
             curState.switchToRequestStream(cp);
         }
@@ -857,7 +854,7 @@ public class RelayPullThread extends BasePullThread
 
         if (curState.isSCNRegress())
         {
-          LOG.info("SCN Regress requested !! Sending a SCN Regress Message to dispatcher. Curr Ckpt :" + curState.getCheckpoint());
+          _log.info("SCN Regress requested !! Sending a SCN Regress Message to dispatcher. Curr Ckpt :" + curState.getCheckpoint());
 
           DbusEvent regressEvent = getEventFactory().createSCNRegressEvent(new SCNRegressMessage(curState.getCheckpoint()));
 
@@ -899,7 +896,7 @@ public class RelayPullThread extends BasePullThread
               resetConnection = (System.currentTimeMillis() - _timeSinceEventsSec)/1000 > _noEventsConnectionResetTimeSec;
               if(resetConnection) {
                 _timeSinceEventsSec = System.currentTimeMillis();
-                LOG.warn("about to reset connection to relay " + curState.getServerInetAddress() +
+                _log.warn("about to reset connection to relay " + curState.getServerInetAddress() +
                        ", because there were no events for " + _noEventsConnectionResetTimeSec + "secs");
               }
             }

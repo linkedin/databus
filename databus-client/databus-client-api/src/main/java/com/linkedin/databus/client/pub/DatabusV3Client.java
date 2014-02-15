@@ -18,15 +18,8 @@ package com.linkedin.databus.client.pub;
  *
 */
 
-
 import com.linkedin.databus.core.data_model.DatabusSubscription;
 import com.linkedin.databus2.core.filter.DbusKeyCompositeFilterConfig;
-
-/**
- * TBD : Make EspressoClient get only DatabusEspressoStreamConsumers ?
- * @author pganti
- *
- */
 
 public interface DatabusV3Client extends DatabusClient
 {
@@ -89,10 +82,40 @@ public interface DatabusV3Client extends DatabusClient
    * The function below is provided for convenience to retrieve a DatabusEspressoRegistration object
    * given its id. If there does not exist an object with such an id, it returns null
    *
-   *
    * @param id
    * @return Return a DatabusRegistration object given its id
    */
   public DatabusV3Registration getRegistration(RegistrationId rid);
+
+  /**
+   * This method is used to register a consumer factory with the client in load-balanced mode
+   *
+   * All the parameters below are required
+   * @param clientClusterName Name of the client cluster in Helix to connect
+   * @param consumerFactory   A concrete implementation for DbusClusterConsumerFactory
+   * @param sourceUris        A comma-separate list of source URIs from which the application wants to consume change events.
+   *                          The sources are expected to be in URI format as described in {@link EspressoSubscriptionUriCodec}.
+   *
+   *  Examples for valid format of sources:
+   *  espresso:/MyDB/<wildcard>/<wildcard> [In MyDB on Espresso, all partitions and all tables] (or)
+   *  espresso:/MyDB/1/<wildcard> [In MyDB on Espresso, partition 1 and all tables] (or)
+   *  espresso:/MyDB/<wildcard>/Table1 [In MyDB on Espresso, all partitions, only Table1] (or)
+   *  espresso:/MyDB/<wildcard>/Table1,espresso:/MyDB/<wildcard>/Table2 [In MyDB on Espresso, all partitions, Table1 and Table2]
+   *
+   *  Non-wildcard partitioned subscriptions are not accepted for this api.
+   *  Examples of invalid format of sources:
+   *  espresso:/MyDB/0/<wildcard>
+   *  espresso:/MyDB/0/table1,espresso:/MyDB/1/Table2
+   *
+   *  A client cluster can only support one database. Further, the database name must be the same across all registrations for the
+   *  client cluster. If different database names are specified, the behavior is undefined.
+   *
+   * @return DatabusV3Registration A parent registration is returned to the client which may be cached for informational purpose.
+   *         Please see {@link DatabusV3Registration} for more information
+   */
+  public DatabusV3Registration registerCluster(String clientClusterName,
+                                               DbusV3ClusterConsumerFactory consumerFactory,
+                                               String... sourceUris)
+  throws DatabusClientException;
 
 }

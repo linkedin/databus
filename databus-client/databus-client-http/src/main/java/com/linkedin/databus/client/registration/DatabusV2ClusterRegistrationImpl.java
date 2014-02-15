@@ -230,6 +230,14 @@ public class DatabusV2ClusterRegistrationImpl implements
   public synchronized boolean start()
       throws IllegalStateException, DatabusClientException
   {
+    if (_state == RegistrationState.INIT || _state == RegistrationState.DEREGISTERED)
+    {
+      String errMsg = "Registration (" + _id + ") cannot be started from its current state, which is " + _state +
+                      " .It may only be started from REGISTERED or SHUTDOWN state";
+      _log.error(errMsg);
+      throw new IllegalStateException(errMsg);
+    }
+
     if (_state.isRunning())
     {
       _log.info("Registration (" + _id + ") already started !!");
@@ -591,7 +599,7 @@ public class DatabusV2ClusterRegistrationImpl implements
     UnifiedClientStats unifiedClientStats =
         new UnifiedClientStats(ownerId, regId + ".callback.unified",
                                regId, true, false,
-                               pullerThreadDeadnessThresholdMs, 
+                               pullerThreadDeadnessThresholdMs,
                                new UnifiedClientStatsEvent());
     _relayCallbackStatsMerger = new StatsCollectors<ConsumerCallbackStats>(relayConsumerStats);
     _bootstrapCallbackStatsMerger = new StatsCollectors<ConsumerCallbackStats>(bootstrapConsumerStats);
@@ -755,7 +763,7 @@ public class DatabusV2ClusterRegistrationImpl implements
   {
     if(_state == RegistrationState.REGISTERED)
     {
-      _partitionSet.add(partition);
+      _partitionSet.remove(partition);
     } else if ( _state.isRunning()) {
       if (! regMap.containsKey(partition))
       {

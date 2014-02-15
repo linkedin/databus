@@ -2,11 +2,9 @@ package com.linkedin.ggtest;
 
 
 import java.io.FileNotFoundException;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.log4j.BasicConfigurator;
@@ -15,7 +13,6 @@ import org.apache.log4j.Logger;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-
 import com.linkedin.databus.core.util.InvalidConfigException;
 import com.linkedin.databus.monitoring.mbean.GGParserStatistics.TransactionInfo;
 import com.linkedin.databus2.core.DatabusException;
@@ -48,8 +45,12 @@ import com.linkedin.databus2.schemas.FileSystemSchemaRegistryService;
 public class TestParser
 {
 
-  String SchemaRegistry = "databus2-relay/databus2-relay-impl/src/test/TestData/SchemaRegistry/";
-  String XmlData = "databus2-relay/databus2-relay-impl/src/test/TestData/XmlData/";
+  // TODO Derive this from properties setting via gradle.
+  private static final String dataRootDirPropName = "test.ggTestDataDir";
+  private static final String schemaDirName = "SchemaRegistry";
+  private static final String xmlDataDirName = "XmlData";
+  private static final String defaultRootDirName = "./src/test/TestData";
+  private String actualXmlDataDir;
   FileSystemSchemaRegistryService service;
   private static final Logger LOG = Logger.getLogger(TestParser.class.getName());
 
@@ -83,13 +84,14 @@ public class TestParser
   public void loadSchema()
       throws InvalidConfigException
   {
-
+    String actualSchemaDirName = System.getProperty(dataRootDirPropName, defaultRootDirName);
+    actualXmlDataDir = actualSchemaDirName + "/" + xmlDataDirName + "/";
 
     BasicConfigurator.configure();
     Logger.getRootLogger().setLevel(Level.DEBUG);
     FileSystemSchemaRegistryService.Config configBuilder = new FileSystemSchemaRegistryService.Config();
     configBuilder.setFallbackToResources(true);
-    configBuilder.setSchemaDir(SchemaRegistry);
+    configBuilder.setSchemaDir(actualSchemaDirName + "/" + schemaDirName + "/");
     FileSystemSchemaRegistryService.StaticConfig config = configBuilder.build();
     service = FileSystemSchemaRegistryService.build(config);
   }
@@ -137,7 +139,7 @@ public class TestParser
       throws Exception
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"basicprocessing.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"basicprocessing.xml",service, callback);
     test.processXml();
   }
 
@@ -167,7 +169,7 @@ public class TestParser
       throws Exception
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"extrafields.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"extrafields.xml",service, callback);
     test.processXml();
   }
 
@@ -179,7 +181,7 @@ public class TestParser
       throws Exception
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"extraspaces.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"extraspaces.xml",service, callback);
     test.processXml();
   }
 
@@ -226,7 +228,7 @@ public class TestParser
       throws Exception
   {
     keyCompressionCallback callback = new keyCompressionCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"keyCompression.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"keyCompression.xml",service, callback);
     test.processXml();
   }
 
@@ -239,7 +241,7 @@ public class TestParser
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
     try{
-      StaxBuilderTest test = new StaxBuilderTest(XmlData+"missingscn.xml",service, callback);
+      StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"missingscn.xml",service, callback);
       test.processXml();
       Assert.fail("Test has not detected failure on missing scn");
     }
@@ -261,7 +263,7 @@ public class TestParser
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
     try{
-      StaxBuilderTest test = new StaxBuilderTest(XmlData+"missingtokens.xml",service, callback);
+      StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"missingtokens.xml",service, callback);
       test.processXml();
       Assert.fail("Test has not detected failure on missing tokens");
     }
@@ -312,7 +314,7 @@ public class TestParser
       throws Exception
   {
     NullFieldsCallback callback = new NullFieldsCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"nullfields.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"nullfields.xml",service, callback);
     test.processXml();
   }
 
@@ -367,7 +369,7 @@ public class TestParser
       throws Exception
   {
     SortCheckCallback callback = new SortCheckCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"sortMultipleSources.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"sortMultipleSources.xml",service, callback);
     test.processXml();
   }
 
@@ -379,7 +381,7 @@ public class TestParser
       throws Exception
   {
     BasicOperationsCheckCallback callback = new BasicOperationsCheckCallback();
-    StaxBuilderTest test = new StaxBuilderTest(XmlData+"nullTransactions.xml",service, callback);
+    StaxBuilderTest test = new StaxBuilderTest(actualXmlDataDir+"nullTransactions.xml",service, callback);
     test.processXml();
   }
 

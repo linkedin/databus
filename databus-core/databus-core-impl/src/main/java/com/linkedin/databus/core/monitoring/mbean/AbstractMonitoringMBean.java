@@ -160,20 +160,6 @@ public abstract class AbstractMonitoringMBean<T> extends ReadWriteSyncedObject
     }
   }
 
-  @Override
-  public void mergeStats(T otherEvent)
-  {
-    Lock writeLock = acquireWriteLock();
-    try
-    {
-      doMergeStats(otherEvent);
-    }
-    finally
-    {
-      releaseLock(writeLock);
-    }
-  }
-
   public boolean registerAsMbean(MBeanServer mbeanServer)
   {
     boolean success = false;

@@ -24,9 +24,12 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.log4j.Logger;
@@ -34,6 +37,7 @@ import org.codehaus.jackson.JsonParseException;
 import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
+import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus2.core.DatabusException;
 
@@ -41,6 +45,7 @@ import com.linkedin.databus2.core.DatabusException;
 public class DatabusSubscription
 {
   public static final Logger LOG = Logger.getLogger(DatabusSubscription.class);
+
   private final PhysicalSource _physicalSource;
   private final PhysicalPartition _physicalPartition;
   private final LogicalSourceId _logicalPartition;
@@ -180,47 +185,14 @@ public class DatabusSubscription
                                    LogicalSourceId.createAllPartitionsWildcard(source));
   }
 
-  /**
-   * DO NOT USE externally. This is meant for internal databus usage
-   * The behavior of this method will be altered in the future.
-   * @deprecated will be removed in 2.13
-   */
-  @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscriptionV3(String source)
-  {
-    PhysicalPartition pPart = PhysicalPartition.createAnyPartitionWildcard();
-    LogicalSourceId.Builder lidB = new LogicalSourceId.Builder();
-    lidB.setId((short)0);
-    int idx = source.indexOf(':');
-    if(idx != -1) {
-      String sourceName = source.substring(0, idx);
-      int dotIdx = source.indexOf('.');
-      String dbName = sourceName.substring(0, dotIdx);
-      String tableName = sourceName.substring(dotIdx+1);
-      String pPid = source.substring(idx+1);
-      Integer pPidInt = Integer.parseInt(pPid);
-      pPart = new PhysicalPartition(pPidInt, dbName);
-      lidB.setId(pPidInt.shortValue());
-      lidB.getSource().setName(tableName);
-    }
-    LogicalSourceId ls = lidB.build();
-    return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
-        pPart,
-        ls);
-  }
-
-  /**
+   /**
    * DO NOT USE externally. This is meant for internal databus usage
    * This may be removed in a future release
    * TODO Make private and/or change name when we are sure nobody is using these.
    */
   @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscription(String source)
+  private static DatabusSubscription createSimpleSourceSubscription(String source)
   {
-    int idx = source.indexOf(':');
-    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
-    if(idx != -1)
-      return createSimpleSourceSubscriptionV3(source);
     LogicalSource ls = new LogicalSource(source);
     return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
                                PhysicalPartition.createAnyPartitionWildcard(),
@@ -228,30 +200,12 @@ public class DatabusSubscription
   }
 
   /**
-   * DO NOT USE externally. This is meant for internal databus usage
-   * This may be removed in a future release
-   * TODO Make private and/or change name when we are sure nobody is using these.
-   */
-  @Deprecated
-  public static DatabusSubscription createSimpleSourceSubscription(String dbName, String source)
-  {
-    int idx = source.indexOf(':');
-    // TODO After we are sure nobody uses the old espresso form URI string, ("espresso://dbame.*.tablename"), remove this logic
-    if(idx != -1)
-      return createSimpleSourceSubscriptionV3(source);
-    LogicalSource ls = new LogicalSource(source);
-    return new DatabusSubscription(PhysicalSource.createAnySourceWildcard(),
-                               PhysicalPartition.createAnyPartitionWildcard(dbName),
-                               LogicalSourceId.createAllPartitionsWildcard(ls));
-  }
-
-  /**
    * A method to convert from a subscription to a string representation of a source
    * TODO Look like this method also uses old-style epsresso subscriptions strings?
    */
-  public static String createStringFromSubscription(DatabusSubscription sub)
+  public String generateSubscriptionString()
   {
-	  String name = sub.getLogicalSource().getName();
+	  String name = getLogicalSource().getName();
 	  String[] idx = name.split("\\.");
 	  //v2 mode may have source of form com.linkedin.databus.member2.
 	  // Also wild card logical sources are only supported in V3.
@@ -259,21 +213,141 @@ public class DatabusSubscription
 		  return name;
 
 	  // v3 case
-    SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
-	  URI u = codec.encode(sub);
+      SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
+	  URI u = codec.encode(this);
 	  return u.toString();
+  }
 
-	  /*
-	  String ppName = sub.getPhysicalPartition().getName();
-	  String lpName = name;
-	  String s = ppName + "." + lpName;
-	  Integer pp = sub.getPhysicalPartition().getId();
-	  short lp = sub.getLogicalPartition().getId();
-	  if (pp != null && pp.shortValue() == lp){
-		  s += ":" + pp.intValue();
-	  }
-	  return s;
-	  */
+  /**
+   * Given a subscription, the method below constructs a pretty name
+   *
+   * The expected input/output is of the following formats:
+   * 1. subs = ["com.linkedin.events.db.dbPrefix.tableName"]
+   *    prettyName = "dbPrefix_tableName"
+   *
+   * 2. subs = ["com.linkedin.events.db.dbPrefix1.tableName1","com.linkedin.events.db.dbPrefix2.tableName2"],
+   *    prettyName = "dbPrefix1_tableName1_dbPrefix2_tableName2"
+   *
+   * 3. subs =["espresso:/db/1/tableName1"
+   *    prettyName = "db_tableName1_1"
+   *
+   * 4. subs =["espresso:/db/<wildcard>/tableName1"]. where wildcard=*
+   *    prettyName = "db_tableName1"
+   *
+   * 5. subs =["espresso:/db/1/<wildcard>"]. where wildcard=*
+   *    prettyName = "db_1"
+   */
+  public String createPrettyNameFromSubscription()
+  {
+    String s = generateSubscriptionString();
+    URI u = null;
+    try
+    {
+      u = new URI(s);
+    } catch (URISyntaxException e){
+      throw new DatabusRuntimeException("Unable to decode a URI from the string s = " + s + " subscription = " + toString());
+    }
+
+
+    if (null == u.getScheme())
+    {
+      // TODO: Have V2 style subscriptions have an explicit codec type. Make it return "legacy" codec
+      // here. Given a subscription string, we should be able to convert it to DatabusSubscription
+      // in an idempotent way. That is, converting back and forth should give the same value
+
+      // Subscription of type com.linkedin.databus.events.dbName.tableName
+      String[] parts = s.split("\\.");
+      int len = parts.length;
+      if (len == 0)
+      {
+        // Error case
+        String errMsg = "Unexpected format for subscription. sub = " + toString() + " string = " + s;
+        throw new DatabusRuntimeException(errMsg);
+      }
+      else if (len == 1)
+      {
+        // Unit-tests case: logicalSource is specified as "source1"
+        return parts[0];
+      }
+      else
+      {
+        // Expected case. com.linkedin.databus.events.dbName.tableName
+        String pn = parts[len-2] + "_" + parts[len-1];
+        return pn;
+      }
+    }
+    else if (u.getScheme().equals("espresso"))
+    {
+      // Given that this subscription conforms to EspressoSubscriptionUriCodec,
+      // logicalSourceName (DBName.TableName) and partitionNumber(1) are guaranteed to be non-null
+      String dbName = getPhysicalPartition().getName();
+      boolean isWildCardOnTables = getLogicalSource().isAllSourcesWildcard();
+      String name = getLogicalPartition().getSource().getName();
+      boolean isWildCardOnPartitions = getPhysicalPartition().isAnyPartitionWildcard();
+      String pId =  getPhysicalPartition().getId().toString();
+
+      StringBuilder sb = new StringBuilder();
+      sb.append(dbName);
+
+      if (! isWildCardOnTables)
+      {
+        sb.append("_");
+        String[] parts = name.split("\\.");
+        assert(parts.length == 2);
+        sb.append(parts[1]);
+      }
+
+      if (!isWildCardOnPartitions)
+      {
+        sb.append("_");
+        sb.append(pId);
+      }
+
+      s = sb.toString();
+    }
+    else
+    {
+      String errMsg = "The subscription object described as " + toString() + " is not of null or espresso type codec";
+      throw new DatabusRuntimeException(errMsg);
+    }
+    return s;
+  }
+
+  /**
+   * A utility method provided to compute a pretty name when a list of subscriptions are provided.
+   * This is a fairly common use-case when multiple subscriptions are specified in a registration
+   * for Databus V2
+   *
+   * Each of the individual subscriptions prettyNames are concatenated with an "_" in between if they
+   * are different
+   *
+   */
+  public static String getPrettyNameForListOfSubscriptions(List<DatabusSubscription> subscriptions)
+  {
+    if (null == subscriptions)
+    {
+      return "";
+    }
+
+    Set<String> prettyNames = new TreeSet<String>();
+    // Collect all prettyNames
+    for(DatabusSubscription sub: subscriptions)
+    {
+        String curPartName = sub.createPrettyNameFromSubscription();
+        prettyNames.add(curPartName);
+    }
+
+    StringBuilder sb = new StringBuilder();
+    Iterator<String> iter = prettyNames.iterator();
+    while (iter.hasNext())
+    {
+      sb.append(iter.next());
+      if (iter.hasNext())
+      {
+        sb.append("_");
+      }
+    }
+    return sb.toString();
   }
 
   /**
@@ -324,7 +398,7 @@ public class DatabusSubscription
 	  List<String> strSources = new ArrayList<String>();
 	  for (DatabusSubscription sub : sources)
 	  {
-		  String s = DatabusSubscription.createStringFromSubscription(sub);
+		  String s = sub.generateSubscriptionString();
 		  strSources.add(s);
 	  }
 	  return strSources;

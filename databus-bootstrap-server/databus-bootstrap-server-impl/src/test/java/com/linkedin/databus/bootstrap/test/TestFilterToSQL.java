@@ -37,6 +37,7 @@ import com.linkedin.databus.bootstrap.common.BootstrapConfig;
 import com.linkedin.databus.bootstrap.common.BootstrapReadOnlyConfig;
 import com.linkedin.databus.bootstrap.server.BootstrapProcessor;
 import com.linkedin.databus.core.util.InvalidConfigException;
+import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.core.filter.DbusKeyFilter;
 import com.linkedin.databus2.core.filter.KeyFilterConfigHolder;
 import com.linkedin.databus2.core.filter.KeyModFilterConfig;
@@ -50,7 +51,9 @@ public class TestFilterToSQL {
   BootstrapProcessor processor;
   KeyFilterConfigHolder.Config partConf; 
   @BeforeClass
-  public void setUp() throws IOException, InvalidConfigException, InstantiationException, IllegalAccessException, ClassNotFoundException, SQLException
+  public void setUp()
+      throws IOException, DatabusException, InstantiationException, IllegalAccessException, ClassNotFoundException,
+             SQLException
   {
     Logger.getRootLogger().removeAllAppenders();
     Appender defApp = new ConsoleAppender(new SimpleLayout());

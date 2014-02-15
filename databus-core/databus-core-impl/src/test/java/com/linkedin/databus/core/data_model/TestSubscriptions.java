@@ -246,7 +246,7 @@ public class TestSubscriptions
   public void testDefaultCodec() throws Exception
   {
     //databus v2 conversion back and forth
-    DatabusSubscription sub1 = DatabusSubscription.createSimpleSourceSubscription("table1");
+    DatabusSubscription sub1 = DatabusSubscription.createSimpleSourceSubscription(new LogicalSource(1, "table1"));
     String sub1Str = DatabusSubscription.getDefaultCodec().encode(sub1).toString();
     Assert.assertEquals(sub1Str, "table1");
 

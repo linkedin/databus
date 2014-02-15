@@ -19,7 +19,6 @@ package com.linkedin.databus.client;
  */
 
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -46,23 +45,34 @@ public class DispatcherState
 
   public enum StateId
   {
+    //Initial state when is the dispatcher is started
     INITIAL,
+    //Start reading from event buffer and dispatch events.
     START_DISPATCH_EVENTS,
+    //First event of a new window (end of window for the previous window has been seen)
     EXPECT_EVENT_WINDOW,
+    //Start of a window (which will be followed by data events)
     START_STREAM_EVENT_WINDOW,
+    //End of events for a source within a window
     START_STREAM_SOURCE,
+    //Beginning of data events to be streamed
     EXPECT_STREAM_DATA_EVENTS,
+    //End of events for a source within a window (which maybe followed by more sources)
     END_STREAM_SOURCE,
+    //End of a window
     END_STREAM_EVENT_WINDOW,
+    //Rollback is triggered (after error in the consumer)
     ROLLBACK,
+    //After rollback, events are replayed to the consumer
     REPLAY_DATA_EVENTS,
+    //Not used (???)
     STOP_DISPATCH_EVENTS,
+    //Shutdown the dispatcher
     CLOSED
   }
 
   private StateId _stateId;
 
-  //INIITIAL
 
   //START_DISPATCH_EVENTS
   private final Map<Long, IdNamePair> _sources = new HashMap<Long, IdNamePair>();
@@ -76,9 +86,9 @@ public class DispatcherState
 
   private DbusEventBuffer.DbusEventIterator _eventsIterator;
   private DbusEventBuffer.DbusEventIterator _lastSuccessfulIterator;
-  private final Map<Long, List<RegisterResponseEntry>> _payloadSchemaMap =
-      new HashMap<Long, List<RegisterResponseEntry>>();
-  private final List<RegisterResponseMetadataEntry> _metadataSchemaList = new ArrayList<RegisterResponseMetadataEntry>();
+  // Looks like _payloadSchemaMap is a member variable purely for testing purposes. Keeping it thus can
+  // introduce bugs like DDSDBUS-3271. Need to remove the member variable.
+  private final Map<Long, List<RegisterResponseEntry>> _payloadSchemaMap = new HashMap<Long, List<RegisterResponseEntry>>();
   private DbusEventBuffer _buffer;
 
   //EXPECT_EVENT_WINDOW extends START_DISPATCH_EVENTS
@@ -183,7 +193,7 @@ public class DispatcherState
     }
   }
 
-  protected void refreshSchemas()
+  private void refreshSchemas(List<RegisterResponseMetadataEntry> metadataSchemaList)
   {
     final boolean isDebugEnabled = LOG.isDebugEnabled();
     try
@@ -228,13 +238,23 @@ public class DispatcherState
       }
 
       //Refresh metadata schema map
-      if (!_metadataSchemaList.isEmpty())
+      if ((metadataSchemaList != null) && !metadataSchemaList.isEmpty())
       {
-        for (RegisterResponseMetadataEntry e: _metadataSchemaList)
+        for (RegisterResponseMetadataEntry e: metadataSchemaList)
         {
           SchemaId id = new SchemaId(e.getCrc32());
-          _metadataSchemasSet.add(SchemaRegistryService.DEFAULT_METADATA_SCHEMA_SOURCE,e.getVersion(),id,e.getSchema());
-          LOG.info("Added metadata schema version " + e.getVersion() + ",schemaID=0x" + id);
+          if (_metadataSchemasSet.add(SchemaRegistryService.DEFAULT_METADATA_SCHEMA_SOURCE,e.getVersion(),id,e.getSchema()))
+          {
+            LOG.info("Added metadata schema version " + e.getVersion() + ",schemaID=0x" + id);
+          }
+          else
+          {
+            if (isDebugEnabled)
+            {
+              String msg = "Metadata schema version " + e.getVersion() + ",schemaId=0x" + id + " already exists";
+              DbusLogAccumulator.addLog(msg, LOG);
+            }
+          }
         }
       }
       else
@@ -520,11 +540,7 @@ public class DispatcherState
       List<RegisterResponseMetadataEntry> metadataSchemaList)
   {
     _payloadSchemaMap.putAll(schemaMap);
-    if (metadataSchemaList != null)
-    {
-      _metadataSchemaList.addAll(0, metadataSchemaList);
-    }
-    refreshSchemas();
+    refreshSchemas(metadataSchemaList);
     return this;
   }
 }
