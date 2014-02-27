@@ -9,6 +9,11 @@ File getEnvironmentScript()
 
 apply from: environmentScript
 
+project.roup = "databus"
+project.version = "2.0.0"
+
+
+
 ext.externalDependency = [
     'avro': 'org.apache.avro:avro:1.4.0',
     'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
@@ -76,6 +81,9 @@ plugins.withType(JavaPlugin) {
 
     plugins.apply('eclipse')
     plugins.apply('idea')
+    plugins.apply('maven')
+
+
 
 	if (isDefaultEnvironment) {
 	    plugins.apply('findbugs')
