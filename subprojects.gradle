@@ -9,7 +9,6 @@ File getEnvironmentScript()
 
 apply from: environmentScript
 
-project.roup = "databus"
 project.version = "2.0.0"
 
 
