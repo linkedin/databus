@@ -50,8 +50,7 @@ if (isDefaultEnvironment) {
   externalDependency['mysqlConnectorJava'] = 'mysql:mysql-connector-java:5.1.14'
   externalDependency['helixCore'] = 'org.apache.helix:helix-core:0.6.2-incubating'
   externalDependency['or'] = 'com.google:open-replicator:1.0.5'
-
-
+  externalDependency['log4j'] = 'org.slf4j:slf4j-log4j12:1.6.1'
 }
 
 tasks.withType(Compile).all { Compile compile ->
