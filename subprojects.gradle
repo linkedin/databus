@@ -103,14 +103,14 @@ plugins.withType(JavaPlugin) {
 
     // Default dependencies for all subprojects
     dependencies {
-        runtime ext.externalDependency.log4j
+        runtime externalDependency.log4j
         // Force easymock to version 3.1. One of the espresso dependencies changes it to 2.4
         // and v2.4 does not support mocking of classes, causing our espresso unit tests
         // to break.
-        runtime(ext.externalDependency.easymock) {
+        runtime(externalDependency.easymock) {
             force = true
         }
-        compile(ext.externalDependency.easymock) {
+        compile(externalDependency.easymock) {
             force = true
         }
     }
