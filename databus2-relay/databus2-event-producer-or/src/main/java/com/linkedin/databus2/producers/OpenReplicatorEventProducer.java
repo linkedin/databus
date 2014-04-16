@@ -73,7 +73,7 @@ import com.linkedin.databus2.schemas.SchemaRegistryService;
 public class OpenReplicatorEventProducer extends AbstractEventProducer
 {
   public static final Integer DEFAULT_MYSQL_PORT = 3306;
-  public static final Pattern PATH_PATTERN = Pattern.compile("/([0-9]+)/[a-z|A-Z|-]+");
+  public static final Pattern PATH_PATTERN = Pattern.compile("/([0-9]+)/[0-9a-zA-Z-]+");
 
   protected final Logger _log;
   private final OpenReplicator _or;
@@ -181,7 +181,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
    * @return Bin Log Prefix
    * @throws InvalidConfigException if URI is incorrect or missing information
    */
-  static protected String processUri(URI uri, OpenReplicator or) throws InvalidConfigException
+  public static String processUri(URI uri, OpenReplicator or) throws InvalidConfigException
   {
     String userInfo = uri.getUserInfo();
     if (null == userInfo)
