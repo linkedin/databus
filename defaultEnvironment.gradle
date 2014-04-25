@@ -8,10 +8,6 @@ repositories {
   maven {
 	url "http://maven.restlet.org"
   }
-  maven {
-	url "http://git.15c.lijit.com:1984/nexus/content/groups/public/"
-  }
-
 
   // local repo for libs we have to ship with     
   def sandBoxRepo = "${project.rootDir}/sandbox-repo"
