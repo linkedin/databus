@@ -9,7 +9,7 @@ File getEnvironmentScript()
 
 apply from: environmentScript
 
-project.version = "2.0.1-lijit"
+project.version = "2.0.2-sovrn"
 
 
 
