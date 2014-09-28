@@ -170,3 +170,12 @@ task makedir(type:Exec) {
 	workingDir = file(rootDir.toString())
   }
 }
+
+//Turn off javadoc lint for Java 8+
+if (JavaVersion.current().isJava8Compatible()) {
+  allprojects {
+    tasks.withType(Javadoc) {
+      options.addStringOption('Xdoclint:none', '-quiet')
+    }
+  }
+}
