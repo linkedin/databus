@@ -32,8 +32,8 @@ dependencies {
 }
 
 test {
-  ggTestDataDirName = projectDir.absolutePath + "/src/test/TestData"
-  systemProperties.put('test.ggTestDataDir', "${ggTestDataDirName}")
+  ext.ggTestDataDirName = projectDir.absolutePath + "/src/test/TestData"
+  systemProperties.put('test.ggTestDataDir', "${ext.ggTestDataDirName}")
 }
 test.useTestNG()
 test.workingDir = "${project.rootDir}"

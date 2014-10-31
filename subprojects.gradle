@@ -57,7 +57,7 @@ if (isDefaultEnvironment) {
   externalDependency['log4j'] = 'org.slf4j:slf4j-log4j12:1.6.1'
 }
 
-tasks.withType(Compile).all { Compile compile ->
+tasks.withType(JavaCompile).all { JavaCompile compile ->
   compile.options.compilerArgs = ['-Xlint', '-Xlint:-path']
 }
 /* workaround for GRADLE-2243 (http://issues.gradle.org/browse/GRADLE-2243) */

@@ -24,6 +24,6 @@ dependencies {
 
 test {
   useTestNG()
-  testDataDirName = projectDir.absolutePath + "/test_data"
-  systemProperties.put('test.datadir', "${testDataDirName}")
+  ext.testDataDirName = projectDir.absolutePath + "/test_data"
+  systemProperties.put('test.datadir', "${ext.testDataDirName}")
 }
