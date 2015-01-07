@@ -64,10 +64,11 @@ If the relay is started successfully, the output of the following curl command w
 
 # Example Client
 *****
-An example of writing a DatabusClient is available at PersonalClientMain.java. To easily be able to start the client process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-client-pkg/distributions/databus2-example-client-pkg.tgz. This client is configured to get data from the relay started previously, and configured to susbscribe for table Person.
+An example of writing a DatabusClient is available at PersonClientMain.java. To easily be able to start the client process, the code is packaged into a startable command-line package. The tarball may be obtained from build/databus2-example-client-pkg/distributions/databus2-example-client-pkg.tgz. This client is configured to get data from the relay started previously, and configured to susbscribe for table Person.
 
 After extracting to a directory, please cd to that directory and start the client using the following command :
 * `./bin/start-example-client.sh person`
 
 If the client successfully connects to the relay we created earlier, the output of the following curl command would look like below ( indicating a client from localhost has connected to the relay ):
 * $`curl http://localhost:11115/relayStats/outbound/http/clients`
+* `["localhost"]`
