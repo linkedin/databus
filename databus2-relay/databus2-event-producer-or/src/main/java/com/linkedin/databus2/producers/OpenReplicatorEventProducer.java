@@ -510,6 +510,23 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
     throw new RuntimeException("Not supported !!");
   }
 
+  /* (non-Javadoc)
+   * @see com.linkedin.databus2.producers.AbstractEventProducer#isPaused()
+   */
+  @Override
+  public synchronized boolean isPaused()
+  {
+    return _producerThread.isPauseRequested();
+  }
+
+  /* (non-Javadoc)
+   * @see com.linkedin.databus2.producers.AbstractEventProducer#isRunning()
+   */
+  @Override
+  public synchronized boolean isRunning()
+  {
+    return !_producerThread.isShutdownRequested() && !_producerThread.isPauseRequested();
+  }
 
   /* (non-Javadoc)
    * @see com.linkedin.databus2.producers.AbstractEventProducer#unpause()
