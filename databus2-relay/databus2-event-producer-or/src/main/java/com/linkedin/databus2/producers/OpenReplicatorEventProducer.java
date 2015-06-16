@@ -308,9 +308,14 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
 
     private final long _sinceScn;
 
+    private ORListener _orListener;
+
+    private String _sourceName;
+
     public EventProducerThread(String sourceName, long sinceScn)
     {
       super("OpenReplicator_" + sourceName);
+      _sourceName = sourceName;
       _sinceScn = sinceScn;
     }
 
@@ -324,18 +329,19 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       int logid = logid(_sinceScn);
 
       String binlogFile = String.format("%s.%06d", _binlogFilePrefix, logid);
-      ORListener orl = new ORListener(logid, _log, _binlogFilePrefix,
-          _producerThread, _tableUriToSrcIdMap, _tableUriToSrcNameMap,
-          _schemaRegistryService);
+      _orListener = new ORListener(_sourceName, logid, _log,
+          _binlogFilePrefix, _producerThread, _tableUriToSrcIdMap,
+          _tableUriToSrcNameMap, _schemaRegistryService, 200);
 
       _or.setBinlogFileName(binlogFile);
       _or.setBinlogPosition(offset);
-      _or.setBinlogEventListener(orl);
+      _or.setBinlogEventListener(_orListener);
 
       try
       {
         _log.info(String.format("Open Replicator starting from %s@%d", binlogFile, offset));
         _or.start();
+        _orListener.start();
       } catch (Exception e)
       {
         throw new DatabusRuntimeException("failed to start open replicator: " + e.getMessage(), e);
@@ -382,6 +388,9 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       {
         try
         {
+          // Because the current thread is orListener thread, so shutdown() will block the thread itself.
+          // So we just set orListener's shutdown flag, the orListener thead will exit immediately after this function.
+          _orListener.shutdownAsynchronously();
           _or.stop(10, TimeUnit.SECONDS);
         }
         catch (Exception e)
