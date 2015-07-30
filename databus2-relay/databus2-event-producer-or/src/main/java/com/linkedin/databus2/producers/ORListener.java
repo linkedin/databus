@@ -139,7 +139,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   /** Flag to indicate the begining of the txn is seen. Used to indicate  **/
   private boolean _isBeginTxnSeen = false;
 
-  private BlockingQueue<BinlogEventV4> binlogEventQueue = null;
+  private BlockingQueue<BinlogEventV4> _binlogEventQueue = null;
 
   public ORListener(String name,
                     int currentFileNumber,
@@ -159,7 +159,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _tableUriToSrcNameMap = tableUriToSrcNameMap;
     _schemaRegistryService = schemaRegistryService;
     _currFileNum = currentFileNumber;
-    binlogEventQueue = new LinkedBlockingQueue<BinlogEventV4>(maxQueueSize);
+    _binlogEventQueue = new LinkedBlockingQueue<BinlogEventV4>(maxQueueSize);
   }
 
   @Override
@@ -168,13 +168,12 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     boolean isPut = false;
     do {
       try {
-        isPut = binlogEventQueue.offer(event, 100, TimeUnit.MILLISECONDS);
+        isPut = _binlogEventQueue.offer(event, 100, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         _log.error("failed to put binlog event to binlogEventQueue event: " + event, e);
       }
     } while (!isPut && !isShutdownRequested());
   }
-
 
   private void processTableMapEvent(TableMapEvent tme)
   {
@@ -681,18 +680,30 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   public void run() {
     List<BinlogEventV4> eventList = new ArrayList<BinlogEventV4>();
     BinlogEventV4 event;
-    boolean isShutdown = false;
-    while (!isShutdown)
+    while (!isShutdownRequested())
     {
+      if (isPauseRequested())
+      {
+        LOG.info("Pause requested for ORListener. Pausing !!");
+        signalPause();
+        LOG.info("Pausing. Waiting for resume command");
+        try
+        {
+          awaitUnPauseRequest();
+        }
+        catch (InterruptedException e)
+        {
+          _log.info("Interrupted !!");
+        }
+        LOG.info("Resuming ORListener !!");
+        signalResumed();
+        LOG.info("ORListener resumed !!");
+      }
+
       eventList.clear();
-      int eventNumber = binlogEventQueue.drainTo(eventList);
+      int eventNumber = _binlogEventQueue.drainTo(eventList);
       for (int i = 0; i < eventNumber; i++)
       {
-        if (isShutdownRequested())
-        {
-          isShutdown = true;
-          break;
-        }
 
         event = eventList.get(i);
         if (event == null)
@@ -715,6 +726,15 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
               startXtion(qe);
               continue;
             }
+          }
+          else if (event instanceof RotateEvent)
+          {
+            RotateEvent re = (RotateEvent) event;
+            String fileName = re.getBinlogFileName().toString();
+            _log.info("File Rotated : FileName :" + fileName + ", _binlogFilePrefix :" + _binlogFilePrefix);
+            String fileNumStr = fileName.substring(fileName.lastIndexOf(_binlogFilePrefix) + _binlogFilePrefix.length() + 1);
+            _currFileNum = Integer.parseInt(fileNumStr);
+            continue;
           }
 
           if ( ! _isBeginTxnSeen )
@@ -752,20 +772,18 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
               continue;
             }
           }
-          else if (event instanceof RotateEvent)
-          {
-            RotateEvent re = (RotateEvent)event;
-            String fileName = re.getBinlogFileName().toString();
-            _log.info("File Rotated : FileName :" + fileName + ", _binlogFilePrefix :" + _binlogFilePrefix);
-            String fileNumStr = fileName.substring(fileName.lastIndexOf(_binlogFilePrefix) + _binlogFilePrefix.length() + 1);
-            _currFileNum = Integer.parseInt(fileNumStr);
-          }
           else if (event instanceof XidEvent)
           {
             XidEvent xe = (XidEvent)event;
             long xid = xe.getXid();
             _log.debug("Treating XID event with xid = " + xid + " as commit for the transaction");
             endXtion(xe);
+            continue;
+          }
+          else if (event instanceof FormatDescriptionEvent)
+          {
+            // we don't need process this event
+            _log.info("received FormatDescriptionEvent event");
             continue;
           }
           else if (event instanceof WriteRowsEvent)
@@ -803,18 +821,13 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
             TableMapEvent tme = (TableMapEvent)event;
             processTableMapEvent(tme);
           }
-          else if (event instanceof FormatDescriptionEvent)
-          {
-            // we don't need process this event
-            _log.info("receive FormatDescriptionEvent event");
-          }
           else
           {
             _log.warn("Skipping !! Unknown OR event e: " + event);
             continue;
           }
 
-          if ( _log.isDebugEnabled())
+          if (_log.isDebugEnabled())
           {
             _log.debug("e: " + event);
           }
@@ -824,5 +837,6 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       }
     }
     _log.info("ORListener Thread done");
+    doShutdownNotify();
   }
 }
