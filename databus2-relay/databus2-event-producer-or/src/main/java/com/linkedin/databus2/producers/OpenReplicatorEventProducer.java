@@ -312,11 +312,35 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
 
     private String _sourceName;
 
+    private final long _reconnectIntervalMs = 2000;
+    private final long _workIntervalMs = 100;
+
     public EventProducerThread(String sourceName, long sinceScn)
     {
       super("OpenReplicator_" + sourceName);
       _sourceName = sourceName;
       _sinceScn = sinceScn;
+    }
+
+    void initOpenReplicator(long scn)
+    {
+      int offset = offset(scn);
+      int logid = logid(scn);
+
+      String binlogFile = String.format("%s.%06d", _binlogFilePrefix, logid);
+      // we should use a new ORListener to drop the left events in binlogEventQueue and the half processed transaction.
+      _orListener = new ORListener(_sourceName, logid, _log, _binlogFilePrefix, _producerThread, _tableUriToSrcIdMap,
+          _tableUriToSrcNameMap, _schemaRegistryService, 200);
+
+      _or.setBinlogFileName(binlogFile);
+      _or.setBinlogPosition(offset);
+      _or.setBinlogEventListener(_orListener);
+
+      //must set transport and binlogParser to null to drop the old connection environment in reinit case
+      _or.setTransport(null);
+      _or.setBinlogParser(null);
+
+      _log.info(String.format("Open Replicator starting from %s@%d", binlogFile, offset));
     }
 
     @Override
@@ -325,80 +349,134 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       _eventBuffer.start(_sinceScn);
       _startPrevScn.set(_sinceScn);
 
-      int offset = offset(_sinceScn);
-      int logid = logid(_sinceScn);
-
-      String binlogFile = String.format("%s.%06d", _binlogFilePrefix, logid);
-      _orListener = new ORListener(_sourceName, logid, _log,
-          _binlogFilePrefix, _producerThread, _tableUriToSrcIdMap,
-          _tableUriToSrcNameMap, _schemaRegistryService, 200);
-
-      _or.setBinlogFileName(binlogFile);
-      _or.setBinlogPosition(offset);
-      _or.setBinlogEventListener(_orListener);
-
+      initOpenReplicator(_sinceScn);
       try
       {
-        _log.info(String.format("Open Replicator starting from %s@%d", binlogFile, offset));
         _or.start();
         _orListener.start();
       } catch (Exception e)
       {
         throw new DatabusRuntimeException("failed to start open replicator: " + e.getMessage(), e);
       }
-      _log.info("Event Producer Thread done");
 
-    }
-
-    @Override
-    public void onEndTransaction(Transaction txn)
-        throws DatabusException
-    {
-      if (! isShutdownRequested())
+      long lastConnectMs = System.currentTimeMillis();
+      while (!isShutdownRequested())
       {
         if (isPauseRequested())
         {
           LOG.info("Pause requested for OpenReplicator. Pausing !!");
           signalPause();
           LOG.info("Pausing. Waiting for resume command");
-          try { awaitUnPauseRequest(); } catch (InterruptedException e) { _log.info("Interrupted !!"); }
+          try
+          {
+            if (_orListener.isAlive())
+            {
+              _orListener.pause();
+            }
+            awaitUnPauseRequest();
+          }
+          catch (InterruptedException e)
+          {
+            _log.info("Interrupted !!");
+          }
           LOG.info("Resuming OpenReplicator !!");
+          if (_orListener.isAlive())
+          {
+            try
+            {
+              _orListener.unpause();
+            }
+            catch (InterruptedException e)
+            {
+              _log.info("Interrupted !!");
+            }
+          }
           signalResumed();
           LOG.info("OpenReplicator resumed !!");
         }
 
+        if (!_or.isRunning() && System.currentTimeMillis() - lastConnectMs > _reconnectIntervalMs)
+        {
+          lastConnectMs = System.currentTimeMillis();
+          try
+          {
+            //should stop orListener first to get the final maxScn used for init open replicator.
+            if (_orListener.isAlive())
+            {
+              _orListener.shutdown();
+            }
+            long maxScn = _maxSCNReaderWriter.getMaxScn();
+            _startPrevScn.set(maxScn);
+            initOpenReplicator(maxScn);
+            _or.start();
+            _orListener.start();
+            _log.info("start Open Replicator successfully");
+          }
+          catch (Exception e)
+          {
+            _log.error("failed to start Open Replicator", e);
+            if (_or.isRunning())
+            {
+              try
+              {
+                _or.stop(10, TimeUnit.SECONDS);
+              }
+              catch (Exception e2)
+              {
+                _log.error("failed to stop Open Replicator", e2);
+              }
+            }
+          }
+        }
+
         try
         {
-          addTxnToBuffer(txn);
-          _maxSCNReaderWriter.saveMaxScn(txn.getScn());
+          Thread.sleep(_workIntervalMs);
         }
-        catch (UnsupportedKeyException e)
+        catch (InterruptedException e)
         {
-          _log.fatal("Got UnsupportedKeyException exception while adding txn (" + txn + ") to the buffer", e);
-          throw new DatabusException(e);
-        }
-        catch (EventCreationException e)
-        {
-          _log.fatal("Got EventCreationException exception while adding txn (" + txn + ") to the buffer", e);
-          throw new DatabusException(e);
+          _log.info("Interrupted !!");
         }
       }
 
-      if (isShutdownRequested())
+      if (_or.isRunning())
       {
         try
         {
-          // Because the current thread is orListener thread, so shutdown() will block the thread itself.
-          // So we just set orListener's shutdown flag, the orListener thead will exit immediately after this function.
-          _orListener.shutdownAsynchronously();
           _or.stop(10, TimeUnit.SECONDS);
         }
         catch (Exception e)
         {
-          _log.error("Got exception while stopping open replicator",e);
+          _log.error("failed to stop Open Replicator", e);
         }
-        doShutdownNotify();
-        return;
+      }
+      if (_orListener.isAlive())
+      {
+        _orListener.shutdown();
+      }
+
+      _log.info("Event Producer Thread done");
+      doShutdownNotify();
+    }
+
+    @Override
+    public void onEndTransaction(Transaction txn)
+        throws DatabusException
+    {
+      try
+      {
+        addTxnToBuffer(txn);
+        _maxSCNReaderWriter.saveMaxScn(txn.getScn());
+      }
+      catch (UnsupportedKeyException e)
+      {
+        _log.fatal("Got UnsupportedKeyException exception while adding txn (" + txn + ") to the buffer", e);
+        throw new DatabusException(e);
+      }
+      catch (EventCreationException e)
+      {
+        _log.fatal("Got EventCreationException exception while adding txn (" + txn + ") to the buffer", e);
+        throw new DatabusException(e);
       }
     }
 
