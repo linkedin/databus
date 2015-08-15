@@ -290,7 +290,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
       if (null == srcId)
       {
-        throw new DatabusRuntimeException("Could not find a matching logical source for table Uri (" + _currTableName + ")" );
+        _log.info("Could not find a matching logical source for table Uri (" + _currTableName + ")");
+        return;
       }
       assert(_transaction != null);
       _perSourceTransaction = new PerSourceTransaction(srcId);
@@ -304,14 +305,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void endSource()
   {
-    if (_perSourceTransaction != null)
-    {
       _perSourceTransaction = null;
-    }
-    else
-    {
-      throw new DatabusRuntimeException("_perSourceTransaction should not be null in endSource()");
-    }
   }
 
   private void deleteRows(DeleteRowsEventV2 dre)
@@ -368,6 +362,11 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       final long scn = scn(_currFileNum, (int)bh.getPosition());
       final boolean isReplicated = false;
       VersionedSchema vs = _schemaRegistryService.fetchLatestVersionedSchemaBySourceName(_tableUriToSrcNameMap.get(_currTableName));
+      
+      if(vs == null) {
+          // There's nothing to do for this table, we're not listening to it
+          return;
+      }
       Schema schema = vs.getSchema();
 
       if ( _log.isDebugEnabled())
