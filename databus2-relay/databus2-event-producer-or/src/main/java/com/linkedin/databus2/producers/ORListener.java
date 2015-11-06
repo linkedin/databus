@@ -136,6 +136,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   /** Shared queue to transfer binlog events from OpenReplicator to ORlistener thread **/
   private BlockingQueue<BinlogEventV4> _binlogEventQueue = null;
 
+  /** Milli sec timeout for _binlogEventQueue operation **/
+  private long _queueTimeoutMs = 100L;
+
   public ORListener(String name,
                     int currentFileNumber,
                     Logger log,
@@ -144,7 +147,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
                     Map<String, Short> tableUriToSrcIdMap,
                     Map<String, String> tableUriToSrcNameMap,
                     SchemaRegistryService schemaRegistryService,
-                    int maxQueueSize)
+                    int maxQueueSize,
+                    long queueTimeoutMs)
   {
     super("ORListener_" + name);
     _log = log;
@@ -155,6 +159,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _schemaRegistryService = schemaRegistryService;
     _currFileNum = currentFileNumber;
     _binlogEventQueue = new LinkedBlockingQueue<BinlogEventV4>(maxQueueSize);
+    _queueTimeoutMs = queueTimeoutMs;
   }
 
   @Override
@@ -163,7 +168,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     boolean isPut = false;
     do {
       try {
-        isPut = _binlogEventQueue.offer(event, 100, TimeUnit.MILLISECONDS);
+        isPut = _binlogEventQueue.offer(event, _queueTimeoutMs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException e) {
         _log.error("failed to put binlog event to binlogEventQueue event: " + event, e);
       }
@@ -638,9 +643,24 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
       eventList.clear();
       int eventNumber = _binlogEventQueue.drainTo(eventList);
+      if (eventNumber == 0)
+      {
+        try
+        {
+          event = _binlogEventQueue.poll(_queueTimeoutMs, TimeUnit.MILLISECONDS);
+          if (event != null)
+          {
+            eventList.add(event);
+            eventNumber = eventList.size();
+          }
+        }
+        catch (InterruptedException e)
+        {
+          _log.info("Interrupted when poll from _binlogEventQueue!!");
+        }
+      }
       for (int i = 0; i < eventNumber; i++)
       {
-
         event = eventList.get(i);
         if (event == null)
         {

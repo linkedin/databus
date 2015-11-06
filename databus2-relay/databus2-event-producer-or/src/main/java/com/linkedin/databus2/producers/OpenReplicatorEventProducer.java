@@ -330,7 +330,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       String binlogFile = String.format("%s.%06d", _binlogFilePrefix, logid);
       // we should use a new ORListener to drop the left events in binlogEventQueue and the half processed transaction.
       _orListener = new ORListener(_sourceName, logid, _log, _binlogFilePrefix, _producerThread, _tableUriToSrcIdMap,
-          _tableUriToSrcNameMap, _schemaRegistryService, 200);
+          _tableUriToSrcNameMap, _schemaRegistryService, 200, 100L);
 
       _or.setBinlogFileName(binlogFile);
       _or.setBinlogPosition(offset);
