@@ -121,6 +121,10 @@ public class TypeInfoFactory
           columnTypeName = columnTypeParts[1];
         }
 
+        if (columnTypeName.endsWith(" UNSIGNED")) {
+          columnTypeName = columnTypeName.substring(0, columnTypeName.length() - " UNSIGNED".length());
+        }
+
         TypeInfo typeInfo = getTypeInfo(con, columnTypeOwner, columnTypeName, columnPrecision, columnScale,"");
         FieldInfo field = new FieldInfo(columnName, typeInfo, column - 1);
         fields.add(field);
@@ -208,7 +212,7 @@ public class TypeInfoFactory
       throws SQLException
   {
     //For whatever reason, the JDBC driver does not return this as primitive type
-    if (typeName.equalsIgnoreCase("NVARCHAR") 
+    if (typeName.equalsIgnoreCase("NVARCHAR")
     		 || typeName.equalsIgnoreCase("NVARCHAR2")
     		 || typeName.contains("XML"))
     	return true;

@@ -50,7 +50,7 @@ public class SchemaUtils
 
   public static String toCamelCase(String columnName, boolean initialCap)
   {
-    boolean afterUnderscore = false;
+/*    boolean afterUnderscore = false;
     StringBuilder sb = new StringBuilder(columnName.length());
     for(int i=0; i < columnName.length(); i++)
     {
@@ -76,7 +76,9 @@ public class SchemaUtils
       sb.replace(0, 1, sb.substring(0,1).toUpperCase());
     }
 
-    return sb.toString();
+    return sb.toString();*/
+    //FIXME
+    return columnName;
   }
 
   public static boolean in(String needle, String... haystack)

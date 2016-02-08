@@ -1,7 +1,6 @@
 package com.linkedin.databus2.producers;
 
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -41,6 +40,7 @@ import com.google.code.or.common.glossary.Row;
 import com.google.code.or.common.glossary.column.BitColumn;
 import com.google.code.or.common.glossary.column.BlobColumn;
 import com.google.code.or.common.glossary.column.DateColumn;
+import com.google.code.or.common.glossary.column.Datetime2Column;
 import com.google.code.or.common.glossary.column.DatetimeColumn;
 import com.google.code.or.common.glossary.column.DecimalColumn;
 import com.google.code.or.common.glossary.column.DoubleColumn;
@@ -60,6 +60,7 @@ import com.google.code.or.common.glossary.column.YearColumn;
 import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DatabusThreadBase;
 import com.linkedin.databus.core.DbusOpcode;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.ds.DbChangeEntry;
 import com.linkedin.databus2.producers.ds.KeyPair;
@@ -473,11 +474,23 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       ByteBuffer b = ByteBuffer.wrap(ba);
       return b;
     }
+    else if (s instanceof StringColumn)
+    {
+      StringColumn sc = (StringColumn) s;
+      String str = new String(sc.getValue(), StringUtils.DEFAULT_CHARSET);
+      return str;
+    }
     else if (s instanceof BlobColumn)
     {
       BlobColumn bc = (BlobColumn) s;
       byte[] ba = bc.getValue();
-      return ByteBuffer.wrap(ba);
+      //distinguish between blobs and clobs
+      try {
+        return new String(ba, StringUtils.DEFAULT_CHARSET);
+      }
+      catch (Exception e) {
+        return ByteBuffer.wrap(ba);
+      }
     }
     else if (s instanceof DateColumn)
     {
@@ -553,12 +566,6 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Integer i = sc.getValue();
       return i;
     }
-    else if (s instanceof StringColumn)
-    {
-      StringColumn sc = (StringColumn) s;
-      String str = new String(sc.getValue(), Charset.defaultCharset());
-      return str;
-    }
     else if (s instanceof TimeColumn)
     {
       TimeColumn tc = (TimeColumn) s;
@@ -581,6 +588,18 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       TimestampColumn tsc = (TimestampColumn) s;
       Timestamp ts = tsc.getValue();
       Long t = ts.getTime();
+      return t;
+    }
+    else if (s instanceof DatetimeColumn)
+    {
+      DatetimeColumn tsc = (DatetimeColumn) s;
+      Long t = tsc.getValue().getTime();
+      return t;
+    }
+    else if (s instanceof Datetime2Column)
+    {
+      Datetime2Column tsc = (Datetime2Column) s;
+      Long t = tsc.getValue().getTime();
       return t;
     }
     else if (s instanceof TinyColumn)

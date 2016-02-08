@@ -143,6 +143,7 @@ public class OpenReplicatorAvroEventFactory
     catch(RuntimeException ex)
     {
       // Avro likes to throw RuntimeExceptions instead of checked exceptions when serialization fails.
+      _log.error("Exception for record: " + record + " with schema: " + record.getSchema().getFullName());
       throw new EventCreationException("Failed to serialize the Avro GenericRecord", ex);
     }
 
