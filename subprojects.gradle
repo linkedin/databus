@@ -18,7 +18,7 @@ ext.externalDependency = [
     'commonsBeanutils': 'commons-beanutils:commons-beanutils:1.7.0',
     'commonsCli': 'commons-cli:commons-cli:1.2',
     'commonsCodec': 'commons-codec:commons-codec:1.6',
-    'commonsCollections': 'commons-collections:commons-collections:3.2.1',
+    'commonsCollections': 'commons-collections:commons-collections:3.2.2',
     'commonsIo': 'commons-io:commons-io:1.4',
     'commonsLang': 'commons-lang:commons-lang:2.5',
     'commonsLogging': 'commons-logging:commons-logging:1.1',
