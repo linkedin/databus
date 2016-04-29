@@ -140,6 +140,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   /** Milli sec timeout for _binlogEventQueue operation **/
   private long _queueTimeoutMs = 100L;
 
+  private String _curSourceName;
+  private boolean _ignoreSource = false;
+
   public ORListener(String name,
                     int currentFileNumber,
                     Logger log,
@@ -180,8 +183,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   {
     _tableMapEvents.put(tme.getTableId(), tme);
 
-    String newTableName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
-    startSource(newTableName);
+    _curSourceName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
+    startSource(_curSourceName);
   }
 
   private void startXtion(QueryEvent e)
@@ -248,6 +251,11 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private void startSource(String newTableName)
   {
     Short srcId = _tableUriToSrcIdMap.get(newTableName);
+    _ignoreSource = null == srcId;
+    if (_ignoreSource) {
+      LOG.info("Ignoring source: " + newTableName);
+      return;
+    }
 
     assert (_transaction != null);
     if (_transaction.getPerSourceTransaction(srcId) == null)
@@ -258,16 +266,28 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void deleteRows(DeleteRowsEventV2 dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void deleteRows(DeleteRowsEvent dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void updateRows(UpdateRowsEvent ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -280,6 +300,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void updateRows(UpdateRowsEventV2 ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -292,11 +316,19 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void insertRows(WriteRowsEvent wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
   private void insertRows(WriteRowsEventV2 wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
