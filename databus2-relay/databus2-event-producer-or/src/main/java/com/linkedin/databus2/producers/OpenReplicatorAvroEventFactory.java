@@ -171,7 +171,7 @@ public class OpenReplicatorAvroEventFactory
     }
     List<KeyPair> pairs = dbChangeEntry.getPkeys();
     if (null == pairs || pairs.size() == 0) {
-      throw new DatabusException("There do not seem to be any keys");
+      throw new DatabusException("There do not seem to be any keys: " + dbChangeEntry);
     }
 
     if (pairs.size() == 1) {

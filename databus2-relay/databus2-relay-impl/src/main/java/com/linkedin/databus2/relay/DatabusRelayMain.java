@@ -214,6 +214,16 @@ public class DatabusRelayMain extends HttpRelay {
                                             dbusEventBuffer,
                                             _inBoundStatsCollectors.getStatsCollector(statsCollectorName),
                                             maxScnReaderWriters);
+    } else if (uri.startsWith("kafka:")){
+      EventProducerServiceProvider orProvider = _producersRegistry.getEventProducerServiceProvider("kafka");
+      if (null == orProvider)
+      {
+        throw new DatabusRuntimeException("relay event producer not available: " + "kafka");
+      }
+      producer = orProvider.createProducer(pConfig, schemaRegistryService,
+                                           dbusEventBuffer,
+                                           _inBoundStatsCollectors.getStatsCollector(statsCollectorName),
+                                           maxScnReaderWriters);
     } else
      {
 			// Get all relevant pConfig attributes and initialize the nettyThreadPool objects
