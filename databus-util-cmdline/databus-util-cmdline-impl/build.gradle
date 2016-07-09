@@ -2,6 +2,7 @@ apply plugin: 'java'
 
 dependencies {
   compile externalDependency.avro
+  compile externalDependency.guava
   compile externalDependency.log4j
   compile externalDependency.commonsCli
   compile externalDependency.json

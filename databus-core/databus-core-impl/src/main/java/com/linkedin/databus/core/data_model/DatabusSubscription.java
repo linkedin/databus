@@ -209,13 +209,15 @@ public class DatabusSubscription
 	  String[] idx = name.split("\\.");
 	  //v2 mode may have source of form com.linkedin.databus.member2.
 	  // Also wild card logical sources are only supported in V3.
-	  if(idx.length != 2 && !name.equals("*"))
-		  return name;
+	  return name;
+    // FIXME Incorrect base implementation
+	  //if(idx.length != 2 && !name.equals("*"))
+		//  return name;
 
 	  // v3 case
-      SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
-	  URI u = codec.encode(this);
-	  return u.toString();
+    //  SubscriptionUriCodec codec = DatabusSubscription.getUriCodec("espresso");
+	  //URI u = codec.encode(this);
+	  //return u.toString();
   }
 
   /**

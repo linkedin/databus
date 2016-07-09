@@ -24,12 +24,18 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.avro.specific.SpecificCompiler;
+
+import com.google.common.base.Joiner;
 
 /**
  * This tools is replaced by interactive schema generator tool, check InteractiveSchemaGenerator class for more details.
@@ -53,7 +59,7 @@ public class SchemaGeneratorMain
   private final boolean _verbose;
   private final String _driver;
   private final int _avroOutVersion;
-private String _primaryKey;
+  private String _primaryKey;
 
   /**
    * Command line: user/password@connect_string object_name [-driver foo] [-v]
@@ -99,7 +105,7 @@ private String _primaryKey;
                                                          : DEFAULT_USERNAME;
     String password = null != (String)parsedArgs.get("password") ? (String)(String)parsedArgs.get("password")
                                                          : DEFAULT_PASSWORD;
-    
+
     String primaryKey = null != (String) parsedArgs.get("primaryKey") ? (String) parsedArgs.get("primaryKey") : "";
 
     // Show the arguments we read from the command line (helpful when running in an IDE, where you
@@ -222,6 +228,10 @@ private String _primaryKey;
     {
       con = getConnection();
 
+      if (null == _primaryKey || _primaryKey.trim().length() == 0) {
+        readPrimaryKeys(con);
+      }
+
       String owner;
       String table;
       String[] nameParts = _viewName.split("\\.");
@@ -296,6 +306,31 @@ private String _primaryKey;
     }
   }
 
+  private void readPrimaryKeys(Connection conn) throws SQLException, IOException {
+    DatabaseMetaData dbMeta = conn.getMetaData();
+    ResultSet pkRs = null;
+    List<String> pks = new ArrayList<String>();
+    int dotIdx = _viewName.indexOf('.');
+    String simpleTableName = dotIdx < 0 ? _viewName : _viewName.substring(dotIdx + 1);
+    try {
+      pkRs = dbMeta.getPrimaryKeys(null, null, simpleTableName);
+      while (pkRs.next()) {
+        int pkIdx = pkRs.getInt("KEY_SEQ");
+        String pkName = pkRs.getString("COLUMN_NAME");
+        while (pks.size() < pkIdx) {
+          pks.add(null);
+        }
+        pks.set(pkIdx - 1, pkName);
+      }
+    }
+    finally {
+      if (null != pkRs) pkRs.close();
+    }
+    if (pks.size() > 0) {
+      _primaryKey = Joiner.on(',').join(pks);
+    }
+  }
+
   public Connection getConnection()
       throws SQLException
   {
@@ -324,5 +359,5 @@ private String _primaryKey;
       throw ex;
     }
   }
-  
+
 }
