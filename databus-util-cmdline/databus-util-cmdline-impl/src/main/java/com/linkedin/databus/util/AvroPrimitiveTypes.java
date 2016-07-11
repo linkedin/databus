@@ -34,6 +34,7 @@ public enum AvroPrimitiveTypes
   BIGINT("long"),
   RAW("bytes"),
   FLOAT("float"),
+  DECIMAL("double"),
   DOUBLE("double"),
   CLOB("string"),
   VARCHAR("string"),

@@ -257,6 +257,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       return;
     }
 
+    LOG.info("Starting source: " + newTableName);
     assert (_transaction != null);
     if (_transaction.getPerSourceTransaction(srcId) == null)
     {
@@ -270,6 +271,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       LOG.info("Ignoring delete rows for " + _curSourceName);
       return;
     }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
@@ -279,6 +281,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       LOG.info("Ignoring delete rows for " + _curSourceName);
       return;
     }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
@@ -295,7 +298,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void updateRows(UpdateRowsEventV2 ure)
@@ -311,7 +317,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void insertRows(WriteRowsEvent wre)
@@ -320,6 +329,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       LOG.info("Ignoring insert rows for " + _curSourceName);
       return;
     }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
@@ -329,6 +339,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       LOG.info("Ignoring insert rows for " + _curSourceName);
       return;
     }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
@@ -541,10 +552,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     else if (s instanceof DecimalColumn)
     {
       DecimalColumn dc = (DecimalColumn) s;
-      _log.info("dc Value is :" + dc.getValue());
-      String s1 = dc.getValue().toString(); // Convert to string for preserving precision
-      _log.info("Str : " + s1);
-      return s1;
+      Object val = Double.valueOf(dc.getValue().doubleValue());
+      return val;
     }
     else if (s instanceof DoubleColumn)
     {

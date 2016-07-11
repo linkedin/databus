@@ -514,6 +514,12 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
         return;
       }
 
+      List<PerSourceTransaction> sources = txn.getOrderedPerSourceTransactions();
+      if (0 == sources.size()) {
+        _log.info("Ignoring txn: " + txn);
+        return;
+      }
+
       EventSourceStatistics globalStats = getSource(GLOBAL_SOURCE_ID).getStatisticsBean();
 
       _eventBuffer.startEvents();
@@ -522,7 +528,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       long timestamp = txn.getTxnNanoTimestamp();
       List<EventReaderSummary> summaries = new ArrayList<EventReaderSummary>();
 
-      for (PerSourceTransaction t: txn.getOrderedPerSourceTransactions() )
+      for (PerSourceTransaction t: sources )
       {
         long startDbUpdatesMs = System.currentTimeMillis();
         short sourceId = (short)t.getSrcId();
