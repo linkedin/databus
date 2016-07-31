@@ -78,9 +78,9 @@ public class DispatcherState
   private final Map<Long, IdNamePair> _sources = new HashMap<Long, IdNamePair>();
 
   //payload schemas
-  private static final VersionedSchemaSet _schemaSet = new VersionedSchemaSet(true);
+  private final VersionedSchemaSet _schemaSet = new VersionedSchemaSet(true);
   //metadata schemas
-  private static final VersionedSchemaSet _metadataSchemasSet = new VersionedSchemaSet();
+  private final VersionedSchemaSet _metadataSchemasSet = new VersionedSchemaSet();
 
 
 
