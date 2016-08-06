@@ -3331,6 +3331,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
 
               readBuffer.flip();
               boolean hasMoreInStgBuffer = true;
+              boolean preEndPeriodEvent = false;
               while (hasMoreInStgBuffer && readPos.hasNext())
               {
                 writePos.startNewIteration();
@@ -3347,6 +3348,22 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                 {
                 case OK:
                 {
+                  if (readPos.getCurEvent().isEndOfPeriodMarker())
+                  {
+                    if (preEndPeriodEvent)
+                    {
+                      readPos.eventSkipped();
+                      break;
+                    }
+                    else
+                    {
+                      preEndPeriodEvent = true;
+                    }
+                  }
+                  else
+                  {
+                    preEndPeriodEvent = false;
+                  }
                   final int curEventSize = readPos.getCurEvent().size();
                   if (readPos.bytesProcessed() + curEventSize > contiguousCapacity)
                   {
