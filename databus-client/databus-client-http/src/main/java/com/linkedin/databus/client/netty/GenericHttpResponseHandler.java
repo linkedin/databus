@@ -361,11 +361,11 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
       _log.debug("WriteComplete");
       // Future should be done by this time
       ChannelFuture future = e.getFuture();
-    
+
       boolean success = future.isSuccess();
       if(_httpRequest == null && success){
-  	    super.writeComplete(ctx, e);
-  	    return;
+        super.writeComplete(ctx, e);
+        return;
       }
       if(! validateCurrentState(e.getChannel(), MessageState.REQUEST_START)) {
         _httpRequest = null;
