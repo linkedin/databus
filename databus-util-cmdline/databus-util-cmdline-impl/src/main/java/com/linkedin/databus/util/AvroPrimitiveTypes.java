@@ -44,7 +44,17 @@ public enum AvroPrimitiveTypes
   BLOB("bytes"),
   ARRAY("array"),
   TABLE("record"),
-  XMLTYPE("string");
+  XMLTYPE("string"),
+  TINYINT("int"),
+  TINYINT_UNSIGNED("int"),
+  SMALLINT("int"),
+  SMALLINT_UNSIGNED("int"),
+  MEDIUMINT("int"),
+  MEDIUMINT_UNSIGNED("int"),
+  INT("int"),
+  INT_UNSIGNED("int"),
+  BIGINT("long"),
+  BIGINT_UNSIGNED("long");
 
   private final String _avroType;
   private AvroPrimitiveTypes(String avroType)
