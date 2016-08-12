@@ -28,7 +28,8 @@ package com.linkedin.databus.util;
  */
 public enum AvroPrimitiveTypes
 {
-  INTEGER("int"),
+  INTEGER("long"),
+  INTEGER_UNSIGNED("long"),
   LONG("long"),
   RAW("bytes"),
   FLOAT("float"),
@@ -51,8 +52,8 @@ public enum AvroPrimitiveTypes
   SMALLINT_UNSIGNED("int"),
   MEDIUMINT("int"),
   MEDIUMINT_UNSIGNED("int"),
-  INT("int"),
-  INT_UNSIGNED("int"),
+  INT("long"),
+  INT_UNSIGNED("long"),
   BIGINT("long"),
   BIGINT_UNSIGNED("long");
 
