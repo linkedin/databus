@@ -30,7 +30,28 @@ public class SimpleTypeInfo
 
   public SimpleTypeInfo(String name, int precision, int scale)
   {
-    if(name.equals("NUMBER"))
+    boolean unsigned = false;
+    if (name.contains(" "))
+    {
+      String nameArr[] = name.split(" ");
+      if (nameArr[1].trim().toLowerCase().equals("unsigned"))
+      {
+        unsigned = true;
+      }
+      name = nameArr[0];
+    }
+    if (name.toLowerCase().equals("integer") || name.toLowerCase().endsWith("int"))
+    {
+      if ((precision > 9) || (precision == 0))
+      {
+        _type = unsigned ? AvroPrimitiveTypes.BIGINT_UNSIGNED : AvroPrimitiveTypes.BIGINT;
+      }
+      else
+      {
+        _type = AvroPrimitiveTypes.valueOf((name + (unsigned ? "_unsigned" : "")).toUpperCase());
+      }
+    }
+    else if(name.equals("NUMBER"))
     {
       if(scale > 0)
       {

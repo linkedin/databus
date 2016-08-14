@@ -1,5 +1,6 @@
 package com.linkedin.databus2.producers;
 
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.sql.Time;
@@ -16,6 +17,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.avro.Schema;
+import org.apache.avro.Schema.Field;
 import org.apache.avro.generic.GenericData;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.log4j.Logger;
@@ -138,6 +140,13 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   /** Milli sec timeout for _binlogEventQueue operation **/
   private long _queueTimeoutMs = 100L;
+  
+  /** correct unsigned int type*/
+  public static final int TINYINT_MAX_VALUE = 256;
+  public static final int SMALLINT_MAX_VALUE = 65536;
+  public static final int MEDIUMINT_MAX_VALUE = 16777216;
+  public static final long INTEGER_MAX_VALUE = 4294967296L;
+  public static final BigInteger BIGINT_MAX_VALUE = new BigInteger("18446744073709551616");
 
   public ORListener(String name,
                     int currentFileNumber,
@@ -444,7 +453,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     try
     {
       if (! isFieldNull)
-        fieldValueObj =  orToAvroType(fieldValue);
+        fieldValueObj =  orToAvroType(fieldValue, avroField);
       else
         fieldValueObj = null;
 
@@ -461,8 +470,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   /**
    * Given a OR Column, it returns a corresponding Java object that can be inserted into
    * AVRO record
+ * @param avroField 
    */
-  private Object orToAvroType(Column s)
+  private Object orToAvroType(Column s, Field avroField)
       throws DatabusException
   {
     if (s instanceof BitColumn)
@@ -523,19 +533,31 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     {
       Int24Column ic = (Int24Column) s;
       Integer i = ic.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        i += ORListener.MEDIUMINT_MAX_VALUE;
+      }
       return i;
     }
     else if (s instanceof LongColumn)
     {
       LongColumn lc = (LongColumn) s;
-      Integer i = lc.getValue();
-      return i;
+      Long l = lc.getValue().longValue();
+      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        l += ORListener.INTEGER_MAX_VALUE;
+      }
+      return l;
     }
     else if (s instanceof LongLongColumn)
     {
       LongLongColumn llc = (LongLongColumn) s;
-      Long l = llc.getValue();
-      return l;
+      BigInteger b = new BigInteger(llc.getValue()+"");
+      if (b.compareTo(BigInteger.ZERO) < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        b = b.add(ORListener.BIGINT_MAX_VALUE);
+      }
+      return b;
     }
     else if (s instanceof NullColumn)
     {
@@ -551,6 +573,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     {
       ShortColumn sc = (ShortColumn) s;
       Integer i = sc.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        i = i + ORListener.SMALLINT_MAX_VALUE;
+      }
       return i;
     }
     else if (s instanceof StringColumn)
@@ -587,6 +613,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     {
       TinyColumn tc = (TinyColumn) s;
       Integer i = tc.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        i = i + ORListener.TINYINT_MAX_VALUE;
+      }
       return i;
     }
     else if (s instanceof YearColumn)
