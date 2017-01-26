@@ -2,7 +2,6 @@ package com.linkedin.databus2.producers;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -43,6 +42,7 @@ import com.google.code.or.common.glossary.Row;
 import com.google.code.or.common.glossary.column.BitColumn;
 import com.google.code.or.common.glossary.column.BlobColumn;
 import com.google.code.or.common.glossary.column.DateColumn;
+import com.google.code.or.common.glossary.column.Datetime2Column;
 import com.google.code.or.common.glossary.column.DatetimeColumn;
 import com.google.code.or.common.glossary.column.DecimalColumn;
 import com.google.code.or.common.glossary.column.DoubleColumn;
@@ -62,6 +62,7 @@ import com.google.code.or.common.glossary.column.YearColumn;
 import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DatabusThreadBase;
 import com.linkedin.databus.core.DbusOpcode;
+import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.ds.DbChangeEntry;
 import com.linkedin.databus2.producers.ds.KeyPair;
@@ -148,6 +149,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   public static final long INTEGER_MAX_VALUE = 4294967296L;
   public static final BigInteger BIGINT_MAX_VALUE = new BigInteger("18446744073709551616");
 
+  private String _curSourceName;
+  private boolean _ignoreSource = false;
+
   public ORListener(String name,
                     int currentFileNumber,
                     Logger log,
@@ -188,8 +192,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   {
     _tableMapEvents.put(tme.getTableId(), tme);
 
-    String newTableName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
-    startSource(newTableName);
+    _curSourceName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
+    startSource(_curSourceName);
   }
 
   private void startXtion(QueryEvent e)
@@ -256,7 +260,13 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private void startSource(String newTableName)
   {
     Short srcId = _tableUriToSrcIdMap.get(newTableName);
+    _ignoreSource = null == srcId;
+    if (_ignoreSource) {
+      LOG.info("Ignoring source: " + newTableName);
+      return;
+    }
 
+    LOG.info("Starting source: " + newTableName);
     assert (_transaction != null);
     if (_transaction.getPerSourceTransaction(srcId) == null)
     {
@@ -266,16 +276,30 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void deleteRows(DeleteRowsEventV2 dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void deleteRows(DeleteRowsEvent dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void updateRows(UpdateRowsEvent ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -283,11 +307,18 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void updateRows(UpdateRowsEventV2 ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -295,16 +326,29 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void insertRows(WriteRowsEvent wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
   private void insertRows(WriteRowsEventV2 wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
@@ -483,11 +527,23 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       ByteBuffer b = ByteBuffer.wrap(ba);
       return b;
     }
+    else if (s instanceof StringColumn)
+    {
+      StringColumn sc = (StringColumn) s;
+      String str = new String(sc.getValue(), StringUtils.DEFAULT_CHARSET);
+      return str;
+    }
     else if (s instanceof BlobColumn)
     {
       BlobColumn bc = (BlobColumn) s;
       byte[] ba = bc.getValue();
-      return ByteBuffer.wrap(ba);
+      //distinguish between blobs and clobs
+      try {
+        return new String(ba, StringUtils.DEFAULT_CHARSET);
+      }
+      catch (Exception e) {
+        return ByteBuffer.wrap(ba);
+      }
     }
     else if (s instanceof DateColumn)
     {
@@ -506,10 +562,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     else if (s instanceof DecimalColumn)
     {
       DecimalColumn dc = (DecimalColumn) s;
-      _log.info("dc Value is :" + dc.getValue());
-      String s1 = dc.getValue().toString(); // Convert to string for preserving precision
-      _log.info("Str : " + s1);
-      return s1;
+      Object val = Double.valueOf(dc.getValue().doubleValue());
+      return val;
     }
     else if (s instanceof DoubleColumn)
     {
@@ -579,12 +633,6 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       }
       return i;
     }
-    else if (s instanceof StringColumn)
-    {
-      StringColumn sc = (StringColumn) s;
-      String str = new String(sc.getValue(), Charset.defaultCharset());
-      return str;
-    }
     else if (s instanceof TimeColumn)
     {
       TimeColumn tc = (TimeColumn) s;
@@ -607,6 +655,18 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       TimestampColumn tsc = (TimestampColumn) s;
       Timestamp ts = tsc.getValue();
       Long t = ts.getTime();
+      return t;
+    }
+    else if (s instanceof DatetimeColumn)
+    {
+      DatetimeColumn tsc = (DatetimeColumn) s;
+      Long t = tsc.getValue().getTime();
+      return t;
+    }
+    else if (s instanceof Datetime2Column)
+    {
+      Datetime2Column tsc = (Datetime2Column) s;
+      Long t = tsc.getValue().getTime();
       return t;
     }
     else if (s instanceof TinyColumn)
