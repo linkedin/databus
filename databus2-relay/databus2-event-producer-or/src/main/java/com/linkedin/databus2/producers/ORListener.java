@@ -226,6 +226,12 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _transaction.setSizeInBytes(_currTxnSizeInBytes);
     _transaction.setTxnNanoTimestamp(_currTxnTimestamp);
     _transaction.setTxnReadLatencyNanos(txnReadLatency);
+
+    if(_ignoreSource) {
+      long scn = scn(_currFileNum, (int)e.getHeader().getPosition());
+      _transaction.setIgnoredSourceScn(scn);
+    }
+
     try
     {
       _txnProcessor.onEndTransaction(_transaction);

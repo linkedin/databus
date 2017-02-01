@@ -50,6 +50,18 @@ public class Transaction
 	 */
 	private long _txnNanoTimestamp;
 
+	private long ignoredSourceScn = -1;
+
+
+	public long getIgnoredSourceScn() {
+		return ignoredSourceScn;
+	}
+
+	public void setIgnoredSourceScn(long ignoredSourceScn) {
+		this.ignoredSourceScn = ignoredSourceScn;
+	}
+
+
 	public Transaction()
 	{
 		_perSourceTxnEntries = new HashMap<Integer,PerSourceTransaction>();
