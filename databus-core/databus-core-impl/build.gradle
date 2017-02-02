@@ -16,6 +16,7 @@ dependencies {
   compile externalDependency.json
   compile externalDependency.log4j
   compile externalDependency.netty
+  compile 'com.mchange:c3p0:0.9.5'
 
   testCompile externalDependency.testng
   testCompile externalDependency.easymock
