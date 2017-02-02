@@ -30,15 +30,14 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
     }
 
 
-    public static MysqlMaxSCNHandler create(StaticConfig config) throws InvalidConfigException {
+    public static MysqlMaxSCNHandler create(StaticConfig config) throws DatabusException {
         ComboPooledDataSource cpds = createConnectionPool(config);
         MysqlMaxSCNHandler handler = new MysqlMaxSCNHandler(config, cpds);
         handler.loadInitialValue(cpds);
         return handler;
     }
-    //TODO : flushinterval, extract queries
 
-    private void loadInitialValue(ComboPooledDataSource cpds) {
+    private void loadInitialValue(ComboPooledDataSource cpds) throws DatabusException {
         Statement stmt = null;
         Connection connection = null;
         try {
@@ -49,6 +48,7 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
                 LOG.info("Initial max SCN does not exist in datastore. Defaulting to initial value from configuration: "
                         + staticConfig.getInitVal());
                 _scn.set(staticConfig.getInitVal());
+                writeScnToDataStore();
                 return;
             }
             while(rs.next()) {
@@ -56,8 +56,8 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
             }
             rs.close();
         } catch (SQLException e) {
-            LOG.error("Could not read initial SCN value ",e);
-        }finally {
+            throw new DatabusException("unable to load initial SCN value",e);
+        } finally {
             if(stmt!=null){
                 try {
                     stmt.close();
@@ -73,12 +73,12 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
         }
     }
 
-    private static ComboPooledDataSource createConnectionPool(StaticConfig staticConfig) {
+    private static ComboPooledDataSource createConnectionPool(StaticConfig staticConfig) throws DatabusException {
         ComboPooledDataSource cpds = new ComboPooledDataSource();
         try {
             cpds.setDriverClass( staticConfig.getDriverClass() );
         } catch (PropertyVetoException e) {
-            e.printStackTrace();
+            throw new DatabusException("Unable to create connection pool",e);
         }
         cpds.setJdbcUrl(staticConfig.getJdbcUrl());
         cpds.setUser(staticConfig.getDbUser());
@@ -104,7 +104,7 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
         }
     }
 
-    private void writeScnToDataStore() {
+    private void writeScnToDataStore() throws DatabusException {
         LOG.info("save max scn to mysql");
         PreparedStatement stmt = null;
         Connection connection = null;
@@ -116,6 +116,7 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
             LOG.info("scn inserted "+_scn.get() +", success : "+i);
         } catch (SQLException e) {
             LOG.error("Could not persist SCN value "+_scn.get(),e);
+            throw new DatabusException("Could not persist SCN value "+_scn.get(),e);
         }finally {
             if(stmt!=null){
                 try {
@@ -132,7 +133,7 @@ public class MysqlMaxSCNHandler  implements MaxSCNReaderWriter {
         }
     }
 
-    public void destroy() {
+    public void destroy() throws DatabusException {
         LOG.info("destory() called, saving scn file before shutting down.");
         writeScnToDataStore();
         cpds.close();
