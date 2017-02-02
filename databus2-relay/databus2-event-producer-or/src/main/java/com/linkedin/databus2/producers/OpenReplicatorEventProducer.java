@@ -478,7 +478,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       try
       {
         addTxnToBuffer(txn);
-        _maxSCNReaderWriter.saveMaxScn(txn.getScn());
+        _maxSCNReaderWriter.saveMaxScn(txn.getIgnoredSourceScn()!=-1 ? txn.getIgnoredSourceScn() : txn.getScn());
       }
       catch (UnsupportedKeyException e)
       {
