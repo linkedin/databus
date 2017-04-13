@@ -28,10 +28,12 @@ package com.linkedin.databus.util;
  */
 public enum AvroPrimitiveTypes
 {
-  INTEGER("int"),
+  INTEGER("long"),
+  INTEGER_UNSIGNED("long"),
   LONG("long"),
   RAW("bytes"),
   FLOAT("float"),
+  DECIMAL("double"),
   DOUBLE("double"),
   CLOB("string"),
   VARCHAR("string"),
@@ -39,12 +41,23 @@ public enum AvroPrimitiveTypes
   NVARCHAR("string"),
   NVARCHAR2("string"),
   TIMESTAMP("long"),
+  DATETIME("long"),
   CHAR("string"),
   DATE("long"),
   BLOB("bytes"),
   ARRAY("array"),
   TABLE("record"),
-  XMLTYPE("string");
+  XMLTYPE("string"),
+  TINYINT("int"),
+  TINYINT_UNSIGNED("int"),
+  SMALLINT("int"),
+  SMALLINT_UNSIGNED("int"),
+  MEDIUMINT("int"),
+  MEDIUMINT_UNSIGNED("int"),
+  INT("long"),
+  INT_UNSIGNED("long"),
+  BIGINT("long"),
+  BIGINT_UNSIGNED("long");
 
   private final String _avroType;
   private AvroPrimitiveTypes(String avroType)
