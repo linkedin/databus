@@ -57,7 +57,8 @@ public enum AvroPrimitiveTypes
   INT("long"),
   INT_UNSIGNED("long"),
   BIGINT("long"),
-  BIGINT_UNSIGNED("long");
+  BIGINT_UNSIGNED("long"),
+  YEAR("int");
 
   private final String _avroType;
   private AvroPrimitiveTypes(String avroType)
