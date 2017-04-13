@@ -415,7 +415,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     {
       if (pkSchema.isPartOfPrimaryKey(field))
       {
-        o = cl.get(cnt).getValue();
+        o = orToAvroType(cl.get(cnt), field);
         st = field.schema().getType();
         KeyPair kp = new KeyPair(o, st);
         kpl.add(kp);
