@@ -219,7 +219,7 @@ public class SchemaHelper
     return Utils.md5(schema.getBytes(Charset.defaultCharset()));
   }
   
-  private static Map<String,List<Field>> orderedMap=new ConcurrentHashMap<String, List<Field>>();
+  private static Map<String,List<Field>> orderedMap = new ConcurrentHashMap<String, List<Field>>();
   /**
    * Order the fields  present in the schema based on the metaFieldName and comparator being passed.
    *
