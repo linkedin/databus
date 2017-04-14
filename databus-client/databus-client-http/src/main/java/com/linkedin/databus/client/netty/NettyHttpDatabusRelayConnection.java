@@ -23,11 +23,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.ClosedChannelException;
+import java.nio.charset.Charset;
 import java.util.Formatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.codehaus.jackson.type.TypeReference;
@@ -51,6 +53,7 @@ import com.linkedin.databus.core.DbusConstants;
 import com.linkedin.databus.core.DbusPrettyLogUtils;
 import com.linkedin.databus.core.async.ActorMessageQueue;
 import com.linkedin.databus.core.data_model.PhysicalPartition;
+import com.linkedin.databus.core.util.CompressUtil;
 import com.linkedin.databus.core.util.IdNamePair;
 import com.linkedin.databus.core.util.Range;
 import com.linkedin.databus2.core.container.DatabusHttpHeaders;
@@ -67,6 +70,7 @@ public class NettyHttpDatabusRelayConnection
 {
   public static final String MODULE = NettyHttpDatabusRelayConnection.class.getName();
   public static final Logger LOG = Logger.getLogger(MODULE);
+  public static final boolean needCompress = true;
 
   private static enum State
   {
@@ -239,7 +243,7 @@ public class NettyHttpDatabusRelayConnection
       uriString.append("&sources=")
                .append(_sourcesSubsList);
     }
-
+    uriString.append("&").append(DatabusHttpHeaders.PROTOCOL_COMPRESS_PARAM).append("=").append(needCompress);
     final String url = uriString.toString();
     return url;
   }
@@ -710,6 +714,19 @@ class RegisterHttpResponseProcessor extends BaseHttpResponseProcessor
       else
       {
         InputStream bodyStream = Channels.newInputStream(_decorated);
+        String bodyStr = IOUtils.toString(bodyStream,Charset.defaultCharset().name());
+        IOUtils.closeQuietly(bodyStream);
+        if (NettyHttpDatabusRelayConnection.needCompress)
+        {
+          try
+          {
+            bodyStr = CompressUtil.uncompress(bodyStr);
+          }
+          catch (Exception e)//failed because the steam may be not compressed
+          {
+          }
+        }
+
         ObjectMapper mapper = new ObjectMapper();
         int registerResponseVersion = 3;  // either 2 or 3 would suffice here; we care only about 4
 
@@ -734,7 +751,7 @@ class RegisterHttpResponseProcessor extends BaseHttpResponseProcessor
         if (registerResponseVersion == 4)  // DDSDBUS-2009
         {
           HashMap<String, List<Object>> responseMap =
-              mapper.readValue(bodyStream, new TypeReference<HashMap<String, List<Object>>>() {});
+              mapper.readValue(bodyStr, new TypeReference<HashMap<String, List<Object>>>() {});
 
           // Look for mandatory SOURCE_SCHEMAS_KEY.
           Map<Long, List<RegisterResponseEntry>> sourcesSchemasMap = RegisterResponseEntry.createFromResponse(responseMap,
@@ -760,7 +777,7 @@ class RegisterHttpResponseProcessor extends BaseHttpResponseProcessor
         else // version 2 or 3
         {
           List<RegisterResponseEntry> schemasList =
-              mapper.readValue(bodyStream, new TypeReference<List<RegisterResponseEntry>>() {});
+              mapper.readValue(bodyStr, new TypeReference<List<RegisterResponseEntry>>() {});
 
           Map<Long, List<RegisterResponseEntry>> sourcesSchemasMap = RegisterResponseEntry.convertSchemaListToMap(schemasList);
 
