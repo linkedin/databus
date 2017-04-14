@@ -517,61 +517,6 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
     return;
   }
-  
-  private long unsignedOffset(Column s, Field avroField)
-  {
-    if (s instanceof Int24Column)
-    {
-      Int24Column ic = (Int24Column) s;
-      Integer i = ic.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.MEDIUMINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof LongColumn)
-    {
-      LongColumn lc = (LongColumn) s;
-      Long i = lc.getValue().longValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.INTEGER_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof LongLongColumn)
-    {
-      LongLongColumn llc = (LongLongColumn) s;
-      Long l = llc.getValue();
-      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.BIGINT_MAX_VALUE.longValue();
-      }
-      return 0;
-    }
-    else if (s instanceof ShortColumn)
-    {
-      ShortColumn sc = (ShortColumn) s;
-      Integer i = sc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.SMALLINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof TinyColumn)
-    {
-      TinyColumn tc = (TinyColumn) s;
-      Integer i = tc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.TINYINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    return 0;
-  }
 
   /**
    * Given a OR Column, it returns a corresponding Java object that can be inserted into
@@ -633,6 +578,61 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     {
       throw new DatabusRuntimeException("Unknown schema type " + fieldTypeSchemaStr + " Object = " + s);
     }
+  }
+  
+  private long unsignedOffset(Column s, Field avroField)
+  {
+    if (s instanceof Int24Column)
+    {
+      Int24Column ic = (Int24Column) s;
+      Integer i = ic.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        return ORListener.MEDIUMINT_MAX_VALUE;
+      }
+      return 0;
+    }
+    else if (s instanceof LongColumn)
+    {
+      LongColumn lc = (LongColumn) s;
+      Long i = lc.getValue().longValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        return ORListener.INTEGER_MAX_VALUE;
+      }
+      return 0;
+    }
+    else if (s instanceof LongLongColumn)
+    {
+      LongLongColumn llc = (LongLongColumn) s;
+      Long l = llc.getValue();
+      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        return ORListener.BIGINT_MAX_VALUE.longValue();
+      }
+      return 0;
+    }
+    else if (s instanceof ShortColumn)
+    {
+      ShortColumn sc = (ShortColumn) s;
+      Integer i = sc.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        return ORListener.SMALLINT_MAX_VALUE;
+      }
+      return 0;
+    }
+    else if (s instanceof TinyColumn)
+    {
+      TinyColumn tc = (TinyColumn) s;
+      Integer i = tc.getValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      {
+        return ORListener.TINYINT_MAX_VALUE;
+      }
+      return 0;
+    }
+    return 0;
   }
 
   /**
