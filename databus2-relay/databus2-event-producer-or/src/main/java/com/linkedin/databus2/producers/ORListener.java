@@ -377,7 +377,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       {
         List<Column> cl = r.getColumns();
         GenericRecord gr = new GenericData.Record(schema);
-        generateAvroEvent(schema, cl, gr);
+        generateAvroEvent(vs, cl, gr);
 
         List<KeyPair> kps = generateKeyPair(cl, schema);
 
@@ -426,21 +426,11 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     return kpl;
   }
 
-  private void generateAvroEvent(Schema schema, List<Column> cols, GenericRecord record)
+  private void generateAvroEvent(VersionedSchema vs, List<Column> cols, GenericRecord record)
       throws DatabusException
   {
     // Get Ordered list of field by dbFieldPosition
-    List<Schema.Field> orderedFields = SchemaHelper.getOrderedFieldsByMetaField(schema, "dbFieldPosition", new Comparator<String>() {
-
-      @Override
-      public int compare(String o1, String o2)
-      {
-        Integer pos1 = Integer.parseInt(o1);
-        Integer pos2 = Integer.parseInt(o2);
-
-        return pos1.compareTo(pos2);
-      }
-    });
+    List<Schema.Field> orderedFields = SchemaHelper.getOrderedFieldsByDBFieldPosition(vs);
 
     // Build Map<AvroFieldType, Columns>
     if (orderedFields.size() != cols.size())
