@@ -51,6 +51,7 @@ public class DatabusHttpHeaders
 
   /** protocol version param name for /register request */
   public static final String PROTOCOL_VERSION_PARAM = "protocolVersion";
+  public static final String PROTOCOL_COMPRESS_PARAM = "compress";
 
   /** max event version - max DbusEvent version client can understand */
   public static final String MAX_EVENT_VERSION = "maxev";
