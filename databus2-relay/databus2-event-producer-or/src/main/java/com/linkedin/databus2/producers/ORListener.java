@@ -565,7 +565,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 	{
 		if (!(s.getValue() instanceof byte[]))
 		{
-			throw new DatabusException("某字段被配置为bytes，但实际不能转换为bytes");
+			throw new DatabusException(avroField.name()+" need convert to bytes,but the column type is " + s.getClass());
 		}
 		byte[] byteArr = (byte[]) s.getValue();
 		return ByteBuffer.wrap(byteArr);
