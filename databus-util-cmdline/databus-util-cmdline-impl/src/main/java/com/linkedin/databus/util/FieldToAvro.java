@@ -202,7 +202,7 @@ public class FieldToAvro
     field.put("default", null);
 
     // Field type
-    String[] type = new String[] { typeInfo.getPrimitiveType().getAvroType(), "null"};
+    String[] type = new String[] {"null", typeInfo.getPrimitiveType().getAvroType()};
     field.put("type", type);
 
     // Field metadata
