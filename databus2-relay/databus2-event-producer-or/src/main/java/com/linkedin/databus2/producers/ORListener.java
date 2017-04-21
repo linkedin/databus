@@ -2,6 +2,7 @@ package com.linkedin.databus2.producers;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -515,109 +516,91 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private Object orToAvroType(Column s, Field avroField)
       throws DatabusException
   {
-    if (s instanceof BitColumn)
+	if (s instanceof NullColumn)
+	{
+		return null;
+	}
+	String fieldTypeSchemaStr = avroField.schema().toString();
+	if (fieldTypeSchemaStr.contains("int"))
+	{
+		return Integer.parseInt(s.getValue() + "") + (int) unsignedOffset(s, avroField);
+	}
+	if (fieldTypeSchemaStr.contains("long"))
+	{
+		if (s.getValue() instanceof Date)
+		{
+			return ((Date) s.getValue()).getTime();
+		}
+		if (s instanceof LongLongColumn)
+		{
+			LongLongColumn llc = (LongLongColumn) s;
+			BigInteger b = new BigInteger(llc.getValue() + "");
+			return b.add(new BigInteger(unsignedOffset(s, avroField) + ""));
+		}
+		return Long.parseLong(s.getValue() + "") + unsignedOffset(s, avroField);
+	}
+	if (fieldTypeSchemaStr.contains("double"))
+	{
+		return Double.parseDouble(s.getValue() + "");
+	}
+	if (fieldTypeSchemaStr.contains("string"))
+	{
+		if (s.getValue() instanceof byte[])
+		{
+			return new String((byte[]) s.getValue(), Charset.defaultCharset());
+		}
+		return s.getValue() + "";
+	}
+	if (fieldTypeSchemaStr.contains("bytes"))
+	{
+		if (!(s.getValue() instanceof byte[]))
+		{
+			throw new DatabusException(avroField.name()+" need convert to bytes,but the column type is " + s.getClass());
+		}
+		byte[] byteArr = (byte[]) s.getValue();
+		return ByteBuffer.wrap(byteArr);
+	}
+	if (fieldTypeSchemaStr.contains("float"))
+	{
+		return Float.parseFloat(s.getValue() + "");
+	}
+    else
     {
-      // This is in  byte order
-      BitColumn bc = (BitColumn) s;
-      byte[] ba = bc.getValue();
-      ByteBuffer b = ByteBuffer.wrap(ba);
-      return b;
+      throw new DatabusRuntimeException("Unknown schema type " + fieldTypeSchemaStr + " Object = " + s);
     }
-    else if (s instanceof StringColumn)
-    {
-      StringColumn sc = (StringColumn) s;
-      String str = new String(sc.getValue(), StringUtils.DEFAULT_CHARSET);
-      return str;
-    }
-    else if (s instanceof BlobColumn)
-    {
-      BlobColumn bc = (BlobColumn) s;
-      byte[] ba = bc.getValue();
-      //distinguish between blobs and clobs
-      try {
-        return new String(ba, StringUtils.DEFAULT_CHARSET);
-      }
-      catch (Exception e) {
-        return ByteBuffer.wrap(ba);
-      }
-    }
-    else if (s instanceof DateColumn)
-    {
-      DateColumn dc =  (DateColumn) s;
-      Date d = dc.getValue();
-      Long l = d.getTime();
-      return l;
-    }
-    else if (s instanceof DatetimeColumn)
-    {
-      DatetimeColumn dc = (DatetimeColumn) s;
-      Date d = dc.getValue();
-      Long t1 = (d.getTime()/1000) * 1000; //Bug in OR for DateTIme and Time data-types. MilliSeconds is not available for these columns but is set with currentMillis() wrongly.
-      return t1;
-    }
-    else if (s instanceof DecimalColumn)
-    {
-      DecimalColumn dc = (DecimalColumn) s;
-      Object val = Double.valueOf(dc.getValue().doubleValue());
-      return val;
-    }
-    else if (s instanceof DoubleColumn)
-    {
-      DoubleColumn dc = (DoubleColumn) s;
-      Double d = dc.getValue();
-      return d;
-    }
-    else if (s instanceof EnumColumn)
-    {
-      EnumColumn ec = (EnumColumn) s;
-      Integer i = ec.getValue();
-      return i;
-    }
-    else if (s instanceof FloatColumn)
-    {
-      FloatColumn fc = (FloatColumn) s;
-      Float f = fc.getValue();
-      return f;
-    }
-    else if (s instanceof Int24Column)
+  }
+  
+  private long unsignedOffset(Column s, Field avroField)
+  {
+    if (s instanceof Int24Column)
     {
       Int24Column ic = (Int24Column) s;
       Integer i = ic.getValue();
       if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
       {
-        i += ORListener.MEDIUMINT_MAX_VALUE;
+        return ORListener.MEDIUMINT_MAX_VALUE;
       }
-      return i;
+      return 0;
     }
     else if (s instanceof LongColumn)
     {
       LongColumn lc = (LongColumn) s;
-      Long l = lc.getValue().longValue();
-      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      Long i = lc.getValue().longValue();
+      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
       {
-        l += ORListener.INTEGER_MAX_VALUE;
+        return ORListener.INTEGER_MAX_VALUE;
       }
-      return l;
+      return 0;
     }
     else if (s instanceof LongLongColumn)
     {
       LongLongColumn llc = (LongLongColumn) s;
-      BigInteger b = new BigInteger(llc.getValue()+"");
-      if (b.compareTo(BigInteger.ZERO) < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
+      Long l = llc.getValue();
+      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
       {
-        b = b.add(ORListener.BIGINT_MAX_VALUE);
+        return ORListener.BIGINT_MAX_VALUE.longValue();
       }
-      return b;
-    }
-    else if (s instanceof NullColumn)
-    {
-      return null;
-    }
-    else if (s instanceof SetColumn)
-    {
-      SetColumn sc = (SetColumn) s;
-      Long l = sc.getValue();
-      return l;
+      return 0;
     }
     else if (s instanceof ShortColumn)
     {
@@ -625,45 +608,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Integer i = sc.getValue();
       if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
       {
-        i = i + ORListener.SMALLINT_MAX_VALUE;
+        return ORListener.SMALLINT_MAX_VALUE;
       }
-      return i;
-    }
-    else if (s instanceof TimeColumn)
-    {
-      TimeColumn tc = (TimeColumn) s;
-      Time t = tc.getValue();
-      /**
-       * There is a bug in OR where instead of using the default year as 1970, it is using 0070.
-       * This is a temporary measure to resolve it by working around at this layer. The value obtained from OR is subtracted from "0070-00-01 00:00:00"
-       */
-      Calendar c = Calendar.getInstance();
-      c.set(70, 0, 1, 0, 0, 0);
-      // round off the milli-seconds as TimeColumn type has only seconds granularity but Calendar implementation
-      // includes milli-second (System.currentTimeMillis() at the time of instantiation)
-      long rawVal = (c.getTimeInMillis()/1000) * 1000;
-      long val2 = (t.getTime()/1000) * 1000;
-      long offset = val2 - rawVal;
-      return offset;
-    }
-    else if (s instanceof TimestampColumn)
-    {
-      TimestampColumn tsc = (TimestampColumn) s;
-      Timestamp ts = tsc.getValue();
-      Long t = ts.getTime();
-      return t;
-    }
-    else if (s instanceof DatetimeColumn)
-    {
-      DatetimeColumn tsc = (DatetimeColumn) s;
-      Long t = tsc.getValue().getTime();
-      return t;
-    }
-    else if (s instanceof Datetime2Column)
-    {
-      Datetime2Column tsc = (Datetime2Column) s;
-      Long t = tsc.getValue().getTime();
-      return t;
+      return 0;
     }
     else if (s instanceof TinyColumn)
     {
@@ -671,20 +618,11 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Integer i = tc.getValue();
       if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
       {
-        i = i + ORListener.TINYINT_MAX_VALUE;
+        return ORListener.TINYINT_MAX_VALUE;
       }
-      return i;
+      return 0;
     }
-    else if (s instanceof YearColumn)
-    {
-      YearColumn yc = (YearColumn) s;
-      Integer i = yc.getValue();
-      return i;
-    }
-    else
-    {
-      throw new DatabusRuntimeException("Unknown MySQL type in the event" + s.getClass() + " Object = " + s);
-    }
+    return 0;
   }
 
   /**
