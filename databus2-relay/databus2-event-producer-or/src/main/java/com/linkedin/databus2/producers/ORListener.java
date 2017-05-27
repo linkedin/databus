@@ -802,4 +802,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _log.info("ORListener Thread done");
     doShutdownNotify();
   }
+  
+  public TransactionWriter getTransactionWriter() 
+  {
+	return _transactionWriter;
+  }
 }
