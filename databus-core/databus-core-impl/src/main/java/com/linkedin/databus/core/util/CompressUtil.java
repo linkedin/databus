@@ -7,6 +7,9 @@ import java.nio.charset.Charset;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
+import sun.misc.BASE64Decoder;
+import sun.misc.BASE64Encoder;
+
 public class CompressUtil
 {
   public static String compress(String str) throws IOException
@@ -15,14 +18,14 @@ public class CompressUtil
     GZIPOutputStream gzip = new GZIPOutputStream(out);
     gzip.write(str.getBytes(Charset.defaultCharset()));
     gzip.close();
-    String gzipStr = out.toString("ISO-8859-1");
-    return gzipStr;
+    return new BASE64Encoder().encode(out.toByteArray());
   }
 
   public static String uncompress(String str) throws IOException
   {
+	byte[] encodeByteArr = new BASE64Decoder().decodeBuffer(str);
     ByteArrayOutputStream out = new ByteArrayOutputStream();
-    ByteArrayInputStream in = new ByteArrayInputStream(str.getBytes("ISO-8859-1"));
+    ByteArrayInputStream in = new ByteArrayInputStream(encodeByteArr);
     GZIPInputStream gunzip = new GZIPInputStream(in);
     byte[] buffer = new byte[256];
     int n;
