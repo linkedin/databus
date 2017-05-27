@@ -380,7 +380,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
         GenericRecord gr = new GenericData.Record(schema);
         generateAvroEvent(vs, cl, gr);
 
-        List<KeyPair> kps = generateKeyPair(cl, schema);
+        List<KeyPair> kps = generateKeyPair(gr, vs);
 
         DbChangeEntry db = new DbChangeEntry(scn, timestampInNanos, gr, doc, isReplicated, schema, kps);
         _transaction.getPerSourceTransaction(_tableUriToSrcIdMap.get(tableName)).mergeDbChangeEntrySet(db);
@@ -394,36 +394,48 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
   }
 
-  private List<KeyPair> generateKeyPair(List<Column> cl, Schema schema)
+  private List<KeyPair> generateKeyPair(GenericRecord gr, VersionedSchema versionedSchema)
       throws DatabusException
   {
-
     Object o = null;
     Schema.Type st = null;
-
-    // Build PrimaryKeySchema
-    String pkFieldName = SchemaHelper.getMetaField(schema, "pk");
-    if(pkFieldName == null)
+    List<Field> pkFieldList = versionedSchema.getPkFieldList();
+    if(pkFieldList.isEmpty())
     {
-      throw new DatabusException("No primary key specified in the schema");
+      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
+	  if (pkFieldName == null)
+	  {
+		throw new DatabusException("No primary key specified in the schema");
+	  }
+	  PrimaryKeySchema pkSchema = new PrimaryKeySchema(pkFieldName);
+	  List<Schema.Field> fields = versionedSchema.getSchema().getFields();
+	  for (int i = 0; i < fields.size(); i++)
+	  {
+		Schema.Field field = fields.get(i);
+		if (pkSchema.isPartOfPrimaryKey(field))
+		{
+		  pkFieldList.add(field);
+		}
+	  }
     }
-
-    PrimaryKeySchema pkSchema = new PrimaryKeySchema(pkFieldName);
-    List<Schema.Field> fields = schema.getFields();
     List<KeyPair> kpl = new ArrayList<KeyPair>();
-    int cnt = 0;
-    for(Schema.Field field : fields)
+    for (Field field : pkFieldList)
     {
-      if (pkSchema.isPartOfPrimaryKey(field))
-      {
-        o = orToAvroType(cl.get(cnt), field);
-        st = field.schema().getType();
-        KeyPair kp = new KeyPair(o, st);
-        kpl.add(kp);
-      }
-      cnt++;
+      o = gr.get(field.name());
+      st = field.schema().getType();
+      KeyPair kp = new KeyPair(o, st);
+      kpl.add(kp);
     }
-
+    if (kpl == null || kpl.isEmpty())
+    {
+      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
+      StringBuilder sb = new StringBuilder();
+      for (Schema.Field f : versionedSchema.getSchema().getFields())
+      {
+        sb.append(f.name()).append(",");
+      }
+      throw new DatabusException("pk is assigned to " + pkFieldName + " but fieldList is " + sb.toString());
+    }
     return kpl;
   }
 
