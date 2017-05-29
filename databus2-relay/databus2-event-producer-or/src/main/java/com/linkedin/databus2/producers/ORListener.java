@@ -3,11 +3,7 @@ package com.linkedin.databus2.producers;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -40,30 +36,15 @@ import com.google.code.or.binlog.impl.event.XidEvent;
 import com.google.code.or.common.glossary.Column;
 import com.google.code.or.common.glossary.Pair;
 import com.google.code.or.common.glossary.Row;
-import com.google.code.or.common.glossary.column.BitColumn;
-import com.google.code.or.common.glossary.column.BlobColumn;
-import com.google.code.or.common.glossary.column.DateColumn;
-import com.google.code.or.common.glossary.column.Datetime2Column;
-import com.google.code.or.common.glossary.column.DatetimeColumn;
-import com.google.code.or.common.glossary.column.DecimalColumn;
-import com.google.code.or.common.glossary.column.DoubleColumn;
-import com.google.code.or.common.glossary.column.EnumColumn;
-import com.google.code.or.common.glossary.column.FloatColumn;
 import com.google.code.or.common.glossary.column.Int24Column;
 import com.google.code.or.common.glossary.column.LongColumn;
 import com.google.code.or.common.glossary.column.LongLongColumn;
 import com.google.code.or.common.glossary.column.NullColumn;
-import com.google.code.or.common.glossary.column.SetColumn;
 import com.google.code.or.common.glossary.column.ShortColumn;
-import com.google.code.or.common.glossary.column.StringColumn;
-import com.google.code.or.common.glossary.column.TimeColumn;
-import com.google.code.or.common.glossary.column.TimestampColumn;
 import com.google.code.or.common.glossary.column.TinyColumn;
-import com.google.code.or.common.glossary.column.YearColumn;
 import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DatabusThreadBase;
 import com.linkedin.databus.core.DbusOpcode;
-import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.DatabusException;
 import com.linkedin.databus2.producers.ds.DbChangeEntry;
 import com.linkedin.databus2.producers.ds.KeyPair;
@@ -136,6 +117,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   /** Track all the table map events, cleared when the binlog rotated **/
   private final Map<Long, TableMapEvent> _tableMapEvents = new HashMap<Long, TableMapEvent>();
+  
+  /** Transaction into buffer thread */
+  private final TransactionWriter _transactionWriter;
 
   /** Shared queue to transfer binlog events from OpenReplicator to ORlistener thread **/
   private BlockingQueue<BinlogEventV4> _binlogEventQueue = null;
@@ -174,6 +158,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _currFileNum = currentFileNumber;
     _binlogEventQueue = new LinkedBlockingQueue<BinlogEventV4>(maxQueueSize);
     _queueTimeoutMs = queueTimeoutMs;
+    _transactionWriter = new TransactionWriter(maxQueueSize, queueTimeoutMs, txnProcessor);
+    _transactionWriter.start();
   }
 
   @Override
@@ -235,11 +221,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
     try
     {
-      _txnProcessor.onEndTransaction(_transaction);
-    } catch (DatabusException e3)
-    {
-      _log.error("Got exception in the transaction handler ",e3);
-      throw new DatabusRuntimeException(e3);
+      _transactionWriter.addTransaction(_transaction);
     }
     finally
     {
@@ -819,5 +801,10 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
     _log.info("ORListener Thread done");
     doShutdownNotify();
+  }
+  
+  public TransactionWriter getTransactionWriter() 
+  {
+	return _transactionWriter;
   }
 }
