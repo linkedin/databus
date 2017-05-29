@@ -535,7 +535,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 		{
 			LongLongColumn llc = (LongLongColumn) s;
 			BigInteger b = new BigInteger(llc.getValue() + "");
-			return b.add(new BigInteger(unsignedOffset(s, avroField) + ""));
+			return b.add(new BigInteger(unsignedOffset(s, avroField) + "")).longValue();
 		}
 		return Long.parseLong(s.getValue() + "") + unsignedOffset(s, avroField);
 	}
