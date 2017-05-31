@@ -57,7 +57,7 @@ public class Or2AvroConvert
       }
       if (convertCacheMap.size() > maxCacheSize)
       {
-		convertCacheMap.clear();
+        convertCacheMap.clear();
       }
       String schemaStr = avroField.schema().toString();
       if (schemaStr.contains("int"))
