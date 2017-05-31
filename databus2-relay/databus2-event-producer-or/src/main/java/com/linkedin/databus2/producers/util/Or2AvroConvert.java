@@ -62,27 +62,27 @@ public class Or2AvroConvert
       String schemaStr = avroField.schema().toString();
       if (schemaStr.contains("int"))
       {
-        converter = new IntegerConverter();
+        converter = IntegerConverter.fetchInstance();
       }
       else if (schemaStr.contains("long"))
       {
-        converter = new LongConverter();
+        converter = LongConverter.fetchInstance();
       }
       else if (schemaStr.contains("double"))
       {
-        converter = new DoubleConverter();
+        converter = DoubleConverter.fetchInstance();
       }
       else if (schemaStr.contains("string"))
       {
-        converter = new StringConverter();
+        converter = StringConverter.fetchInstance();
       }
       else if (schemaStr.contains("bytes"))
       {
-        converter = new BytesConverter();
+        converter = BytesConverter.fetchInstance();
       }
       else if (schemaStr.contains("float"))
       {
-        converter = new FloatConverter();
+        converter = FloatConverter.fetchInstance();
       }
       if (converter == null)
       {
@@ -102,7 +102,7 @@ public class Or2AvroConvert
   {
     private static IntegerConverter converter = null;
 
-    public static IntegerConverter newInstance()
+    public static IntegerConverter fetchInstance()
     {
       if (converter == null)
       {
@@ -157,7 +157,7 @@ public class Or2AvroConvert
   {
     private static LongConverter converter = null;
 
-    public static LongConverter newInstance()
+    public static LongConverter fetchInstance()
     {
       if (converter == null)
       {
@@ -216,7 +216,7 @@ public class Or2AvroConvert
   {
     private static DoubleConverter converter = null;
 
-    public static DoubleConverter newInstance()
+    public static DoubleConverter fetchInstance()
     {
       if (converter == null)
       {
@@ -267,7 +267,7 @@ public class Or2AvroConvert
   {
     private static StringConverter converter = null;
 
-    public static StringConverter newInstance()
+    public static StringConverter fetchInstance()
     {
       if (converter == null)
       {
@@ -291,7 +291,7 @@ public class Or2AvroConvert
   {
     private static BytesConverter converter = null;
 
-    public static BytesConverter newInstance()
+    public static BytesConverter fetchInstance()
     {
       if (converter == null)
       {
@@ -318,7 +318,7 @@ public class Or2AvroConvert
   {
     private static FloatConverter converter = null;
 
-    public static FloatConverter newInstance()
+    public static FloatConverter fetchInstance()
     {
       if (converter == null)
       {
