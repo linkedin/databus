@@ -1,6 +1,5 @@
 package com.linkedin.databus2.producers.util;
 
-import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -116,30 +115,9 @@ public class Or2AvroConvert
     {
       Object obj = s.getValue();
       Integer res = null;
-      if (obj instanceof Integer)
+      if(obj instanceof Number)
       {
-        res = (Integer) obj;
-      }
-      else if (obj instanceof Long)
-      {
-        res = Integer.valueOf(((Long) obj).intValue());
-      }
-      else if (obj instanceof BigDecimal)
-      {
-        res = Integer.valueOf(((BigDecimal) obj).intValue());
-      }
-      else if (obj instanceof Double)
-      {
-        res = Integer.valueOf(((Double) obj).intValue());
-      }
-      else if (obj instanceof Float)
-      {
-        res = Integer.valueOf(((Float) obj).intValue());
-      }
-      else if (obj instanceof byte[])
-      {
-        String resStr = new String((byte[]) obj, Charset.defaultCharset());
-        res = Integer.valueOf(resStr);
+        res = ((Number) obj).intValue();
       }
       else
       {
@@ -175,30 +153,9 @@ public class Or2AvroConvert
       {
         return ((Date) obj).getTime();
       }
-      else if (obj instanceof Long)
+      else if (obj instanceof Number)
       {
-        res = (Long) obj;
-      }
-      else if (obj instanceof Integer)
-      {
-        res = Long.valueOf(((Integer) obj).longValue());
-      }
-      else if (obj instanceof BigDecimal)
-      {
-        res = Long.valueOf(((BigDecimal) obj).longValue());
-      }
-      else if (obj instanceof Double)
-      {
-        res = Long.valueOf(((Double) obj).longValue());
-      }
-      else if (obj instanceof Float)
-      {
-        res = Long.valueOf(((Float) obj).longValue());
-      }
-      else if (obj instanceof byte[])
-      {
-        String resStr = new String((byte[]) obj, Charset.defaultCharset());
-        res = Long.valueOf(resStr);
+    	  res = ((Number) obj).longValue();
       }
       else
       {
@@ -230,30 +187,9 @@ public class Or2AvroConvert
     {
       Object obj = s.getValue();
       Double res = null;
-      if (obj instanceof Double)
+      if (obj instanceof Number)
       {
-        res = (Double) obj;
-      }
-      else if (obj instanceof Long)
-      {
-        res = ((Long) obj).doubleValue();
-      }
-      else if (obj instanceof BigDecimal)
-      {
-        res = ((BigDecimal) obj).doubleValue();
-      }
-      else if (obj instanceof Integer)
-      {
-        res = Double.valueOf(((Integer) obj).intValue());
-      }
-      else if (obj instanceof Float)
-      {
-        res = ((Float) obj).doubleValue();
-      }
-      else if (obj instanceof byte[])
-      {
-        String resStr = new String((byte[]) obj, Charset.defaultCharset());
-        res = Double.valueOf(resStr);
+        res = ((Number) obj).doubleValue();
       }
       else
       {
@@ -332,30 +268,9 @@ public class Or2AvroConvert
     {
       Object obj = s.getValue();
       Float res = null;
-      if (obj instanceof Double)
+      if (obj instanceof Number)
       {
-        res = (Float) obj;
-      }
-      else if (obj instanceof BigDecimal)
-      {
-        res = ((BigDecimal) obj).floatValue();
-      }
-      else if (obj instanceof Long)
-      {
-        res = ((Long) obj).floatValue();
-      }
-      else if (obj instanceof Integer)
-      {
-        res = Float.valueOf(((Integer) obj).intValue());
-      }
-      else if (obj instanceof Float)
-      {
-        res = (Float) obj;
-      }
-      else if (obj instanceof byte[])
-      {
-        String resStr = new String((byte[]) obj, Charset.defaultCharset());
-        res = Float.valueOf(resStr);
+        res = ((Number) obj).floatValue();
       }
       else
       {
