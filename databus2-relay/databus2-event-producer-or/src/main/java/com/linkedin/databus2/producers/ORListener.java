@@ -51,6 +51,7 @@ import com.linkedin.databus2.producers.ds.KeyPair;
 import com.linkedin.databus2.producers.ds.PerSourceTransaction;
 import com.linkedin.databus2.producers.ds.PrimaryKeySchema;
 import com.linkedin.databus2.producers.ds.Transaction;
+import com.linkedin.databus2.producers.util.Or2AvroConvert;
 import com.linkedin.databus2.schemas.NoSuchSchemaException;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.VersionedSchema;
@@ -510,113 +511,14 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private Object orToAvroType(Column s, Field avroField)
       throws DatabusException
   {
-	if (s instanceof NullColumn)
+	try
 	{
-		return null;
+	  return Or2AvroConvert.convert(s, avroField);
 	}
-	String fieldTypeSchemaStr = avroField.schema().toString();
-	if (fieldTypeSchemaStr.contains("int"))
+	catch (Exception e)
 	{
-		return Integer.parseInt(s.getValue() + "") + (int) unsignedOffset(s, avroField);
+	  throw new DatabusRuntimeException("Unknown MySQL type in the event" + s.getClass() + " Object = " + s, e);
 	}
-	if (fieldTypeSchemaStr.contains("long"))
-	{
-		if (s.getValue() instanceof Date)
-		{
-			return ((Date) s.getValue()).getTime();
-		}
-		if (s instanceof LongLongColumn)
-		{
-			LongLongColumn llc = (LongLongColumn) s;
-			BigInteger b = new BigInteger(llc.getValue() + "");
-			return b.add(new BigInteger(unsignedOffset(s, avroField) + "")).longValue();
-		}
-		return Long.parseLong(s.getValue() + "") + unsignedOffset(s, avroField);
-	}
-	if (fieldTypeSchemaStr.contains("double"))
-	{
-		return Double.parseDouble(s.getValue() + "");
-	}
-	if (fieldTypeSchemaStr.contains("string"))
-	{
-		if (s.getValue() instanceof byte[])
-		{
-			return new String((byte[]) s.getValue(), Charset.defaultCharset());
-		}
-		return s.getValue() + "";
-	}
-	if (fieldTypeSchemaStr.contains("bytes"))
-	{
-		if (!(s.getValue() instanceof byte[]))
-		{
-			throw new DatabusException(avroField.name()+" need convert to bytes,but the column type is " + s.getClass());
-		}
-		byte[] byteArr = (byte[]) s.getValue();
-		return ByteBuffer.wrap(byteArr);
-	}
-	if (fieldTypeSchemaStr.contains("float"))
-	{
-		return Float.parseFloat(s.getValue() + "");
-	}
-    else
-    {
-      throw new DatabusRuntimeException("Unknown schema type " + fieldTypeSchemaStr + " Object = " + s);
-    }
-  }
-  
-  private long unsignedOffset(Column s, Field avroField)
-  {
-    if (s instanceof Int24Column)
-    {
-      Int24Column ic = (Int24Column) s;
-      Integer i = ic.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.MEDIUMINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof LongColumn)
-    {
-      LongColumn lc = (LongColumn) s;
-      Long i = lc.getValue().longValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.INTEGER_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof LongLongColumn)
-    {
-      LongLongColumn llc = (LongLongColumn) s;
-      Long l = llc.getValue();
-      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.BIGINT_MAX_VALUE.longValue();
-      }
-      return 0;
-    }
-    else if (s instanceof ShortColumn)
-    {
-      ShortColumn sc = (ShortColumn) s;
-      Integer i = sc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.SMALLINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    else if (s instanceof TinyColumn)
-    {
-      TinyColumn tc = (TinyColumn) s;
-      Integer i = tc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        return ORListener.TINYINT_MAX_VALUE;
-      }
-      return 0;
-    }
-    return 0;
   }
 
   /**
