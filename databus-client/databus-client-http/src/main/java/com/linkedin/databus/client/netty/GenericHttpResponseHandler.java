@@ -356,21 +356,22 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
                                          WriteCompletionEvent e) throws Exception {
 
     Throwable cause = null;
-    if(_httpRequest == null)
-      super.writeComplete(ctx, e);
 
     synchronized(this) {
       _log.debug("WriteComplete");
+      // Future should be done by this time
+      ChannelFuture future = e.getFuture();
 
+      boolean success = future.isSuccess();
+      if(_httpRequest == null && success){
+        super.writeComplete(ctx, e);
+        return;
+      }
       if(! validateCurrentState(e.getChannel(), MessageState.REQUEST_START)) {
         _httpRequest = null;
         return;
       }
 
-      // Future should be done by this time
-      ChannelFuture future = e.getFuture();
-
-      boolean success = future.isSuccess();
       if (!success) {
         String msg = "Write request failed with cause :" + future.getCause();
         _log.error(msg);
