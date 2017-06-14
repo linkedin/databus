@@ -716,10 +716,13 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _log.info("ORListener Thread done");
     doShutdownNotify();
   }
-  @Override
-  public void shutdown()
+
+  public void shutdownAll()
   {
-    super.shutdown();
+    if(this.isAlive())
+    {
+      this.shutdown();
+    }
     if (_transactionWriter != null && _transactionWriter.isAlive())
     {
       _transactionWriter.shutdown();
