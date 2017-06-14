@@ -115,6 +115,8 @@ public class TransactionWriter extends DatabusThreadBase
         }
       }
     }
+    log.info("transactionWriter thread done!");
+    doShutdownNotify();
   }
 
 }

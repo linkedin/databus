@@ -466,10 +466,6 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
       {
         _orListener.shutdown();
       }
-      if (_orListener.getTransactionWriter().isAlive())
-      {
-    	_orListener.getTransactionWriter().shutdown();
-      }
 
       _log.info("Event Producer Thread done");
       doShutdownNotify();
