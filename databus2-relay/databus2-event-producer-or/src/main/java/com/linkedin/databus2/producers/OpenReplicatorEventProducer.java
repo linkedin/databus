@@ -413,10 +413,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
           try
           {
             //should stop orListener first to get the final maxScn used for init open replicator.
-            if (_orListener.isAlive())
-            {
-              _orListener.shutdown();
-            }
+            _orListener.shutdownAll();
             long maxScn = _maxSCNReaderWriter.getMaxScn();
             _startPrevScn.set(maxScn);
             initOpenReplicator(maxScn);
@@ -462,14 +459,7 @@ public class OpenReplicatorEventProducer extends AbstractEventProducer
           _log.error("failed to stop Open Replicator", e);
         }
       }
-      if (_orListener.isAlive())
-      {
-        _orListener.shutdown();
-      }
-      if (_orListener.getTransactionWriter().isAlive())
-      {
-    	_orListener.getTransactionWriter().shutdown();
-      }
+      _orListener.shutdownAll();
 
       _log.info("Event Producer Thread done");
       doShutdownNotify();
