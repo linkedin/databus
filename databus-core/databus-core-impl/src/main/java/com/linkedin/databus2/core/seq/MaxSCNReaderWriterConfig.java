@@ -27,6 +27,7 @@ public class MaxSCNReaderWriterConfig implements ConfigBuilder<MaxSCNReaderWrite
 
   private String _type;
   private FileMaxSCNHandler.Config _file;
+  private MysqlMaxSCNHandler.Config _mysql;
   private MaxSCNReaderWriter _existing;
 
   public MaxSCNReaderWriterConfig()
@@ -34,6 +35,15 @@ public class MaxSCNReaderWriterConfig implements ConfigBuilder<MaxSCNReaderWrite
     _type = MaxSCNReaderWriterStaticConfig.Type.FILE.toString();
     _existing = null;
     _file = new FileMaxSCNHandler.Config();
+    _mysql = new MysqlMaxSCNHandler.Config();
+  }
+
+  public MysqlMaxSCNHandler.Config getMysql() {
+    return _mysql;
+  }
+
+  public void setMysql(MysqlMaxSCNHandler.Config _mysql) {
+    this._mysql = _mysql;
   }
 
   public String getType()
@@ -84,7 +94,7 @@ public class MaxSCNReaderWriterConfig implements ConfigBuilder<MaxSCNReaderWrite
       throw new InvalidConfigException("No existing max scn reader/writer specified ");
     }
 
-    return new MaxSCNReaderWriterStaticConfig(handlerType, _file.build(), _existing);
+    return new MaxSCNReaderWriterStaticConfig(handlerType, _file.build(), _mysql.build(),  _existing);
   }
 
 }

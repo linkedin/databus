@@ -19,9 +19,8 @@ package com.linkedin.databus2.core.seq;
 */
 
 
-import org.apache.log4j.Logger;
-
 import com.linkedin.databus2.core.seq.FileMaxSCNHandler.StaticConfig;
+import org.apache.log4j.Logger;
 
 /**
  * Static configuration for the SCN reader/writer
@@ -46,21 +45,25 @@ public class MaxSCNReaderWriterStaticConfig
     DISABLED,
     FILE,
     EXISTING,
-    IN_MEMORY
+    IN_MEMORY,
+    MYSQL
   }
 
   private final Type _type;
   private final FileMaxSCNHandler.StaticConfig _file;
+  private final MysqlMaxSCNHandler.StaticConfig _mysql;
   private final MaxSCNReaderWriter _existing;
 
   public MaxSCNReaderWriterStaticConfig(Type type,
                                      StaticConfig file,
+                                        MysqlMaxSCNHandler.StaticConfig  mysql,
                                      MaxSCNReaderWriter existing)
   {
     super();
     _type = type;
     _file = file;
     _existing = existing;
+    _mysql = mysql;
   }
 
   /** Type of of the MaxSCN handler */
@@ -135,6 +138,21 @@ public class MaxSCNReaderWriterStaticConfig
       break;
       case IN_MEMORY: result = new InMemorySequenceNumberHandlerFactory(-1); break;
       case DISABLED: result = null; break;
+      case MYSQL : {
+        MysqlMaxSCNHandler.Config configBuilder = new MysqlMaxSCNHandler.Config();
+        configBuilder.setJdbcUrl(_mysql.getJdbcUrl());
+        configBuilder.setScnTable(_mysql.getScnTable());
+        configBuilder.setDriverClass(_mysql.getDriverClass());
+        configBuilder.setDbPassword(_mysql.getDbPassword());
+        configBuilder.setDbUser(_mysql.getDbUser());
+        configBuilder.setFlushItvl(_mysql.getFlushItvl());
+        configBuilder.setInitVal(_mysql.getInitVal());
+        configBuilder.setUpsertSCNQuery(_mysql.getUpsertSCNQuery());
+        configBuilder.setGetSCNQuery(_mysql.getGetSCNQuery());
+        configBuilder.setScnColumnName(_mysql.getScnColumnName());
+
+        result = new MysqlMaxSCNHandlerFactory(configBuilder);
+      }break;
       default: throw new RuntimeException("unknown scn reader/writer type: " + _type.toString());
     }
 

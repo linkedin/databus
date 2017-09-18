@@ -9,6 +9,7 @@ dependencies {
   compile externalDependency.jacksonCoreAsl
   compile externalDependency.jacksonMapperAsl
   compile externalDependency.jline
+  compile externalDependency.mysqlConnectorJava
   
   compile project(':databus-core:databus-core-impl')
   compile project(':databus-core:databus-core-schemas')

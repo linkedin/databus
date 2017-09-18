@@ -33,6 +33,7 @@ public enum AvroPrimitiveTypes
   LONG("long"),
   RAW("bytes"),
   FLOAT("float"),
+  DECIMAL("double"),
   DOUBLE("double"),
   CLOB("string"),
   VARCHAR("string"),
@@ -40,6 +41,7 @@ public enum AvroPrimitiveTypes
   NVARCHAR("string"),
   NVARCHAR2("string"),
   TIMESTAMP("long"),
+  DATETIME("long"),
   CHAR("string"),
   DATE("long"),
   BLOB("bytes"),
@@ -55,7 +57,8 @@ public enum AvroPrimitiveTypes
   INT("long"),
   INT_UNSIGNED("long"),
   BIGINT("long"),
-  BIGINT_UNSIGNED("long");
+  BIGINT_UNSIGNED("long"),
+  YEAR("int");
 
   private final String _avroType;
   private AvroPrimitiveTypes(String avroType)

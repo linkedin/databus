@@ -22,10 +22,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.avro.Schema;
 import org.apache.avro.Schema.Field;
 import org.apache.avro.Schema.Type;
+import org.jboss.netty.util.internal.ConcurrentHashMap;
+
+import com.linkedin.databus2.schemas.VersionedSchema;
 
 
 /**
@@ -213,6 +217,39 @@ public class SchemaHelper
   public static final byte[] getSchemaId(String schema)
   {
     return Utils.md5(schema.getBytes(Charset.defaultCharset()));
+  }
+  
+  private static Map<String,List<Field>> orderedMap = new ConcurrentHashMap<String, List<Field>>();
+  /**
+   * Order the fields  present in the schema based on the metaFieldName and comparator being passed.
+   *
+   * @param schema  Schema containing the fields to be ordered
+   * @param metaFieldName Meta Field for ordering
+   * @param comparator comparator for sorting
+   * @return ordered Field list or null if schema is null
+   */
+  public static List<Field> getOrderedFieldsByDBFieldPosition(final VersionedSchema vs)
+  {
+    if ( null == vs || null == vs.getSchema())
+      return null;
+    List<Field> fieldList = orderedMap.get(vs.getId().toString());
+    if(fieldList != null)
+    {
+    	return fieldList;
+    }
+    
+    Schema schema = vs.getSchema();
+    fieldList = getOrderedFieldsByMetaField(schema, "dbFieldPosition", new Comparator<String>() {
+		@Override
+		public int compare(String o1, String o2) {
+			// TODO Auto-generated method stub
+			int m1 = Integer.parseInt(o1);
+			int m2 = Integer.parseInt(o2);
+			return m1-m2;
+		}
+	});
+    orderedMap.put(vs.getId().toString(), fieldList);
+    return fieldList;
   }
 
   /**

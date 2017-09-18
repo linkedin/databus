@@ -3,11 +3,7 @@ package com.linkedin.databus2.producers;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -40,25 +36,12 @@ import com.google.code.or.binlog.impl.event.XidEvent;
 import com.google.code.or.common.glossary.Column;
 import com.google.code.or.common.glossary.Pair;
 import com.google.code.or.common.glossary.Row;
-import com.google.code.or.common.glossary.column.BitColumn;
-import com.google.code.or.common.glossary.column.BlobColumn;
-import com.google.code.or.common.glossary.column.DateColumn;
-import com.google.code.or.common.glossary.column.DatetimeColumn;
-import com.google.code.or.common.glossary.column.DecimalColumn;
-import com.google.code.or.common.glossary.column.DoubleColumn;
-import com.google.code.or.common.glossary.column.EnumColumn;
-import com.google.code.or.common.glossary.column.FloatColumn;
 import com.google.code.or.common.glossary.column.Int24Column;
 import com.google.code.or.common.glossary.column.LongColumn;
 import com.google.code.or.common.glossary.column.LongLongColumn;
 import com.google.code.or.common.glossary.column.NullColumn;
-import com.google.code.or.common.glossary.column.SetColumn;
 import com.google.code.or.common.glossary.column.ShortColumn;
-import com.google.code.or.common.glossary.column.StringColumn;
-import com.google.code.or.common.glossary.column.TimeColumn;
-import com.google.code.or.common.glossary.column.TimestampColumn;
 import com.google.code.or.common.glossary.column.TinyColumn;
-import com.google.code.or.common.glossary.column.YearColumn;
 import com.linkedin.databus.core.DatabusRuntimeException;
 import com.linkedin.databus.core.DatabusThreadBase;
 import com.linkedin.databus.core.DbusOpcode;
@@ -68,6 +51,7 @@ import com.linkedin.databus2.producers.ds.KeyPair;
 import com.linkedin.databus2.producers.ds.PerSourceTransaction;
 import com.linkedin.databus2.producers.ds.PrimaryKeySchema;
 import com.linkedin.databus2.producers.ds.Transaction;
+import com.linkedin.databus2.producers.util.Or2AvroConvert;
 import com.linkedin.databus2.schemas.NoSuchSchemaException;
 import com.linkedin.databus2.schemas.SchemaRegistryService;
 import com.linkedin.databus2.schemas.VersionedSchema;
@@ -134,6 +118,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   /** Track all the table map events, cleared when the binlog rotated **/
   private final Map<Long, TableMapEvent> _tableMapEvents = new HashMap<Long, TableMapEvent>();
+  
+  /** Transaction into buffer thread */
+  private final TransactionWriter _transactionWriter;
 
   /** Shared queue to transfer binlog events from OpenReplicator to ORlistener thread **/
   private BlockingQueue<BinlogEventV4> _binlogEventQueue = null;
@@ -147,6 +134,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   public static final int MEDIUMINT_MAX_VALUE = 16777216;
   public static final long INTEGER_MAX_VALUE = 4294967296L;
   public static final BigInteger BIGINT_MAX_VALUE = new BigInteger("18446744073709551616");
+
+  private String _curSourceName;
+  private boolean _ignoreSource = false;
 
   public ORListener(String name,
                     int currentFileNumber,
@@ -169,6 +159,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _currFileNum = currentFileNumber;
     _binlogEventQueue = new LinkedBlockingQueue<BinlogEventV4>(maxQueueSize);
     _queueTimeoutMs = queueTimeoutMs;
+    _transactionWriter = new TransactionWriter(maxQueueSize, queueTimeoutMs, txnProcessor);
+    _transactionWriter.start();
   }
 
   @Override
@@ -188,8 +180,8 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   {
     _tableMapEvents.put(tme.getTableId(), tme);
 
-    String newTableName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
-    startSource(newTableName);
+    _curSourceName = tme.getDatabaseName().toString().toLowerCase() + "." + tme.getTableName().toString().toLowerCase();
+    startSource(_curSourceName);
   }
 
   private void startXtion(QueryEvent e)
@@ -222,13 +214,15 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     _transaction.setSizeInBytes(_currTxnSizeInBytes);
     _transaction.setTxnNanoTimestamp(_currTxnTimestamp);
     _transaction.setTxnReadLatencyNanos(txnReadLatency);
+
+    if(_ignoreSource) {
+      long scn = scn(_currFileNum, (int)e.getHeader().getPosition());
+      _transaction.setIgnoredSourceScn(scn);
+    }
+
     try
     {
-      _txnProcessor.onEndTransaction(_transaction);
-    } catch (DatabusException e3)
-    {
-      _log.error("Got exception in the transaction handler ",e3);
-      throw new DatabusRuntimeException(e3);
+      _transactionWriter.addTransaction(_transaction);
     }
     finally
     {
@@ -256,7 +250,13 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private void startSource(String newTableName)
   {
     Short srcId = _tableUriToSrcIdMap.get(newTableName);
+    _ignoreSource = null == srcId;
+    if (_ignoreSource) {
+      LOG.info("Ignoring source: " + newTableName);
+      return;
+    }
 
+    LOG.info("Starting source: " + newTableName);
     assert (_transaction != null);
     if (_transaction.getPerSourceTransaction(srcId) == null)
     {
@@ -266,16 +266,30 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
   private void deleteRows(DeleteRowsEventV2 dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void deleteRows(DeleteRowsEvent dre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring delete rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("DELETE FROM " + _curSourceName);
     frameAvroRecord(dre.getTableId(), dre.getHeader(), dre.getRows(), DbusOpcode.DELETE);
   }
 
   private void updateRows(UpdateRowsEvent ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -283,11 +297,18 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void updateRows(UpdateRowsEventV2 ure)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring update rows for " + _curSourceName);
+      return;
+    }
     List<Pair<Row>> lp = ure.getRows();
     List<Row> lr =  new ArrayList<Row>(lp.size());
     for (Pair<Row> pr: lp)
@@ -295,16 +316,29 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       Row r = pr.getAfter();
       lr.add(r);
     }
-    frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    if (lr.size() > 0) {
+      LOG.info("UPDATE " + _curSourceName + ": " + lr.size());
+      frameAvroRecord(ure.getTableId(), ure.getHeader(), lr, DbusOpcode.UPSERT);
+    }
   }
 
   private void insertRows(WriteRowsEvent wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
   private void insertRows(WriteRowsEventV2 wre)
   {
+    if (_ignoreSource) {
+      LOG.info("Ignoring insert rows for " + _curSourceName);
+      return;
+    }
+    LOG.info("INSERT INTO " + _curSourceName);
     frameAvroRecord(wre.getTableId(), wre.getHeader(), wre.getRows(), DbusOpcode.UPSERT);
   }
 
@@ -327,9 +361,9 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
       {
         List<Column> cl = r.getColumns();
         GenericRecord gr = new GenericData.Record(schema);
-        generateAvroEvent(schema, cl, gr);
+        generateAvroEvent(vs, cl, gr);
 
-        List<KeyPair> kps = generateKeyPair(cl, schema);
+        List<KeyPair> kps = generateKeyPair(gr, vs);
 
         DbChangeEntry db = new DbChangeEntry(scn, timestampInNanos, gr, doc, isReplicated, schema, kps);
         _transaction.getPerSourceTransaction(_tableUriToSrcIdMap.get(tableName)).mergeDbChangeEntrySet(db);
@@ -343,54 +377,56 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
   }
 
-  private List<KeyPair> generateKeyPair(List<Column> cl, Schema schema)
+  private List<KeyPair> generateKeyPair(GenericRecord gr, VersionedSchema versionedSchema)
       throws DatabusException
   {
-
     Object o = null;
     Schema.Type st = null;
-
-    // Build PrimaryKeySchema
-    String pkFieldName = SchemaHelper.getMetaField(schema, "pk");
-    if(pkFieldName == null)
+    List<Field> pkFieldList = versionedSchema.getPkFieldList();
+    if(pkFieldList.isEmpty())
     {
-      throw new DatabusException("No primary key specified in the schema");
+      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
+	  if (pkFieldName == null)
+	  {
+		throw new DatabusException("No primary key specified in the schema");
+	  }
+	  PrimaryKeySchema pkSchema = new PrimaryKeySchema(pkFieldName);
+	  List<Schema.Field> fields = versionedSchema.getSchema().getFields();
+	  for (int i = 0; i < fields.size(); i++)
+	  {
+		Schema.Field field = fields.get(i);
+		if (pkSchema.isPartOfPrimaryKey(field))
+		{
+		  pkFieldList.add(field);
+		}
+	  }
     }
-
-    PrimaryKeySchema pkSchema = new PrimaryKeySchema(pkFieldName);
-    List<Schema.Field> fields = schema.getFields();
     List<KeyPair> kpl = new ArrayList<KeyPair>();
-    int cnt = 0;
-    for(Schema.Field field : fields)
+    for (Field field : pkFieldList)
     {
-      if (pkSchema.isPartOfPrimaryKey(field))
-      {
-        o = cl.get(cnt).getValue();
-        st = field.schema().getType();
-        KeyPair kp = new KeyPair(o, st);
-        kpl.add(kp);
-      }
-      cnt++;
+      o = gr.get(field.name());
+      st = field.schema().getType();
+      KeyPair kp = new KeyPair(o, st);
+      kpl.add(kp);
     }
-
+    if (kpl == null || kpl.isEmpty())
+    {
+      String pkFieldName = SchemaHelper.getMetaField(versionedSchema.getSchema(), "pk");
+      StringBuilder sb = new StringBuilder();
+      for (Schema.Field f : versionedSchema.getSchema().getFields())
+      {
+        sb.append(f.name()).append(",");
+      }
+      throw new DatabusException("pk is assigned to " + pkFieldName + " but fieldList is " + sb.toString());
+    }
     return kpl;
   }
 
-  private void generateAvroEvent(Schema schema, List<Column> cols, GenericRecord record)
+  private void generateAvroEvent(VersionedSchema vs, List<Column> cols, GenericRecord record)
       throws DatabusException
   {
     // Get Ordered list of field by dbFieldPosition
-    List<Schema.Field> orderedFields = SchemaHelper.getOrderedFieldsByMetaField(schema, "dbFieldPosition", new Comparator<String>() {
-
-      @Override
-      public int compare(String o1, String o2)
-      {
-        Integer pos1 = Integer.parseInt(o1);
-        Integer pos2 = Integer.parseInt(o2);
-
-        return pos1.compareTo(pos2);
-      }
-    });
+    List<Schema.Field> orderedFields = SchemaHelper.getOrderedFieldsByDBFieldPosition(vs);
 
     // Build Map<AvroFieldType, Columns>
     if (orderedFields.size() != cols.size())
@@ -475,160 +511,14 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
   private Object orToAvroType(Column s, Field avroField)
       throws DatabusException
   {
-    if (s instanceof BitColumn)
-    {
-      // This is in  byte order
-      BitColumn bc = (BitColumn) s;
-      byte[] ba = bc.getValue();
-      ByteBuffer b = ByteBuffer.wrap(ba);
-      return b;
-    }
-    else if (s instanceof BlobColumn)
-    {
-      BlobColumn bc = (BlobColumn) s;
-      byte[] ba = bc.getValue();
-      return ByteBuffer.wrap(ba);
-    }
-    else if (s instanceof DateColumn)
-    {
-      DateColumn dc =  (DateColumn) s;
-      Date d = dc.getValue();
-      Long l = d.getTime();
-      return l;
-    }
-    else if (s instanceof DatetimeColumn)
-    {
-      DatetimeColumn dc = (DatetimeColumn) s;
-      Date d = dc.getValue();
-      Long t1 = (d.getTime()/1000) * 1000; //Bug in OR for DateTIme and Time data-types. MilliSeconds is not available for these columns but is set with currentMillis() wrongly.
-      return t1;
-    }
-    else if (s instanceof DecimalColumn)
-    {
-      DecimalColumn dc = (DecimalColumn) s;
-      _log.info("dc Value is :" + dc.getValue());
-      String s1 = dc.getValue().toString(); // Convert to string for preserving precision
-      _log.info("Str : " + s1);
-      return s1;
-    }
-    else if (s instanceof DoubleColumn)
-    {
-      DoubleColumn dc = (DoubleColumn) s;
-      Double d = dc.getValue();
-      return d;
-    }
-    else if (s instanceof EnumColumn)
-    {
-      EnumColumn ec = (EnumColumn) s;
-      Integer i = ec.getValue();
-      return i;
-    }
-    else if (s instanceof FloatColumn)
-    {
-      FloatColumn fc = (FloatColumn) s;
-      Float f = fc.getValue();
-      return f;
-    }
-    else if (s instanceof Int24Column)
-    {
-      Int24Column ic = (Int24Column) s;
-      Integer i = ic.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        i += ORListener.MEDIUMINT_MAX_VALUE;
-      }
-      return i;
-    }
-    else if (s instanceof LongColumn)
-    {
-      LongColumn lc = (LongColumn) s;
-      Long l = lc.getValue().longValue();
-      if (l < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        l += ORListener.INTEGER_MAX_VALUE;
-      }
-      return l;
-    }
-    else if (s instanceof LongLongColumn)
-    {
-      LongLongColumn llc = (LongLongColumn) s;
-      BigInteger b = new BigInteger(llc.getValue()+"");
-      if (b.compareTo(BigInteger.ZERO) < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        b = b.add(ORListener.BIGINT_MAX_VALUE);
-      }
-      return b;
-    }
-    else if (s instanceof NullColumn)
-    {
-      return null;
-    }
-    else if (s instanceof SetColumn)
-    {
-      SetColumn sc = (SetColumn) s;
-      Long l = sc.getValue();
-      return l;
-    }
-    else if (s instanceof ShortColumn)
-    {
-      ShortColumn sc = (ShortColumn) s;
-      Integer i = sc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        i = i + ORListener.SMALLINT_MAX_VALUE;
-      }
-      return i;
-    }
-    else if (s instanceof StringColumn)
-    {
-      StringColumn sc = (StringColumn) s;
-      String str = new String(sc.getValue(), Charset.defaultCharset());
-      return str;
-    }
-    else if (s instanceof TimeColumn)
-    {
-      TimeColumn tc = (TimeColumn) s;
-      Time t = tc.getValue();
-      /**
-       * There is a bug in OR where instead of using the default year as 1970, it is using 0070.
-       * This is a temporary measure to resolve it by working around at this layer. The value obtained from OR is subtracted from "0070-00-01 00:00:00"
-       */
-      Calendar c = Calendar.getInstance();
-      c.set(70, 0, 1, 0, 0, 0);
-      // round off the milli-seconds as TimeColumn type has only seconds granularity but Calendar implementation
-      // includes milli-second (System.currentTimeMillis() at the time of instantiation)
-      long rawVal = (c.getTimeInMillis()/1000) * 1000;
-      long val2 = (t.getTime()/1000) * 1000;
-      long offset = val2 - rawVal;
-      return offset;
-    }
-    else if (s instanceof TimestampColumn)
-    {
-      TimestampColumn tsc = (TimestampColumn) s;
-      Timestamp ts = tsc.getValue();
-      Long t = ts.getTime();
-      return t;
-    }
-    else if (s instanceof TinyColumn)
-    {
-      TinyColumn tc = (TinyColumn) s;
-      Integer i = tc.getValue();
-      if (i < 0 && SchemaHelper.getMetaField(avroField, "dbFieldType").contains("UNSIGNED"))
-      {
-        i = i + ORListener.TINYINT_MAX_VALUE;
-      }
-      return i;
-    }
-    else if (s instanceof YearColumn)
-    {
-      YearColumn yc = (YearColumn) s;
-      Integer i = yc.getValue();
-      return i;
-    }
-    else
-    {
-      throw new DatabusRuntimeException("Unknown MySQL type in the event" + s.getClass() + " Object = " + s);
-    }
+	try
+	{
+	  return Or2AvroConvert.convert(s, avroField);
+	}
+	catch (Exception e)
+	{
+	  throw new DatabusRuntimeException("Unknown MySQL type in the event" + s.getClass() + " Object = " + s, e);
+	}
   }
 
   /**
@@ -825,5 +715,17 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
     }
     _log.info("ORListener Thread done");
     doShutdownNotify();
+  }
+
+  public void shutdownAll()
+  {
+    if(this.isAlive())
+    {
+      this.shutdown();
+    }
+    if (_transactionWriter != null && _transactionWriter.isAlive())
+    {
+      _transactionWriter.shutdown();
+    }
   }
 }
