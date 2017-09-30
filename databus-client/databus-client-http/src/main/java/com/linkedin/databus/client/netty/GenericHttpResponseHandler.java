@@ -339,8 +339,21 @@ public class GenericHttpResponseHandler extends SimpleChannelHandler {
       {
         _httpRequest = (HttpRequest)e.getMessage();
 
-        if(! validateCurrentState(e.getChannel(), MessageState.REQUEST_WAIT))
-          return;
+		if (!validateCurrentState(e.getChannel(), MessageState.REQUEST_WAIT)) 
+		{
+			if (_messageState != MessageState.CLOSED)
+			{
+				return;
+			}
+			if (_requestListener != null) 
+			{
+				_requestListener.onSendRequestFailure(_httpRequest, new ClosedChannelException());
+			} else
+			{
+				_log.error("this channal has been closed but there is no requestListener!");
+			}
+			return;
+		}
 
         _messageState = MessageState.REQUEST_START;
         if (debugEnabled)
