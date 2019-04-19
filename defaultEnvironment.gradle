@@ -3,10 +3,10 @@ repositories {
   // so we add few open source ones
   mavenCentral()
   maven {
-	url "http://repo.fusesource.com/maven2"
+	url "https://repo.fusesource.com/maven2"
   }
   maven {
-	url "http://maven.restlet.org"
+	url "https://maven.restlet.org"
   }
 
   // local repo for libs we have to ship with     
