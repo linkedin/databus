@@ -3400,6 +3400,7 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
                       writePos.moveToNextBuffer();
                       _tail.copy(_currentWritePosition);
                       assert assertBuffersLimits();
+                      preEndPeriodEvent = false;
                     }
                   }
                   else
