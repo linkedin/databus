@@ -365,7 +365,7 @@ class ORListener extends DatabusThreadBase implements BinlogEventListener
 
         List<KeyPair> kps = generateKeyPair(gr, vs);
 
-        DbChangeEntry db = new DbChangeEntry(scn, timestampInNanos, gr, doc, isReplicated, schema, kps);
+        DbChangeEntry db = new DbChangeEntry(scn, timestampInNanos, gr, doc, isReplicated, schema, vs.getSchemaId(), kps);
         _transaction.getPerSourceTransaction(_tableUriToSrcIdMap.get(tableName)).mergeDbChangeEntrySet(db);
       }
     } catch (NoSuchSchemaException ne)

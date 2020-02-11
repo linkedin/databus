@@ -1,5 +1,6 @@
 package com.linkedin.databus2.producers.ds;
 
+import com.linkedin.databus2.schemas.SchemaId;
 import java.util.List;
 
 import org.apache.avro.Schema;
@@ -64,6 +65,12 @@ public class DbChangeEntry {
 	private final Schema _schema;
 
 	/**
+	 * Avro schema md5 id.
+	 */
+	private final SchemaId _schemaId;
+
+
+	/**
 	 * Primary Key(s) corresponding to the entry
 	 */
 	private final List<KeyPair> _pkeys;
@@ -86,6 +93,10 @@ public class DbChangeEntry {
 
 	public Schema getSchema() {
 		return _schema;
+	}
+
+	public SchemaId getSchemaId() {
+		return _schemaId;
 	}
 
 	public List<KeyPair> getPkeys() {
@@ -125,7 +136,7 @@ public class DbChangeEntry {
 	}
 
 	public DbChangeEntry(long scn, long timestampNanos, GenericRecord record, DbusOpcode opCode,
-			boolean isReplicated, Schema schema, List<KeyPair> pkeys) {
+			boolean isReplicated, Schema schema, SchemaId schemaId, List<KeyPair> pkeys) {
 		super();
 		this._scn = scn;
 		this._timestampInNanos = timestampNanos;
@@ -133,6 +144,7 @@ public class DbChangeEntry {
 		this._opCode = opCode;
 		this._isReplicated = isReplicated;
 		this._schema = schema;
+		this._schemaId = schemaId;
 		this._pkeys = pkeys;
 	}
 }

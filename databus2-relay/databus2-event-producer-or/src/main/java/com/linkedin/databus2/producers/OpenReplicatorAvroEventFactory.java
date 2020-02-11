@@ -103,7 +103,7 @@ public class OpenReplicatorAvroEventFactory
     short lPartitionId = _partitionFunction.getPartition(eventKey);
 
     //Get the md5 for the schema
-    SchemaId schemaId = SchemaId.createWithMd5(changeEntry.getSchema());
+    SchemaId schemaId = changeEntry.getSchemaId();
 
     byte[] payload = serializeEvent(changeEntry.getRecord());
 
