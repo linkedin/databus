@@ -69,6 +69,7 @@ import com.linkedin.databus.core.util.RangeBasedReaderWriterLock.LockToken;
 import com.linkedin.databus.core.util.StringUtils;
 import com.linkedin.databus2.core.AssertLevel;
 import com.linkedin.databus2.core.DatabusException;
+import sun.nio.ch.DirectBuffer;
 
 // TODO Decide if we really want to provide a writable iterator to classes outside of DbusEventBuffer.
 public class DbusEventBuffer implements Iterable<DbusEventInternalWritable>,
@@ -1119,6 +1120,18 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
   }
   public synchronized int getRefCount() {
     return _refCount;
+  }
+
+  public void forceReleaseDirectMemory()
+  {
+    clear();
+    for (ByteBuffer buf : _buffers)
+    {
+      if (buf.isDirect())
+      {
+        ((DirectBuffer)buf).cleaner().clean();
+      }
+    }
   }
 
   /**
