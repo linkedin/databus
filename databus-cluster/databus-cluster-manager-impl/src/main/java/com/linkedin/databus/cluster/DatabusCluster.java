@@ -460,29 +460,51 @@ public class DatabusCluster
         {
             if (_manager != null)
             {
-                try
+                while (true)
                 {
-                    _manager.disconnect();
-                }
-                catch (Exception e)
-                {
-                    LOG.error("Member " + _id + " could not disconnect! " + e);
+                    try
+                    {
+                        _manager.disconnect();
+                        break;
+                    } catch (Exception e)
+                    {
+                        LOG.error("Member " + _id + " could not disconnect now! Retry in 10s. " + e);
+                        try
+                        {
+                            Thread.sleep(10000);
+                        }
+                        catch (Exception ex)
+                        {
+                            LOG.warn(ex);
+                        }
+                    }
                 }
             }
             // ensure that whitelisted instance configs go away
             if (_admin != null)
             {
-                try
+                while (true)
                 {
-                    _admin.dropInstance(_clusterName,
-                            _admin.getInstanceConfig(_clusterName, _id));
-                }
-                catch (HelixException e)
-                {
-                    LOG.warn("Drop instance failed for id= " + _id
-                            + " exception" + e);
+                    try
+                    {
+                        _admin.dropInstance(_clusterName, _admin.getInstanceConfig(_clusterName, _id));
+                        break;
+                    } catch (HelixException e)
+                    {
+                        LOG.warn("Drop instance failed for id= " + _id + "now. Retry in 10s. Exception" + e);
+                        try
+                        {
+                            Thread.sleep(10000);
+                        }
+                        catch (Exception ex)
+                        {
+                            LOG.warn(ex);
+                        }
+                    }
                 }
             }
+
+            LOG.info("Member " + _id + " has left successfully.");
             return true;
         }
 
