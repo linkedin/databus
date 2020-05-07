@@ -35,10 +35,13 @@ public class VersionedSchema
   private final String _origSchemaStr;
   private final List<Schema.Field> _pkFieldList;
 
+  private final SchemaId _schemaId;
+
   public VersionedSchema(VersionedSchemaId id, Schema s, String origSchemaStr)
   {
     _schema = s;
     _id = id;
+    _schemaId = SchemaId.createWithMd5(s);
     _origSchemaStr = origSchemaStr;
     _pkFieldList = new ArrayList<Schema.Field>();
   }
@@ -61,7 +64,7 @@ public class VersionedSchema
   @Override
   public String toString()
   {
-    return "(" + getSchemaBaseName() + ","  + getVersion() + "," + _schema + ")";
+    return "(" + getSchemaBaseName() + ","  + getVersion() + "," + _schema + ")," + _schemaId + ")";
   }
 
   /**
@@ -90,10 +93,14 @@ public class VersionedSchema
   {
     return _id;
   }
-  
+
   public List<Schema.Field> getPkFieldList()
   {
 	return _pkFieldList;
+  }
+
+  public SchemaId getSchemaId() {
+    return _schemaId;
   }
 
   /**
