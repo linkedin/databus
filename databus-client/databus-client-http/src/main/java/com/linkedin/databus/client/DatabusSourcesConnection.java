@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.log4j.Level;
@@ -74,6 +75,7 @@ public class DatabusSourcesConnection
   public static final int MAX_CONNECT_RETRY_NUM = 3;
   public static final long CONNECT_TIMEOUT_MS = 100;
   public static final long REGISTER_TIMEOUT_MS = 1000;
+  public static final int MAX_CONSUMER_AWAIT_SHUTDOWN_MS = 5000;
 
   public final Logger _log;
   // Legacy naming for a DatabusSourcesConnection which is of the form conn[AnyPPart_Person]_DatabusFileLoggingConsumer_23d9d8dc
@@ -540,6 +542,17 @@ public class DatabusSourcesConnection
     }
 
     _consumerCallbackExecutor.shutdown();
+
+    try
+    {
+      _consumerCallbackExecutor.awaitTermination(MAX_CONSUMER_AWAIT_SHUTDOWN_MS, TimeUnit.MILLISECONDS);
+    }
+    catch (InterruptedException ex)
+    {
+      _log.error("Shutting consumerCallbackExecutor down with exception: ", ex);
+    }
+
+    _dataEventsBuffer.forceReleaseDirectMemory();
 
     _log.info("Stopped ... ");
   }
