@@ -402,6 +402,7 @@ public class RelayPullThread extends BasePullThread
       {
         relayConn = _sourcesConn.getRelayConnFactory().createRelayConnection(
             serverInfo, this, _remoteExceptionHandler);
+        afterRelayChange();
         _log.info("picked a relay:" + serverInfo.toSimpleString());
       }
       catch (Exception e)
@@ -512,6 +513,11 @@ public class RelayPullThread extends BasePullThread
     }
     sb.append("]");
     return sb.toString();
+  }
+  
+  private void afterRelayChange()
+  {
+    _relayFilter = null;
   }
 
   protected void doSourcesResponseSuccess(ConnectionState curState)
@@ -1186,6 +1192,7 @@ public class RelayPullThread extends BasePullThread
   @Override
   protected void tearConnection()
   {
+    afterRelayChange();
     _currentState.setRelayFellOff(false);
     super.tearConnection();
   }
