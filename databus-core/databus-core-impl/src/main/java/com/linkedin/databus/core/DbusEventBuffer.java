@@ -2521,6 +2521,10 @@ DbusEventBufferAppendable, DbusEventBufferStreamAppendable
         {
           if (skippedMessages < messagesToSkip)
           {
+            if (e.isEndOfPeriodMarker() || e.isCheckpointMessage())
+            {
+              continue;
+            }
             ++skippedMessages;
             continue;
           }
