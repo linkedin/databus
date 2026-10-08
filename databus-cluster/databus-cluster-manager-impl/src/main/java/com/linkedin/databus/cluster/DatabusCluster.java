@@ -40,7 +40,6 @@ import org.apache.helix.manager.zk.ZNRecordSerializer;
 import org.apache.helix.manager.zk.ZkClient;
 import org.apache.helix.model.ExternalView;
 import org.apache.helix.model.IdealState;
-import org.apache.helix.model.IdealState.IdealStateModeProperty;
 import org.apache.helix.model.InstanceConfig;
 import org.apache.helix.model.LiveInstance;
 import org.apache.helix.model.StateModelDefinition;
@@ -239,7 +238,7 @@ public class DatabusCluster
 
                 admin.addResource(clusterName, DEFAULT_RESOURCE_NAME,
                         numPartitions, DEFAULT_STATE_MODEL,
-                        IdealStateModeProperty.AUTO_REBALANCE.toString());
+                        IdealState.RebalanceMode.FULL_AUTO.toString());
 
                 admin.rebalance(clusterName, DEFAULT_RESOURCE_NAME, 1);
             }
